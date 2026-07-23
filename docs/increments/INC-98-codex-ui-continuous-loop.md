@@ -337,6 +337,13 @@ INC-98 将该方法固化为持续循环：
   创建后短轮询 `/api/runs` 的 daemon-assigned `sessionId`，一旦出现就刷新 sessions 并导航 durable
   `#<sessionId>`；仅在 session id 未及时出现时保留 transient run fallback。新增真实 modal→API→route
   回归，禁止 scheduled creation 再把 process-local run id 当 durable deep link。
+- **98.3t Scheduled terminal semantics design note**：`98.3s` 修复部署后以第二个 retained
+  `max_iterations: 1` fixture 真验创建 route，直接进入 durable `#20260723-…`，reload 后 iteration
+  history 保留且无 `waiting for output…`。同一张 `1280×800` 证据又显示 interval series 被标成
+  `Best-of-N winner` / `Apply winner`；journal 的 `best_iter` 对普通 series 代表可 promote 的 selected
+  iteration，不代表并行竞赛。frontend fold 必须保留 `series_started.kind`：仅 `best_of_n/parallel`
+  使用 winner/best，其他 series 使用 selected iteration/selected，按钮仍调用同一安全 promote API。
+  新回归同时钉 interval 与 best-of-N 文案，不改 runtime selection/promotion 语义。
 
 ## Spec delta
 

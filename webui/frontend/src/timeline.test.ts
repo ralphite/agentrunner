@@ -884,6 +884,7 @@ describe("merged-stream series rendering", () => {
     const model = foldEvents(seriesEvents);
     expect(model.isDriver).toBe(true);
     expect(model.bestIter).toBe(2);
+    expect(model.seriesKind).toBe("best_of_n");
     expect(model.status.text).toBe("satisfied");
     const texts = model.items.filter((i) => i.kind === "chip").map((i: any) => i.text);
     expect(texts.some((t: string) => /Scheduled series started/.test(t))).toBe(true);
@@ -899,6 +900,19 @@ describe("merged-stream series rendering", () => {
     ]);
     expect(model.isDriver).toBe(true);
     expect(model.bestIter).toBeUndefined();
+  });
+
+  it("calls an interval series' best_iter selected, not a Best-of-N winner", () => {
+    const model = foldEvents([
+      { seq: 1, type: "series_started", payload: { series_id: "s", kind: "interval" } },
+      { seq: 2, type: "series_iteration", payload: { n: 1, reason: "completed" } },
+      { seq: 3, type: "series_ended", payload: { reason: "max_iterations", iterations: 1, best_iter: 1 } },
+    ]);
+    expect(model.seriesKind).toBe("interval");
+    expect(model.bestIter).toBe(1);
+    const texts = model.items.filter((i) => i.kind === "chip").map((i: any) => i.text);
+    expect(texts.some((text: string) => /selected #1/.test(text))).toBe(true);
+    expect(texts.some((text: string) => /best #1/.test(text))).toBe(false);
   });
 });
 

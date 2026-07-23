@@ -543,6 +543,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           ? { text: "completed", cls: "closed" }
           : folded.status;
   const isDriver = folded.isDriver;
+  const isBestOfN = folded.seriesKind === "best_of_n" || folded.seriesKind === "parallel";
   // QA-0719 S7: a user-initiated interrupt is NOT a stranded session. The
   // thread already says "Stopped — you interrupted this turn" and the very
   // next send resumes it — painting it with the recovery banner ("The
@@ -1135,7 +1136,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
               {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
               {!live && folded.bestIter ? (
                 <div className="driver-note">
-                  Best-of-N winner: attempt #{folded.bestIter}.{" "}
+                  {isBestOfN ? "Best-of-N winner" : "Selected iteration"}: #{folded.bestIter}.{" "}
                   <button
                     className="ghost"
                     onClick={async () => {
@@ -1146,9 +1147,9 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                         toast(String(e?.message || e), "error");
                       }
                     }}
-                    title="Apply the winning attempt's changes onto the project workspace (clean-or-nothing, lands unstaged)"
+                    title={`Apply the ${isBestOfN ? "winning attempt's" : "selected iteration's"} changes onto the project workspace (clean-or-nothing, lands unstaged)`}
                   >
-                    Apply winner
+                    {isBestOfN ? "Apply winner" : "Apply selected iteration"}
                   </button>
                 </div>
               ) : null}

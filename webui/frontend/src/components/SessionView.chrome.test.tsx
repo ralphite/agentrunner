@@ -199,6 +199,41 @@ describe("TH-14 · one terminal banner above the composer", () => {
   });
 });
 
+describe("scheduled selected-iteration semantics", () => {
+  const driverSession = () => useStore.setState({
+    sessions: [{ id: SID, title: "scheduled series", status: "max_iterations", workspace: "/tmp/wt-th14", kind: "driver" } as any],
+  });
+
+  it("does not call a normal interval series a Best-of-N winner", async () => {
+    driverSession();
+    arMock.events = async (_sid: string, after: number) => after ? [] : [
+      { seq: 1, type: "series_started", payload: { series_id: SID, kind: "interval" } },
+      { seq: 2, type: "series_iteration", payload: { n: 1, reason: "completed" } },
+      { seq: 3, type: "series_ended", payload: { reason: "max_iterations", iterations: 1, best_iter: 1 } },
+    ];
+
+    render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(screen.getByText(/Selected iteration: #1/)).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Apply selected iteration" })).toBeTruthy();
+    expect(screen.queryByText(/Best-of-N winner/)).toBeNull();
+  });
+
+  it("keeps winner language for an actual best-of-N series", async () => {
+    driverSession();
+    arMock.events = async (_sid: string, after: number) => after ? [] : [
+      { seq: 1, type: "series_started", payload: { series_id: SID, kind: "best_of_n" } },
+      { seq: 2, type: "series_iteration", payload: { n: 1, reason: "completed" } },
+      { seq: 3, type: "series_ended", payload: { reason: "satisfied", iterations: 1, best_iter: 1 } },
+    ];
+
+    render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(screen.getByText(/Best-of-N winner: #1/)).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Apply winner" })).toBeTruthy();
+  });
+});
+
 describe("TH-15 · one rail, one name, one door", () => {
   it("leaves exactly one tool pill in the topbar, named Environment", async () => {
     const { container } = render(<SessionView sid={SID} />);
