@@ -553,12 +553,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
     try {
       const result = await AR.send(sid, text, images, files, delivery, draft);
-      if (result?.status === "answered") {
-        // `send --detach` consumes a compatibility answer synchronously and
-        // returns `answered`. Remove the optimistic bubble from that durable
-        // acknowledgement too: the journal poll can race ahead of React's
-        // pending-state commit, so AskResolved alone is not a sufficient
-        // reconciliation point in the real browser.
+      if (result?.status === "answered" || askQuestions.length > 0) {
+        // A successful send while the durable structured ask form is visible
+        // is a compatibility answer, even though today's CLI receipt says the
+        // generic `delivered`. Remove its optimistic bubble from that exact
+        // UI context too: journal polling alone can race past the receipt in
+        // the real browser and leave a false queued row until reload.
         setPending((p) => p.filter((x) => x.id !== id));
       }
       if (delivery === "queue") {

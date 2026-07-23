@@ -6723,3 +6723,13 @@ React 的 pending state commit 前处理 AskResolved；event matching 当时无 
 后续 events 为空时仅凭 answered acknowledgement 也必须零 pending。frontend 全量
 68 files/700 tests、production build 与 `./scripts/check.sh` 全绿；shared 真 Gemini 反证 session
 和修后 session、截图、journal 全保留。TH-08 仍因 G48 记 GAP，矩阵计数不变。
+
+---
+
+## 2026-07-22 · INC-98.3e receipt 真值纠正
+
+第二次 production 复拍与独立 curl probe 证明前条记载的 `status=answered` 是测试 mock 假设，
+真实 web API 返回 `{"status":"delivered"}`；据此不能用 status 字面区分普通 follow-up 与
+ask answer。最终裁决改为：当 durable structured AskForm 仍可见时，成功 send receipt 必然由
+当前 ask park 消费，按本次 optimistic id 立即清除；普通 follow-up 仍等待 InputReceived，
+`AskResolved.answer` matching 保留为恢复 fallback。probe/session/journal 永久保留。

@@ -435,7 +435,7 @@ describe("ask_user compatibility answer projection", () => {
         ask_questions: [{ question: "Pick one", options: [{ label: "Alpha" }, { label: "Beta" }] }],
       },
     });
-    arMock.send = vi.fn(async () => ({ status: "answered" }));
+    arMock.send = vi.fn(async () => ({ status: "delivered" }));
     useStore.setState({
       sessions: [{ id: SID, title: "asking session", status: "waiting:input", workspace: "/tmp/wt-th14" } as any],
     });
