@@ -121,6 +121,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return scheduleCmd(args[1:], stdout, stderr)
 	case "agent":
 		return agentCmd(args[1:], stdout, stderr)
+	case "agents":
+		return agentsCmd(args[1:], stdout, stderr)
 	case "ps":
 		return psCmd(args[1:], stdout, stderr)
 	case "approve":
@@ -178,7 +180,7 @@ func commandHelp(cmd string) string {
 	case "schedule":
 		return "usage: agentrunner schedule <session-id-or-prefix> <attach|status|update|pause|resume|cancel> [flags]\n\nAttach a recurring self-wake cadence to the session: at each tick it\nwakes, runs one turn on the standing prompt (context continues), and\nre-arms — even across daemon restarts. attach takes the prompt plus\n--every <duration> or --cron \"<5-field>\" and optional --max-wakes N.\nCanonical series support revision-checked update of prompt, cadence and\noverlap. pause stops wakes (no catch-up); resume re-anchors the cadence.\n"
 	case "agent":
-		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
+		return "usage: agentrunner agent [--model <provider>/<id>] [--effort <level>] <session-id-or-prefix> <agent-name|spec.yaml>\n\nSwitch the session's Agent definition; the conversation continues from\nthe next message. Without --model, the session keeps its current model.\n"
 	case "ps":
 		return "usage: agentrunner ps <session-id-or-prefix>\n\nList the session's in-flight background work (sub-agents and tools).\n"
 	case "approve":
@@ -208,20 +210,20 @@ func helpText() string {
 	return `agentrunner — declarative LLM agents with durable, resumable sessions
 
 Quick start:
-  agentrunner init                        write a commented example spec.yaml
-  agentrunner run spec.yaml "your prompt"   one-shot run, output streams here
+  agentrunner agents                      list shared Agent definitions
+  agentrunner run dev "your prompt"       one-shot run, output streams here
   agentrunner daemon --detach             start the runtime that hosts conversations
-  agentrunner new spec.yaml "hello"       start a conversation, print the reply
+  agentrunner new dev "hello"             start a conversation, print the reply
   agentrunner send <session> "and this?"  continue it (unique id prefix is enough)
 
 One-shot runs (no daemon needed):
-  run <spec.yaml> "prompt"      run to completion in the foreground
+  run <agent|spec.yaml> "prompt" run to completion in the foreground
   dictate <audio-file>        transcribe an audio recording to text (prints the transcript)
   optimize "draft"            rewrite a draft prompt into a clearer instruction
 
 Conversations (need the daemon):
   daemon [--detach]           start the resident runtime (--detach backgrounds it, surviving this terminal)
-  new <spec.yaml> "msg"       start a session, print the reply, leave it running
+  new <agent|spec.yaml> "msg" start a session, print the reply, leave it running
   send <session> "msg"        send a message and print the reply (--image attaches files)
   retry <session>             re-send the session's last user message as a new turn
   queue <session>             list queued (not yet consumed) messages
@@ -248,13 +250,14 @@ Conversations (need the daemon):
                               also: hook list, hook revoke <id>)
 
 Background work (daemon):
-  submit <spec.yaml> "prompt"   hand a one-shot run to the daemon, stream until it ends
+  submit <agent|spec.yaml> "prompt" hand a one-shot run to the daemon, stream until it ends
   resume <session>            resume an interrupted or crashed session
 
 Observe:
   doctor                      preflight this machine: is the OS sandbox that
                               bash/command tools require actually available?
   sessions                    list sessions and their status
+  agents                      list the effective shared Agent catalog
   ps <session>                in-flight background work of a session
   inspect <session>           session facts: status, turns, token usage, budget
   diff <session>              workspace changes since the latest human turn began
@@ -263,7 +266,7 @@ Observe:
 
 Control:
   approve <session> <id> approve|deny   answer a pending permission ask
-  agent <session> <spec.yaml>           switch the session's agent (决策 #32)
+  agent <session> <agent|spec.yaml>     switch the session's Agent (决策 #32)
   fork <session> <barrier>    branch a session at a barrier into a new one (--list shows barriers)
   trust <dir>                 mark a workspace as trusted
 

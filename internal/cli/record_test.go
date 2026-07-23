@@ -85,12 +85,12 @@ func TestProviderFailureExitCodes(t *testing.T) {
 	// Unknown provider name → usage error (2). The spec names a provider
 	// the default factory does not know.
 	spec := filepath.Join(dir, "bad.yaml")
-	if err := os.WriteFile(spec, []byte("name: t\nmodel: {provider: nope, id: x}\nsystem_prompt: s\n"), 0o644); err != nil {
+	if err := os.WriteFile(spec, []byte("name: t\nsystem_prompt: s\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var out, errOut bytes.Buffer
 	code := runAgent(runOptions{
-		specPath: spec, prompt: "x", workspace: t.TempDir(), version: "test",
+		specPath: spec, modelRef: "nope/x", prompt: "x", workspace: t.TempDir(), version: "test",
 		factory: defaultProviderFactory,
 		stdout:  &out, stderr: &errOut,
 	})
@@ -101,11 +101,11 @@ func TestProviderFailureExitCodes(t *testing.T) {
 	// Construction failure (gemini without credentials) → run error (1).
 	t.Setenv("GEMINI_API_KEY", "")
 	spec2 := filepath.Join(dir, "gem.yaml")
-	if err := os.WriteFile(spec2, []byte("name: t\nmodel: {provider: gemini, id: x}\nsystem_prompt: s\n"), 0o644); err != nil {
+	if err := os.WriteFile(spec2, []byte("name: t\nsystem_prompt: s\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	code = runAgent(runOptions{
-		specPath: spec2, prompt: "x", workspace: t.TempDir(), version: "test",
+		specPath: spec2, modelRef: "gemini/x", prompt: "x", workspace: t.TempDir(), version: "test",
 		factory: defaultProviderFactory,
 		stdout:  &out, stderr: &errOut,
 	})

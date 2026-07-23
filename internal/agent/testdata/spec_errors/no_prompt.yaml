@@ -1,2 +1,1 @@
 name: x
-model: { provider: gemini, id: gemini-flash-latest }

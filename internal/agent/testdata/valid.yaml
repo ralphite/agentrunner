@@ -1,6 +1,5 @@
 name: hello
-model:
-  provider: gemini
-  id: gemini-flash-latest
 system_prompt: You are a helpful coding agent.
 tools: [read_file, edit_file, bash]
+compact_at_tokens: 12000
+microcompact_at_tokens: 9000

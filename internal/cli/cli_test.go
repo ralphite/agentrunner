@@ -44,7 +44,7 @@ func TestTopLevelHelp(t *testing.T) {
 		if code != ExitOK {
 			t.Fatalf("%s: exit code = %d, want %d (stderr: %s)", arg, code, ExitOK, errOut.String())
 		}
-		for _, want := range []string{"Quick start", "agentrunner init", "new <spec.yaml>", "attach <session>"} {
+		for _, want := range []string{"Quick start", "agentrunner agents", "new <agent|spec.yaml>", "attach <session>"} {
 			if !strings.Contains(out.String(), want) {
 				t.Fatalf("%s: stdout missing %q\n%s", arg, want, out.String())
 			}

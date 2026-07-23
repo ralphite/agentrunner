@@ -21,7 +21,6 @@ import (
 )
 
 const resumeSpecYAML = `name: fixer
-model: { provider: scripted, id: x }
 system_prompt: fix things
 tools: [read_file, edit_file]
 permissions:
@@ -49,7 +48,7 @@ const resumeFixtureYAML = `steps:
 // (spec + workspace root journaled) and finishes the run.
 func TestCLIResumeAfterCrash(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
-		os.Exit(Run([]string{"run", "--workspace", os.Getenv("CRASH_WS"),
+		os.Exit(Run([]string{"run", "--model", "scripted/x", "--workspace", os.Getenv("CRASH_WS"),
 			os.Getenv("CRASH_SPEC"), "make it loud"}, "dev", os.Stdout, os.Stderr))
 	}
 

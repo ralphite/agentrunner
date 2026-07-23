@@ -22,14 +22,17 @@ import (
 
 // driveOptions carries everything driveAgent needs; factored for testability.
 type driveOptions struct {
-	specPath  string
-	spec      *driver.DriverSpec
-	workspace string
-	version   string
-	factory   providerFactory
-	stdout    io.Writer
-	stderr    io.Writer
-	sink      protocol.Sink
+	specPath    string
+	spec        *driver.DriverSpec
+	modelRef    string
+	effort      string
+	workspace   string
+	version     string
+	factory     providerFactory
+	stdout      io.Writer
+	stderr      io.Writer
+	sink        protocol.Sink
+	allowLegacy bool
 	// series INSISTS on the merged-stream session form (INC-80.2c: it is
 	// already the default for every supported shape) — an unsupported spec
 	// errors instead of silently falling back to the legacy stream.
@@ -45,6 +48,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	jsonOut := fs.Bool("json", false, "emit the child runs' output event stream as JSON lines")
 	retry := fs.String("retry", "", "start a new driver series from a prior driver session")
 	series := fs.Bool("series", false, "insist on the session-form series (the default for every shape except parallel with on_child_failure=retry)")
+	modelFlags := addModelFlags(fs)
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -67,6 +71,8 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 		stderr:    stderr,
 		sink:      sink,
 		series:    *series,
+		modelRef:  *modelFlags.ref,
+		effort:    *modelFlags.effort,
 	}
 	if *retry == "" {
 		opts.specPath = rest[0]
@@ -86,6 +92,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 			}
 			opts.spec = spec
 			opts.workspace = wsRoot
+			opts.allowLegacy = true
 		} else {
 			started, err := readDriverStarted(dir)
 			if err != nil {
@@ -104,6 +111,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 			opts.spec = &spec
 			opts.specPath = started.SpecPath
 			opts.workspace = started.WorkspaceRoot
+			opts.allowLegacy = true
 		}
 	}
 	return driveAgent(opts)
@@ -119,6 +127,31 @@ func driveAgent(opts driveOptions) int {
 		var err error
 		spec, err = driver.LoadSpec(opts.specPath)
 		if err != nil {
+			fmt.Fprintln(opts.stderr, err)
+			return ExitUsage
+		}
+	}
+	if spec.Agent == nil {
+		fmt.Fprintln(opts.stderr, "driver spec has no Agent definition")
+		return ExitUsage
+	}
+	if opts.modelRef != "" || opts.effort != "" || spec.Agent.Model.Provider == "" {
+		// Legacy frozen sessions stored context policy only on the effective
+		// model. Preserve it when a retry explicitly selects a new model.
+		if opts.allowLegacy {
+			if spec.Agent.CompactAtTokens == 0 {
+				spec.Agent.CompactAtTokens = spec.Agent.Model.CompactAtTokens
+			}
+			if spec.Agent.MicrocompactAtTokens == 0 {
+				spec.Agent.MicrocompactAtTokens = spec.Agent.Model.MicrocompactAtTokens
+			}
+		}
+		_, model, err := resolveModelInput(opts.modelRef, opts.effort)
+		if err != nil {
+			fmt.Fprintln(opts.stderr, err)
+			return ExitUsage
+		}
+		if err := agent.BindModel(spec.Agent, model, spec.AgentSpecPath); err != nil {
 			fmt.Fprintln(opts.stderr, err)
 			return ExitUsage
 		}
@@ -208,7 +241,7 @@ func driveAgent(opts driveOptions) int {
 				Mode:      frozen.Mode,
 				Hooks:     hooks,
 				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(opts.specPath),
+				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, opts.allowLegacy),
 			}
 		},
 		// Best-of-N (schedule=parallel): the attempt's whole face — executor
@@ -243,7 +276,7 @@ func driveAgent(opts driveOptions) int {
 				Mode:      frozen.Mode,
 				Hooks:     hooks,
 				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(opts.specPath),
+				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, opts.allowLegacy),
 			}
 		},
 	}

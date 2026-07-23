@@ -1,6 +1,5 @@
 name: worker
-description: carries out investigation/edit sessions assigned by the parent and reports back
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
+description: Carries out investigation/edit work assigned by a parent and reports back.
 system_prompt: When the assigned work is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
 tools: [read_file, bash]
 max_generation_steps: 24

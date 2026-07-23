@@ -3,7 +3,6 @@ title: researcher 编队(parent + 2 子 agent)产出带 contract 检查的报告
 files:
   lead.yaml: |
     name: lead
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: coordinate the research
     tools: [bash]
     agents: [researcher, reviewer]
@@ -14,13 +13,11 @@ files:
   researcher.yaml: |
     name: researcher
     description: digs into the topic
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: research
     tools: [bash]
   reviewer.yaml: |
     name: reviewer
     description: checks the findings
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: review
     tools: [bash]
   # spawn 一律非阻塞(零 legacy):route 按请求形态分流——lead 主线、

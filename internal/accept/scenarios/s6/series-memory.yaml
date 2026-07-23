@@ -10,7 +10,6 @@ files:
     series_memory: SERIES.md
   worker.yaml: |
     name: worker
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: keep a series log
     tools: [bash]
     permissions:

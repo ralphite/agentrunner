@@ -15,9 +15,22 @@ import (
 //go:embed builtin/*.yaml
 var builtinFS embed.FS
 
-// builtinNames is the fixed set of built-in agent names, for the directory
-// listing and quick membership checks.
-var builtinNames = []string{"explore", "plan"}
+// builtinNames is the explicit shipped catalog order. Main agents come first;
+// worker/explore/plan remain equally addressable by CLI/TUI and as children.
+var builtinNames = []string{"dev", "lead", "auditor", "reviewer", "chat", "worker", "explore", "plan"}
+
+func BuiltinNames() []string { return append([]string(nil), builtinNames...) }
+
+func BuiltinYAML(name string) ([]byte, bool) {
+	if !IsBuiltinAgent(name) {
+		return nil, false
+	}
+	raw, err := builtinFS.ReadFile("builtin/" + name + ".yaml")
+	if err != nil {
+		return nil, false
+	}
+	return raw, true
+}
 
 // IsBuiltinAgent reports whether name is a shipped built-in agent.
 func IsBuiltinAgent(name string) bool {
@@ -36,8 +49,8 @@ func BuiltinSpec(name string) (*AgentSpec, bool) {
 	if !IsBuiltinAgent(name) {
 		return nil, false
 	}
-	raw, err := builtinFS.ReadFile("builtin/" + name + ".yaml")
-	if err != nil {
+	raw, ok := BuiltinYAML(name)
+	if !ok {
 		return nil, false
 	}
 	var spec AgentSpec
@@ -47,9 +60,6 @@ func BuiltinSpec(name string) (*AgentSpec, bool) {
 	// Apply the same defaults LoadSpec would (the embed skips that path).
 	if spec.MaxGenerationSteps == 0 {
 		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
-	}
-	if spec.Model.MaxTokens == 0 {
-		spec.Model.MaxTokens = DefaultMaxTokens
 	}
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "isolated"

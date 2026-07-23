@@ -1,8 +1,5 @@
 name: plan
 description: Read-only planning — study the codebase and produce a concrete implementation plan for a prompt. Makes NO changes and runs NO commands; returns the plan for the parent to execute.
-model:
-  provider: gemini
-  id: gemini-flash-latest
 system_prompt: |
   You are a read-only planning sub-agent. Study the codebase to produce a
   concrete, ordered implementation plan for the delegated prompt: which files

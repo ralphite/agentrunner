@@ -13,6 +13,10 @@ const styles: string = readFileSync(`${process.cwd()}/src/tw.css`, "utf8");
 
 const mocks = vi.hoisted(() => ({
   newSession: vi.fn(async (_body: { spec: string }) => ({ sid: "20260711-000000-effort" })),
+  agents: vi.fn(async () => [{
+    name: "dev", description: "Dev", source: "shipped",
+    yaml: "name: dev\nsystem_prompt: test\ntools: []\npermissions:\n  - { action: allow }\n",
+  }]),
   makeWorkspace: vi.fn(async () => ({ path: "/tmp/ws" })),
   gitBranches: vi.fn(async () => ({ isRepo: false, current: "", branches: [], dirty: 0 })),
 }));
@@ -20,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: {
+    agents: mocks.agents,
     newSession: mocks.newSession,
     makeWorkspace: mocks.makeWorkspace,
     gitBranches: mocks.gitBranches,
@@ -27,7 +32,7 @@ vi.mock("../api", async () => ({
 }));
 
 import { Composer } from "./Composer";
-import { EFFORT_LEVELS, effortById } from "../specs";
+import { EFFORT_LEVELS } from "../specs";
 import { useStore } from "../store";
 
 window.matchMedia = ((q: string) =>
@@ -65,6 +70,7 @@ const openMenu = (container: HTMLElement) => fireEvent.click(pill(container));
 
 beforeEach(() => {
   localStorage.clear();
+  mocks.agents.mockClear();
   mocks.newSession.mockClear();
 });
 afterEach(cleanup);
@@ -154,7 +160,7 @@ describe("Composer model / effort menu mobile hierarchy", () => {
 
     expect(screen.getByRole("button", { name: "Back to model menu" })).toBeTruthy();
     expect(item("Custom model id…")).toBeTruthy();
-    expect(item("Thinking budget override…")).toBeTruthy();
+    expect(item("Thinking budget override…")).toBeFalsy();
     expect(item("Model")).toBeFalsy();
     expect(item("Effort")).toBeFalsy();
 
@@ -181,8 +187,9 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     expect(mocks.newSession).not.toHaveBeenCalled();
   });
 
-  it("sends the selected effort's thinking budget in the spec", async () => {
+  it("sends effort explicitly without inserting model fields into Agent YAML", async () => {
     const { container } = mount();
+    await vi.waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     openMenu(container);
     fireEvent.click(item("Effort"));
     fireEvent.click(item("Extra High"));
@@ -191,9 +198,10 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     fireEvent.keyDown(screen.getByPlaceholderText("Do anything"), { key: "Enter" });
 
     await vi.waitFor(() => expect(mocks.newSession).toHaveBeenCalled());
-    const spec: string = mocks.newSession.mock.calls[0][0].spec;
-    const budget = effortById("xhigh").budget;
-    expect(spec).toContain(`thinking: { enabled: true, budget_tokens: ${budget} }`);
-    expect(spec).toContain(`max_tokens: ${4096 + budget}`);
+    const body = mocks.newSession.mock.calls[0][0] as any;
+    expect(body.effort).toBe("xhigh");
+    expect(body.provider).toBe("gemini");
+    expect(body.model).toBe("gemini-flash-latest");
+    expect(body.spec).not.toContain("model:");
   });
 });

@@ -14,9 +14,15 @@ cd "$(dirname "$0")/.."
 # ---- 前置(秒级,串行) ----
 scripts/check-go-toolchain.sh
 
-# gofmt only what the repo tracks — runtime/ workspaces hold agent-written
-# .go files from QA sessions that must never fail the gate.
-unformatted=$(git ls-files '*.go' | xargs gofmt -l)
+# gofmt only repository files — runtime/ workspaces hold agent-written .go
+# files from QA sessions that must never fail the gate. Include new source
+# files, but skip cached paths deleted by the current change.
+unformatted=$(
+  git ls-files --cached --others --exclude-standard -- '*.go' |
+    while IFS= read -r file; do
+      [[ -f "$file" ]] && gofmt -l "$file"
+    done
+)
 if [[ -n "$unformatted" ]]; then
   echo "gofmt: files need formatting:" >&2
   echo "$unformatted" >&2

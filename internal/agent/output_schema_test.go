@@ -80,7 +80,6 @@ func TestOutputSchemaKeptWhenSupported(t *testing.T) {
 func TestSpecLoadsYAMLOutputSchema(t *testing.T) {
 	dir := t.TempDir()
 	body := "name: extract\n" +
-		"model: { provider: gemini, id: gemini-flash-latest }\n" +
 		"system_prompt: extract\n" +
 		"tools: []\n" +
 		"output_schema:\n" +

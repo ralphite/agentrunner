@@ -6,7 +6,7 @@ import { loadTheme, nextTheme, saveTheme, type Theme } from "./theme";
 import type { CadenceSpec, RunPreset } from "./runPreset";
 
 export type ModalKind =
-  | { kind: "new"; message?: string; spec?: string; worker?: string }
+  | { kind: "new"; message?: string; spec?: string; worker?: string; provider?: string; model?: string; effort?: string }
   // submit / drive launcher. `cadence` (SC-18) is the RHYTHM the caller already
   // showed the user — a Scheduled suggestion card's "Weekdays at 8:00 AM" — as
   // the driver-spec fields themselves. The launcher opens on it instead of the
@@ -21,7 +21,7 @@ export type ModalKind =
       returnFocus?: HTMLElement;
     }
   | { kind: "fork"; sid: string }
-  | { kind: "agent"; sid: string }
+  | { kind: "agent"; sid: string; provider?: string; model?: string; effort?: string }
   | { kind: "rename"; sid: string }
   | { kind: "trust" }
   | {

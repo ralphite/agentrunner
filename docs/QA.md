@@ -44,7 +44,8 @@ qa/ws.sh cleanup <dir>              # 用完即删
 
 ### 0.3 CLI 契约（v2 的目标接口，实现必须提供这些动作）
 ```
-ar new <spec.yaml> --workspace <dir>      # 建会话；默认渲染开场回复至待命
+ar new <agent|spec.yaml> --workspace <dir> [--model <provider>/<id>] [--effort <level>]
+                                         # 建会话；CLI 省略模型时走 user/global default
                                           # (脚本用 --detach: stdout 只有 <sid>)
 ar send <sid> "文字" [--image <png>]       # 投一条用户消息;默认渲染回复至待命
                                           # (脚本用 --detach: 投递即回 "delivered")
@@ -61,7 +62,6 @@ ar close <sid>                             # 关闭会话
 ```yaml
 # base.yaml
 name: dev
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: |
   你是一个严谨的编码助手。严格按用户指令行动；用户要求启动子 agent 时,
   用 spawn_agent 工具、数量与分工严格照做；要求取消时用 kill。
@@ -75,7 +75,6 @@ permissions:
 # worker.yaml —— 子 agent
 name: worker
 description: 执行父分派的调查/修改任务并汇报
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: 完成任务后用简洁的要点汇报结论。
 tools: [read_file, bash]
 ```

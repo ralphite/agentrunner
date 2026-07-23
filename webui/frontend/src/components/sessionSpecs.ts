@@ -8,6 +8,7 @@
 // CLI have no entry — callers must show an honest "unknown", not a guess.
 const SPECS_KEY = "arwebui.sessSpecs";
 const ACCESS_KEY = "arwebui.sessAccess";
+const MODELS_KEY = "arwebui.sessModels";
 
 function loadMap(key: string): Record<string, string> {
   try {
@@ -28,6 +29,7 @@ function saveMap(key: string, m: Record<string, string>) {
 
 const specs = loadMap(SPECS_KEY);
 const access = loadMap(ACCESS_KEY);
+const models = loadMap(MODELS_KEY);
 
 export const rememberSpec = (sid: string, spec: string) => {
   if (!sid || !spec) return;
@@ -42,6 +44,28 @@ export const rememberAccess = (sid: string, a: string) => {
   saveMap(ACCESS_KEY, access);
 };
 export const recallAccess = (sid: string): string | undefined => access[sid];
+
+export interface RememberedModel {
+  provider: string;
+  model: string;
+  effort: string;
+}
+
+export const rememberModel = (sid: string, model: RememberedModel) => {
+  if (!sid || !model.provider || !model.model || !model.effort) return;
+  models[sid] = JSON.stringify(model);
+  saveMap(MODELS_KEY, models);
+};
+
+export const recallModel = (sid: string): RememberedModel | undefined => {
+  try {
+    const value = JSON.parse(models[sid] || "");
+    if (value?.provider && value?.model && value?.effort) return value;
+  } catch {
+    /* absent/legacy */
+  }
+  return undefined;
+};
 
 // Per-session composer text drafts: switching sessions and reloading this tab
 // keeps what you were typing (send/clear wipes it). sessionStorage is exactly

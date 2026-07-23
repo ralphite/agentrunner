@@ -35,6 +35,7 @@ func (s *server) routes() *http.ServeMux {
 
 	// ---- API ----
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/agents", s.handleAgents)
 	mux.HandleFunc("POST /api/daemon/start", s.handleDaemonStart)
 	mux.HandleFunc("GET /api/sessions", s.handleSessions)
 	mux.HandleFunc("POST /api/sessions", s.handleNewSession)
@@ -322,6 +323,43 @@ type specFile struct {
 	Content string `json:"content"`
 }
 
+// modelInput is mandatory on every Web UI launch/switch request. Unlike the
+// CLI, the browser always has visible Model and Effort controls, so silently
+// falling back to a machine default would make the displayed choice untrue.
+type modelInput struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Effort   string `json:"effort"`
+}
+
+func (m modelInput) args() ([]string, error) {
+	provider := strings.TrimSpace(m.Provider)
+	model := strings.TrimSpace(m.Model)
+	effort := strings.TrimSpace(m.Effort)
+	if provider == "" || model == "" || effort == "" {
+		return nil, fmt.Errorf("provider, model and effort are required")
+	}
+	if strings.Contains(provider, "/") {
+		return nil, fmt.Errorf("provider must not contain '/'")
+	}
+	switch effort {
+	case "light", "medium", "high", "xhigh":
+	default:
+		return nil, fmt.Errorf("effort must be light|medium|high|xhigh")
+	}
+	return []string{"--model", provider + "/" + model, "--effort", effort}, nil
+}
+
+func (s *server) handleAgents(w http.ResponseWriter, r *http.Request) {
+	res := s.runAR(r.Context(), oneShotTimeout, "agents", "--json")
+	if res.Err != nil {
+		arFail(w, "ar agents", res)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, res.Stdout)
+}
+
 // ---- daemon / health ----
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -529,6 +567,7 @@ func sessionPage(r *http.Request) (limit, offset int, ok bool) {
 
 func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		modelInput
 		Spec       string     `json:"spec"`
 		ExtraSpecs []specFile `json:"extraSpecs"`
 		Workspace  string     `json:"workspace"`
@@ -541,6 +580,11 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Spec) == "" || strings.TrimSpace(req.Workspace) == "" ||
 		strings.TrimSpace(req.Message) == "" {
 		badRequest(w, "spec, workspace and message are required")
+		return
+	}
+	modelArgs, err := req.modelInput.args()
+	if err != nil {
+		badRequest(w, err.Error())
 		return
 	}
 	ws, ferr := resolveWorkspace(req.Workspace)
@@ -559,6 +603,7 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	// belongs to the dying connection. Detached, the session lives in the
 	// daemon and its approvals are answerable via the shared broker.
 	args := []string{"new", "--detach", "--workspace", ws}
+	args = append(args, modelArgs...)
 	if req.Mode != "" {
 		args = append(args, "--mode", req.Mode)
 	}
@@ -1792,6 +1837,7 @@ func (s *server) handleAgentSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
+		modelInput
 		Spec       string     `json:"spec"`
 		ExtraSpecs []specFile `json:"extraSpecs"`
 	}
@@ -1802,12 +1848,19 @@ func (s *server) handleAgentSwitch(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "spec is required")
 		return
 	}
+	modelArgs, err := req.modelInput.args()
+	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
 	_, basePath, err := s.writeSpecDir(req.Spec, req.ExtraSpecs)
 	if err != nil {
 		badRequest(w, err.Error())
 		return
 	}
-	res := s.runAR(r.Context(), oneShotTimeout, "agent", id, basePath)
+	args := append([]string{"agent"}, modelArgs...)
+	args = append(args, id, basePath)
+	res := s.runAR(r.Context(), oneShotTimeout, args...)
 	if res.Err != nil {
 		// The spec arrived as CONTENT, not a path — a spec-load error must not
 		// leak our internal staging location (runtime/specs/s<rand>/base.yaml)

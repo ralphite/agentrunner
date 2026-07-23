@@ -392,7 +392,11 @@ func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest)
 // approval broker and resolve over the socket).
 func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) daemon.RunFunc {
 	return func(ctx context.Context, req daemon.RunRequest, sink protocol.Sink) error {
-		spec, err := agent.LoadSpec(req.SpecPath)
+		_, model, err := resolveModelSelection(req.Model)
+		if err != nil {
+			return err
+		}
+		spec, specRef, err := resolveAgent(req.SpecPath, model)
 		if err != nil {
 			return err
 		}
@@ -440,8 +444,8 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Mode:              mode,
 			Hooks:             hooks,
 			Approvals:         socketApprovals{broker: broker, session: req.SessionID, sink: sink},
-			SubSpecs:          siblingSpecResolver(req.SpecPath),
-			SpecPath:          req.SpecPath,
+			SubSpecs:          siblingSpecResolver(specRef, spec.Model, false),
+			SpecPath:          specRef,
 			Snapshots:         snapshotStoreFor(ws, stderr),
 			UserInputs:        req.Inbox,
 			Interrupts:        req.Interrupts,
@@ -838,7 +842,7 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop.AutoTitle = true
 		loop.SpecPath = specPath
 		if specPath != "" {
-			loop.SubSpecs = siblingSpecResolver(specPath)
+			loop.SubSpecs = siblingSpecResolver(specPath, spec.Model, true)
 		}
 		_, runErr := loop.Resume(ctx)
 		return runErr
@@ -912,6 +916,13 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 	return func(ctx context.Context, req daemon.DriveRequest, sink protocol.Sink) error {
 		spec, err := driver.LoadSpec(req.SpecPath)
 		if err != nil {
+			return err
+		}
+		_, model, err := resolveModelSelection(req.Model)
+		if err != nil {
+			return err
+		}
+		if err := agent.BindModel(spec.Agent, model, spec.AgentSpecPath); err != nil {
 			return err
 		}
 		d, cleanup, err := assembleHostedDriver(ctx, version, req.SpecPath, spec,
@@ -1226,7 +1237,7 @@ func assembleHostedDriver(ctx context.Context, version, specPath string, spec *d
 				Mode:      frozen.Mode,
 				Hooks:     hooks,
 				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(specPath),
+				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, specPath == ""),
 			}
 		},
 		// Best-of-N (schedule=parallel): attempt face binds to its worktree.
@@ -1260,7 +1271,7 @@ func assembleHostedDriver(ctx context.Context, version, specPath string, spec *d
 				Mode:      frozen.Mode,
 				Hooks:     hooks,
 				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(specPath),
+				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, specPath == ""),
 			}
 		},
 	}
@@ -1508,6 +1519,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits (overrides spec)")
+	modelFlags := addModelFlags(fs)
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
 	drive := fs.Bool("drive", false, "submit a driver spec (prompt lives in the spec)")
 	series := fs.Bool("series", false, "with --drive: insist on the session-form series (already the default; errors on unsupported shapes)")
@@ -1517,17 +1529,25 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	rest := fs.Args()
 	if (*drive && len(rest) != 1) || (!*drive && len(rest) != 2) {
-		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <spec.yaml> \"prompt\"  |  submit --drive [flags] <driver.yaml>")
+		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <agent-name|spec.yaml> \"prompt\"  |  submit --drive [flags] <driver.yaml>")
 		return ExitUsage
 	}
 	if !*drive && rest[1] == "" {
 		fmt.Fprintln(stderr, "agentrunner: submit needs a non-empty prompt")
 		return ExitUsage
 	}
-	specPath, err := filepath.Abs(rest[0])
+	selection, model, err := resolveModelInput(*modelFlags.ref, *modelFlags.effort)
 	if err != nil {
-		fmt.Fprintln(stderr, err)
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
+	}
+	specPath := rest[0]
+	if *drive {
+		specPath, err = filepath.Abs(rest[0])
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return ExitUsage
+		}
 	}
 	wsAbs, err := filepath.Abs(*workspaceDir)
 	if err != nil {
@@ -1538,18 +1558,12 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	// error event, but validating here fails fast and never mints a session
 	// for a run that cannot start (QA Round1 F-A02).
 	if !*drive {
-		loaded, err := agent.LoadSpec(specPath)
+		_, resolvedRef, err := resolveAgent(specPath, model)
 		if err != nil {
 			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 			return ExitUsage
 		}
-		// Validate the provider up front too, like `new` does — otherwise an
-		// unknown provider mints a session that fails at runtime (QA Wave1
-		// alice-04 / dave-01).
-		if !knownProviderName(loaded.Model.Provider) {
-			fmt.Fprintf(stderr, "agentrunner: unknown provider %q (available: gemini, anthropic, scripted)\n", loaded.Model.Provider)
-			return ExitUsage
-		}
+		specPath = resolvedRef
 	}
 	if st, err := os.Stat(wsAbs); err != nil || !st.IsDir() {
 		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
@@ -1570,9 +1584,9 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	sawIdle := false
 	announced := false
 	sid := ""
-	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode, IdemKey: *idem}
+	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode, IdemKey: *idem, Model: selection}
 	if *drive {
-		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem, Series: *series}
+		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem, Series: *series, Model: selection}
 	} else {
 		cmd.Prompt = rest[1]
 	}

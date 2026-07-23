@@ -3,7 +3,6 @@ title: agent 经 CLI 修复真实 Go 工程的失败测试(read → edit → go 
 files:
   spec.yaml: |
     name: fixer
-    model: { provider: scripted, id: x }
     system_prompt: You are a coding agent.
     tools: [read_file, edit_file, bash]
     permissions:

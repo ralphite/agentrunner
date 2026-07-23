@@ -1,8 +1,5 @@
 name: explore
 description: Read-only exploration of the codebase — locate files, read code, and search for symbols or usages. Makes NO changes and runs NO commands; returns findings for the parent to act on.
-model:
-  provider: gemini
-  id: gemini-flash-latest
 system_prompt: |
   You are a read-only exploration sub-agent. Investigate the codebase to
   answer the delegated question: find the relevant files, read the code, and

@@ -73,6 +73,19 @@ func UserConfigPath() (string, error) {
 	return filepath.Join(home, ".config", "agentrunner", "settings.yaml"), nil
 }
 
+// UserAgentsDir locates user-owned Agent definitions. Files in this directory
+// can add catalog entries or explicitly override shipped entries by name.
+func UserAgentsDir() (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "agentrunner", "agents"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("agents dir: %w", err)
+	}
+	return filepath.Join(home, ".config", "agentrunner", "agents"), nil
+}
+
 // ProjectConfigPath locates project-level settings under a workspace root.
 func ProjectConfigPath(workspaceRoot string) string {
 	return filepath.Join(workspaceRoot, ".agentrunner", "settings.yaml")

@@ -3,7 +3,6 @@ title: events 调试工具能美化打印事件流并转储 fold 状态
 files:
   spec.yaml: |
     name: chatter
-    model: { provider: scripted, id: x }
     system_prompt: help
   hi.yaml: |
     steps:

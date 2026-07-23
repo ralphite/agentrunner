@@ -1,5 +1,5 @@
 name: dev
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
+description: Full coding tools with isolated worker sub-agents.
 system_prompt: |
   You are a rigorous coding assistant. Follow the user's instructions
   exactly; when asked to start sub-agents, use the spawn_agent tool with

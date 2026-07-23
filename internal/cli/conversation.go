@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/driver"
@@ -38,6 +37,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits")
+	modelFlags := addModelFlags(fs)
 	detach := fs.Bool("detach", false, "print the session id and exit without waiting for the reply")
 	var imagePaths repeatedFlag
 	fs.Var(&imagePaths, "image", "attach an image file to the opening message (repeatable)")
@@ -52,16 +52,21 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	if len(rest) != 2 {
-		fmt.Fprintln(stderr, `usage: agentrunner new [flags] <spec.yaml> "opening message"  (message may be piped via stdin)`)
+		fmt.Fprintln(stderr, `usage: agentrunner new [flags] <agent-name|spec.yaml> "opening message"  (message may be piped via stdin)`)
 		return ExitUsage
 	}
 	if strings.TrimSpace(rest[1]) == "" {
 		fmt.Fprintln(stderr, "agentrunner: new needs a non-empty opening message")
 		return ExitUsage
 	}
-	specPath, err := filepath.Abs(rest[0])
+	selection, model, err := resolveModelInput(*modelFlags.ref, *modelFlags.effort)
 	if err != nil {
-		fmt.Fprintln(stderr, err)
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	loadedSpec, specRef, err := resolveAgent(rest[0], model)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
 	wsAbs, err := filepath.Abs(*workspaceDir)
@@ -73,19 +78,6 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	// run: with --detach the client leaves at RunStart, so a daemon-side
 	// early failure would otherwise mint a session id for a run that never
 	// lands on disk — a ghost session (QA Round1 F-A02).
-	loadedSpec, err := agent.LoadSpec(specPath)
-	if err != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
-		return ExitUsage
-	}
-	// Reject an unknown provider up front, exactly like `ar run` does: otherwise
-	// the daemon mints a session id, prints it, then fails at provider
-	// construction — a phantom session plus a misleading exit 0 (QA Wave1
-	// dave-01). Validating here keeps the spec-error contract (exit 2, no ghost).
-	if !knownProviderName(loadedSpec.Model.Provider) {
-		fmt.Fprintf(stderr, "agentrunner: unknown provider %q (available: gemini, anthropic, scripted)\n", loadedSpec.Model.Provider)
-		return ExitUsage
-	}
 	if st, err := os.Stat(wsAbs); err != nil || !st.IsDir() {
 		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
 		return ExitUsage
@@ -124,8 +116,8 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	cmd := daemon.Command{
-		Cmd: "run", SpecPath: specPath, Prompt: rest[1],
-		Workspace: wsAbs, Mode: *mode,
+		Cmd: "run", SpecPath: specRef, Prompt: rest[1],
+		Workspace: wsAbs, Mode: *mode, Model: selection,
 		Images: images, Files: files,
 	}
 	if *detach {

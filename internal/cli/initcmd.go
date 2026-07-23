@@ -12,16 +12,11 @@ import (
 // (INC-2 BB-me-3): the spec schema's discoverable form. It must always pass
 // LoadSpec — TestInitSpecLoads pins that.
 const specTemplate = `# agentrunner agent spec — the declarative definition of one agent.
-# Required: name, model.provider, model.id, and exactly one of
-# system_prompt / system_prompt_file. Everything else is optional.
+# Required: name and exactly one of system_prompt / system_prompt_file.
+# Model is session input, not part of the Agent definition:
+#   agentrunner run --model gemini/gemini-flash-latest --effort medium <this file> "..."
+# Without --model, settings.yaml default_model (then the compiled default) applies.
 name: my-agent
-
-model:
-  provider: gemini          # gemini | anthropic (needs GEMINI_API_KEY / ANTHROPIC_API_KEY)
-  id: gemini-flash-latest   # any model id the provider serves
-  # max_tokens: 8192        # per-turn output cap (default 8192)
-  # compact_at_tokens: 60000     # auto-summarize the context past this size
-  # microcompact_at_tokens: 0    # clear old tool results past this size (default 3/4 of compact_at_tokens; -1 disables)
 
 system_prompt: >
   You are a helpful coding agent. Answer in plain text; use tools only
@@ -79,7 +74,7 @@ const driverTemplate = `# agentrunner driver spec — an iteration driver: it ru
 # schedule. Required: name, prompt, agent_spec. Run: agentrunner drive <this file>
 name: my-driver
 prompt: Make the test suite pass          # the instruction EVERY iteration receives
-agent_spec: spec.yaml                   # child agent spec, relative to this file (agentrunner init writes one)
+agent_spec: dev                         # shared Agent name, or a YAML path relative to this file
 
 max_iterations: 5     # goal-mode cap (default 10)
 verifiers:            # ALL must pass for an iteration to satisfy the goal
@@ -148,7 +143,7 @@ func initCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "wrote %s\n", path)
 	if driver {
-		fmt.Fprintf(stderr, "next: agentrunner drive %s   (it iterates spec.yaml — agentrunner init writes that)\n", path)
+		fmt.Fprintf(stderr, "next: agentrunner drive %s   (it uses the shared dev Agent by default)\n", path)
 	} else {
 		fmt.Fprintf(stderr, "next: agentrunner run %s \"say hello\"\n", path)
 	}

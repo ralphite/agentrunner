@@ -61,9 +61,10 @@ open http://127.0.0.1:8788
 | UI | ar 命令 |
 |---|---|
 | project/session 会话列表 | `sessions list --json`（workspace/title 来自 journal；arwebui metadata 仅兼容补充） |
-| Ask / 新会话 / 开场消息 | `new --workspace W [--mode M] base.yaml "msg"` |
+| Agent picker/editor | `agents --json` 的 runtime catalog；前端不内置 Agent YAML |
+| Ask / 新会话 / 开场消息 | `new --workspace W [--mode M] --model P/I --effort E base.yaml "msg"` |
 | composer 权限模式 pill | 建 spec 的 `permissions:` 块 + `--mode`(full/ask/acceptEdits/plan) |
-| composer model pill | 建/改 spec 的 `model:` 块 → `new`(新会话)或 `agent`(session 内换) |
+| composer model pill | 独立的 `--model P/I --effort E` session input；不改 Agent YAML |
 | composer `/goal`·`/loop`·Goal/Loop 启动器 | `drive --json`(driver.yaml schedule immediate/interval) |
 | composer `/compact`·`/clear` | `compact <sid>` / `clear <sid>` |
 | composer 分支 pill | `git -C <ws> for-each-ref`(列)+ `git checkout [-b]`(切/建) |
@@ -76,8 +77,8 @@ open http://127.0.0.1:8788
 | 在飞任务 + kill | `ps` / `kill <sid> <handle>` |
 | 审批 | `approve <sid> <id> approve\|deny [reason]`(Always allow → `--always`,写 user 层精确规则) |
 | fork(选 barrier) | `fork --list` + `fork <sid> <barrier> [--workspace]` |
-| 换 agent | `agent <sid> base.yaml` |
-| 后台运行 submit / drive | `submit --json …` / `drive --json …`(SSE 流式日志) |
+| 换 agent | `agent --model P/I --effort E <sid> base.yaml` |
+| 后台运行 submit / drive | `submit/drive --json --model P/I --effort E …`(SSE 流式日志) |
 | trust | `trust <dir>` |
 | 查看面板 | `events`(raw) / `events --state` / `inspect --json` |
 

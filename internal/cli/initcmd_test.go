@@ -25,7 +25,7 @@ func TestInitWritesLoadableSpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated spec does not load: %v", err)
 	}
-	if spec.Name == "" || spec.Model.Provider == "" {
+	if spec.Name == "" || spec.SystemPrompt == "" || spec.Model.Provider != "" {
 		t.Fatalf("generated spec incomplete: %+v", spec)
 	}
 }

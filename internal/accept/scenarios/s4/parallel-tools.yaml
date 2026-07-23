@@ -3,7 +3,6 @@ title: 同一 assistant turn 的多个 tool call 全部执行,结果按原序回
 files:
   worker.yaml: |
     name: worker
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: do both
     tools: [bash]
     permissions:

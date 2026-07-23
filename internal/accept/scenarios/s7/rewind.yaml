@@ -3,7 +3,6 @@ title: rewind——fork 回任意 barrier,workspace 与对话一致(编辑被回
 files:
   spec.yaml: |
     name: writer
-    model: { provider: scripted, id: x }
     system_prompt: write things
     tools: [edit_file]
     permissions:

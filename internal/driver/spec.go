@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ralphite/agentrunner/internal/agent"
+	"github.com/ralphite/agentrunner/internal/agentcatalog"
 )
 
 // DefaultMaxIterations bounds a goal-mode driver that omits max_iterations —
@@ -250,15 +251,18 @@ func LoadSpec(path string) (*DriverSpec, error) {
 			return nil, fail(field+".kind", fmt.Sprintf("unknown kind %q (valid: command, llm_judge, human)", v.Kind))
 		}
 	}
-	agentPath := spec.AgentSpecPath
-	if !filepath.IsAbs(agentPath) {
-		agentPath = filepath.Join(filepath.Dir(path), agentPath)
+	agentRef := spec.AgentSpecPath
+	if strings.ContainsAny(agentRef, `/\`) || strings.HasSuffix(agentRef, ".yaml") || strings.HasSuffix(agentRef, ".yml") {
+		if !filepath.IsAbs(agentRef) {
+			agentRef = filepath.Join(filepath.Dir(path), agentRef)
+		}
 	}
-	child, err := agent.LoadSpec(agentPath)
+	child, resolvedRef, err := agentcatalog.Resolve(agentRef)
 	if err != nil {
 		return nil, fmt.Errorf("driver spec %s: field agent_spec: %v", path, err)
 	}
 	spec.Agent = child
+	spec.AgentSpecPath = resolvedRef
 	return &spec, nil
 }
 

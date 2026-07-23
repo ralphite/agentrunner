@@ -14,8 +14,8 @@ import (
 
 func writeDriverSpecs(t *testing.T, dir, driverYAML string) string {
 	t.Helper()
+	useScriptedDefaultModel(t, dir)
 	worker := `name: worker
-model: { provider: scripted, id: x }
 system_prompt: make progress
 tools: [bash]
 permissions:

@@ -3,7 +3,6 @@ title: 审批拒绝渲染给模型,run 正常继续收尾;文件未被改动
 files:
   spec.yaml: |
     name: careful
-    model: { provider: scripted, id: x }
     system_prompt: help
     tools: [edit_file]
   greet.txt: "hello world"

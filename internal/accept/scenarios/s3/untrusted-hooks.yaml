@@ -3,7 +3,6 @@ title: 不受信 repo 的 hooks 不执行;trust 之后才执行
 files:
   spec.yaml: |
     name: hooked
-    model: { provider: scripted, id: x }
     system_prompt: help
     tools: [bash]
     permissions:

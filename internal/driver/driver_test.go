@@ -1758,7 +1758,7 @@ func itoa(n int) string {
 func TestLoadSpecVerifierKindDefaultsAndValidates(t *testing.T) {
 	dir := t.TempDir()
 	agentPath := filepath.Join(dir, "agent.yaml")
-	if err := os.WriteFile(agentPath, []byte("name: a\nmodel: { provider: scripted, id: m }\nsystem_prompt: p\n"), 0o644); err != nil {
+	if err := os.WriteFile(agentPath, []byte("name: a\nsystem_prompt: p\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	write := func(body string) string {

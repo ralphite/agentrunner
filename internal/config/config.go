@@ -16,6 +16,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/fileutil"
 	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 )
 
@@ -23,6 +24,9 @@ import (
 type Settings struct {
 	Permissions []pipeline.PermissionRule `yaml:"permissions,omitempty"`
 	Hooks       Hooks                     `yaml:"hooks,omitempty"`
+	// DefaultModel is user-level only. Agent definitions never choose models;
+	// CLI surfaces use this when no explicit --model is supplied.
+	DefaultModel modelconfig.Selection `yaml:"default_model,omitempty"`
 	// Notify is the notifier channel (S6 模块⑤) — a documented carve-out:
 	// ONLY the user-level settings are consulted (a cloned repo must never
 	// redirect notifications), so Merge ignores it entirely.
@@ -71,10 +75,32 @@ func LoadFile(path string) (Settings, error) {
 	if err := validateRules(s.Permissions); err != nil {
 		return Settings{}, fmt.Errorf("settings %s: %w", path, err)
 	}
+	if s.DefaultModel.Provider != "" || s.DefaultModel.ID != "" || s.DefaultModel.Effort != "" {
+		if s.DefaultModel.Effort == "" {
+			s.DefaultModel.Effort = modelconfig.DefaultEffort
+		}
+		if err := s.DefaultModel.Validate(); err != nil {
+			return Settings{}, fmt.Errorf("settings %s: default_model: %w", path, err)
+		}
+	}
 	for ev := range s.Hooks.Lifecycle {
 		if !hook.LifecycleEvents[ev] {
 			return Settings{}, fmt.Errorf("settings %s: hooks.lifecycle: unknown event %q", path, ev)
 		}
+	}
+	return s, nil
+}
+
+// LoadProjectFile reads repository-owned settings. default_model is
+// intentionally user/session-owned: accepting it here would make a cloned
+// repository silently choose the model and spend level for a new session.
+func LoadProjectFile(path string) (Settings, error) {
+	s, err := LoadFile(path)
+	if err != nil {
+		return Settings{}, err
+	}
+	if s.DefaultModel.Provider != "" || s.DefaultModel.ID != "" || s.DefaultModel.Effort != "" {
+		return Settings{}, fmt.Errorf("settings %s: default_model is user-level only; move it to ~/.config/agentrunner/settings.yaml", path)
 	}
 	return s, nil
 }

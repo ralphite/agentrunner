@@ -23,6 +23,8 @@ session input：
 - CLI 接受 Agent name 或显式 YAML path；
 - Web UI 从 backend catalog 读取 Agent，不再 import/复制 Agent YAML；
 - Agent YAML 不接受 `model` 字段；
+- 自动 compaction 阈值是 Agent 的上下文行为，保留为顶层
+  `compact_at_tokens` / `microcompact_at_tokens`；它们不属于 model selection；
 - Web UI 每次创建/切换都显式提交 `model + effort`；
 - CLI 可提交 `--model <provider>/<id> --effort <level>`；省略时读取
   `~/.config/agentrunner/settings.yaml` 的 `default_model`，仍缺失则使用

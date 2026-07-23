@@ -289,6 +289,7 @@ func (s *server) handleRunsList(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		modelInput
 		Kind       string     `json:"kind"` // submit | drive
 		Spec       string     `json:"spec"` // base.yaml (submit) or driver.yaml (drive)
 		ExtraSpecs []specFile `json:"extraSpecs"`
@@ -310,6 +311,11 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Kind == "submit" && strings.TrimSpace(req.Prompt) == "" {
 		badRequest(w, "prompt is required for submit")
+		return
+	}
+	modelArgs, err := req.modelInput.args()
+	if err != nil {
+		badRequest(w, err.Error())
 		return
 	}
 	ws, ferr := resolveWorkspace(req.Workspace)
@@ -334,6 +340,7 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 	var label string
 	if req.Kind == "submit" {
 		args = []string{"submit", "--json", "--workspace", ws}
+		args = append(args, modelArgs...)
 		if req.Mode != "" {
 			args = append(args, "--mode", req.Mode)
 		}
@@ -343,7 +350,9 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		args = append(args, basePath, req.Prompt)
 		label = firstLine(req.Prompt, 60)
 	} else {
-		args = []string{"drive", "--json", "--workspace", ws, basePath}
+		args = []string{"drive", "--json", "--workspace", ws}
+		args = append(args, modelArgs...)
+		args = append(args, basePath)
 		if name := yamlName(req.Spec); name != "" {
 			label = "drive: " + name
 		} else {

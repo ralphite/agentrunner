@@ -22,6 +22,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
@@ -34,10 +35,11 @@ type Command struct {
 	CommandID string `json:"command_id,omitempty"`
 
 	// run
-	SpecPath  string `json:"spec_path,omitempty"`
-	Prompt    string `json:"prompt,omitempty"`
-	Workspace string `json:"workspace,omitempty"`
-	Mode      string `json:"mode,omitempty"`
+	SpecPath  string                `json:"spec_path,omitempty"`
+	Prompt    string                `json:"prompt,omitempty"`
+	Workspace string                `json:"workspace,omitempty"`
+	Mode      string                `json:"mode,omitempty"`
+	Model     modelconfig.Selection `json:"model,omitempty"`
 	// Series opts a drive into the merged-stream session form (INC-80.2a).
 	Series bool `json:"series,omitempty"`
 
@@ -134,6 +136,7 @@ type RunRequest struct {
 	Prompt    string
 	Workspace string
 	Mode      string
+	Model     modelconfig.Selection
 	// Images/Files ride the OPENING prompt (PLAN 5.5, `new --image/--file`):
 	// same wire shape as a send's attachments, CAS-stored by the loop before
 	// the opening InputReceived journals.
@@ -174,6 +177,7 @@ type DriveRequest struct {
 	SessionID string
 	SpecPath  string
 	Workspace string
+	Model     modelconfig.Selection
 	// Series opts the drive into the merged-stream session form (INC-80.2a);
 	// the resume path ignores it (journal head decides the form there).
 	Series   bool
@@ -1836,7 +1840,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		defer hub.finish()
 		if err := s.Run(runCtx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Prompt: cmd.Prompt,
-			Workspace: cmd.Workspace, Mode: cmd.Mode,
+			Workspace: cmd.Workspace, Mode: cmd.Mode, Model: cmd.Model,
 			Images: cmd.Images, Files: cmd.Files,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
@@ -1908,7 +1912,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		}()
 		defer hub.finish()
 		if err := s.Drive(runCtx, DriveRequest{
-			SessionID: id, SpecPath: cmd.SpecPath, Workspace: cmd.Workspace,
+			SessionID: id, SpecPath: cmd.SpecPath, Workspace: cmd.Workspace, Model: cmd.Model,
 			Series: cmd.Series, Controls: hub.controls,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive failed: " + err.Error()})

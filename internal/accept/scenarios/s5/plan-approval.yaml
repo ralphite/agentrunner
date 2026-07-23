@@ -3,7 +3,6 @@ title: plan 审批全流程——发布→审→拒(附理由)→v2→批,payloa
 files:
   planner.yaml: |
     name: planner
-    model: { provider: scripted, id: x }
     system_prompt: plan first
     tools: [bash]
   plan.yaml: |

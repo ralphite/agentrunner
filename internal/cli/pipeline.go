@@ -26,7 +26,7 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 	if err != nil {
 		return nil, nil, err
 	}
-	project, err := config.LoadFile(runtime.ProjectConfigPath(ws.Root()))
+	project, err := config.LoadProjectFile(runtime.ProjectConfigPath(ws.Root()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -71,7 +71,7 @@ func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.Permis
 	if err != nil {
 		return nil, nil, err
 	}
-	project, err := config.LoadFile(runtime.ProjectConfigPath(ws.Root()))
+	project, err := config.LoadProjectFile(runtime.ProjectConfigPath(ws.Root()))
 	if err != nil {
 		return nil, nil, err
 	}

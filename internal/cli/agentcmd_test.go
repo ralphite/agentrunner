@@ -14,12 +14,10 @@ import (
 )
 
 const firstAgentYAML = `name: first-hat
-model: { provider: scripted, id: x }
 system_prompt: you wear the first hat
 `
 
 const secondAgentYAML = `name: second-hat
-model: { provider: scripted, id: x }
 system_prompt: you wear the second hat
 `
 
@@ -63,7 +61,7 @@ func TestAgentSwitchTakesEffectOnResume(t *testing.T) {
 	// Open under the first agent and quiesce.
 	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fix1)
 	var out, errOut bytes.Buffer
-	if code := Run([]string{"run", "--workspace", ws, spec1, "hello"}, "dev", &out, &errOut); code != ExitOK {
+	if code := Run([]string{"run", "--model", "scripted/x", "--workspace", ws, spec1, "hello"}, "dev", &out, &errOut); code != ExitOK {
 		t.Fatalf("run exit = %d\n%s", code, errOut.String())
 	}
 	sessions, err := os.ReadDir(filepath.Join(xdg, "agentrunner", "sessions"))

@@ -157,6 +157,16 @@ func (r *Runner) Run(s Scenario) Result {
 	}
 	defer func() { _ = os.RemoveAll(scratch) }()
 
+	configHome := filepath.Join(scratch, "config")
+	settingsPath := filepath.Join(configHome, "agentrunner", "settings.yaml")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return r.fail(res, start, err.Error(), "")
+	}
+	const scriptedDefault = "default_model:\n  provider: scripted\n  id: x\n  effort: medium\n"
+	if err := os.WriteFile(settingsPath, []byte(scriptedDefault), 0o600); err != nil {
+		return r.fail(res, start, err.Error(), "")
+	}
+
 	for path, content := range s.Files {
 		full := filepath.Join(scratch, path)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
@@ -175,6 +185,7 @@ func (r *Runner) Run(s Scenario) Result {
 		cmd.Env = append(os.Environ(),
 			"BIN="+r.Bin,
 			"SCRATCH="+scratch,
+			"XDG_CONFIG_HOME="+configHome,
 			"XDG_DATA_HOME="+filepath.Join(scratch, "xdg"),
 		)
 		out, err := cmd.CombinedOutput()

@@ -51,14 +51,11 @@ func TestLoadSpecValid(t *testing.T) {
 	if spec.Name != "hello" {
 		t.Errorf("name = %q", spec.Name)
 	}
-	if spec.Model.Provider != "gemini" || spec.Model.ID != "gemini-flash-latest" {
-		t.Errorf("model = %+v", spec.Model)
+	if spec.Model.Provider != "" || spec.Model.ID != "" {
+		t.Errorf("definition unexpectedly resolved a model = %+v", spec.Model)
 	}
 	if spec.MaxGenerationSteps != DefaultMaxGenerationSteps {
 		t.Errorf("max_generation_steps default = %d, want %d", spec.MaxGenerationSteps, DefaultMaxGenerationSteps)
-	}
-	if spec.Model.MaxTokens != DefaultMaxTokens {
-		t.Errorf("max_tokens default = %d, want %d", spec.Model.MaxTokens, DefaultMaxTokens)
 	}
 	if len(spec.Tools) != 3 {
 		t.Errorf("tools = %v", spec.Tools)
@@ -71,7 +68,6 @@ func TestLoadSpecValid(t *testing.T) {
 func TestLoadSpecMCPTransports(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mcp.yaml")
 	raw := `name: mcp-agent
-model: {provider: scripted, id: model}
 system_prompt: test
 mcp:
   - name: local
@@ -102,7 +98,7 @@ mcp:
 func TestLoadSpecSandboxEnvPassthrough(t *testing.T) {
 	write := func(body string) (*AgentSpec, error) {
 		path := filepath.Join(t.TempDir(), "spec.yaml")
-		raw := "name: sbx\nmodel: {provider: scripted, id: m}\nsystem_prompt: test\n" + body
+		raw := "name: sbx\nsystem_prompt: test\n" + body
 		if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -139,11 +135,35 @@ func TestLoadSpecPromptFile(t *testing.T) {
 func TestSpecRejectsBypassMode(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/spec.yaml"
-	if err := os.WriteFile(path, []byte("name: x\nmodel: {provider: scripted, id: y}\nsystem_prompt: hi\nmode: bypass\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("name: x\nsystem_prompt: hi\nmode: bypass\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := LoadSpec(path)
 	if err == nil || !strings.Contains(err.Error(), "bypass cannot be set from a spec") {
 		t.Fatalf("err = %v, want spec-bypass rejection", err)
+	}
+}
+
+func TestBindModelValidatesResolvedBudget(t *testing.T) {
+	spec := &AgentSpec{Name: "x", SystemPrompt: "hi", Budget: BudgetSpec{MaxTotalTokens: 5000}}
+	err := BindModel(spec, ModelSpec{Provider: "gemini", ID: "m", MaxTokens: 6000}, "x.yaml")
+	if err == nil || !strings.Contains(err.Error(), "below the resolved per-turn output cap") {
+		t.Fatalf("BindModel error = %v", err)
+	}
+}
+
+func TestBindModelCopiesAgentContextPolicy(t *testing.T) {
+	spec := &AgentSpec{
+		Name:                 "x",
+		SystemPrompt:         "hi",
+		CompactAtTokens:      12000,
+		MicrocompactAtTokens: 9000,
+	}
+	model := ModelSpec{Provider: "gemini", ID: "m", MaxTokens: 10000}
+	if err := BindModel(spec, model, "x.yaml"); err != nil {
+		t.Fatal(err)
+	}
+	if spec.Model.CompactAtTokens != 12000 || spec.Model.MicrocompactAtTokens != 9000 {
+		t.Fatalf("context policy not copied into effective spec: %+v", spec.Model)
 	}
 }

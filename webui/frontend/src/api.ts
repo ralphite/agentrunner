@@ -1,4 +1,4 @@
-import type { BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, ScheduleDetail, Session, SpecFile } from "./types";
+import type { AgentCatalogEntry, BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, ScheduleDetail, Session, SpecFile } from "./types";
 
 // ApiError carries the HTTP status and the server's machine-readable `code`
 // (e.g. 404 / "session_not_found") next to the human message, so callers branch
@@ -134,6 +134,7 @@ const blobKey = (sid: string, path: string) => sid + "\u0000" + path;
 
 export const AR = {
   health: () => api<Health>("/health"),
+  agents: () => api<AgentCatalogEntry[]>("/agents"),
   daemonStart: () => post("/daemon/start"),
   trust: (dir: string) => post("/trust", { dir }),
 
@@ -144,6 +145,9 @@ export const AR = {
     return api<Session[]>("/sessions" + (q.size ? `?${q}` : ""));
   },
   newSession: (b: {
+    provider: string;
+    model: string;
+    effort: string;
     spec: string;
     extraSpecs: SpecFile[];
     workspace: string;
@@ -266,8 +270,12 @@ export const AR = {
     post(`/sessions/${sid}/goal`, b),
   approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string, always = false) =>
     post(`/sessions/${sid}/approve`, { approvalId, decision, reason, always }),
-  switchAgent: (sid: string, spec: string, extraSpecs: SpecFile[]) =>
-    post(`/sessions/${sid}/agent`, { spec, extraSpecs }),
+  switchAgent: (
+    sid: string,
+    spec: string,
+    extraSpecs: SpecFile[],
+    model: { provider: string; model: string; effort: string },
+  ) => post(`/sessions/${sid}/agent`, { spec, extraSpecs, ...model }),
   fork: (sid: string, barrier: string, workspace: string) =>
     post<{ sid: string }>(`/sessions/${sid}/fork`, { barrier, workspace }),
   continueFromMessage: (sid: string, itemId: string, requestId: string) =>
@@ -292,6 +300,9 @@ export const AR = {
 
   runs: () => api<Run[]>("/runs"),
   startRun: (b: {
+    provider: string;
+    model: string;
+    effort: string;
     kind: "submit" | "drive";
     spec: string;
     extraSpecs: SpecFile[];

@@ -3,17 +3,15 @@ title: 否定——树预算 min 聚合:同 turn 双 spawn,第二个被预算拒
 files:
   lead.yaml: |
     name: lead
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: delegate twice
     tools: [read_file]
     agents: [worker]
-    budget: { max_total_tokens: 3000 }
+    budget: { max_total_tokens: 30000 }
     permissions:
       - { action: allow }
   worker.yaml: |
     name: worker
     description: does one job
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: work
     tools: [read_file]
   seal.yaml: |

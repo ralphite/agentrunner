@@ -10,7 +10,6 @@ files:
     max_iterations: 3
   worker.yaml: |
     name: worker
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: do rounds
     tools: [bash]
     permissions:

@@ -3,7 +3,6 @@ title: malformed_tool_call 记档并重试同 turn,后续正常完成
 files:
   flaky.yaml: |
     name: flaky
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: try
     tools: [read_file]
   mal.yaml: |

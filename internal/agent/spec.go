@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ralphite/agentrunner/internal/mcp"
+	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
@@ -62,42 +63,17 @@ func (s *SchemaJSON) UnmarshalYAML(node *yaml.Node) error {
 // DefaultMaxGenerationSteps applies when a spec omits max_generation_steps (S1 defaults pack).
 const DefaultMaxGenerationSteps = 200
 
-// DefaultMaxTokens applies when a spec omits model.max_tokens.
-const DefaultMaxTokens = 8192
-
-// ModelSpec selects the provider and model for an agent.
-type ModelSpec struct {
-	Provider  string `yaml:"provider"`
-	ID        string `yaml:"id"`
-	MaxTokens int    `yaml:"max_tokens"`
-	// CompactAtTokens triggers context compaction (S4.5) when the assembled
-	// transcript's estimated size exceeds it — a v0 absolute threshold
-	// standing in for DESIGN's trigger_ratio × context_window (which needs a
-	// per-model window not yet modeled). Zero disables compaction.
-	CompactAtTokens int `yaml:"compact_at_tokens,omitempty"`
-	// MicrocompactAtTokens triggers the NO-LLM context reclaim (INC-13):
-	// old re-runnable read-class tool results render as placeholders once
-	// the estimate exceeds it. Zero defaults to 3/4 of CompactAtTokens
-	// (micro fires first, softening or avoiding the LLM summary); -1
-	// disables microcompact explicitly.
-	MicrocompactAtTokens int `yaml:"microcompact_at_tokens,omitempty"`
-	// Thinking requests extended thinking (S4.7); providers map it or
-	// downgrade explicitly when their Capabilities.Thinking is false.
-	Thinking ThinkingSpec `yaml:"thinking,omitempty"`
-}
-
-// ThinkingSpec is the spec-level extended-thinking request (S4.7).
-type ThinkingSpec struct {
-	Enabled      bool `yaml:"enabled,omitempty"`
-	BudgetTokens int  `yaml:"budget_tokens,omitempty"`
-}
+// ModelSpec and ThinkingSpec are runtime-effective aliases. Agent YAML never
+// decodes them; session input/default resolution binds Model after loading.
+type ModelSpec = modelconfig.Spec
+type ThinkingSpec = modelconfig.Thinking
 
 // AgentSpec is the declarative agent definition (S1 minimal shape).
 // After LoadSpec returns, SystemPrompt always holds the final prompt text —
 // system_prompt_file is resolved at load time.
 type AgentSpec struct {
 	Name               string    `yaml:"name"`
-	Model              ModelSpec `yaml:"model"`
+	Model              ModelSpec `yaml:"-"`
 	SystemPrompt       string    `yaml:"system_prompt"`
 	SystemPromptFile   string    `yaml:"system_prompt_file"`
 	Tools              []string  `yaml:"tools"`
@@ -110,6 +86,12 @@ type AgentSpec struct {
 	Mode string `yaml:"mode,omitempty"`
 	// Budget caps the run (3.7); zero values mean unlimited.
 	Budget BudgetSpec `yaml:"budget,omitempty"`
+	// CompactAtTokens and MicrocompactAtTokens are Agent context-management
+	// behavior, not model selection. Zero disables the corresponding automatic
+	// compaction; a negative microcompact threshold preserves the legacy
+	// explicit-disable spelling.
+	CompactAtTokens      int `yaml:"compact_at_tokens,omitempty"`
+	MicrocompactAtTokens int `yaml:"microcompact_at_tokens,omitempty"`
 	// AllowedTools narrows the MCP tool face (S5.1) to these fully-qualified
 	// names (mcp__<server>__<tool>). Empty = every discovered tool. Built-in
 	// tools are unaffected — they are selected by Tools.
@@ -192,6 +174,17 @@ type BudgetSpec struct {
 // LoadSpec reads, parses, validates, and resolves an agent spec.
 // Error format (S1 defaults pack): "spec <path>: field <name>: <problem>".
 func LoadSpec(path string) (*AgentSpec, error) {
+	return loadSpec(path, false)
+}
+
+// LoadLegacySpec is restricted to resuming an already-frozen session whose
+// sibling files predate INC-96. The legacy model block is ignored; children
+// inherit the parent session's frozen model.
+func LoadLegacySpec(path string) (*AgentSpec, error) {
+	return loadSpec(path, true)
+}
+
+func loadSpec(path string, allowLegacyModel bool) (*AgentSpec, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("spec %s: %w", path, err)
@@ -201,11 +194,29 @@ func LoadSpec(path string) (*AgentSpec, error) {
 		// An empty file decodes to a bare "EOF" — unhelpful (QA Wave1 alice-03).
 		return nil, fmt.Errorf("spec %s is empty — run `agentrunner init` for a commented example spec", path)
 	}
+	var top yaml.Node
+	if err := yaml.Unmarshal(raw, &top); err == nil && hasTopLevelYAMLKey(&top, "model") && !allowLegacyModel {
+		return nil, fmt.Errorf("spec %s: field model: model is session input, not an Agent field; remove model and use --model <provider>/<id> (or settings.yaml default_model)", path)
+	}
 	var spec AgentSpec
+	// Keep a legacy-only decode shape so old sibling files can be read during
+	// resume. The decoded value is deliberately discarded.
+	type legacyShape struct {
+		AgentSpec `yaml:",inline"`
+		Model     ModelSpec `yaml:"model,omitempty"`
+	}
 	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
-	if err := dec.Decode(&spec); err != nil {
-		return nil, fmt.Errorf("spec %s: %s", path, decodeHint(err))
+	if allowLegacyModel {
+		var legacy legacyShape
+		if err := dec.Decode(&legacy); err != nil {
+			return nil, fmt.Errorf("spec %s: %s", path, decodeHint(err))
+		}
+		spec = legacy.AgentSpec
+	} else {
+		if err := dec.Decode(&spec); err != nil {
+			return nil, fmt.Errorf("spec %s: %s", path, decodeHint(err))
+		}
 	}
 
 	if err := spec.validate(path); err != nil {
@@ -227,9 +238,6 @@ func LoadSpec(path string) (*AgentSpec, error) {
 
 	if spec.MaxGenerationSteps == 0 {
 		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
-	}
-	if spec.Model.MaxTokens == 0 {
-		spec.Model.MaxTokens = DefaultMaxTokens
 	}
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "isolated"
@@ -253,11 +261,53 @@ func LoadSpec(path string) (*AgentSpec, error) {
 	return &spec, nil
 }
 
+func hasTopLevelYAMLKey(doc *yaml.Node, key string) bool {
+	if doc == nil || len(doc.Content) == 0 {
+		return false
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
+}
+
+// BindModel materializes the session-level model choice into an effective
+// runtime spec and validates cross-field budget constraints.
+func BindModel(spec *AgentSpec, model ModelSpec, path string) error {
+	if spec == nil {
+		return fmt.Errorf("spec %s: nil Agent definition", path)
+	}
+	if model.Provider == "" {
+		return fmt.Errorf("spec %s: model input provider is required", path)
+	}
+	if model.ID == "" {
+		return fmt.Errorf("spec %s: model input id is required", path)
+	}
+	if model.MaxTokens <= 0 {
+		return fmt.Errorf("spec %s: model input max_tokens must be positive", path)
+	}
+	if spec.Budget.MaxTotalTokens > 0 && spec.Budget.MaxTotalTokens < model.MaxTokens {
+		return fmt.Errorf("spec %s: field budget.max_total_tokens: %d is below the resolved per-turn output cap %d",
+			path, spec.Budget.MaxTotalTokens, model.MaxTokens)
+	}
+	model.CompactAtTokens = spec.CompactAtTokens
+	model.MicrocompactAtTokens = spec.MicrocompactAtTokens
+	spec.Model = model
+	return nil
+}
+
 // specFields lists AgentSpec's top-level yaml keys for the unknown-field
 // hint. Keep in sync with the AgentSpec struct tags.
-const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
+const specFields = "name, system_prompt, system_prompt_file, tools, " +
 	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
-	"description, agents, agents_dynamic, agent_workspace, escalate, receipts, outputs, sandbox, mcp"
+	"compact_at_tokens, microcompact_at_tokens, description, agents, agents_dynamic, " +
+	"agent_workspace, escalate, receipts, outputs, sandbox, mcp"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and
@@ -292,10 +342,6 @@ func decodeHint(err error) string {
 // struct tags.
 func specScope(goType string) (scope, fields string) {
 	switch {
-	case strings.Contains(goType, "ModelSpec"):
-		return "model", "provider, id, max_tokens, compact_at_tokens, microcompact_at_tokens, thinking"
-	case strings.Contains(goType, "ThinkingSpec"):
-		return "model.thinking", "enabled, budget_tokens"
 	case strings.Contains(goType, "SandboxSpec"):
 		return "sandbox", "network, env_passthrough"
 	case strings.Contains(goType, "BudgetSpec"):
@@ -326,16 +372,6 @@ func (s *AgentSpec) validate(path string) error {
 	if s.Name == "" {
 		return fail("name", "required")
 	}
-	if s.Model.Provider == "" {
-		return fail("model.provider", "required")
-	}
-	if s.Model.ID == "" {
-		return fail("model.id", "required")
-	}
-	if s.Model.MaxTokens < 0 {
-		return fail("model.max_tokens", "must be positive")
-	}
-
 	hasInline := s.SystemPrompt != ""
 	hasFile := s.SystemPromptFile != ""
 	if hasInline && hasFile {
@@ -354,21 +390,8 @@ func (s *AgentSpec) validate(path string) error {
 	if s.Budget.MaxTotalTokens < 0 {
 		return fail("budget.max_total_tokens", "must be non-negative")
 	}
-	// A total budget below the per-turn output cap can never run a single turn:
-	// the pre-flight gate reserves the full max_tokens, so every turn is refused
-	// with used:0 and the session is silently bricked (QA Wave1 dave-07). Reject
-	// the combination at parse time with an actionable message instead. (Defaults
-	// aren't applied yet here, so mirror the effective max_tokens.)
-	if s.Budget.MaxTotalTokens > 0 {
-		effMaxTokens := s.Model.MaxTokens
-		if effMaxTokens == 0 {
-			effMaxTokens = DefaultMaxTokens
-		}
-		if s.Budget.MaxTotalTokens < effMaxTokens {
-			return fail("budget.max_total_tokens", fmt.Sprintf(
-				"%d is below the per-turn output cap model.max_tokens (%d), so every turn would be refused before it runs; raise budget.max_total_tokens to at least %d, or lower model.max_tokens to fit the budget",
-				s.Budget.MaxTotalTokens, effMaxTokens, effMaxTokens))
-		}
+	if s.CompactAtTokens < 0 {
+		return fail("compact_at_tokens", "must be non-negative")
 	}
 	if s.Mode != "" && !pipeline.ValidMode(s.Mode) {
 		return fail("mode", fmt.Sprintf("unknown mode %q (known: default, plan, acceptEdits, bypass)", s.Mode))

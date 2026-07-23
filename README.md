@@ -36,7 +36,7 @@ tag 的环境)。
 
 ```sh
 go build -o ar ./cmd/agentrunner    # Go 1.25.12+ / 1.26.5+ / newer stable
-export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.provider)
+export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY
 ```
 
 凭据也可以放在工作目录的 `.env` 里(`daemon` 启动时读取)。
@@ -44,15 +44,15 @@ export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.p
 ## 一分钟上手
 
 ```sh
-./ar init                       # 生成带注释的示例 spec.yaml
-./ar run spec.yaml "say hello"  # 一次性任务:输出直接打在终端
+./ar agents                     # 列出共享 Agent catalog
+./ar run dev "say hello"        # 名称或显式 YAML path 都可以
 ```
 
 对话形态(会话常驻、可多轮):
 
 ```sh
 ./ar daemon &                   # 先起常驻运行时(托管所有会话)
-./ar new spec.yaml "write a haiku about rain"
+./ar new dev "write a haiku about rain"
 #   → 回复直接显示;结尾提示如何继续
 ./ar send <session> "make it about snow"
 #   → 同一会话继续,回复直接显示(session 用 id 的唯一前缀即可)
@@ -66,23 +66,43 @@ export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.p
 |---|---|
 | `ar help` | 分组的完整命令帮助 |
 | `ar init [path]` | 生成示例 spec(拒绝覆盖已有文件) |
-| `ar run <spec> "message"` | 开会话+发消息+等静止+读结果的便捷命令 |
+| `ar agents [--json]` | 列出 shipped + user override 后的共享 Agent catalog |
+| `ar run <agent\|spec> "message"` | 开会话+发消息+等静止+读结果的便捷命令 |
 | `ar new / send / attach / close` | 对话会话(需 daemon) |
 | `ar sessions` | 列出会话与状态 |
 | `ar inspect <session>` | 会话事实:状态、轮次、token 用量 |
 | `ar approve <session> <id> approve\|deny` | 回答权限请求 |
 | `ar resume <session>` | 恢复被中断的会话 |
-| `ar agent <session> <spec>` | 会话内换 agent(免确认,下次 send 生效) |
+| `ar agent <session> <agent\|spec>` | 会话内换 Agent(免确认,下次 send 生效) |
 
 `new`/`send` 默认等到回复打印完才退出;加 `--detach` 可立即返回
 (分别只输出 session id / `delivered`),之后用 `attach` 看结果。
 
-## Spec 是什么
+## Agent 与模型配置
 
-`ar init` 生成的模板即文档:必填 `name`、`model.provider`、`model.id`
-与 `system_prompt`(或 `system_prompt_file`),可选 `tools`、`mode`、
-`permissions`、`budget` 等,注释里都有说明。写错字段时报错会给出
-合法字段清单。
+Agent YAML 只描述行为。内置定义随 runtime 发布；用户可在
+`~/.config/agentrunner/agents/*.yaml` 新增 Agent，或用同名文件覆盖内置项。
+`ar init` 生成的模板必填 `name` 与 `system_prompt`
+(或 `system_prompt_file`)，可选 `tools`、`permissions`、`budget` 等。
+Agent YAML 不接受 `model`。
+
+模型是 session 输入：
+
+```sh
+ar run --model anthropic/claude-sonnet-5 --effort high dev "review this"
+```
+
+CLI 省略模型时读取 `~/.config/agentrunner/settings.yaml`：
+
+```yaml
+default_model:
+  provider: gemini
+  id: gemini-flash-latest
+  effort: medium       # light | medium | high | xhigh
+```
+
+仍未配置时使用编译默认值 `gemini/gemini-flash-latest + medium`。Web UI
+的 Model/Effort 控件则每次显式提交选择，不依赖这个 CLI fallback。
 
 ## 更多
 

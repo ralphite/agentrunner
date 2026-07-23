@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
+  agents: vi.fn(async () => [
+    { name: "dev", description: "Dev", source: "shipped", yaml: "name: dev\nsystem_prompt: test\ntools: []\n" },
+    {
+      name: "lead",
+      description: "Drafts a team sharing one workspace · for collaboration",
+      source: "shipped",
+      yaml: "name: lead\nsystem_prompt: Lead it.\ntools: []\nagents_dynamic: true\n",
+    },
+  ]),
   gitBranches: vi.fn(async () => ({ isRepo: false, current: "", branches: [], dirty: 0 })),
   makeWorkspace: vi.fn(async () => ({ path: "/tmp/ws" })),
   newSession: vi.fn(async () => ({ sid: "20260713-000000-add-menu" })),
@@ -11,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: {
+    agents: mocks.agents,
     gitBranches: mocks.gitBranches,
     makeWorkspace: mocks.makeWorkspace,
     newSession: mocks.newSession,
@@ -46,6 +56,7 @@ const openAddMenu = () => fireEvent.click(screen.getByRole("button", { name: "Ad
 
 beforeEach(() => {
   localStorage.clear();
+  mocks.agents.mockClear();
   mocks.newSession.mockClear();
 });
 afterEach(cleanup);
@@ -112,7 +123,7 @@ describe("Composer add and advanced menu", () => {
     ]);
   });
 
-  it("reaches nested automation and Agent pages without submitting the composer or an outer form", () => {
+  it("reaches nested automation and Agent pages without submitting the composer or an outer form", async () => {
     const { onSubmit, container } = mount();
     const trigger = screen.getByRole("button", { name: "Add and advanced options" });
     expect(trigger.getAttribute("type")).toBe("button");
@@ -121,6 +132,7 @@ describe("Composer add and advanced menu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Automation/ }));
     expect(screen.getByRole("button", { name: "Back to add menu" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Loop Repeat on a cadence" })).toBeTruthy();
+    await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
 
     expect(screen.getByRole("button", { name: "Back to automation menu" })).toBeTruthy();
@@ -129,12 +141,13 @@ describe("Composer add and advanced menu", () => {
     expect(mocks.newSession).not.toHaveBeenCalled();
   });
 
-  it("opens the YAML editor with the persona currently selected in the composer", () => {
+  it("opens the YAML editor with the persona currently selected in the composer", async () => {
     mount();
+    await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     openAddMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "Automation Dev" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Team Lead Drafts a team sharing one workspace · for collaboration" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Team Lead Drafts a team sharing one workspace/ }));
 
     openAddMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "Automation Team Lead" }));
@@ -147,7 +160,12 @@ describe("Composer add and advanced menu", () => {
     expect(modal.kind).toBe("new");
     expect(modal.spec).toContain("name: lead\n");
     expect(modal.spec).toContain("agents_dynamic: true");
-    expect(modal.worker).toBe("");
+    expect(modal.worker).toBeUndefined();
+    expect(modal).toMatchObject({
+      provider: "gemini",
+      model: "gemini-flash-latest",
+      effort: "medium",
+    });
   });
 
   it("reuses the single composer for Goal and keeps advanced checks behind the Goal chip", () => {

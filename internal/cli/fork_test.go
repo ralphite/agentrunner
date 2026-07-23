@@ -14,7 +14,6 @@ import (
 )
 
 const forkSpecYAML = `name: writer
-model: { provider: scripted, id: x }
 system_prompt: write things
 tools: [edit_file]
 permissions:
@@ -67,7 +66,7 @@ func TestCLIForkRewindsAndContinues(t *testing.T) {
 	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fix)
 
 	var stdout, stderr bytes.Buffer
-	if code := Run([]string{"run", "--workspace", ws, specPath, "bump the note"}, "dev", &stdout, &stderr); code != ExitOK {
+	if code := Run([]string{"run", "--model", "scripted/x", "--workspace", ws, specPath, "bump the note"}, "dev", &stdout, &stderr); code != ExitOK {
 		t.Fatalf("run exit = %d\n%s", code, stderr.String())
 	}
 	var parent string
@@ -192,7 +191,7 @@ func TestCLIManualBarrierThenFork(t *testing.T) {
 	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fix)
 
 	var stdout, stderr bytes.Buffer
-	if code := Run([]string{"run", "--workspace", ws, specPath, "bump"}, "dev", &stdout, &stderr); code != ExitOK {
+	if code := Run([]string{"run", "--model", "scripted/x", "--workspace", ws, specPath, "bump"}, "dev", &stdout, &stderr); code != ExitOK {
 		t.Fatalf("run exit = %d\n%s", code, stderr.String())
 	}
 	var session string

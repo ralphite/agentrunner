@@ -3,7 +3,6 @@ title: 后台 effect——handle 当场配对,在飞工作先善终再静止(决
 files:
   agent.yaml: |
     name: bg
-    model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: run things in the background
     tools: [bash]
     permissions:

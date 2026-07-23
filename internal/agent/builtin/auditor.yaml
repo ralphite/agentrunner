@@ -1,5 +1,5 @@
 name: auditor
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
+description: Read-only audit responses in one stern sentence.
 system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
 tools: [read_file, bash]
 permissions:

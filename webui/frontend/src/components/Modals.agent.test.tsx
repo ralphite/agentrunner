@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   switchAgent: vi.fn(async () => ({})),
+  agents: vi.fn(async () => []),
 }));
 
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: {
+    agents: mocks.agents,
     switchAgent: mocks.switchAgent,
   },
 }));
@@ -29,7 +31,7 @@ afterEach(() => {
 describe("session agent YAML editor", () => {
   it("round-trips the session's remembered spec instead of resetting to Dev", async () => {
     const sid = "inc96-agent-editor";
-    const current = "name: custom\nmodel: { provider: gemini, id: gemini-flash-latest }\nsystem_prompt: Keep me.\ntools: []\n";
+    const current = "name: custom\nsystem_prompt: Keep me.\ntools: []\n";
     const changed = current.replace("Keep me.", "Keep my edit.");
     rememberSpec(sid, current);
     useStore.setState({ modal: { kind: "agent", sid } });
@@ -45,13 +47,14 @@ describe("session agent YAML editor", () => {
     expect(mocks.switchAgent).toHaveBeenCalledWith(
       sid,
       changed,
-      expect.arrayContaining([expect.objectContaining({ name: "worker.yaml" })]),
+      [],
+      { provider: "gemini", model: "gemini-flash-latest", effort: "medium" },
     );
     expect(recallSpec(sid)).toBe(changed);
   });
 
   it("uses the composer-selected YAML for a new advanced session", () => {
-    const selected = "name: lead\nmodel: { provider: gemini, id: gemini-flash-latest }\nsystem_prompt: Lead it.\ntools: []\n";
+    const selected = "name: lead\nsystem_prompt: Lead it.\ntools: []\n";
     useStore.setState({ modal: { kind: "new", spec: selected, worker: "" } });
 
     const { container } = render(<Modals />);

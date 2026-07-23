@@ -36,6 +36,24 @@ func TestLoadFileStrictAndMissing(t *testing.T) {
 	}
 }
 
+func TestDefaultModelIsUserLevelOnly(t *testing.T) {
+	path := writeSettings(t, t.TempDir(), `default_model:
+  provider: anthropic
+  id: claude-sonnet-5
+  effort: high
+`)
+	user, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.DefaultModel.Provider != "anthropic" || user.DefaultModel.Effort != "high" {
+		t.Fatalf("default model = %+v", user.DefaultModel)
+	}
+	if _, err := LoadProjectFile(path); err == nil || !strings.Contains(err.Error(), "user-level only") {
+		t.Fatalf("project default_model error = %v", err)
+	}
+}
+
 // Merge precedence: user rules come first (win via first-match), project
 // second, spec last.
 func TestMergePrecedenceOrder(t *testing.T) {
@@ -171,6 +189,13 @@ func TestSharedConfigWritersLoseNoRulesOrTrustEntries(t *testing.T) {
 	s, err := LoadFile(settings)
 	if err != nil || len(s.Permissions) != writers {
 		t.Fatalf("permissions = %d, err = %v; want %d", len(s.Permissions), err, writers)
+	}
+	raw, err := os.ReadFile(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "default_model:") {
+		t.Fatalf("zero default_model leaked into settings writer:\n%s", raw)
 	}
 
 	data := filepath.Join(root, "data")

@@ -43,8 +43,8 @@ func TestBuiltinSpecLoads(t *testing.T) {
 			if spec.MaxGenerationSteps != DefaultMaxGenerationSteps {
 				t.Errorf("MaxGenerationSteps = %d, want default %d", spec.MaxGenerationSteps, DefaultMaxGenerationSteps)
 			}
-			if spec.Model.MaxTokens != DefaultMaxTokens {
-				t.Errorf("Model.MaxTokens = %d, want default %d", spec.Model.MaxTokens, DefaultMaxTokens)
+			if spec.Model.Provider != "" || spec.Model.ID != "" {
+				t.Errorf("built-in definition unexpectedly carries model %+v", spec.Model)
 			}
 			if spec.AgentWorkspace != "isolated" {
 				t.Errorf("AgentWorkspace = %q, want isolated", spec.AgentWorkspace)

@@ -175,7 +175,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		SpecPath:   specPath,
 	}
 	if specPath != "" {
-		loop.SubSpecs = siblingSpecResolver(specPath)
+		loop.SubSpecs = siblingSpecResolver(specPath, spec.Model, true)
 	}
 	result, runErr := loop.Resume(ctx)
 	if runErr != nil {

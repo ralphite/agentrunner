@@ -3,7 +3,6 @@ title: 每次 run 产生完整可读的事件日志(逐行 JSON envelope,seq 无
 files:
   spec.yaml: |
     name: chatter
-    model: { provider: scripted, id: x }
     system_prompt: help
   fix.yaml: |
     steps:

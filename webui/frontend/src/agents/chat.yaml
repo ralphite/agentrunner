@@ -1,6 +1,0 @@
-name: chat
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
-system_prompt: You are a concise, helpful assistant.
-tools: []
-permissions:
-  - { action: allow }

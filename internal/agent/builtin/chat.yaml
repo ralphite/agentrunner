@@ -1,0 +1,6 @@
+name: chat
+description: Concise conversation without tools.
+system_prompt: You are a concise, helpful assistant.
+tools: []
+permissions:
+  - { action: allow }

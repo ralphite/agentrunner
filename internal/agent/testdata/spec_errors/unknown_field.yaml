@@ -1,4 +1,3 @@
 name: x
 bogus: true
-model: { provider: gemini, id: gemini-flash-latest }
 system_prompt: hi

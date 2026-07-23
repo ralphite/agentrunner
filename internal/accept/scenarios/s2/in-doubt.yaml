@@ -3,7 +3,6 @@ title: 执行了却没记账的副作用在 resume 时自愈——渲染 interru
 files:
   spec.yaml: |
     name: doubter
-    model: { provider: scripted, id: x }
     system_prompt: leave a mark
     tools: [bash]
     permissions:

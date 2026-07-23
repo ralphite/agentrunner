@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -65,29 +64,11 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 	}
 }
 
-// siblingSpecResolver resolves a sub-agent name to <name>.yaml next to the
-// parent spec (S5.3), OR to a shipped built-in agent (explore/plan, INC-25).
-// The spec.Agents whitelist gates WHO may be spawned; this only answers WHERE
-// the spec lives. Built-in agents are tried first (a workspace file of the
-// same name would otherwise shadow the shipped read-only agent), and they
-// inherit the PARENT's model so a built-in explore runs on the same provider
-// the user chose — the shipped default is only a fallback.
-func siblingSpecResolver(parentSpecPath string) agent.SubSpecResolver {
-	dir := filepath.Dir(parentSpecPath)
-	return func(name string) (*agent.AgentSpec, error) {
-		if spec, ok := agent.BuiltinSpec(name); ok {
-			if parent, err := agent.LoadSpec(parentSpecPath); err == nil && parent.Model.Provider != "" {
-				spec.Model = parent.Model
-			}
-			return spec, nil
-		}
-		return agent.LoadSpec(filepath.Join(dir, name+".yaml"))
-	}
-}
-
 // runOptions carries everything runAgent needs; factored for testability.
 type runOptions struct {
 	specPath           string
+	modelRef           string
+	effort             string
 	prompt             string
 	workspace          string
 	maxGenerationSteps int
@@ -111,6 +92,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	maxGenerationSteps := fs.Int("max-generation-steps", 0, "override spec max_generation_steps")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
+	modelFlags := addModelFlags(fs)
 	jsonOut := fs.Bool("json", false, "emit the output event stream as JSON lines")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
 	if ok, code := parseFlags(fs, args); !ok {
@@ -122,7 +104,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		return ExitUsage
 	}
 	if len(rest) != 2 {
-		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"prompt\"  (prompt may be piped: echo prompt | agentrunner %s spec.yaml)\n", name, name)
+		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <agent-name|spec.yaml> \"prompt\"  (prompt may be piped)\n", name)
 		return ExitUsage
 	}
 	if strings.TrimSpace(rest[1]) == "" {
@@ -151,6 +133,8 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	}
 	return runAgent(runOptions{
 		specPath:           rest[0],
+		modelRef:           *modelFlags.ref,
+		effort:             *modelFlags.effort,
 		prompt:             rest[1],
 		workspace:          *workspaceDir,
 		maxGenerationSteps: *maxGenerationSteps,
@@ -172,7 +156,12 @@ func runAgent(opts runOptions) int {
 	defer stop()
 	loadDotEnv(".env")
 
-	spec, err := agent.LoadSpec(opts.specPath)
+	_, model, err := resolveModelInput(opts.modelRef, opts.effort)
+	if err != nil {
+		fmt.Fprintln(opts.stderr, err)
+		return ExitUsage
+	}
+	spec, specRef, err := resolveAgent(opts.specPath, model)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitUsage
@@ -240,7 +229,8 @@ func runAgent(opts runOptions) int {
 		Mode:           mode,
 		Hooks:          hooks,
 		Approvals:      approvalResolver(opts.stderr),
-		SubSpecs:       siblingSpecResolver(opts.specPath),
+		SubSpecs:       siblingSpecResolver(specRef, spec.Model, false),
+		SpecPath:       specRef,
 		Snapshots:      snapshotStoreFor(ws, opts.stderr),
 		DurableOpening: true,
 	}

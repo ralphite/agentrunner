@@ -1,0 +1,1 @@
+spec testdata/spec_errors/model_field_removed.yaml: field model: model is session input, not an Agent field; remove model and use --model <provider>/<id> (or settings.yaml default_model)

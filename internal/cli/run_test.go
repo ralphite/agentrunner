@@ -14,9 +14,9 @@ import (
 
 func writeSpec(t *testing.T, dir string) string {
 	t.Helper()
+	useScriptedDefaultModel(t, dir)
 	path := filepath.Join(dir, "spec.yaml")
 	spec := `name: t
-model: { provider: scripted, id: x }
 system_prompt: help
 tools: [read_file, edit_file, bash]
 permissions:
@@ -26,6 +26,19 @@ permissions:
 		t.Fatal(err)
 	}
 	return path
+}
+
+func useScriptedDefaultModel(t *testing.T, dir string) {
+	t.Helper()
+	root := filepath.Join(dir, "config")
+	t.Setenv("XDG_CONFIG_HOME", root)
+	settings := filepath.Join(root, "agentrunner", "settings.yaml")
+	if err := os.MkdirAll(filepath.Dir(settings), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settings, []byte("default_model: { provider: scripted, id: x, effort: medium }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func scriptedFactory(fix scripted.Fixture) providerFactory {

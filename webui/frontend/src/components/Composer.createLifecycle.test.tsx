@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
+  agents: vi.fn(async () => [{ name: "dev", source: "shipped", yaml: "name: dev\nsystem_prompt: test\ntools: []\n" }]),
   newSession: vi.fn(),
   makeWorkspace: vi.fn(async () => ({ path: "/tmp/ws" })),
   gitBranches: vi.fn(async () => ({ isRepo: false, current: "", branches: [], dirty: 0 })),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: {
+    agents: mocks.agents,
     newSession: mocks.newSession,
     makeWorkspace: mocks.makeWorkspace,
     gitBranches: mocks.gitBranches,

@@ -139,6 +139,15 @@ export interface SpecFile {
   content: string;
 }
 
+// Effective runtime Agent catalog. `yaml` is the editable behavior definition;
+// model selection is intentionally absent and travels separately on requests.
+export interface AgentCatalogEntry {
+  name: string;
+  description?: string;
+  source: "shipped" | "user";
+  yaml: string;
+}
+
 // ProjectMeta is the server-side, workspace-keyed overlay (INC-53, HANDA #24):
 // a user's cosmetic preferences layered on top of the journal-derived project
 // groups — a custom display name, a folded (collapsed) state, and when the

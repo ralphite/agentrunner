@@ -3,7 +3,6 @@ title: agent 端到端完成"读文件并修正内容"任务(scripted)
 files:
   spec.yaml: |
     name: fixer
-    model: { provider: scripted, id: x }
     system_prompt: You are a coding agent.
     tools: [read_file, edit_file]
     permissions:

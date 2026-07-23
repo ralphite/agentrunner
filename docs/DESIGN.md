@@ -958,21 +958,20 @@ v1 落地并保持可用，定位是**服务核心循环的机制**。
 
 ## 9. Agent spec 与配置
 
-agent 完全由声明式 spec（YAML → 强类型 struct）定义，加载时校验、
-坏 spec 报精确错误。spec 是模板，**agent instance** = spec + 运行时输入
-（opening prompt、correlation id、parent）。
+Agent 的行为由声明式 definition（YAML → 强类型 struct）定义，加载时
+strict 校验、坏 definition 报精确错误。**agent instance** =
+definition + session 运行时输入（model selection、opening prompt、
+correlation id、parent）。
+
+definition 有两层共享 catalog：binary embed 的 shipped Agent，以及
+`~/.config/agentrunner/agents/*.yaml` 的 user Agent；user 同名文件显式覆盖
+shipped。CLI/TUI/Web UI 都消费同一个 runtime catalog，UI 不拥有 Agent
+定义。CLI 同时接受 catalog name 与显式 YAML path。
 
 ```yaml
 # agents/researcher.yaml
 name: researcher
 description: Deep-dives a topic and reports findings.
-
-model:
-  provider: gemini             # 薄 provider 接口；gemini 为主、anthropic 次
-  id: gemini-2.5-pro
-  max_tokens: 8192
-  thinking: { budget_tokens: 4096 }   # 通用能力，见 §11；provider 各自映射
-  # API key 只从环境变量读（如 GEMINI_API_KEY），绝不写进 spec/仓库
 
 system_prompt_file: prompts/researcher.md   # 只是拼装的一层，见 §4
 
@@ -990,39 +989,37 @@ mcp:
     headers_from_env: { X-Tenant: MCP_TENANT }
     oauth: { access_token_env: MCP_ACCESS_TOKEN }
 
-skills:                        # Claude Code skill 约定：目录 + markdown + frontmatter
-  - ./skills/research
-
 agents: [summarizer]           # 允许 spawn 的子 agent 白名单
 receipts: steer                # 回执投递模式:steer(默认)|turn_end(裁决 #15)
 agent_workspace: isolated      # 子默认独立 worktree；shared 必须显式选择
 
 permissions:
-  mode: default                # mode 是 loop 行为的数据描述（见 §5）
-  rules:
-    - { tool: read_file, action: allow }
-    - { tool: edit_file, path: "src/**", action: allow }
-    - { tool: bash, command: "git status*", action: allow }
-    - { tool: bash, action: ask }        # 兜底；path 规则约束不了 bash（见 §5）
+  - { tool: read_file, action: allow }
+  - { tool: edit_file, path: "src/**", action: allow }
+  - { tool: bash, command: "git status*", action: allow }
+  - { tool: bash, action: ask }        # 兜底；path 规则约束不了 bash（见 §5）
 
-hooks:
-  pre_tool_use: ["./hooks/lint-check.sh"]   # v0: observe + block
-
-context:
-  compaction: { trigger_ratio: 0.8 }   # 见 §4 context assembly
-  tool_output_limit: 30000             # 每个 tool result 的截断上限
-  memory_files: true                   # CLAUDE.md 式指令文件注入
-
-limits:
-  max_generation_steps: 200
-  max_tokens_total: 500_000
-  timeout_s: 900
+compact_at_tokens: 120000              # Agent 的 context 行为，不是模型字段
+microcompact_at_tokens: 90000
+max_generation_steps: 200
+budget: { max_total_tokens: 500000 }
 ```
+
+模型不属于 Agent definition。新 session 的 model selection 是独立输入
+`{provider,id,effort}`；`max_tokens` 与 `thinking` 只由
+`effort=light|medium|high|xhigh` 推导。CLI precedence：
+显式 `--model/--effort` > user
+`~/.config/agentrunner/settings.yaml:default_model` > compiled default
+`gemini/gemini-flash-latest + medium`。Web UI 每次 launch/switch 都显式提交
+Model + Effort。解析后的 effective model 与 definition 一起冻结进 journal；
+resume 永不重读 live default。
 
 - 配置分层从简：**spec + user settings + project settings** 三个来源，
   标量覆盖、permission rules 按文档化顺序拼接（user > project > spec）；
   更细的合并语义等真实冲突出现再加。user settings 属于用户机器，
   project settings 随 repo 走——这个出身差异是信任模型的依据。
+  `default_model` 是例外：只允许 user settings，project settings 写入即报错，
+  避免 cloned repo 静默选择模型/effort。
 - **policy 热更新是 event**："always allow"类写回 settings 的操作先
   journal `PolicyChanged` event 再写盘（崩溃后幂等补做）；harness 配置
   路径显式排除出快照/rewind 范围——否则 rewind 会让已收紧的 deny

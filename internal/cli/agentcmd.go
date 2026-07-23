@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/workspace"
@@ -22,30 +25,58 @@ import (
 // prefix blocks, and let the next send revive the session under the new
 // spec.
 func agentCmd(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 {
-		fmt.Fprintln(stderr, "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>")
+	fs := flag.NewFlagSet("agent", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	modelFlags := addModelFlags(fs)
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
+	}
+	if fs.NArg() != 2 {
+		fmt.Fprintln(stderr, "usage: agentrunner agent [--model <provider>/<id>] [--effort <level>] <session-id-or-prefix> <agent-name|spec.yaml>")
 		return ExitUsage
 	}
-	dir, err := resolveSessionDir(args[0])
+	dir, err := resolveSessionDir(fs.Arg(0))
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
 	sessionID := filepath.Base(dir)
-	specPath, err := filepath.Abs(args[1])
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return ExitUsage
-	}
-	spec, err := agent.LoadSpec(specPath)
-	if err != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
-		return ExitUsage
-	}
 	started, err := readSessionStarted(dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
+	}
+	specJSON := started.Spec
+	if changed, cerr := readLatestSpecChange(dir); cerr == nil && changed != nil {
+		specJSON = changed.Spec
+	}
+	var current agent.AgentSpec
+	if err := json.Unmarshal(specJSON, &current); err != nil {
+		fmt.Fprintf(stderr, "agentrunner: journaled spec: %v\n", err)
+		return ExitRun
+	}
+	model := current.Model
+	if *modelFlags.ref != "" || *modelFlags.effort != "" {
+		base := modelconfig.FromSpec(current.Model)
+		selection, err := modelconfig.WithExplicit(base, *modelFlags.ref, *modelFlags.effort)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		if !knownProviderName(selection.Provider) {
+			fmt.Fprintf(stderr, "agentrunner: unknown provider %q\n", selection.Provider)
+			return ExitUsage
+		}
+		model, err = selection.Resolve()
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+	}
+	spec, specRef, err := resolveAgent(fs.Arg(1), model)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
 	}
 
 	// A hosted loop holds the journal lock: ask the daemon to release it.
@@ -67,8 +98,8 @@ func agentCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
-	changed, err := agent.RenderSpecChange(spec, specPath, started.WorkspaceRoot,
-		time.Now(), siblingSpecResolver(specPath), pipe)
+	changed, err := agent.RenderSpecChange(spec, specRef, started.WorkspaceRoot,
+		time.Now(), siblingSpecResolver(specRef, spec.Model, false), pipe)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun

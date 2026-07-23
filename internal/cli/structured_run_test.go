@@ -47,9 +47,9 @@ func startScriptedDaemon(t *testing.T, dir, fixture string) {
 // output (PLAN 5.7 single entry) on the scripted (non-native) provider.
 func writeStructuredSpec(t *testing.T, dir string) string {
 	t.Helper()
+	useScriptedDefaultModel(t, dir)
 	path := filepath.Join(dir, "spec.yaml")
 	spec := `name: t
-model: { provider: scripted, id: x }
 system_prompt: help
 output_schema:
   type: object

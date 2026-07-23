@@ -3,7 +3,7 @@ title: 上下文超阈值时 turn 边界压缩——ContextCompacted 落盘,run 
 files:
   chatty.yaml: |
     name: chatty
-    model: { provider: scripted, id: x, max_tokens: 100, compact_at_tokens: 200 }
+    compact_at_tokens: 200
     system_prompt: elaborate
     tools: [bash]
     permissions:
