@@ -788,6 +788,20 @@ detail/edit surface。INC-98.3r 已先把 terminal `Run details` 的全量 JSON 
 Overview/Usage/Activity，raw 数据仍在 disclosure，此 UI 修复不冒充 G56 已关闭。
 → UJ-14/UJ-24
 
+**G57 当前 context window/compaction 状态的 backend projection 缺失 — ❌ 开放（INC-98.4k 主界面对照，中）**
+Codex 主 composer 的 context tooltip 会给当前上下文 `used / limit / remaining`；用户提供的
+reference 为 `72k / 258k tokens used`。AgentRunner journal/inspect 目前只有每次 generation
+及 session 累计的 input/output/cache/billed usage；这些是计费/历史事实，不等于下一次请求
+实际 assembled context。provider context limit、当前 compact 后 token estimate、
+`compact_at_tokens`/`microcompact_at_tokens` 的有效阈值、距离下一次 compaction 与 estimate
+新鲜度都没有 typed projection，前端无法诚实画同类 tooltip。关闭前需由 agent loop 在
+request assembly/compaction 后发布当前 context estimate + provider/model effective limit +
+threshold/measurement timestamp，并裁决切模型、tool payload、cache token、subagent/driver 的
+作用域；随后再把轻量 indicator 接到 composer。禁止用 cumulative billed tokens 或
+`model.max_tokens`（output cap）冒充 context window。证据：
+`qa/runs/2026-07-22-QA88-98.4j-main-macro/02-codex-reference-crop-1100x700.png`。
+→ UJ-09/UJ-17/UJ-24
+
 **G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue
 消失，并在当前 turn 的安全边界注入；这不是 composer 下一条消息的模式开关。AgentRunner

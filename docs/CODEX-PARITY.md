@@ -299,7 +299,7 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.3s 盘点**：79 行 = `PASS 24 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 /
+**98.4k 盘点**：81 行 = `PASS 24 / GAP 14 / INTENTIONAL 4 / BLOCKED 1 /
 UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
@@ -318,6 +318,7 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | GL-09 | Pull Requests list/search/filter/detail/loading/empty | GAP | 2026-07-22 Codex `10`；AgentRunner 缺 session→review→PR 产品面，G13；`07` loading 图拒收 |
 | GL-10 | Sites empty/list/create/publish | INTENTIONAL | Codex `08`；网站托管不属于 UJ-01..25，除非另立 journey |
 | GL-11 | Scheduled 主 shell/list/search/filter | PASS | 2026-07-22：Codex `05` ↔ AgentRunner `14`（同为逻辑 1952×1465 light）；只判 shell，细态见 SC 组 |
+| GL-12 | Plugins installed/marketplace/search/detail/install/update/remove | GAP | 2026-07-22 Codex `09`；AgentRunner 有 skills/MCP/tools 原语但无统一 package lifecycle 与权限/来源/版本产品面，G43；禁止补静态入口冒充 |
 | GL-12 | Plugins installed/marketplace/search/install/update | GAP | Codex `09`；统一包生命周期缺失，G43 |
 | GL-13 | 全局 loading/offline/reconnect/version mismatch | UNTESTED | 待不破坏 shared daemon 的可控路径；kill 类操作需单独授权 |
 
@@ -356,6 +357,7 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | TH-12 | long thread hydration/scroll anchor/new message badge | UNTESTED | — |
 | TH-13 | goal banner：active/pause/edit/blocked/budget/complete | UNTESTED | — |
 | TH-14 | plan/progress visibility 与完成真实性 | UNTESTED | Codex 有 update_plan；我方整体表 progress 需逐态比较 |
+| TH-15 | context window used/remaining、compact threshold 与 tooltip | GAP | 用户给出的 Codex reference 精确显示 `72k / 258k tokens used` 与剩余比例；AgentRunner inspect 只有 session cumulative input/output/billed usage，没有当前 assembled context、provider limit、compact threshold/next-compaction projection，G57；禁止拿累计 billed 冒充 context usage |
 
 ### 7.4 Environment、Agents 与 Changes
 

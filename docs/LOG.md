@@ -7175,3 +7175,9 @@ Commit/Commit & push disabled、Push enabled，1100×700 body overflow=0、brows
 logs 空。证据为 `qa/runs/2026-07-22-QA88-98.4j-main-macro/01..05`；fixture 继续保持真实
 unresolved，未 resolve/abort/close/delete/cleanup。CH-06 仍为 UNTESTED，仅因 Codex
 同态复杂 conflict 路径尚缺，不把单侧系统修复冒充 parity PASS。
+
+同批继续从主界面对照登记“缺功能但不能前端假画”的 backend 清单：补回此前矩阵漏掉的
+Plugins lifecycle 行（G43），并新增 context window/compaction projection G57。Sites 明确
+保持 `INTENTIONAL`，Pull Requests 继续归 G13；context 不能用 session cumulative billed
+tokens 或 output `max_tokens` 冒充。矩阵现为 81 行：
+`PASS 24 / GAP 14 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 38`。
