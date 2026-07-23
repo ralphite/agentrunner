@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, ImageBroken } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, ImageBroken, WarningCircle } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { dropGeneratedFiles, splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
@@ -331,6 +331,10 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   const focusDiffFile = useStore((s) => s.focusDiffFile);
   const bumpWorkspaceEpoch = useStore((s) => s.bumpWorkspaceEpoch);
   const [summary, setSummary] = useState<ChangesSummary | null>(null);
+  // A merge conflict is a workspace-wide blocking state, not merely one more
+  // changed file. Keep it on the timeline card so the main screen does not look
+  // healthy until the user happens to open Review.
+  const [conflicts, setConflicts] = useState<string[]>([]);
   // INC-41 TH-7. The fetch used to have two outcomes — a summary, or null — so a
   // failed request was indistinguishable from "this turn changed nothing": one
   // flaky /diff and the whole "Edited N files" card vanished without a word, and
@@ -357,6 +361,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       shownSid.current = sid;
       setPhase("loading");
       setSummary(null);
+      setConflicts([]);
     }
     // QA-0718 用户实机(两张截图,两个方向的错):
     // 1. 无参 diff = working-tree 全量——新会话接手带历史未提交改动的
@@ -368,9 +373,12 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     //    截图)。→ last-turn 空时回退 working-tree,有变更则以
     //    "Changes in workspace" 呈现:不谎称本 turn 编辑,但工作区
     //    现状(可 Review/commit)不失踪。
+    // Both backend scopes project the workspace-wide conflict set. Trust that
+    // contract here instead of doubling /diff traffic on every streamed event.
     AR.diff(sid, "last-turn")
       .then(async (data) => {
         if (!alive) return;
+        setConflicts(data.conflicts || []);
         const turnSummary = !data.known || !data.isRepo || data.nested ? null : dropGeneratedFiles(summarizeChanges(data));
         if (turnSummary?.files.length) {
           setScope("turn");
@@ -380,6 +388,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         }
         const wt = await AR.diff(sid, "working-tree");
         if (!alive) return;
+        setConflicts(wt.conflicts || data.conflicts || []);
         const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : dropGeneratedFiles(summarizeChanges(wt));
         setScope("workspace");
         setSummary(wtSummary?.files.length ? wtSummary : null);
@@ -488,6 +497,15 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
               )}
               {newFiles > 0 && (
                 <em className="dim not-italic text-dim">{countedFiles > 0 ? "· " : ""}{newFiles} new</em>
+              )}
+              {conflicts.length > 0 && (
+                <em
+                  className="inline-flex items-center gap-[4px] not-italic text-red"
+                  title={conflicts.join("\n")}
+                >
+                  <WarningCircle size={13} weight="fill" />
+                  {conflicts.length} merge {conflicts.length === 1 ? "conflict" : "conflicts"}
+                </em>
               )}
             </span>
           </div>

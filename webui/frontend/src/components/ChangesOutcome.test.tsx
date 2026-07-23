@@ -71,7 +71,7 @@ describe("ChangesOutcome phases (INC-41 TH-7)", () => {
     expect(diffMock).toHaveBeenCalledTimes(1);
 
     // Retry re-fetches; on success the real card replaces the error shell.
-    diffMock.mockResolvedValueOnce(okDiff(2));
+    diffMock.mockResolvedValue(okDiff(2));
     fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
     await waitFor(() => expect(diffMock).toHaveBeenCalledTimes(2));
     await screen.findByText("Edited 2 files");
@@ -363,5 +363,35 @@ describe("ChangesOutcome scope pairing (QA-0719)", () => {
     expect(onReview).toHaveBeenCalledWith("workspace");
     fireEvent.click(screen.getByLabelText("Review changes to mod0.ts"));
     expect(onReview).toHaveBeenLastCalledWith("workspace");
+  });
+});
+
+describe("ChangesOutcome merge-conflict disclosure (INC-98.4j)", () => {
+  const emptyDiff = { workspace: "/w", known: true, isRepo: true, diff: "", untracked: [] };
+
+  it("shows a workspace conflict on the main timeline even when last-turn has ordinary changes", async () => {
+    diffMock.mockImplementation((_sid: string, scope: string) =>
+      Promise.resolve(scope === "last-turn"
+        ? { ...okDiff(1), conflicts: ["README.md"] }
+        : { ...okDiff(2), conflicts: ["README.md"] }));
+
+    renderCard();
+
+    await screen.findByText("Edited 1 file");
+    const warning = screen.getByText("1 merge conflict");
+    expect(warning).toBeTruthy();
+    expect(warning.closest("em")?.getAttribute("title")).toBe("README.md");
+  });
+
+  it("keeps shared workspace conflicts visible when the current turn itself changed nothing", async () => {
+    diffMock.mockImplementation((_sid: string, scope: string) =>
+      Promise.resolve(scope === "last-turn"
+        ? emptyDiff
+        : { ...okDiff(1), conflicts: ["app.ts", "package.json"] }));
+
+    renderCard();
+
+    await screen.findByText("Changes in workspace");
+    expect(screen.getByText("2 merge conflicts")).toBeTruthy();
   });
 });

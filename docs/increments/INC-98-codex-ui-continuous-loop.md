@@ -466,6 +466,14 @@ INC-98 将该方法固化为持续循环：
   再在同一 unresolved workspace 新建第二 retained session：老 session Last Turn=918
   bytes、新 session Last Turn=0，但两者 `conflicts=[README.md]`，Working Tree 都显示
   同一个真实 conflict，证明 turn scope 不会遮掉 workspace blocking state。
+- **98.4j main-screen blocker disclosure design note**：98.4i 只让 Review 内部变得安全，
+  但 1100×700 主界面对比暴露系统级断层：未点 Review 时，时间线仍把 `UU` repo 显示成
+  普通 `Changes in workspace +5 -0`，用户无法从主任务表面发现 commit 已被阻断。现
+  `ChangesOutcome` 直接消费任一 diff scope 已有的 workspace-wide `conflicts` 字段，在
+  counts 同一信息层显示 `N merge conflict(s)`；不新增第三种 scope，不猜 conflict marker，
+  也不在每个 streamed event 上额外请求 Working Tree。真实共享 workspace 的两个 session
+  分别覆盖 populated Last Turn 与 empty Last Turn，跨 session 导航后主卡均持续显示同一个
+  blocker，Review 的 Commit/Commit & push guard 与 Push 可用语义保持不变。
 
 ## Spec delta
 

@@ -7153,3 +7153,25 @@ marker 而 Last Turn diff=0；两者仍都投 conflict，第二 session Working 
 workspace 的 blocking Git state。新增 backend conflict projection/commit refusal 与
 frontend badge/menu guard 回归；900×700 body/diff overflow=0，browser warn/error logs 空。
 所有 session/repo/journal 继续保留，未 resolve、未 abort、未清理。
+
+---
+
+## 2026-07-22 · INC-98.4j 主界面 blocker 提升：conflict 不再藏在 Review
+
+把用户给的 Codex 主任务截图与 AgentRunner 真实 unresolved workspace 都归一为
+1100×700，并在同一 comparison input 里检查主 shell。修前即使 98.4i 已保护 backend
+与 Review，主时间线仍只显示 `Changes in workspace +5 -0`；只有点 Review 才知道存在
+`UU README.md`。这会让用户误判 workspace 可提交，是主任务信息架构缺陷，不是小样式差异。
+
+`ChangesOutcome` 现在直接显示 scope response 的 workspace-wide `conflicts`：
+counts 行增加 `1 merge conflict`，路径进入 title；沿用现有 red token/Phosphor icon，
+不新造视觉语言。实现没有每次流事件双取 diff：Last Turn 与 Working Tree backend 本就
+都投同一 conflict set，前端只消费当前 scope，fallback 时才请求 Working Tree。
+
+shared production 复验两个同 workspace session：旧 session 为 `Edited 3 files +9 -1`
+且显示 conflict，新 session 的 Last Turn 无文件变化但 fallback card 为
+`Changes in workspace +5 -0` 且仍显示 conflict；A→B 导航不丢状态。Review 可达，
+Commit/Commit & push disabled、Push enabled，1100×700 body overflow=0、browser error
+logs 空。证据为 `qa/runs/2026-07-22-QA88-98.4j-main-macro/01..05`；fixture 继续保持真实
+unresolved，未 resolve/abort/close/delete/cleanup。CH-06 仍为 UNTESTED，仅因 Codex
+同态复杂 conflict 路径尚缺，不把单侧系统修复冒充 parity PASS。
