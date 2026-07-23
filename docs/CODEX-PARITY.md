@@ -371,7 +371,7 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | CH-02 | added/modified/deleted/renamed/untracked/staged | UNTESTED | — |
 | CH-03 | large/generated/binary/unavailable baseline disclosure | UNTESTED | — |
 | CH-04 | file/hunk expand-collapse、scroll、syntax/CJK/wrap | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：我方 filter→file jump→Collapse/Expand 与 focus return 真验；Codex 同态、hunk/CJK/wrap 尚未齐 |
-| CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：双侧 1280×800 desktop split 同态；我方 close 精确回 opener，尚缺 Codex focus 与双侧 mobile 同态 |
+| CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell` + `98.4f-changes-compact`：双侧 1280 split；900 同图显示 Codex 三栏挤压、我方 intentional overlay；我方 900/390 containment 与 focus return 通过，Codex close focus 仍未取证 |
 | CH-06 | Commit or push menu/validation/progress/error/success | UNTESTED | 不执行真实 push；可用专用 shared QA repo 做 commit |
 | CH-07 | Apply to project/Remove worktree/dirty/conflict guards | UNTESTED | AgentRunner 特有强能力，需验证而非强行克隆 Codex |
 

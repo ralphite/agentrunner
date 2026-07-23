@@ -774,13 +774,15 @@ window_text_center() {
   local image=$1
   local query=$2
   local region=$3
-  swift - "$image" "$query" "$region" "$window_x" "$window_y" "$window_width" "$window_height" <<'SWIFT'
+  local horizontal_anchor=${4:-center}
+  local match_mode=${5:-contains}
+  swift - "$image" "$query" "$region" "$window_x" "$window_y" "$window_width" "$window_height" "$horizontal_anchor" "$match_mode" <<'SWIFT'
 import CoreGraphics
 import Foundation
 import ImageIO
 import Vision
 
-guard CommandLine.arguments.count == 8,
+guard CommandLine.arguments.count == 10,
       let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: CommandLine.arguments[1]) as CFURL, nil),
       let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
       let windowX = Double(CommandLine.arguments[4]),
@@ -793,6 +795,16 @@ guard CommandLine.arguments.count == 8,
 
 let query = CommandLine.arguments[2]
 let region = CommandLine.arguments[3]
+let horizontalAnchor = CommandLine.arguments[8]
+let matchMode = CommandLine.arguments[9]
+guard horizontalAnchor == "center" || horizontalAnchor == "right" else {
+  fputs("invalid OCR horizontal anchor\n", stderr)
+  exit(2)
+}
+guard matchMode == "contains" || matchMode == "exact" else {
+  fputs("invalid OCR match mode\n", stderr)
+  exit(2)
+}
 typealias TextMatch = (Bool, Float, CGRect, String)
 var usingSettingsSidebarCrop = false
 func foldedOCRText(_ value: String) -> String {
@@ -823,6 +835,12 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
     case "review-tab":
       inRegion = observation.boundingBox.midX > 0.60 && observation.boundingBox.midY > 0.90
+    case "review-panel":
+      inRegion = observation.boundingBox.midX > 0.64 &&
+        observation.boundingBox.midY > 0.08 && observation.boundingBox.midY < 0.92
+    case "thread-review-entry":
+      inRegion = observation.boundingBox.midX > 0.28 && observation.boundingBox.midX < 0.65 &&
+        observation.boundingBox.midY > 0.08 && observation.boundingBox.midY < 0.92
     case "thread":
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
     case "thread-tail":
@@ -855,8 +873,21 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
       let foldedQuery = foldedOCRText(query)
       let foldedCandidate = foldedOCRText(candidate.string)
       let foldedContains = foldedQuery.count >= 6 && foldedCandidate.contains(foldedQuery)
-      if exact || contains || foldedContains {
-        return (exact, candidate.confidence, observation.boundingBox, candidate.string)
+      if exact {
+        return (true, candidate.confidence, observation.boundingBox, candidate.string)
+      }
+      if matchMode == "exact" { continue }
+      // Vision may group `Review  ×  +` into one observation. When the query is
+      // only the label inside it, use that substring's geometry; the enclosing
+      // observation's maxX would point at `+` and recreate the very cleanup bug
+      // this helper is supposed to prevent.
+      if contains,
+         let range = candidate.string.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]),
+         let substringBox = try? candidate.boundingBox(for: range) {
+        return (false, candidate.confidence, substringBox.boundingBox, candidate.string)
+      }
+      if foldedContains {
+        return (false, candidate.confidence, observation.boundingBox, candidate.string)
       }
     }
     return nil
@@ -916,7 +947,8 @@ guard let match = matches.sorted(by: {
   fputs("window text not found in \(region): \(query)\n", stderr)
   exit(1)
 }
-let pointX = windowX + Double(match.2.midX) * windowWidth * coordinateWidthFactor
+let normalizedX = horizontalAnchor == "right" ? match.2.maxX : match.2.midX
+let pointX = windowX + Double(normalizedX) * windowWidth * coordinateWidthFactor
 let pointY = windowY + (1.0 - Double(match.2.midY)) * windowHeight
 print("\(pointX)\t\(pointY)")
 SWIFT
@@ -1013,18 +1045,24 @@ close_transient() {
     rm -f -- "$ocr_capture" 2>/dev/null || true
     ocr_capture=$(mktemp -t codex-thread-review-restored)
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-    if window_text_center "$ocr_capture" "Last Turn" "main" >/dev/null 2>&1; then
+    if window_text_center "$ocr_capture" "Last Turn" "review-panel" >/dev/null 2>&1; then
       # Review is a resident right-side tab, not an Escape-dismissed overlay.
-      # Anchor the close click to the exact tab label in the top-right strip;
-      # the native X sits 88px to its right at every supported viewport.
-      review_tab_point=$(window_text_center "$ocr_capture" "Review" "review-tab")
+      # Anchor to the OCR text's right edge, not its center: at compact widths
+      # the tab truncates to `Revi…`, while the native X stays 11 points right.
+      if ! review_tab_point=$(window_text_center "$ocr_capture" "Review" "review-tab" right 2>/dev/null); then
+        review_tab_point=$(window_text_center "$ocr_capture" "Revi" "review-tab" right)
+      fi
       IFS=$'\t' read -r review_tab_x review_tab_y <<<"$review_tab_point"
-      send_click "$(awk -v x="$review_tab_x" 'BEGIN { print x + 88 }')" "$review_tab_y"
+      if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+        echo "capture-codex-ui: Review tab right=$review_tab_x,$review_tab_y window=$window_x,$window_y ${window_width}x${window_height}" >&2
+      fi
+      send_click "$(awk -v x="$review_tab_x" 'BEGIN { print x + 11 }')" "$review_tab_y"
       sleep 1
       rm -f -- "$ocr_capture"
       ocr_capture=$(mktemp -t codex-thread-review-close-validate)
       screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-      if window_text_center "$ocr_capture" "Last Turn" "main" >/dev/null 2>&1; then
+      if window_text_center "$ocr_capture" "Last Turn" "review-panel" >/dev/null 2>&1 ||
+        window_text_center "$ocr_capture" "Revi" "review-tab" >/dev/null 2>&1; then
         echo "capture-codex-ui: Review panel did not close from its tab" >&2
         exit 1
       fi
@@ -1679,15 +1717,20 @@ fi
 if [[ "$mode" == "thread-review" ]]; then
   ocr_capture=$(mktemp -t codex-thread-review)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-  review_point=$(window_text_center "$ocr_capture" "Review" "main")
-  IFS=$'\t' read -r review_x review_y <<<"$review_point"
-  send_click "$review_x" "$review_y"
+  if ! window_text_center "$ocr_capture" "Last Turn" "review-panel" >/dev/null 2>&1; then
+    if ! review_point=$(window_text_center "$ocr_capture" "Review" "thread-review-entry" center exact 2>/dev/null); then
+      review_point=$(window_text_center "$ocr_capture" "Revi" "thread-review-entry")
+    fi
+    IFS=$'\t' read -r review_x review_y <<<"$review_point"
+    send_click "$review_x" "$review_y"
+    review_open=1
+    sleep "$settle_seconds"
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-review-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    window_text_center "$ocr_capture" "Last Turn" "review-panel" >/dev/null
+  fi
   review_open=1
-  sleep "$settle_seconds"
-  rm -f -- "$ocr_capture"
-  ocr_capture=$(mktemp -t codex-thread-review-validate)
-  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-  window_text_center "$ocr_capture" "Last Turn" "main" >/dev/null
 fi
 
 if [[ "$mode" == "thread-approval" ]]; then

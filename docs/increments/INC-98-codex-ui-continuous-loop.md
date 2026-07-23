@@ -408,6 +408,24 @@ INC-98 将该方法固化为持续循环：
   dirty production `44abac64-dirty-223407` 真验：filter=`Popover.tsx` 后唯一 row，jump 后
   `open=1/total=1` 且焦点回 `Changed files`；Collapse 后 `open=0`、焦点回
   `More changes actions`，Expand 后 `open=1`，browser logs 空、双轴 overflow=`0`。
+- **98.4f compact Review cleanup integrity design note**：继续压到 Codex 支持下限
+  `900×700` 后，Review tab 文案被截成 `Revi…`，旧 cleanup 的 exact `Review` OCR 失败；
+  回看 `codex-after-review-close-1280x800.png` 还证明旧 `label center + 88px` 点中了相邻
+  `+`，打开新 tab 并仅让 `Last Turn` 消失，属于取证污染而非成功关闭。修复必须以 OCR
+  bounding box 的**右边界**为锚，兼容 `Review`/`Revi`，只向右 11 screen points 点击
+  原生 `X`；关闭后同时断言 right-panel `Last Turn` 与 top-strip `Revi` 都消失。若上次
+  失败已遗留 Review，下一次 `--thread-review` 识别并复用现存 panel，不重复点击 conversation
+  的 Review。fresh-open 也只接受 conversation 列内的 exact `Review` 或 compact visible
+  prefix `Revi`；region 上界排除 embedded browser，不能误点其
+  `Review code and suggest changes` starter。
+  仍不触发 commit/push/apply/remove，也不接受“切走 tab”等价于关闭。
+  修后 fresh `900×700` 实跑：substring right=`743.5`、真实 `X` click 后
+  `Last Turn` 与 `Revi` 双断言消失，现存 panel 与 fresh open 两路径均通过。修后 reference
+  与 AgentRunner 同 viewport combined 为 `combined-review-1800x700.png`：Codex 仍保留
+  三栏，conversation 仅约 223px 且 usage card 逐词断裂；我方在 `≤900px` 沿用既有
+  12px-inset fullscreen overlay，实测 panel=`876×676`、overflow=`0`、close 回 `Review`。
+  独立 `390×844` 真验 panel=`366×820`、toolbar=`364×44`、Changed files popup
+  `374×396.39` 完全在 viewport，Escape 回 trigger、Close 回 `Review`、browser logs 空。
 
 ## Spec delta
 

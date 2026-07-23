@@ -7049,3 +7049,25 @@ filter=`Popover.tsx`、唯一 row jump、Collapse/Expand、close/focus 全链，
 UNTESTED（Codex empty、同态 file/hunk/CJK/wrap、Codex focus 与双侧 mobile 尚缺），矩阵计数不变。
 未点击 Commit/Push/Apply/Remove，未关闭、删除或清理任何 shared session/workspace/journal。
 capture contract、frontend 69 files/726 tests、production build 与 `./scripts/check.sh` 全绿。
+
+---
+
+## 2026-07-22 · INC-98.4f compact Review 驱动取证纠错
+
+继续把 Codex 压到其可测下限 `900×700` 时，Review tab 截成 `Revi…`，暴露 98.4a cleanup
+并未可靠关闭。回看保留图 `codex-after-review-close-1280x800.png`，确认旧
+`label center + 88px` 实际点中相邻 `+` 并切到新 tab；该“关闭后”证据现明确拒收，不能继续
+支撑 CH-05。失败产生的 Review panel 保留到修复路径真验，未伪造干净起点。
+
+driver 现让 Vision contains match 返回 query substring 自身 bounding box，以文字右边界锚定
+compact `Review/Revi`，只向右 11 screen points 点真实 `X`；关闭必须同时证明 right-panel
+`Last Turn` 和 top-strip `Revi` 消失。fresh open 只在 conversation 列接受 `Review/Revi`，
+排除 embedded browser 的同词 starter；遗留 panel 可被识别并直接清理。修后现存与 fresh
+`900×700` 两路径均通过，fresh right edge=`743.5`。
+
+同 viewport combined 显示 Codex 在 900px 仍保留 sidebar/conversation/Review 三栏，
+conversation≈223px 且 usage card 逐词断裂；AgentRunner 保留既有 `≤900px` 12px-inset overlay，
+panel=`876×676`、overflow=0。另在 `390×844` shared production 真验 panel=`366×820`、
+toolbar=`364×44`、Changed files popup 完全 contained，Escape/Close 分别回 trigger/Review，
+browser logs 空。CH-05 仍 UNTESTED，仅因 Codex close 后 focus 尚无可验证证据；不把我方更稳的
+compact containment 伪装成 Codex 同态。
