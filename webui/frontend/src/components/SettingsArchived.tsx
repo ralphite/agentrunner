@@ -2,7 +2,7 @@ import { Archive, ArrowUpRight, Folder, Tray } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { buildArchivedModel } from "../viewModels";
 import { displayTitle } from "../title";
-import { friendlyStatus } from "./pill";
+import { sessionFriendlyStatus } from "./pill";
 
 export function SettingsArchived({ query, onClose }: { query: string; onClose: () => void }) {
   const { sessions, archived, toggleArchive, renames, select } = useStore();
@@ -35,7 +35,7 @@ export function SettingsArchived({ query, onClose }: { query: string; onClose: (
                 <small className="shrink-0 whitespace-nowrap text-[11px] text-dim">{project.sessions.length} session{project.sessions.length === 1 ? "" : "s"}</small>
               </header>
               {project.sessions.map((session) => {
-                const status = friendlyStatus(session.status);
+                const status = sessionFriendlyStatus(session);
                 const title = displayTitle(renames, session.id, session.title);
                 return (
                   <div className="rs-archive-row flex min-w-0 items-stretch gap-2 max-[520px]:grid max-[520px]:grid-cols-[minmax(0,1fr)_auto] max-[520px]:rounded-[8px] max-[520px]:p-2.5" key={session.id}>

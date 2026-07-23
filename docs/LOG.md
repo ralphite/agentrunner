@@ -7235,3 +7235,21 @@ pending-command scanner 却只从 `InputReceived` 推高水位，因此把 water
 `20260723-075202-fork-bar-t62-5059d9a1155aacf1`：普通 daemon/webui restart 前后均为
 759 events、stranded，daemon log 无该 sid 的 resume；1100×700 UI 仅有 Resume，
 没有 Retry/approval。旧两个已被错误续跑的 child 保持原样供审计，不 answer/close/delete。
+
+---
+
+## 2026-07-23 · INC-98.4o typed human attention 全局可见
+
+关闭 G48/G49：`sessions --json` 保留原始 status，新增可选
+`attention{approvals,answers}`。structured root ask 从当前 fold 精确派生；child approval
+递归 retained spawn journals、按 child sid 去重。前端 sidebar/header/Archived/palette
+统一 `Needs answer`/`Needs approval` amber 状态，typed attention 优先 unread；Environment
+也显示 `Answer requested`，消除 AskForm 可见时仍称 `Nothing needs you` 的真相冲突。
+
+scripted 回归覆盖 parent ask + 两 child approval + duplicate spawn、逐项 resolve 与 ordinary
+idle；shared production 保留单 child、三 child team、structured ask、ordinary idle、resolved
+五态，dirty restart 后 CLI/API 分别稳定为 approvals 1/4、answers 1、nil/nil。1100×700
+fresh deep link、approval card、command palette、body containment 与空 browser logs 通过，
+未作任何 answer/approval/cleanup。TH-08/TH-09 从 GAP 升 PASS；EV-05 因仍缺 Codex 同态
+复杂 child 场景保持 UNTESTED。矩阵为
+`PASS 26 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 39`。

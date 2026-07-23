@@ -13,7 +13,7 @@ import { Menu, MenuItem, MenuLabel } from "./Menu";
 import type { InspectDelegation, InspectNode } from "./Subagents";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
-import { friendlyStatus, terminalNoticeFor } from "./pill";
+import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "./pill";
 import { displayTitle } from "../title";
 import { dedupeInspectNodes } from "../viewModels";
 import { ChangesOutcome } from "./ChangesOutcome";
@@ -543,7 +543,8 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // status (from `ar sessions list`) is authoritative and keeps the header in
   // sync with the sidebar (QA #8). A child session has no list entry, so a
   // dangling "running…" with nothing active means it finished (QA #6).
-  const listStatus = sessions.find((s) => s.id === sid)?.status;
+  const listSession = sessions.find((s) => s.id === sid);
+  const listStatus = listSession?.status;
   const live = folded.active || openApprovals.length > 0;
   const status = live
     ? openApprovals.length > 0
@@ -553,8 +554,8 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       ? // a driver session's `sessions list` status is "unreadable"; its own
         // journal (driver_completed) is the authoritative status.
         folded.status
-      : listStatus
-        ? friendlyStatus(listStatus)
+      : listSession
+        ? sessionFriendlyStatus(listSession)
         : folded.status.cls === "run"
           ? { text: "completed", cls: "closed" }
           : folded.status;
@@ -1243,6 +1244,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             children={children}
             backgroundWork={backgroundWork}
             approvals={openApprovals.length}
+            answers={askQuestions.length > 0 ? 1 : 0}
             sessionIdle={!running}
             recovery={needsRecovery}
             // TH-14 · the chrome above the composer already carries this goal's

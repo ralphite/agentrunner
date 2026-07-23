@@ -37,7 +37,7 @@ export function paletteSessionGroups(
         s.kind !== "driver" &&
         !archived.has(s.id) &&
         !inQuick.has(s.id) &&
-        sessionNeedsAttention(s.status),
+        sessionNeedsAttention(s),
     )
     .sort((a, b) => b.id.localeCompare(a.id)) // newest first (ids are creation stamps)
     .slice(0, ATTENTION_OVERFLOW_CAP);

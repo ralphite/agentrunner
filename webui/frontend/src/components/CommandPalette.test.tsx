@@ -205,6 +205,16 @@ describe("CommandPalette status dots (CP-6)", () => {
     expect(dotOf("Session t02").className).toBe("status-dot appr");
     expect(dotOf("Session t02").getAttribute("title")).toBe("Needs approval");
   });
+
+  it("keeps typed human attention visible even when the parent is unread and raw-ready", () => {
+    const approval = { ...session("approval", "waiting:input"), attention: { approvals: 2 } };
+    const answer = { ...session("answer", "waiting:input"), attention: { answers: 1 } };
+    open([approval, answer], { unread: ["approval"] });
+    expect(dotOf("Session approval").className).toBe("status-dot appr");
+    expect(dotOf("Session approval").getAttribute("title")).toBe("Needs approval");
+    expect(dotOf("Session answer").className).toBe("status-dot appr");
+    expect(dotOf("Session answer").getAttribute("title")).toBe("Needs answer");
+  });
 });
 
 describe("CommandPalette archived search hits (CP-7)", () => {

@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume lifecycle/detail-edit 缺 G55/G56（均不阻断主 journey） |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97/98.4o：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + typed human attention + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87/88；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume lifecycle/detail-edit 缺 G55/G56（均不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -682,34 +682,28 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
-**G48 active ask_user 的 session-list attention projection 缺失 — ❌ 开放（INC-98.3e 真机取证，中）**
-AgentRunner 的 durable wait 已在 `Waiting.Detail.questions` 精确区分 structured ask 与普通
-turn 完成后的 idle input wait，`ar inspect`/SessionView 也能据此恢复完整 AskForm；但
-`ar sessions --json` 与 `/api/sessions` 只投统一 `status=waiting:input`。sidebar、command
-palette、quick switch 只消费 session list，因而把正在等人回答的会话显示成 `Ready`，既无
-attention dot，也不会浮到 Needs attention；用户离开 thread 后很容易永久遗忘问题。不能把
-所有 `waiting:input` 改成 attention（绝大多数只是普通可续聊 idle），也不能让 browser 对
-每个历史 session 做 N 次 inspect。关闭前需在 list projection 增加由 fold 真相派生的 typed
-wait/attention 字段（或等价精确 status），保持 CLI/web API 向后兼容；再统一 sidebar label
-`Needs answer`、dot、command palette ordering、Scheduled/child 边界，并钉普通 idle 不被误抬、
-active ask 跨 reload/restart 仍抬 attention、answer/skip 后立即清除。证据：
-`qa/runs/2026-07-22-QA88-98.3e-ask-user/08..09` 与 `/api/sessions` 实测。
+**G48 active ask_user 的 session-list attention projection 缺失 — ✅ 已关闭（INC-98.4o，2026-07-23）**
+session list 保留原始 `status=waiting:input`，新增可选
+`attention.answers`；它只由 root fold 当前 structured
+`Waiting.Detail.questions` 派生，ordinary idle 不投字段。CLI JSON、Web API、sidebar、
+header、Archived、command palette/quick switch 统一显示 `Needs answer` 与 amber attention；
+Environment 同时显示 `Answer requested`，不再在可见 AskForm 旁谎称 `Nothing needs you`。
+`TestCLISessionsProjectsTypedHumanAttentionAcrossChildren` 钉 active ask→resolve 清除及普通 idle
+边界；shared session `20260723-001526-th08-visual-stable-d382033ab4bf30cb` 跨 daemon/webui
+restart 仍为 `answers:1`，1100×700 fresh load、palette 与零 browser warning/error 通过。
 → UJ-06/UJ-24
 
-**G49 child approval 的 parent session-list attention projection 缺失 — ❌ 开放（INC-98.3g 真机取证，中）**
-child 自己的 journal 与 parent `ar inspect` tree 已精确投出 `waiting:approval`，parent thread 也能
-从 fresh load 持久恢复审批卡/Attention 并把决定路由给 child；但 `ar sessions --json` 与
-`/api/sessions` 仍只看 parent 自身的 `waiting:input`，因此 sidebar/command palette 把正在等
-child 审批的 parent 标成 `Ready`，也不会浮到 Needs attention。selected thread 可用 inspect
-局部改标签，但离开该 thread 后仍会遗忘，不能冒充修复。关闭前需把 root tree 的 typed
-human wait 以向后兼容字段（或等价精确 status）投进 session list：区分 parent 自身 ask、
-child approval、ordinary idle；钉多 child 去重/计数、approve/deny 后即时清除、reload/daemon
-restart 后仍抬 attention，以及不能为列表中的每个历史 session 做 browser N+1 inspect。
-INC-98.3g 已修 selected parent 内的两处前端真相偏差：Subagents 行从 typed wait 显示
-`Needs approval`，approval card 使用既有 delegation path/mode 明示 `Child worktree ·
-worker · isolated`；1280px 下 Environment 不再默认遮住 primary approval card。剩余缺口只在
-全局 list projection。证据：`qa/runs/2026-07-22-QA88-98.3f-approval/30/34/35/38`、
-`ar-child-pending-inspect.json`；同屏 parent approval card/Attention 正确而 sidebar 明示 Ready。
+**G49 child approval 的 parent session-list attention projection 缺失 — ✅ 已关闭（INC-98.4o，2026-07-23）**
+list fold 现在递归读取 `SpawnRequested` 指向的 retained child journals，把 root 自身及所有
+当前 child/grandchild `waiting:approval` 投为可选 `attention.approvals`；按 child session id
+去重，原始 parent status 与旧 JSON consumer 均不变，也没有 browser N+1 inspect。全局 row、
+header、Archived、palette/quick switch 均统一为 `Needs approval` 与 amber attention。
+scripted 回归覆盖两个 child、重复 spawn、单 child resolve 后计数递减、root structured ask
+并存及 ordinary/resolved nil；shared 单 child parent
+`20260723-004908-th09-ar-child-pending-4f8f0740d46d1a02` 为 `approvals:1`，
+真实三 child team parent `20260710-051028-qa-k-teamlead-you-are-the-tea-2173` 为
+`approvals:4`，resolved parent 保持无 attention。daemon/webui restart、1100×700 fresh
+deep link、approval card 与 command palette 均通过，browser logs 为空。
 → UJ-18/UJ-23/UJ-24
 
 **G50 autotitle 接受无信息通用标题并持久覆盖 opening fallback — ❌ 开放（INC-98.3k 真机取证，低）**

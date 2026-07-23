@@ -34,7 +34,7 @@ import {
   type Page,
 } from "../store";
 import { AR } from "../api";
-import { friendlyStatus } from "./pill";
+import { sessionFriendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
@@ -398,7 +398,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
   const renderSession = (session: (typeof sessions)[number], nested = false) => {
     const active = session.id === currentSid;
-    const status = friendlyStatus(session.status);
+    const status = sessionFriendlyStatus(session);
     const isUnread = unread.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTimeAgo(sessionUpdatedDate(session));
@@ -435,11 +435,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             }
           }}
           title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
-          aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
+          aria-label={`${title} · ${isUnread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
         >
           <span className="project-session-title">{title}</span>
           {(isUnread || ["appr", "stranded", "crash"].includes(status.cls)) && (
-            <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
+            <span className={`status-dot ${isUnread && status.cls !== "appr" ? "unread" : status.cls}`} title={isUnread && status.cls !== "appr" ? "New activity" : status.text} />
           )}
         </button>
         {(isWorktree || isRunning) && (
@@ -853,7 +853,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         const session = sessions.find((item) => item.id === hoverPreview.sid);
         if (!session) return null;
         const title = displayTitle(renames, session.id, session.title);
-        const status = friendlyStatus(session.status);
+        const status = sessionFriendlyStatus(session);
         const workspace = session.workspace || "";
         const branch = workspace ? branchByWorkspace[workspace] : "";
         const when = relTimeAgo(sessionUpdatedDate(session));

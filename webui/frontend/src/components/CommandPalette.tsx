@@ -5,7 +5,7 @@ import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
 import { projectLabel } from "../viewModels";
 import { paletteSessionGroups } from "../viewModels.nav";
-import { friendlyStatus } from "./pill";
+import { sessionFriendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
 import type { Session } from "../types";
 
@@ -29,8 +29,8 @@ interface Item {
 // the rail next to it showed amber/red. Same source, same colour now.
 const DOTTED = ["run", "appr", "stranded", "crash"];
 function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string } {
-  const status = friendlyStatus(session.status);
-  if (isUnread) return { dot: "unread", dotTitle: "New activity" };
+  const status = sessionFriendlyStatus(session);
+  if (isUnread && status.cls !== "appr") return { dot: "unread", dotTitle: "New activity" };
   if (DOTTED.includes(status.cls)) return { dot: status.cls, dotTitle: status.text };
   return {};
 }

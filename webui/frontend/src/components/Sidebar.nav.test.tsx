@@ -808,6 +808,22 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     expect(container.textContent).not.toContain("Other sessions");
   });
 
+  it("shows typed ask/child approval blockers instead of Ready, even when unread", () => {
+    const { container } = mount(
+      [
+        { id: "20260710-000002-approval", status: "waiting:input", turns: 1, title: "Child approval", attention: { approvals: 2 } },
+        { id: "20260710-000001-answer", status: "waiting:input", turns: 1, title: "Structured ask", attention: { answers: 1 } },
+      ],
+      { unread: ["20260710-000002-approval"] },
+    );
+    const approval = container.querySelector<HTMLButtonElement>('button[aria-label^="Child approval"]')!;
+    const answer = container.querySelector<HTMLButtonElement>('button[aria-label^="Structured ask"]')!;
+    expect(approval.getAttribute("aria-label")).toContain("Needs approval");
+    expect(approval.querySelector(".status-dot")!.className).toBe("status-dot appr");
+    expect(answer.getAttribute("aria-label")).toContain("Needs answer");
+    expect(answer.querySelector(".status-dot")!.getAttribute("title")).toBe("Needs answer");
+  });
+
   it("keeps a pinned workspace-less session in Pinned only — never twice", () => {
     const { container } = mount(
       [

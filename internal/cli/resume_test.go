@@ -275,6 +275,116 @@ func TestCLISessionsJSONProjectsDriverMetadata(t *testing.T) {
 	}
 }
 
+func TestCLISessionsProjectsTypedHumanAttentionAcrossChildren(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	sessionsRoot := filepath.Join(xdg, "agentrunner", "sessions")
+	parentDir := filepath.Join(sessionsRoot, "parent")
+	type item struct {
+		typ string
+		v   any
+	}
+	write := func(dir string, items ...item) {
+		t.Helper()
+		es, err := store.OpenEventStore(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range items {
+			if _, err := es.Append(mkEnv(t, entry.typ, entry.v)); err != nil {
+				_ = es.Close()
+				t.Fatal(err)
+			}
+		}
+		if err := es.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	askDetail, err := json.Marshal(struct {
+		Question string `json:"question"`
+	}{Question: "Which release should I ship?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(parentDir,
+		item{event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead", Prompt: "coordinate release", SubStateVersions: state.SubStateVersions()}},
+		item{event.TypeSpawnRequested, &event.SpawnRequested{CallID: "c1", Agent: "worker", ChildSession: "parent-sub-c1-a1", Depth: 1}},
+		item{event.TypeSpawnRequested, &event.SpawnRequested{CallID: "c2", Agent: "worker", ChildSession: "parent-sub-c2-a1", Depth: 1}},
+		item{event.TypeSpawnRequested, &event.SpawnRequested{CallID: "c1", Agent: "worker", ChildSession: "parent-sub-c1-a1", Depth: 1}},
+		item{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput, Detail: askDetail}},
+	)
+	for _, callID := range []string{"c1", "c2"} {
+		approvalID := "apr-" + callID
+		detail, marshalErr := json.Marshal(&event.ApprovalRequested{ApprovalID: approvalID, ToolName: "bash"})
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		write(filepath.Join(parentDir, "sub", callID+"-a1"),
+			item{event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker", SubStateVersions: state.SubStateVersions()}},
+			item{event.TypeApprovalRequested, &event.ApprovalRequested{ApprovalID: approvalID, ToolName: "bash"}},
+			item{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitApproval, Detail: detail}},
+		)
+	}
+	write(filepath.Join(sessionsRoot, "ordinary-idle"),
+		item{event.TypeSessionStarted, &event.SessionStarted{SpecName: "idle", Prompt: "ordinary idle", SubStateVersions: state.SubStateVersions()}},
+		item{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
+	)
+
+	type row struct {
+		ID        string            `json:"id"`
+		Status    string            `json:"status"`
+		Attention *sessionAttention `json:"attention"`
+	}
+	list := func() []row {
+		t.Helper()
+		var out, errOut bytes.Buffer
+		if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK {
+			t.Fatalf("sessions exit=%d stderr=%s", code, errOut.String())
+		}
+		var rows []row
+		if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+			t.Fatal(err)
+		}
+		return rows
+	}
+	find := func(rows []row, id string) row {
+		t.Helper()
+		for _, candidate := range rows {
+			if candidate.ID == id {
+				return candidate
+			}
+		}
+		t.Fatalf("missing row %s in %+v", id, rows)
+		return row{}
+	}
+
+	parent := find(list(), "parent")
+	if parent.Status != "waiting:input" || parent.Attention == nil || parent.Attention.Answers != 1 || parent.Attention.Approvals != 2 {
+		t.Fatalf("parent row = %+v", parent)
+	}
+	if idle := find(list(), "ordinary-idle"); idle.Attention != nil {
+		t.Fatalf("ordinary idle attention = %+v, want nil", idle.Attention)
+	}
+
+	write(filepath.Join(parentDir, "sub", "c1-a1"),
+		item{event.TypeApprovalResponded, &event.ApprovalResponded{ApprovalID: "apr-c1", Decision: "approve", Source: "test"}},
+		item{event.TypeWaitingResolved, &event.WaitingResolved{Kind: event.WaitApproval, Resolution: "approved"}},
+	)
+	parent = find(list(), "parent")
+	if parent.Attention == nil || parent.Attention.Approvals != 1 || parent.Attention.Answers != 1 {
+		t.Fatalf("attention after child resolution = %+v", parent.Attention)
+	}
+	write(parentDir, item{event.TypeWaitingResolved, &event.WaitingResolved{Kind: event.WaitInput, Resolution: "answered"}})
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"sessions"}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("sessions exit=%d stderr=%s", code, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "parent") || !strings.Contains(got, "waiting:approval") {
+		t.Fatalf("plain sessions output = %q", got)
+	}
+}
+
 func TestCLIResumeDriverReportsDomainError(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", xdg)

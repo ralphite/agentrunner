@@ -239,6 +239,66 @@ func sessionStartedFromEvents(events []event.Envelope) (*event.SessionStarted, e
 	return started, nil
 }
 
+type sessionAttention struct {
+	Approvals int `json:"approvals,omitempty"`
+	Answers   int `json:"answers,omitempty"`
+}
+
+func sessionHumanAttention(dir string, events []event.Envelope, folded state.State, includeAnswers bool, seen map[string]bool) sessionAttention {
+	var attention sessionAttention
+	if folded.Waiting != nil {
+		switch folded.Waiting.Kind {
+		case event.WaitApproval:
+			attention.Approvals++
+		case event.WaitInput:
+			if includeAnswers && structuredAskDetail(folded.Waiting.Detail) {
+				attention.Answers++
+			}
+		}
+	}
+	for _, envelope := range events {
+		if envelope.Type != event.TypeSpawnRequested {
+			continue
+		}
+		decoded, err := event.DecodePayload(envelope)
+		if err != nil {
+			continue
+		}
+		spawn := decoded.(*event.SpawnRequested)
+		if spawn.ChildSession == "" || seen[spawn.ChildSession] {
+			continue
+		}
+		seen[spawn.ChildSession] = true
+		childDir := childDirForSession(dir, spawn.CallID, spawn.ChildSession)
+		if childDir == "" {
+			continue
+		}
+		childEvents, err := store.ReadEvents(childDir)
+		if err != nil {
+			continue
+		}
+		childState, err := state.Fold(childEvents)
+		if err != nil {
+			continue
+		}
+		child := sessionHumanAttention(childDir, childEvents, childState, false, seen)
+		attention.Approvals += child.Approvals
+	}
+	return attention
+}
+
+func structuredAskDetail(detail json.RawMessage) bool {
+	if len(detail) == 0 {
+		return false
+	}
+	var ask struct {
+		Question  string              `json:"question"`
+		Questions []event.AskQuestion `json:"questions"`
+	}
+	return json.Unmarshal(detail, &ask) == nil &&
+		(strings.TrimSpace(ask.Question) != "" || len(ask.Questions) > 0)
+}
+
 // sessionsCmd implements `agentrunner sessions [list] [--json] [--limit N]
 // [--offset N]`: newest first, with
 // the folded status. Bare `sessions` lists too — it is every first-timer's
@@ -297,7 +357,8 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		// UpdatedAt is the same journal mtime that orders pagination. Exposing it
 		// lets clients preserve durable activity recency instead of guessing from
 		// the session id's creation stamp.
-		UpdatedAt string `json:"updated_at,omitempty"`
+		UpdatedAt string            `json:"updated_at,omitempty"`
+		Attention *sessionAttention `json:"attention,omitempty"`
 		mtime     int64
 	}
 	now := time.Now()
@@ -445,6 +506,9 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						}
 					}
 				}
+				if attention := sessionHumanAttention(filepath.Join(root, e.Name()), events, s, true, map[string]bool{e.Name(): true}); attention.Approvals > 0 || attention.Answers > 0 {
+					r.Attention = &attention
+				}
 			}
 		}
 		rows = append(rows, r)
@@ -469,7 +533,13 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "%-45s %-18s %s\n", "SESSION", "STATUS", "TURNS")
 	for _, r := range rows {
-		fmt.Fprintf(stdout, "%-45s %-18s %d\n", r.ID, r.Status, r.Turns)
+		status := r.Status
+		if r.Attention != nil && r.Attention.Approvals > 0 {
+			status = "waiting:approval"
+		} else if r.Attention != nil && r.Attention.Answers > 0 {
+			status = "waiting:answer"
+		}
+		fmt.Fprintf(stdout, "%-45s %-18s %d\n", r.ID, status, r.Turns)
 	}
 	return ExitOK
 }

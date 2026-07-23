@@ -47,6 +47,7 @@ function panelTree(over: Partial<React.ComponentProps<typeof SupervisionPanel>> 
         children={[]}
         backgroundWork={[]}
         approvals={0}
+        answers={0}
         sessionIdle={true}
         recovery={false}
         onGoalEdit={noop}
@@ -190,6 +191,14 @@ describe("TH-3 · groups with content are untouched", () => {
 
     expect(screen.getByText("Attention")).toBeTruthy();
     expect(container.querySelector(".attention-row")?.textContent).toContain("Approval requested");
+    expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
+  });
+
+  it("does not call an open ask_user form quiet", () => {
+    const { container } = renderPanel({ answers: 1 });
+
+    expect(screen.getByText("Attention")).toBeTruthy();
+    expect(container.querySelector(".attention-row")?.textContent).toContain("Answer requested");
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
 

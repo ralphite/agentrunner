@@ -412,6 +412,10 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		// contract uses camelCase below, just like nextRunAt.
 		UpdatedAtCLI string `json:"updated_at,omitempty"`
 		UpdatedAt    string `json:"updatedAt,omitempty"`
+		Attention    *struct {
+			Approvals int `json:"approvals,omitempty"`
+			Answers   int `json:"answers,omitempty"`
+		} `json:"attention,omitempty"`
 	}
 	// Runtime metadata is authoritative for every session, including sessions
 	// created by the CLI or another UI. The local meta store remains a fallback

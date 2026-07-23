@@ -134,6 +134,7 @@ function attentionRows(
   children: InspectNode[],
   backgroundWork: BackgroundWork[],
   approvals: number,
+  answers: number,
   recovery: boolean,
   sessionIdle: boolean,
 ): React.ReactNode[] {
@@ -142,6 +143,13 @@ function attentionRows(
     rows.push(
       <div className="attention-row" key="appr">
         <span className="attention-dot" /> Approval requested <b>{approvals}</b>
+      </div>,
+    );
+  }
+  if (answers > 0) {
+    rows.push(
+      <div className="attention-row" key="answer">
+        <span className="attention-dot" /> Answer requested
       </div>,
     );
   }
@@ -193,6 +201,7 @@ export function SupervisionPanel({
   children,
   backgroundWork,
   approvals,
+  answers,
   sessionIdle,
   recovery,
   goalEchoed = false,
@@ -215,6 +224,7 @@ export function SupervisionPanel({
   children: InspectNode[];
   backgroundWork: BackgroundWork[];
   approvals: number;
+  answers: number;
   // The conversation itself is idle (not mid-turn): background work running
   // in that state is worth the user's attention (W35).
   sessionIdle: boolean;
@@ -255,7 +265,7 @@ export function SupervisionPanel({
   // carrying real data. So: each of the three renders only when it has
   // something, and when none of them does they collapse into the single dim
   // line below (a resting panel must still read as "fine", not as "broken").
-  const attention = attentionRows(children, backgroundWork, approvals, recovery, sessionIdle);
+  const attention = attentionRows(children, backgroundWork, approvals, answers, recovery, sessionIdle);
   const hasGoal = !!goal || !!settledGoal;
   const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
   return (

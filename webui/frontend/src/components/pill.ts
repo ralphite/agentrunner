@@ -1,3 +1,5 @@
+import type { Session } from "../types";
+
 // pillClass maps a free-text session/run status onto a coloured pill class.
 export function pillClass(status: string): string {
   const s = status.toLowerCase();
@@ -57,6 +59,16 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
   if (s.includes("idle") || s.includes("ready") || s.includes("wait"))
     return { text: "Ready", cls: "idle" };
   return { text: raw || "Unknown", cls: pillClass(raw || "") };
+}
+
+export function sessionFriendlyStatus(
+  session: Pick<Session, "status" | "attention">,
+): { text: string; cls: string } {
+  const base = friendlyStatus(session.status);
+  if (base.cls === "crash" || base.cls === "stranded") return base;
+  if ((session.attention?.approvals || 0) > 0) return { text: "Needs approval", cls: "appr" };
+  if ((session.attention?.answers || 0) > 0) return { text: "Needs answer", cls: "appr" };
+  return base;
 }
 
 export interface TerminalNotice {

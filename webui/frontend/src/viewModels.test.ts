@@ -291,6 +291,22 @@ describe("command palette quick-switch (W8)", () => {
     expect(sessionNeedsAttention("completed")).toBe(false);
     expect(sessionNeedsAttention("satisfied")).toBe(false);
     expect(sessionNeedsAttention("running")).toBe(false);
+    expect(sessionNeedsAttention({ status: "waiting:input", attention: { approvals: 2 } })).toBe(true);
+    expect(sessionNeedsAttention({ status: "waiting:input", attention: { answers: 1 } })).toBe(true);
+    expect(sessionNeedsAttention({ status: "waiting:input" })).toBe(false);
+  });
+
+  it("floats typed child approvals and ask_user answers ahead of newer ready sessions", () => {
+    const order = quickSwitchSessions([
+      { id: "20260710-120000-ready", status: "waiting:input", turns: 1 },
+      { id: "20260710-110000-answer", status: "waiting:input", turns: 1, attention: { answers: 1 } },
+      { id: "20260710-100000-child", status: "waiting:input", turns: 1, attention: { approvals: 2 } },
+    ]).map((s) => s.id);
+    expect(order).toEqual([
+      "20260710-110000-answer",
+      "20260710-100000-child",
+      "20260710-120000-ready",
+    ]);
   });
 
   it("floats attention sessions to the front so ⌘1/⌘2 land on the ones needing you", () => {

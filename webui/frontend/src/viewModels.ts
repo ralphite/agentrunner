@@ -1,5 +1,5 @@
 import type { Session } from "./types";
-import { friendlyStatus } from "./components/pill";
+import { friendlyStatus, sessionFriendlyStatus } from "./components/pill";
 import { sessionDate } from "./time";
 
 export interface ProjectGroup {
@@ -283,8 +283,8 @@ export function scheduleLabel(schedule?: string): string {
 // budget limit (all "stranded"), or a crash. It reuses friendlyStatus so the
 // Scheduled list and the command palette agree with the sidebar's dot colours
 // (INC-41 W7/W8).
-export function sessionNeedsAttention(status: string): boolean {
-  const cls = friendlyStatus(status).cls;
+export function sessionNeedsAttention(session: string | Pick<Session, "status" | "attention">): boolean {
+  const cls = typeof session === "string" ? friendlyStatus(session).cls : sessionFriendlyStatus(session).cls;
   return cls === "appr" || cls === "stranded" || cls === "crash";
 }
 
@@ -298,8 +298,8 @@ export function quickSwitchSessions(sessions: Session[], opts: { archived?: stri
   const archived = new Set(opts.archived || []);
   const candidates = sessions.filter((s) => s.kind !== "driver" && !archived.has(s.id));
   const byRecency = [...candidates].sort((a, b) => b.id.localeCompare(a.id));
-  const attention = byRecency.filter((s) => sessionNeedsAttention(s.status));
-  const rest = byRecency.filter((s) => !sessionNeedsAttention(s.status));
+  const attention = byRecency.filter((s) => sessionNeedsAttention(s));
+  const rest = byRecency.filter((s) => !sessionNeedsAttention(s));
   return [...attention, ...rest].slice(0, 9);
 }
 
