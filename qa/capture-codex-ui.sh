@@ -1028,8 +1028,12 @@ if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
   ocr_capture=$(mktemp -t codex-composer-access-root)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
   access_root_point=""
-  for access_root_text in "Full access" "Ask for approval" "Approve for me" "Custom"; do
+  access_current_full=0
+  for access_root_text in "Full access" "FullAccess" "Ask for approval" "Approve for me" "Custom"; do
     if access_root_point=$(window_text_center "$ocr_capture" "$access_root_text" "composer" 2>/dev/null); then
+      if [[ "$access_root_text" == "Full access" || "$access_root_text" == "FullAccess" ]]; then
+        access_current_full=1
+      fi
       break
     fi
   done
@@ -1049,6 +1053,17 @@ if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
     cp -- "$ocr_capture" "$access_menu_debug"
     echo "capture-codex-ui: access menu saved to $access_menu_debug" >&2
   fi
+  if [[ "$composer_access" == "full" && "$access_current_full" == "1" ]]; then
+    # The requested posture is already selected. Dismiss the menu instead of
+    # trying to OCR its checked row: the composer chip is the authoritative,
+    # uniquely validated state and remains stable across popover layout shifts.
+    send_key 53
+    transient_open=0
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-composer-access-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  else
   case "$composer_access" in
     ask) access_target="Ask for approval"; access_validate="" ;;
     approve) access_target="Approve for me"; access_validate="$access_target" ;;
@@ -1065,6 +1080,17 @@ if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
       echo "capture-codex-ui: Ask for approval row not found" >&2
       exit 1
     fi
+  elif [[ "$composer_access" == "full" ]]; then
+    access_point=""
+    for full_ocr in "Full access" "FullAccess"; do
+      if access_point=$(window_text_center "$ocr_capture" "$full_ocr" "popover-low" 2>/dev/null); then
+        break
+      fi
+    done
+    if [[ -z "$access_point" ]]; then
+      echo "capture-codex-ui: Full access row not found" >&2
+      exit 1
+    fi
   else
     access_point=$(window_text_center "$ocr_capture" "$access_target" "popover-low")
   fi
@@ -1075,6 +1101,7 @@ if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
   rm -f -- "$ocr_capture"
   ocr_capture=$(mktemp -t codex-composer-access-validate)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  fi
   if [[ "$composer_access" == "full" ]] &&
      window_text_center "$ocr_capture" "Turn on Full Access" "main" >/dev/null 2>&1; then
     # Current Codex builds add a fail-closed confirmation before escalating to
@@ -1104,6 +1131,13 @@ if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
     if ! window_text_center "$ocr_capture" "Ask for" "composer" >/dev/null 2>&1 &&
        ! window_text_center "$ocr_capture" "Custom" "composer" >/dev/null 2>&1; then
       echo "capture-codex-ui: Ask for approval selection did not settle" >&2
+      exit 1
+    fi
+  elif [[ "$composer_access" == "full" ]]; then
+    if [[ "$access_current_full" != "1" ]] &&
+       ! window_text_center "$ocr_capture" "Full access" "composer" >/dev/null 2>&1 &&
+       ! window_text_center "$ocr_capture" "FullAccess" "composer" >/dev/null 2>&1; then
+      echo "capture-codex-ui: Full access selection did not settle" >&2
       exit 1
     fi
   else
@@ -1164,7 +1198,11 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
   # First prove we are on the New chat starter, then click the stable textarea
   # body. Its low-contrast placeholder is not consistently emitted by Vision;
   # the old Full-access-relative offset also drifted when the chip row changed.
-  window_text_center "$ocr_capture" "What should we build" "main" >/dev/null
+  if ! window_text_center "$ocr_capture" "What should we build" "main" >/dev/null 2>&1 &&
+     ! window_text_center "$ocr_capture" "Explore and" "starter" >/dev/null 2>&1; then
+    echo "capture-codex-ui: New chat starter did not settle" >&2
+    exit 1
+  fi
   composer_x=$(awk -v x="$window_x" -v w="$window_width" 'BEGIN { print x + w * 0.55 }')
   composer_y=$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 80 }')
   send_click "$composer_x" "$composer_y"

@@ -69,6 +69,15 @@ describe("Markdown (INC-51)", () => {
     expect(actions.contains(getByTitle("Wrap long lines"))).toBe(true);
   });
 
+  it("renders inline and display math with KaTeX without exposing delimiters", () => {
+    const { container } = render(<Markdown text={"Inline $E = mc^2$.\n\n$$\n\\int_0^1 x^2 dx = \\frac{1}{3}\n$$"} />);
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(container.querySelector(".katex-display")).not.toBeNull();
+    expect(container.textContent).not.toContain("$E = mc^2$");
+    expect(container.textContent).not.toContain("$$");
+    expect(container.querySelector(".katex-mathml math")).not.toBeNull();
+  });
+
   it("copies the exact raw fenced-code text", async () => {
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
     const writeText = vi.fn().mockResolvedValue(undefined);

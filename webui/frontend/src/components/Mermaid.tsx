@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useStore } from "../store";
+import type { Theme } from "../theme";
 
 // MermaidBlock renders a ```mermaid fence as a diagram (INC-51 余项).
 //
@@ -19,21 +21,30 @@ const loadMermaid = () => (mermaidLoad ??= import("mermaid"));
 
 let renderSeq = 0;
 
-function prefersDark(): boolean {
-  const forced = document.documentElement.getAttribute("data-theme");
-  if (forced) return forced === "dark";
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+function useEffectiveDark(theme: Theme): boolean {
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
+  useEffect(() => {
+    if (theme !== "system" || !window.matchMedia) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const changed = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+    setSystemDark(media.matches);
+    media.addEventListener?.("change", changed);
+    return () => media.removeEventListener?.("change", changed);
+  }, [theme]);
+  return theme === "dark" || (theme === "system" && systemDark);
 }
 
 export function MermaidBlock({ raw, fallback }: { raw: string; fallback: ReactNode }) {
   const [svg, setSvg] = useState<string | null>(null);
+  const theme = useStore((s) => s.theme);
+  const dark = useEffectiveDark(theme);
   useEffect(() => {
     let alive = true;
     setSvg(null);
     (async () => {
       try {
         const { default: mermaid } = await loadMermaid();
-        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: prefersDark() ? "dark" : "default" });
+        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "default" });
         const { svg: rendered } = await mermaid.render(`ar-mmd-${++renderSeq}`, raw);
         if (alive) setSvg(rendered);
       } catch {
@@ -43,7 +54,7 @@ export function MermaidBlock({ raw, fallback }: { raw: string; fallback: ReactNo
     return () => {
       alive = false;
     };
-  }, [raw]);
+  }, [dark, raw]);
   // Loading and failure both show the source as a normal code block — honest,
   // and stable while an answer is still streaming the fence.
   if (svg === null) return <>{fallback}</>;

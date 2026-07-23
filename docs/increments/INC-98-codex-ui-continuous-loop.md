@@ -212,6 +212,22 @@ INC-98 将该方法固化为持续循环：
   Cancelled/Failed、完整 copy payload、长输出 240px 内滚动全部不变。无 destructive/risky state，不丢
   journal 数据；风险仅是隐藏 summary 已完整承载的重复文本，以短/长 command contract + 真 browser
   同 session 展开对照兜底。该小修复复用既有 disclosure/detail pattern，按 UI/UX review 裁掉三视角 review。
+- **98.3k Markdown/math/theme design note**：TH-03 使用同一条真实回复 fixture 覆盖 heading、
+  emphasis/strike、quote、unordered/ordered list、table、Go fence、inline/block math、link 与
+  Mermaid；Codex accepted reference `12` 与 AgentRunner light screenshot `14` 合并为 `15` 后再裁决。
+  两侧普通 Markdown、代码与 Mermaid 结构均成立，但 AgentRunner 仍把 `$…$`/`$$…$$` 原样露出，
+  命中既有 G38；同时实测从 dark/system 切到 light 后，已 mount 的 Mermaid 仍保留 dark SVG，节点
+  变黑且 label 近乎不可读。最小修订继续沿用既有 `react-markdown` pipeline：加入
+  `remark-math + rehype-katex + KaTeX CSS/font`，不启用 `rehype-raw`，所以 raw HTML 禁止与
+  Mermaid strict security red line 不变；inline 与 display math 都生成可访问的 KaTeX DOM。
+  Mermaid 继续 lazy-load，只让 render effect 订阅产品 `theme`，显式 light/dark/system 切换后用
+  fresh SVG 重绘；system 的实时 OS 变化另由 media query listener 驱动。无 backend/schema/journal
+  改动；风险是 KaTeX bundle/font 增量与主题切换竞态，以 package/build asset 记录、math DOM、
+  raw-HTML regression、Mermaid dark→light 与 system media tests、真实 shared-session 修后合并图兜底。
+  Codex composer driver 同批修正两个 fail-closed 误判：请求 Full 且 root chip 已验证为 Full 时，
+  access menu 只做 Escape 收回，不再依赖 checked row 的易漂 OCR；New chat starter 接受 heading 或
+  starter card 两个独立视觉锚。未验证 root chip 时仍必须定位 row/modal，不能降级成猜坐标。该增量
+  关闭 G38；不是 backend 缺口，不新增假 control。
 
 ## Spec delta
 

@@ -183,6 +183,14 @@ grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_mode" == "plan" ]]' "$d
 # shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]' "$driver"
 grep -Fq 'for ask_ocr in "Ask for approval" "Askfor approval"' "$driver"
+grep -Fq 'for full_ocr in "Full access" "FullAccess"' "$driver"
+grep -Fq 'access_current_full=0' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'if [[ "$composer_access" == "full" && "$access_current_full" == "1" ]]' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'if [[ "$access_current_full" != "1" ]]' "$driver"
 # Literal source contracts; expansion would weaken the assertions.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "Turn on Full Access" "main"' "$driver"
@@ -193,6 +201,9 @@ grep -Fq 'window_text_center "$ocr_capture" "Turn plan mode off" "popover-low"' 
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "What should we build" "main"' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "Explore and" "starter"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$composer_validate" "main"' "$driver"

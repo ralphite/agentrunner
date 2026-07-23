@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowsHorizontal, Check, Copy, ImageBroken, TextAlignLeft } from "@phosphor-icons/react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import "katex/dist/katex.min.css";
 import { AR } from "../api";
 import { copyText } from "../clipboard";
 import { useStore } from "../store";
@@ -310,7 +313,7 @@ export function Markdown({ text, sid }: { text: string; sid?: string }) {
 
   return (
     <div className="md cx-md" ref={root}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]} components={components}>
         {text}
       </ReactMarkdown>
       {group && (

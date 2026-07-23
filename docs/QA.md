@@ -1887,6 +1887,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | nested tool detail | `--thread-disclosure 'Worked for 6s' --disclosure-nested 'Ran a command' --disclosure-validate 'Ran bash -lc'` 从 fresh OCR frame 逐层展开；Codex generic nested label 展开后变 concrete label，driver 以稳定 action prefix inner-first 自愈/恢复，`59` 见 command + exit 23 + stderr，`60` 证明回到双层 collapsed |
 | compact shell detail | 合并图 `61` 发现我方短 command 在 summary/detail 重复且多余 `Shell` header；修后 `62/63` 只在 summary 显示一次 command，detail 保留 stderr/Exit 23，Copy 移至 status footer；多行/>160 字符仍保留 detail 全文，完整 Copy/长输出滚动契约不变；dirty production DOM、browser logs=`[]` 通过 |
 
+| 98.3k 动作 | 硬断言 |
+|---|---|
+| 同 fixture / 同主题 | 双侧真实 Send 同一 TH-03 fixture；Codex accepted `12`、AgentRunner 修前 light `14` 合并为 `15` 后才发现问题；修后 `16` 再与同一 reference 合并为 `17` 验收，不以单侧截图判定；shared session/thread 永久保留 |
+| Markdown DOM | heading、strong/em/del/code/link、quote、两类 list、table、Go fence、Mermaid 都有语义 DOM；raw HTML 仍只作文字，不出现 live script/onerror |
+| math | inline `$E=mc^2$` 与 display `$$\\int…$$` 不再露 delimiter，分别生成 inline/display KaTeX DOM；production build 保留 KaTeX CSS/font，记录 asset 与 bundle 大小 |
+| Mermaid theme | dark→system→light 后既有 diagram 必须重新 render；light screenshot 节点/label 对比可读；system media 改变也触发 fresh SVG，不复用旧主题 SVG |
+| Gate B | production shared store cache-bust `bf152d99-dirty-191950` reload；同 session 修后 `16/17` 验图；browser logs=`[]`、health `daemonUp/versionMatch=true`、frontend 68 files/709 tests 与 `check.sh` 全绿；build 主 JS 1301.40kB(gzip 373.19)、CSS 180.53kB(gzip 30.79)，KaTeX font assets 在案；不 close/delete/cleanup 测试数据 |
+
 | 98.3a 动作 | 硬断言 |
 |---|---|
 | Thread 层级与 disclosure | shared session `20260722-223026-codexverify-reply-exactly-veri-19413427829bd032` 默认只见 user / Worked / final answer；Worked 展开后见 `$ sleep 8`，tool 再展开后见完整 Shell command/result/Success；折叠/展开截图与 DOM 均在案 |
@@ -1997,3 +2005,9 @@ Default failure、Plan submit/Asked disclosure/answer，AgentRunner structured w
 single/multi/free-text/two-question/Skip/compat composer 的 before/after、修前 ghost/修后 clean、
 combined comparison、events/inspect/sessions/health/logs/gate。13 个 shared session、workspace、
 journal 与 Codex thread 全保留；不 close、不删除、不清理。
+
+**98.3k 证据**：`qa/runs/2026-07-22-QA88-98.3h-markdown/` 保存 Codex 真 Send/OCR
+driver 校准与 accepted Markdown reference、AgentRunner shared 真 Gemini session 修前 dark/light、
+修后 KaTeX + Mermaid theme hot-switch、两张 combined comparison、DOM、bundle、health/logs/gate。
+`01..10` 为 access/OCR/settle 校准或未发送拒收图；`12..17` 为裁决证据。Codex thread 与
+AgentRunner session/worktree/journal 全部保留；不 close、不删除、不清理。

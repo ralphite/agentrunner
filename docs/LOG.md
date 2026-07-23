@@ -6813,3 +6813,32 @@ Codex 把 `Ran a command` 展开标题改成 concrete `Ran bash …`，首次 ca
 20k projection、240px 滚动和 copy payload 不变。真 shared TH10 session dirty deployment DOM 与
 `62/63` 合并图通过，browser logs 为空；TH-02 仍因缺 Codex long-output 同态而 UNTESTED，TH-10
 仍因缺 Codex provider/network Retry 而 UNTESTED，矩阵计数不变。
+
+---
+
+## 2026-07-22 · INC-98.3k Markdown math 与 Mermaid theme 热切换
+
+双侧真实 Send 同一 TH-03 fixture，覆盖 heading/emphasis/strike/quote/list/table/code/link/math/
+Mermaid。先将 Codex accepted `12` 与 AgentRunner light `14` 合并为 `15`，确认普通 Markdown
+结构成立，但我方 inline/display LaTeX 原样露出；并发现 diagram 在 dark/system→light 后仍沿用
+dark SVG，浅色界面出现黑节点。不是 backend gap：session/journal 数据已包含完整 Markdown，问题
+只在前端 projection。
+
+Codex driver 的本轮拒收图另暴露 checked Full row 与 starter heading 的 Vision OCR 漂移：若
+composer root chip 已唯一验证为 Full，打开后的 menu 现在用 Escape 收回并复用该已知状态，不再
+强行二次识别 checked row；starter 以 heading / Explore card 双锚 fail-closed。未知 access 或
+升级确认仍必须 OCR 命中真实 row/modal，未引入猜测坐标。
+
+按 INC-98.3k 在现有 react-markdown pipeline 加 remark-math + rehype-katex + KaTeX CSS/font，
+不引 rehype-raw，raw HTML 安全红线不变；Mermaid 仍 dynamic import，只让 render effect 订阅
+产品 theme 与 system media query，主题变化时生成 fresh strict SVG。frontend 68 files/709 tests、
+production build、capture-driver contract 与 `./scripts/check.sh` 全绿；dirty shared deployment
+`bf152d99-dirty-191950` health `daemonUp/versionMatch=true`，当前 bundle `index-Bm5mOd4z.js` /
+`index-05uWAN-X.css`，browser logs=`[]`。同一保留 session 经 cache-bust、light→dark→system→light
+后复拍 `16`，与 Codex reference 合并图 `17` 中 inline/display math 与 Mermaid 均清晰可读，G38
+关闭。TH-03 因 media 当前 Codex 同态尚未补齐，状态从 GAP 改为 UNTESTED；总表为
+PASS 19 / GAP 9 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 46。所有测试数据永久保留。
+
+同一 session 的 events 12..14 另揭示 backend `cleanAutoTitle` 接受模型返回 `Task:` 并持久覆盖
+opening fallback；sidebar/header 只剩无信息标题。该问题与 Markdown projection 无关，本批不
+混入 backend 修复，按用户要求独立登记 G50，并保留完整 session/journal 供下一轮实现与重放测试。

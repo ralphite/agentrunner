@@ -712,6 +712,19 @@ worker · isolated`；1280px 下 Environment 不再默认遮住 primary approval
 `ar-child-pending-inspect.json`；同屏 parent approval card/Attention 正确而 sidebar 明示 Ready。
 → UJ-18/UJ-23/UJ-24
 
+**G50 autotitle 接受无信息通用标题并持久覆盖 opening fallback — ❌ 开放（INC-98.3k 真机取证，低）**
+TH-03 shared 真 Gemini session 的 autotitle activity 返回“英文任务通用标签+冒号”，runtime
+随即将它作为 auto title 持久化；sidebar/header 因而只显示该无信息标签，反而丢掉
+opening prompt 可提供的 `TH03 Markdown Fixture` 识别信息。当前 `cleanAutoTitle` 只做 wrapper/
+whitespace/长度清理，没有质量底线；这是 durable backend projection，前端不能猜回 prompt，
+也不能只在一个 surface 覆盖。关闭前需定义 provider-agnostic 的弱标题拒绝契约（空白、纯标点、
+仅“任务/会话/聊天/未命名”等通用 label，含尾冒号等规范化变体），拒绝时不 append
+SessionTitled、让既有 opening-first-line fallback 生效；同时钉 CJK/短技术标识不被误杀、crash
+replay 已完成弱 result 仍不落 title、manual rename 永远优先。证据：shared session
+`20260723-021153-reply-with-the-following-conte-5e6fa342ea53a7cd` 的 events 12..14，归档
+`qa/runs/2026-07-22-QA88-98.3h-markdown/20-events.txt`。
+→ UJ-01/UJ-24
+
 **G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue
 消失，并在当前 turn 的安全边界注入；这不是 composer 下一条消息的模式开关。AgentRunner
@@ -850,12 +863,17 @@ qa-driver-29657111612 截图。workflow 已加 post-driver 诊断转储
 DESIGN 裁决,按 PROCESS 立 INC,不在 QA 轮内顺手改。
 → UJ-多agent监督(webui 产品面)
 
-**G38 markdown 数学公式不渲染（LaTeX 原样露出） — 开放（QA-0718 实测）**
+**G38 markdown 数学公式不渲染（LaTeX 原样露出） — ✅ 已关闭（INC-98.3k，2026-07-22）**
 真实 Gemini turn 里模型自然输出 `$\mathcal{O}(\log n)$` 级 inline math
 （复杂度表格是高频场景），webui 的 react-markdown + remark-gfm 无 math
 插件，桌面与移动端均原样露出 LaTeX 源码；Codex（ChatGPT 面）用 KaTeX
 渲染。补齐需 remark-math + rehype-katex + KaTeX 字体（bundle 增量可观），
-属新功能，按 PROCESS 增量流程立项后再动，不在 Tailwind 迁移轮内顺手做。
+属新功能；INC-98.3k 已按 PROCESS 以同 fixture 的 Codex/AgentRunner 真实对照完成
+remark-math + rehype-katex + KaTeX CSS/font。修后 inline/display math 均有 KaTeX/MathML DOM，
+raw-HTML red line 回归仍绿；production shared session cache-bust 复拍 `QA88-98.3h-markdown/16`，
+与 Codex reference 合并图 `17` 可读，browser logs 为空、health/gate 全绿。顺带修复已 mount
+Mermaid 在 dark/system→light 后沿用旧 SVG 的主题漂移。TH-03 因 media 当前同态尚缺而继续
+UNTESTED，不反向重开本条已关闭的 math capability。
 → UJ-01/UJ-24（webui 产品面阅读体验）
 
 ---
