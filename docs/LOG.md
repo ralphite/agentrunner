@@ -6707,3 +6707,19 @@ idle 一并误抬，新增 backend gap G48。
 UNTESTED 46`。frontend 68 files/700 tests、production build、capture contract/shellcheck、
 `./scripts/check.sh` 与 clean deployment shared-browser 修后复拍全绿；证据根：
 `qa/runs/2026-07-22-QA88-98.3e-ask-user/`。INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.3e 生产复拍纠偏：compat answer 的 state-commit race
+
+第一次修复部署后的 shared-browser 复拍推翻了“只匹配 AskResolved 即收口”的判断：真实
+`send --detach` 已返回 answered、journal 已有 `AskResolved{answer:Beta}`、assistant 已回复，
+旧页面与重新加载 production bundle 后都仍可留下 `Beta / queued…`。根因是 journal poll 可在
+React 的 pending state commit 前处理 AskResolved；event matching 当时无 optimistic row 可删，
+之后也不会再收到同一 event。
+
+修正为使用同步 `send status=answered` receipt 按本次 optimistic id 立即删除；既有
+`InputReceived.text` / `AskResolved.answer` matching 继续承担异步与恢复 fallback。回归改成在
+后续 events 为空时仅凭 answered acknowledgement 也必须零 pending。frontend 全量
+68 files/700 tests、production build 与 `./scripts/check.sh` 全绿；shared 真 Gemini 反证 session
+和修后 session、截图、journal 全保留。TH-08 仍因 G48 记 GAP，矩阵计数不变。

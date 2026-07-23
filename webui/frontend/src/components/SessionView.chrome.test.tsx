@@ -421,16 +421,10 @@ describe("running Queue projection", () => {
 });
 
 describe("ask_user compatibility answer projection", () => {
-  it("removes the optimistic composer answer on AskResolved instead of leaving queued ghost text", async () => {
+  it("removes the optimistic composer answer on the synchronous answered acknowledgement", async () => {
     const text = "Beta";
     const baseEvents = EVENTS.slice(0, 2);
-    arMock.events = vi.fn(async (_sid: string, after: number) => {
-      if (!after) return baseEvents;
-      if (after === 2) {
-        return [{ seq: 3, type: "ask_resolved", payload: { resolution: "answered", answer: text } }];
-      }
-      return [];
-    });
+    arMock.events = vi.fn(async (_sid: string, after: number) => after ? [] : baseEvents);
     arMock.inspect = async () => ({
       goal: null,
       children: [],

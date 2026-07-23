@@ -146,8 +146,11 @@ INC-98 将该方法固化为持续循环：
 - **98.3e ask_user design note**：structured answer 与兼容 composer answer 共用同一
   durable ask park，但 receipt 不同：表单走 `/answer`，普通 composer 被 loop 直接配对为
   `AskResolved{answered,answer}`，不会再落 `InputReceived`。前端 optimistic projection 因此必须
-  同时以 `InputReceived.text` 和 `AskResolved.answer` 消费；否则 agent 已继续并回答后仍残留
-  `queued…` 假气泡直到 reload。Codex Default 明示 request_user_input 不可用；Plan 实窗生成
+  同时以 `InputReceived.text` 和 `AskResolved.answer` 消费；兼容 `send --detach` 的同步
+  `status=answered` receipt 也必须按本次 optimistic id 立即消费。真浏览器发现 journal poll
+  可能在 React pending state commit 前先处理 AskResolved，单靠 event text reconciliation 仍会
+  残留 `queued…` 假气泡直到 reload；同步 receipt 是无竞态的主收敛点，journal matching 保留为
+  reload/network fallback。Codex Default 明示 request_user_input 不可用；Plan 实窗生成
   `Asked 1 question` disclosure，但当批 app bridge 记录 `No answer provided`，随后 Alpha 作为
   普通 follow-up 继续。AgentRunner 对标不照抄该退化：保留 durable structured form、单选/
   多选/free-text/skip/多问与 reload。另实测 sessions list 只给 `waiting:input`，sidebar 无法区分

@@ -552,7 +552,15 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     const id = ++pendSeq.current;
     setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
     try {
-      await AR.send(sid, text, images, files, delivery, draft);
+      const result = await AR.send(sid, text, images, files, delivery, draft);
+      if (result?.status === "answered") {
+        // `send --detach` consumes a compatibility answer synchronously and
+        // returns `answered`. Remove the optimistic bubble from that durable
+        // acknowledgement too: the journal poll can race ahead of React's
+        // pending-state commit, so AskResolved alone is not a sufficient
+        // reconciliation point in the real browser.
+        setPending((p) => p.filter((x) => x.id !== id));
+      }
       if (delivery === "queue") {
         // Queue has its own durable, withdrawable projection. Once send has
         // acknowledged it, keeping the optimistic timeline bubble would show
