@@ -60,6 +60,7 @@ export interface DiffResp {
   diff: string;
   numstat: string;
   untracked: string[];
+  untrackedReasons?: Record<string, "binary" | "large" | "unavailable">;
   hiddenUntracked?: number;
 }
 

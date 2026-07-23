@@ -177,6 +177,46 @@ func TestShadowRepoDiffAgainstSnapshot(t *testing.T) {
 	}
 }
 
+func TestShadowRepoDiffQuietsNewGeneratedLargeAndBinaryFiles(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "seed.txt", "baseline\n")
+	s := newStore(t, ws)
+	ctx := context.Background()
+	ref, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	write(t, ws, "small.txt", "review me\n")
+	write(t, ws, "large.txt", strings.Repeat("x", 256*1024+1))
+	if err := os.WriteFile(filepath.Join(ws, "binary.bin"), []byte{'a', 0, 'b'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write(t, ws, "node_modules/pkg/index.js", "generated\n")
+
+	got, err := s.Diff(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Diff, "small.txt") {
+		t.Fatalf("small text addition must stay inline:\n%s", got.Diff)
+	}
+	for _, omitted := range []string{"large.txt", "binary.bin", "node_modules"} {
+		if strings.Contains(got.Diff, omitted) || strings.Contains(got.Numstat, omitted) {
+			t.Errorf("%s leaked into inline diff/numstat:\ndiff=%s\nnumstat=%s", omitted, got.Diff, got.Numstat)
+		}
+	}
+	if strings.Join(got.Untracked, ",") != "binary.bin,large.txt" {
+		t.Fatalf("name-only additions = %v, want binary.bin,large.txt", got.Untracked)
+	}
+	if got.UntrackedReasons["binary.bin"] != "binary" || got.UntrackedReasons["large.txt"] != "large" {
+		t.Fatalf("name-only reasons = %v, want binary/large", got.UntrackedReasons)
+	}
+	if got.HiddenUntracked != 1 {
+		t.Fatalf("hidden generated additions = %d, want 1", got.HiddenUntracked)
+	}
+}
+
 // A CJK (non-ASCII) filename must appear literally in the diff header, not
 // octal-escaped (`"a/\345\233\276.md"`). The Last-turn review card renders this
 // diff text verbatim, so an escaped path shows the user garbage. QA-0719 t11

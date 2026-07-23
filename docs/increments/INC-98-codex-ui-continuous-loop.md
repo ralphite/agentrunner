@@ -426,6 +426,23 @@ INC-98 将该方法固化为持续循环：
   12px-inset fullscreen overlay，实测 panel=`876×676`、overflow=`0`、close 回 `Review`。
   独立 `390×844` 真验 panel=`366×820`、toolbar=`364×44`、Changed files popup
   `374×396.39` 完全在 viewport，Escape 回 trigger、Close 回 `Review`、browser logs 空。
+- **98.4g complex diff design note**：不再以单一 modified text file 代表 Changes
+  正确性。专用 retained shared QA repo 同时保留 staged/unstaged、added/deleted/renamed、
+  untracked、CJK、长行、large、binary 与 generated dependency 状态；后续同 repo 接本地
+  bare remote 跑 commit/push 失败与 conflict/dirty guards，不触用户项目或外部 remote。
+  首轮真测发现两 scope 的投影契约分叉：Working Tree 会隐藏新建 `node_modules`，且把
+  `>256KiB`/binary 新文件降为 name-only；Last Turn 的 shadow diff 却把 generated file
+  与 468KiB text 全量内联，900×700 Review 瞬间从 `+10` 膨胀为 `+7085`、raw diff
+  319KiB。修复沿用 Working Tree 的既有安静默认，不改变 durable snapshot、rewind 或
+  workspace 内容：只在只读 `ShadowRepo.Diff` 的临时 index 中预分类 baseline 后新增的
+  文件；generated 记 `hiddenUntracked` 并从 review diff 排除，large/binary 记
+  `untracked` 以 name-only 卡呈现，普通小文本继续内联。第二次真实复拍又证明 name-only
+  本身不够：旧 `UntrackedFile` 会立即调用 8MiB-cap blob endpoint，把 468KiB 文件重新拉回
+  并展开 7,073 行，还把任何失败统一标成 binary。两 scope 现同时投
+  `untrackedReasons[path]=large|binary|unavailable`；Review 对已知不可展示文件零 fetch，
+  large/binary 分别显示真实 badge 与原因、不伪造行数。字段经 `ar diff --json` 原样传到
+  Web UI；老 binary 缺字段时仍兼容空 map/array。tracked large/binary 仍由 Git 原生 patch
+  语义呈现，本批不把“新增文件降噪”扩大成任意 tracked diff 截断。
 
 ## Spec delta
 

@@ -22,15 +22,18 @@ type lastTurnBaseline struct {
 }
 
 type lastTurnDiffResponse struct {
-	Scope      string `json:"scope"`
-	Available  bool   `json:"available"`
-	Reason     string `json:"reason,omitempty"`
-	Workspace  string `json:"workspace,omitempty"`
-	InputSeq   int64  `json:"input_seq,omitempty"`
-	BarrierSeq int64  `json:"barrier_seq,omitempty"`
-	BarrierID  string `json:"barrier_id,omitempty"`
-	Diff       string `json:"diff"`
-	Numstat    string `json:"numstat"`
+	Scope            string            `json:"scope"`
+	Available        bool              `json:"available"`
+	Reason           string            `json:"reason,omitempty"`
+	Workspace        string            `json:"workspace,omitempty"`
+	InputSeq         int64             `json:"input_seq,omitempty"`
+	BarrierSeq       int64             `json:"barrier_seq,omitempty"`
+	BarrierID        string            `json:"barrier_id,omitempty"`
+	Diff             string            `json:"diff"`
+	Numstat          string            `json:"numstat"`
+	Untracked        []string          `json:"untracked"`
+	UntrackedReasons map[string]string `json:"untrackedReasons"`
+	HiddenUntracked  int               `json:"hiddenUntracked"`
 }
 
 // planLastTurnDiffBaseline is the journal-pure half of Last turn review.
@@ -107,7 +110,10 @@ func diffCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
-	resp := lastTurnDiffResponse{Scope: *scope, Workspace: started.WorkspaceRoot}
+	resp := lastTurnDiffResponse{
+		Scope: *scope, Workspace: started.WorkspaceRoot,
+		Untracked: []string{}, UntrackedReasons: map[string]string{},
+	}
 	baseline, reason, err := planLastTurnDiffBaseline(events)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
@@ -133,6 +139,8 @@ func diffCmd(args []string, stdout, stderr io.Writer) int {
 		return writeLastTurnDiff(resp, *jsonOutput, stdout, stderr)
 	}
 	resp.Available, resp.Diff, resp.Numstat = true, result.Diff, result.Numstat
+	resp.Untracked, resp.UntrackedReasons, resp.HiddenUntracked =
+		result.Untracked, result.UntrackedReasons, result.HiddenUntracked
 	return writeLastTurnDiff(resp, *jsonOutput, stdout, stderr)
 }
 

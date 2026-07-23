@@ -33,8 +33,11 @@ var ErrUnavailable = errors.New("snapshot backend unavailable")
 // DiffResult is a read-only comparison from an opaque snapshot ref to the
 // workspace as it exists when Diff is called.
 type DiffResult struct {
-	Diff    string `json:"diff"`
-	Numstat string `json:"numstat"`
+	Diff             string            `json:"diff"`
+	Numstat          string            `json:"numstat"`
+	Untracked        []string          `json:"untracked"`
+	UntrackedReasons map[string]string `json:"untracked_reasons"`
+	HiddenUntracked  int               `json:"hidden_untracked"`
 }
 
 // Store captures and reconstructs workspace states.
@@ -176,6 +179,11 @@ func (s *ShadowRepo) git(ctx context.Context, args ...string) (string, error) {
 }
 
 func (s *ShadowRepo) gitWithEnv(ctx context.Context, extraEnv []string, args ...string) (string, error) {
+	out, err := s.gitRawWithEnv(ctx, extraEnv, args...)
+	return strings.TrimSpace(string(out)), err
+}
+
+func (s *ShadowRepo) gitRawWithEnv(ctx context.Context, extraEnv []string, args ...string) ([]byte, error) {
 	// core.quotePath=false: without it git octal-escapes non-ASCII path bytes
 	// in diff/numstat headers (`"a/\345\233\276.md"`), so the Last-turn review
 	// card renders CJK filenames as garbage. The working-tree diff path already
@@ -194,9 +202,9 @@ func (s *ShadowRepo) gitWithEnv(ctx context.Context, extraEnv []string, args ...
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("snapshot: git %s: %v: %s", args[0], err, strings.TrimSpace(errb.String()))
+		return nil, fmt.Errorf("snapshot: git %s: %v: %s", args[0], err, strings.TrimSpace(errb.String()))
 	}
-	return strings.TrimSpace(out.String()), nil
+	return out.Bytes(), nil
 }
 
 var snapshotRefPattern = regexp.MustCompile(`^[0-9a-f]{40}(?:[0-9a-f]{24})?$`)
@@ -235,6 +243,10 @@ func (s *ShadowRepo) Diff(ctx context.Context, ref string) (DiffResult, error) {
 	if _, err := s.gitWithEnv(ctx, env, "add", "-A", "."); err != nil {
 		return DiffResult{}, err
 	}
+	untracked, untrackedReasons, hiddenUntracked, err := s.quietNewReviewFiles(ctx, env, ref)
+	if err != nil {
+		return DiffResult{}, err
+	}
 	diff, err := s.gitWithEnv(ctx, env, "diff", "--cached", "--no-ext-diff", "--no-color", "--find-renames", ref, "--")
 	if err != nil {
 		return DiffResult{}, err
@@ -243,7 +255,78 @@ func (s *ShadowRepo) Diff(ctx context.Context, ref string) (DiffResult, error) {
 	if err != nil {
 		return DiffResult{}, err
 	}
-	return DiffResult{Diff: diff, Numstat: numstat}, nil
+	return DiffResult{
+		Diff: diff, Numstat: numstat, Untracked: untracked,
+		UntrackedReasons: untrackedReasons, HiddenUntracked: hiddenUntracked,
+	}, nil
+}
+
+// quietNewReviewFiles applies the same review-density contract as the Web UI's
+// Working Tree projection, but only to paths added after the durable baseline.
+// The temporary index remains the sole mutation target: snapshots and workspace
+// files stay byte-identical, while generated paths disappear and large/binary
+// additions become name-only cards instead of multi-hundred-kilobyte patches.
+func (s *ShadowRepo) quietNewReviewFiles(ctx context.Context, env []string, ref string) ([]string, map[string]string, int, error) {
+	raw, err := s.gitRawWithEnv(ctx, env, "diff", "--cached", "--name-only", "--diff-filter=A", "-z", ref, "--")
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	untracked := []string{}
+	reasons := map[string]string{}
+	hidden := 0
+	visible := 0
+	const maxVisible = 500
+	const maxInlineBytes = 256 * 1024
+	for _, item := range bytes.Split(raw, []byte{0}) {
+		if len(item) == 0 {
+			continue
+		}
+		path := string(item)
+		hide := reviewHiddenUntrackedPath(path) || visible >= maxVisible
+		if hide {
+			hidden++
+		} else {
+			visible++
+			full := filepath.Join(s.work, filepath.FromSlash(path))
+			info, statErr := os.Stat(full)
+			if statErr != nil || !info.Mode().IsRegular() {
+				untracked = append(untracked, path)
+				reasons[path] = "unavailable"
+				hide = true
+			} else if info.Size() > maxInlineBytes {
+				untracked = append(untracked, path)
+				reasons[path] = "large"
+				hide = true
+			} else if content, readErr := os.ReadFile(full); readErr != nil {
+				untracked = append(untracked, path)
+				reasons[path] = "unavailable"
+				hide = true
+			} else if bytes.Contains(content, []byte{0}) {
+				untracked = append(untracked, path)
+				reasons[path] = "binary"
+				hide = true
+			}
+		}
+		if hide {
+			if _, err := s.gitWithEnv(ctx, env, "update-index", "--force-remove", "--", path); err != nil {
+				return nil, nil, 0, err
+			}
+		}
+	}
+	return untracked, reasons, hidden, nil
+}
+
+func reviewHiddenUntrackedPath(path string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		switch part {
+		case ".git", ".venv", "venv", "site-packages", ".tox", ".eggs", ".cache", ".next", ".turbo", ".gradle", "node_modules", "vendor", "dist", "build", "out", "target", "coverage", "__pycache__":
+			return true
+		}
+		if strings.HasSuffix(part, ".dist-info") || strings.HasSuffix(part, ".egg-info") {
+			return true
+		}
+	}
+	return false
 }
 
 // Snapshot: stage the whole workspace (info/exclude applies), write the

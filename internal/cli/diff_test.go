@@ -93,6 +93,18 @@ func TestCLIDiffLastTurnJSON(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ws, "new.txt"), []byte("created\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(ws, "large.txt"), []byte(strings.Repeat("x", 256*1024+1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "binary.bin"), []byte{'a', 0, 'b'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(ws, "node_modules", "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "node_modules", "pkg", "index.js"), []byte("generated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	id := "20260711-120000-last-turn-diff-aaaa"
 	dir := filepath.Join(mustDataDir(t), "sessions", id)
@@ -131,7 +143,11 @@ func TestCLIDiffLastTurnJSON(t *testing.T) {
 	}
 	if !got.Available || got.Workspace != ws || got.BarrierID != "bar-t1" ||
 		!strings.Contains(got.Diff, "same.txt") || !strings.Contains(got.Diff, "new.txt") ||
-		!strings.Contains(got.Numstat, "new.txt") {
+		!strings.Contains(got.Numstat, "new.txt") || strings.Contains(got.Diff, "node_modules") ||
+		strings.Contains(got.Diff, "large.txt") || strings.Contains(got.Diff, "binary.bin") ||
+		strings.Join(got.Untracked, ",") != "binary.bin,large.txt" ||
+		got.UntrackedReasons["binary.bin"] != "binary" || got.UntrackedReasons["large.txt"] != "large" ||
+		got.HiddenUntracked != 1 {
 		t.Fatalf("response = %+v", got)
 	}
 }

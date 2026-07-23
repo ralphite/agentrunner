@@ -234,10 +234,30 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
     await waitFor(() => expect(card.querySelector(".fd-badge")!.textContent).toBe("binary"));
     expect(card.querySelector(".fd-counts")).toBeNull();
     // …and the reason where the rows would be, instead of a bare path.
-    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary/);
     // DF-D7: and it never asked. `chart.png` is bytes by definition, so the card
     // reaches that state without a request the server could only refuse (400).
     expect(arMock.blob).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch a backend-classified large file or mislabel it binary", async () => {
+    const blob = vi.fn(() => Promise.resolve({ lines: ["must not load"] }));
+    arMock.diff = () =>
+      Promise.resolve(
+        baseDiff({
+          untracked: ["assets/large.log"],
+          untrackedReasons: { "assets/large.log": "large" },
+        }),
+      );
+    arMock.blob = blob;
+    const { container } = render(<DiffView sid="u-large" />);
+
+    await waitFor(() => expect(screen.getByText("large.log")).toBeTruthy());
+    const card = container.querySelector("details.filediff-untracked")!;
+    expect(card.querySelector(".fd-badge")!.textContent).toBe("large");
+    expect(card.querySelector(".fd-counts")).toBeNull();
+    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/too large/);
+    expect(blob).not.toHaveBeenCalled();
   });
 });
 
@@ -258,7 +278,7 @@ describe("Binary files are never prefetched (INC-41 DF-D7)", () => {
     // The card is exactly the one the failed fetch used to produce…
     const card = container.querySelector("details.filediff-untracked")!;
     expect(card.querySelector(".fd-badge")!.textContent).toBe("binary");
-    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary/);
     expect(card.querySelector(".fd-counts")).toBeNull();
     // …and it cost nothing: not one request for THIS file, before or after the
     // user opens it (its tracked neighbour still prefetches, as it should).
@@ -611,7 +631,7 @@ describe("Review order and binary truth (INC-41 RVW-ORDER / RVW-BINCOUNT)", () =
     fireEvent.click(screen.getByText("Expand all files"));
     await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
     expect(arCalls()).toHaveLength(1);
-    expect(card().querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+    expect(card().querySelector(".fd-nobody")!.textContent).toMatch(/binary/);
   });
 });
 

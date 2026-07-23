@@ -485,7 +485,19 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		}
 		workspace, _ := resp["workspace"].(string)
 		resp["known"] = workspace != ""
-		resp["untracked"] = []string{}
+		// Newer `ar diff` projections classify baseline-new large/binary files
+		// as name-only and generated paths as hidden. Preserve those fields;
+		// an older shared binary omitted them, so retain the stable empty/zero
+		// compatibility shape instead of returning null to the frontend.
+		if _, ok := resp["untracked"]; !ok {
+			resp["untracked"] = []string{}
+		}
+		if _, ok := resp["hiddenUntracked"]; !ok {
+			resp["hiddenUntracked"] = 0
+		}
+		if _, ok := resp["untrackedReasons"]; !ok {
+			resp["untrackedReasons"] = map[string]string{}
+		}
 		// `ar diff --json` carries no repo fields, but every consumer of this
 		// endpoint gates on isRepo/nested (the changes card's turn/workspace
 		// split, qa/consistency). Leaving them absent made every last-turn
@@ -511,7 +523,12 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := s.meta.get(id)
-	resp := map[string]any{"scope": "working-tree", "workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}, "hiddenUntracked": 0, "worktree": false, "mainRepo": "", "branch": ""}
+	resp := map[string]any{
+		"scope": "working-tree", "workspace": meta.Workspace, "known": meta.Workspace != "",
+		"isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "",
+		"untracked": []string{}, "untrackedReasons": map[string]string{}, "hiddenUntracked": 0,
+		"worktree": false, "mainRepo": "", "branch": "",
+	}
 	if meta.Workspace == "" {
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -561,7 +578,8 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	resp["numstat"] = numstat
 	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain", "--untracked-files=all"); ok {
 		untracked := []string{} // never nil — the UI does .length on this
-		var extra bytes.Buffer  // synthetic new-file diffs for untracked content
+		untrackedReasons := map[string]string{}
+		var extra bytes.Buffer // synthetic new-file diffs for untracked content
 		hiddenUntracked := 0
 		inlineFiles := 0
 		const maxInlineUntrackedBytes = 1 << 20
@@ -598,6 +616,15 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			untracked = append(untracked, path) // binary / large / unreadable: name only
+			if info, err := os.Stat(full); err != nil || !info.Mode().IsRegular() {
+				untrackedReasons[path] = "unavailable"
+			} else if info.Size() > 256*1024 {
+				untrackedReasons[path] = "large"
+			} else if content, err := os.ReadFile(full); err != nil {
+				untrackedReasons[path] = "unavailable"
+			} else if bytes.Contains(content, []byte{0}) {
+				untrackedReasons[path] = "binary"
+			}
 		}
 		if extra.Len() > 0 {
 			d, _ := resp["diff"].(string)
@@ -607,6 +634,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 			resp["diff"] = d + extra.String()
 		}
 		resp["untracked"] = untracked
+		resp["untrackedReasons"] = untrackedReasons
 		resp["hiddenUntracked"] = hiddenUntracked
 	}
 	writeJSON(w, http.StatusOK, resp)

@@ -7071,3 +7071,31 @@ panel=`876×676`、overflow=0。另在 `390×844` shared production 真验 panel
 toolbar=`364×44`、Changed files popup 完全 contained，Escape/Close 分别回 trigger/Review，
 browser logs 空。CH-05 仍 UNTESTED，仅因 Codex close 后 focus 尚无可验证证据；不把我方更稳的
 compact containment 伪装成 Codex 同态。
+
+---
+
+## 2026-07-22 · INC-98.4g complex diff 首轮：Last Turn generated/large 爆量修复
+
+停止以单一 modified file 代表 Changes。新建并永久保留 shared session
+`20260723-055856-inc98-4g-diff-states-f81d496f7f38c192` 与独立 repo
+`~/.local/share/agentrunner/qa-workspaces/2026-07-22-inc98-4g-diff-states`，同一状态同时包含
+staged/unstaged、A/M/D/R/untracked、CJK、长行，再加入 468,659-byte text、Mach-O binary
+与 untracked `node_modules`。900×700 真 Review 中六种普通状态的 glyph/count/inline patch 均正确。
+
+复杂状态暴露真实 backend projection bug：Working Tree 已把 large/binary 降为 name-only、
+generated 记 hidden；Last Turn 的 shadow diff 却 `git add -A` 后全量输出，raw diff=319,308
+bytes、`+7085 -10`，Review 首屏出现 `node_modules`，large 文件占 7,073 行。修复只改
+`ShadowRepo.Diff` 的临时 review index：baseline 后新增文件先分类，小文本继续 inline，
+large/binary 移出 patch 并投 `untracked`，generated 移出 patch 并计 `hiddenUntracked`；
+durable snapshot、workspace、rewind/materialize 完全不变。`ar diff --json` 增加稳定字段，
+Web UI 对新字段透传、对旧 binary 保持 `[]/0` 兼容。
+
+第一次 dirty shared 复拍又发现第二层缺陷：虽然后端已降为 name-only，旧 `UntrackedFile`
+仍会预取 8MiB-cap blob，把 large 文件重新展开成 7,073 行，且把 413/不可读统一显示为
+`binary`。两 scope 现同时投 `untrackedReasons`；前端对已知 large/binary/unavailable
+零请求、分别显示真实 badge/reason、不打印虚假行数。同一 shared session 用新 binary
+实测 raw diff=1,747 bytes、`+10 -10`，`untracked=[assets/binary.bin,assets/large.log]`、
+reasons=`binary/large`、`hiddenUntracked=1`。snapshot/CLI/Web UI/React 四层回归覆盖生成目录、
+大文本、binary、新字段透传与旧 binary compatibility；未 commit fixture、未 push、
+未删除或清理任何 session/workspace/journal。CH-02/03 仅补 AgentRunner 复杂证据，因 Codex 同态
+与 unavailable baseline 尚缺继续 UNTESTED，不把单侧修复冒充完整 parity。

@@ -114,10 +114,14 @@ interface ReviewFile {
 interface UntrackedFact {
   binary: boolean;
   add: number | null;
+  reason?: UntrackedReason;
 }
 
-// Sort: readable files first, in path order; the unreadable ones (binary,
-// oversized) sink to the end, where a header that opens on "Content isn't shown"
+type UntrackedReason = "binary" | "large" | "unavailable";
+
+// Sort: readable files first, in path order; the non-inline ones (binary,
+// oversized/unavailable) sink to the end, where a header that opens on
+// "Content isn't shown"
 // costs the reader nothing. `<`/`>` on the path, not localeCompare: git orders
 // its own diff by byte, and the two lists have to agree on where `a/` goes.
 const cmpReviewFile = (a: ReviewFile, b: ReviewFile) =>
@@ -246,7 +250,7 @@ function FileHead({
   // them already says exactly that. Same principle a070dea applied to the tool
   // cards (which stopped printing a fabricated `+0 −0` of their own); here the
   // badge speaks alone.
-  const binary = badges.includes("binary");
+  const unavailable = badges.some((badge) => badge === "binary" || badge === "large" || badge === "unavailable");
   return (
     <summary className="fd-head mono">
       <span className="fd-caret" aria-hidden="true">
@@ -263,7 +267,7 @@ function FileHead({
           both numbers always rendered — a pure deletion reads "+0 −176", not a
           lone "−176". `add === null` is the one honest gap: an untracked file's
           line count is only known once its blob is in hand. */}
-      {!binary && (
+      {!unavailable && (
         <span className="fd-counts">
           <span className="add">+{add === null ? "…" : add}</span>
           <span className="del">-{del}</span>
@@ -372,8 +376,12 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       // Monotone: a card remounts on every fold-all/filter/focus, and a fresh
       // mount starts with `lines: null` again — that must not walk a known `+42`
       // back to `+…`, nor a known binary back to a guess.
-      const next: UntrackedFact = { binary: fact.binary || !!cur?.binary, add: fact.add ?? cur?.add ?? null };
-      if (cur && cur.binary === next.binary && cur.add === next.add) return prev;
+      const next: UntrackedFact = {
+        binary: fact.binary || !!cur?.binary,
+        add: fact.add ?? cur?.add ?? null,
+        reason: fact.reason ?? cur?.reason,
+      };
+      if (cur && cur.binary === next.binary && cur.add === next.add && cur.reason === next.reason) return prev;
       return { ...prev, [path]: next };
     });
   }, []);
@@ -755,12 +763,13 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const entries: ReviewFile[] = [
     ...untracked.map((path): ReviewFile => {
       const fact = facts[path];
+      const knownReason = fact?.reason ?? data.untrackedReasons?.[path];
       return {
         path,
         status: "added",
         add: fact ? fact.add : null,
         del: 0,
-        binary: fact ? fact.binary : isBinaryPath(path),
+        binary: fact ? fact.binary : !!knownReason || isBinaryPath(path),
         file: null,
       };
     }),
@@ -1300,7 +1309,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
               // RVW-BINCOUNT · what we already learned about this file, so a remount
               // (fold-all, filter, focus) never re-asks a question the endpoint has
               // already refused — and reports back what it learns itself.
-              knownBinary={e.binary}
+              knownReason={facts[e.path]?.reason ?? data.untrackedReasons?.[e.path] ?? (isBinaryPath(e.path) ? "binary" : undefined)}
               onFact={reportFact}
               edgeToEdge={narrow}
             />
@@ -1402,7 +1411,7 @@ function UntrackedFile({
   defaultOpen,
   prefetch,
   detailsRef,
-  knownBinary,
+  knownReason,
   onFact,
   edgeToEdge,
 }: {
@@ -1412,7 +1421,7 @@ function UntrackedFile({
   defaultOpen: boolean;
   prefetch: boolean;
   detailsRef?: (el: HTMLDetailsElement | null) => void;
-  knownBinary?: boolean;
+  knownReason?: UntrackedReason;
   onFact?: (path: string, fact: UntrackedFact) => void;
   edgeToEdge: boolean;
 }) {
@@ -1433,7 +1442,10 @@ function UntrackedFile({
   // panel's memory of what a previous mount found out (it is seeded with the same
   // extension guess when there is nothing to remember yet), so the endpoint is
   // asked at most once about any file, ever.
-  const [failed, setFailed] = useState(() => knownBinary ?? isBinaryPath(path));
+  const [failedReason, setFailedReason] = useState<UntrackedReason | null>(
+    () => knownReason ?? (isBinaryPath(path) ? "binary" : null),
+  );
+  const failed = failedReason !== null;
 
   useEffect(() => {
     if (failed || (!open && !prefetch) || lines) return;
@@ -1442,17 +1454,19 @@ function UntrackedFile({
       .then((r) => alive && setLines(r.lines))
       // Silent: an oversized file is an expected failure here, not an error the
       // user has to act on. The card says so in place of its rows.
-      .catch(() => alive && setFailed(true));
+      .catch((e) => {
+        if (!alive) return;
+        setFailedReason(e?.status === 413 ? "large" : "binary");
+      });
     return () => {
       alive = false;
     };
   }, [sid, path, open, prefetch, lines, failed]);
 
   const rows: DiffRow[] = (lines || []).map((text, i) => ({ kind: "add", newNo: i + 1, text }));
-  const parsed: ParsedFileDiff = { badges: failed ? ["binary"] : [], status: "added", rows };
-  // A file git can't show is a file with no countable lines — so it carries the
-  // "binary" badge and FileHead prints no counts at all for it (DF-D3), exactly
-  // as a *tracked* binary addition does. The two agree; neither invents a zero.
+  const parsed: ParsedFileDiff = { badges: failedReason ? [failedReason] : [], status: "added", rows };
+  // A file the review intentionally cannot inline has no countable lines, so it
+  // carries the backend's reason badge and FileHead prints no counts (DF-D3).
   const add = lines ? lines.length : failed ? 0 : null;
   // RVW-BINCOUNT · and now the file list agrees with them too. This card is the
   // only place in the panel that knows whether the blob came back or was refused;
@@ -1461,8 +1475,8 @@ function UntrackedFile({
   // the ones that are, "how many lines" — and DiffView folds them into the list,
   // the sort order, and the next mount's decision not to ask again.
   useEffect(() => {
-    onFact?.(path, { binary: failed, add });
-  }, [onFact, path, failed, add]);
+    onFact?.(path, { binary: failed, add, reason: failedReason ?? undefined });
+  }, [onFact, path, failed, failedReason, add]);
 
   return (
     <details
@@ -1473,7 +1487,13 @@ function UntrackedFile({
     >
       <FileHead path={path} status="added" add={add} del={0} badges={parsed.badges} />
       {failed ? (
-        <div className="fd-nobody">Content isn’t shown — this file is binary or too large to display.</div>
+        <div className="fd-nobody">
+          {failedReason === "large"
+            ? "Content isn’t shown — this file is too large to display."
+            : failedReason === "binary"
+              ? "Content isn’t shown — this file is binary."
+              : "Content isn’t shown — this file is unavailable."}
+        </div>
       ) : lines ? (
         <FileBody
           sid={sid}

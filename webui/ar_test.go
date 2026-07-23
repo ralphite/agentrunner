@@ -494,6 +494,41 @@ exit 2
 	}
 }
 
+func TestHandleDiffLastTurnPreservesQuietFields(t *testing.T) {
+	repo := t.TempDir()
+	if _, ok := git(context.Background(), repo, "init"); !ok {
+		t.Skip("git unavailable")
+	}
+	bin := filepath.Join(t.TempDir(), "fake-ar")
+	script := `#!/bin/sh
+printf '%s\n' '{"scope":"last-turn","available":true,"workspace":"` + repo + `","diff":"diff --git a/small.txt b/small.txt\n+small","numstat":"1\t0\tsmall.txt","untracked":["large.log","binary.bin"],"untrackedReasons":{"large.log":"large","binary.bin":"binary"},"hiddenUntracked":3}'
+`
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: bin}
+	req := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=last-turn", nil)
+	req.SetPathValue("sid", "20260722-000000-complex-diff-0001")
+	rec := httptest.NewRecorder()
+	s.handleDiff(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Untracked        []string          `json:"untracked"`
+		UntrackedReasons map[string]string `json:"untrackedReasons"`
+		HiddenUntracked  int               `json:"hiddenUntracked"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(resp.Untracked, ",") != "large.log,binary.bin" ||
+		resp.UntrackedReasons["large.log"] != "large" || resp.UntrackedReasons["binary.bin"] != "binary" ||
+		resp.HiddenUntracked != 3 {
+		t.Fatalf("quiet fields lost in Web UI passthrough: %+v", resp)
+	}
+}
+
 func TestHandleSessionFileDownloadConfinesWorkspace(t *testing.T) {
 	ws := t.TempDir()
 	outside := t.TempDir()

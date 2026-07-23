@@ -368,8 +368,8 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | EV-05 | child approval/recovery attention 与去重 | UNTESTED | — |
 | EV-06 | Environment↔Changes/sidebar/settings overlay 互斥 | UNTESTED | QA-87/86 为我方候选证据，待全组合 |
 | CH-01 | Changes empty/normal + Working tree/Last turn scopes | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：Codex normal Last Turn、我方 shared normal/非 Git empty 与两 scope 真验；尚缺 Codex empty，不能判 PASS |
-| CH-02 | added/modified/deleted/renamed/untracked/staged | UNTESTED | — |
-| CH-03 | large/generated/binary/unavailable baseline disclosure | UNTESTED | — |
+| CH-02 | added/modified/deleted/renamed/untracked/staged | UNTESTED | 2026-07-22 `QA88-98.4g-diff-states/01..04`：专用 retained shared repo 同时真验 staged/unstaged、A/M/D/R/untracked、CJK/long-line，AgentRunner 900×700 status glyph/count/inline diff 全部正确；Codex 同批复杂状态尚缺 |
+| CH-03 | large/generated/binary/unavailable baseline disclosure | UNTESTED | 2026-07-22 `QA88-98.4g-diff-states/05..15`：真测 baseline 后新建 468KiB text、Mach-O binary 与 node_modules；发现并修复 Last Turn 全量内联 generated/large（319KiB/+7085）及前端再次 fetch/误标 binary 两层 bug，修后 1.7KiB/+10、large/binary name-only 且 zero-fetch、generated hidden=1；900×700 无横向溢出且 browser logs 空。Codex 与 unavailable baseline 同态仍缺 |
 | CH-04 | file/hunk expand-collapse、scroll、syntax/CJK/wrap | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：我方 filter→file jump→Collapse/Expand 与 focus return 真验；Codex 同态、hunk/CJK/wrap 尚未齐 |
 | CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell` + `98.4f-changes-compact`：双侧 1280 split；900 同图显示 Codex 三栏挤压、我方 intentional overlay；我方 900/390 containment 与 focus return 通过，Codex close focus 仍未取证 |
 | CH-06 | Commit or push menu/validation/progress/error/success | UNTESTED | 不执行真实 push；可用专用 shared QA repo 做 commit |
