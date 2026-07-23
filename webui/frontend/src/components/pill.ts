@@ -137,7 +137,9 @@ export function terminalNoticeFor(raw: string, driver = false): TerminalNotice |
   if (s.includes("crash") || s.includes("error") || s.includes("fail")) {
     return {
       title: "Session failed",
-      body: "The last run ended unexpectedly. Review the recorded run details before deciding whether to retry.",
+      body: driver
+        ? "This scheduled run ended unexpectedly. Review the recorded run details before starting a replacement."
+        : "The last run ended unexpectedly. Review the recorded run details before deciding whether to retry.",
       tone: "danger",
       action: "inspect",
       actionLabel: "Run details",

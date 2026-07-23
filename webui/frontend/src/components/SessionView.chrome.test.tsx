@@ -300,6 +300,25 @@ describe("scheduled selected-iteration semantics", () => {
     expect(screen.queryByText(/Best-of-N winner/)).toBeNull();
   });
 
+  it("does not offer conversational Retry on a failed scheduled driver", async () => {
+    useStore.setState({
+      sessions: [{ id: SID, title: "failed schedule", status: "failed", workspace: "/tmp/wt-th14", kind: "driver" } as any],
+    });
+    arMock.events = async (_sid: string, after: number) => after ? [] : [
+      { seq: 1, type: "series_started", payload: { series_id: SID, kind: "interval" } },
+      { seq: 2, type: "series_iteration", payload: { n: 1, reason: "failed", verdict: { pass: false } } },
+      { seq: 3, type: "series_ended", payload: { reason: "failed", iterations: 1, best_iter: 1 } },
+    ];
+
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".driver-note")).not.toBeNull());
+    expect(screen.queryByRole("button", { name: "Retry session" })).toBeNull();
+    expect(container.querySelector(".terminal-alert-action")?.textContent).toBe("Run details");
+    expect(screen.getByText(/before starting a replacement/i)).toBeTruthy();
+    expect(screen.getByText(/does not accept follow-up messages/i)).toBeTruthy();
+  });
+
   it("keeps winner language for an actual best-of-N series", async () => {
     driverSession();
     arMock.events = async (_sid: string, after: number) => after ? [] : [

@@ -584,7 +584,10 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         : folded.status.cls === "run"
           ? { text: "completed", cls: "closed" }
           : folded.status;
-  const isDriver = folded.isDriver;
+  // The list metadata arrives before the driver's first journal page. Treat it
+  // as authoritative too, so a failed schedule never flashes conversational
+  // Retry while its series events are still loading.
+  const isDriver = folded.isDriver || listSession?.kind === "driver";
   const isBestOfN = folded.seriesKind === "best_of_n" || folded.seriesKind === "parallel";
   // QA-0719 S7: a user-initiated interrupt is NOT a stranded session. The
   // thread already says "Stopped — you interrupted this turn" and the very
@@ -595,7 +598,11 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const needsRecovery = !live && /strand/i.test(listStatus || "");
   // Retry re-sends the last message as a NEW turn. A stranded session must
   // Resume instead: replaying its last message could duplicate partial work.
-  const canRetry = !live && !needsRecovery && /interrupt|crash|fail/i.test(listStatus || "");
+  // A driver owns a scheduled series, not a conversational last message.
+  // Its failure path is Run details / schedule actions; `ar retry` would expose
+  // the ordinary-session semantic beside copy that explicitly says the driver
+  // does not accept follow-up messages.
+  const canRetry = !isDriver && !live && !needsRecovery && /interrupt|crash|fail/i.test(listStatus || "");
   const running = status.cls === "run";
   // An explicitly-closed session still accepts input (a send reopens it), but
   // the composer alone reads as "live" — surface the closed state so it isn't

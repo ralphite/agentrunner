@@ -125,6 +125,31 @@ describe("Codex-style turn outcome", () => {
     expect(guiReason("policy: path not allowed")).toBe("policy: path not allowed");
   });
 
+  it("keeps provider protocol out of the primary driver verdict", () => {
+    const verdict = {
+      pass: false,
+      score: 0,
+      detail: "child failed: turn 1: gemini [provider_invalid]: Error 400, Message: Request contains an invalid argument., Status: INVALID_ARGUMENT, Details: []",
+    };
+    const label = verdictLabel(verdict);
+    expect(label).toBe("failed · score 0 · model provider rejected the request");
+    expect(label).not.toContain("provider_invalid");
+    expect(label).not.toContain("INVALID_ARGUMENT");
+    expect(label).not.toContain("Details");
+
+    const folded = foldEvents([
+      { seq: 1, type: "series_started", payload: { series_id: "s", kind: "interval" } },
+      { seq: 2, type: "series_iteration", payload: { n: 1, reason: "failed", verdict } },
+    ]);
+    const chip = folded.items.find((item) => item.kind === "chip" && item.text.startsWith("Iteration 1"));
+    expect(chip && "text" in chip ? chip.text : "").toBe("Iteration 1 · Failed · score 0 · model provider rejected the request");
+  });
+
+  it("caps unknown driver verdict detail without hiding short verifier facts", () => {
+    expect(verdictLabel({ pass: true, detail: "exit=0" })).toBe("passed · exit=0");
+    expect(verdictLabel({ pass: false, detail: "x".repeat(180) })).toBe(`failed · ${"x".repeat(119)}…`);
+  });
+
   it("summarizes tracked and name-only untracked files without inventing line counts", () => {
     const summary = summarizeChanges({
       workspace: "/repo", known: true, isRepo: true, numstat: "", untracked: ["large.bin"],

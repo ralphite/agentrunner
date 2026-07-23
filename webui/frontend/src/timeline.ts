@@ -16,8 +16,31 @@ export function verdictLabel(v: any): string {
   const bits: string[] = [];
   if (typeof v.pass === "boolean") bits.push(v.pass ? "passed" : "failed");
   if (v.score !== undefined && v.score !== null) bits.push(`score ${v.score}`);
-  if (v.detail) bits.push(String(v.detail));
+  if (v.detail) bits.push(verdictDetailLabel(v.detail));
   return bits.length ? bits.join(" · ") : "";
+}
+
+// Driver verdict detail is useful evidence, but it is still runtime protocol
+// text. Keep short verifier facts ("exit=0") inline; translate known provider
+// classes with the same vocabulary as the normal failure card, and cap unknown
+// detail so a failed iteration cannot turn the primary timeline into a raw log.
+function verdictDetailLabel(detail: unknown): string {
+  const raw = String(detail ?? "").trim().replace(/\s+/g, " ");
+  const cls = /\[(provider_rate_limit|provider_server|provider_auth|provider_invalid|tool_failed|timeout|canceled|internal)\]/i.exec(raw)?.[1];
+  if (cls) {
+    const title = explainFailure(cls.toLowerCase(), raw).title;
+    return title.replace(/^The /, "").replace(/^A /, "");
+  }
+  return raw.length > 120 ? raw.slice(0, 119).trimEnd() + "…" : raw;
+}
+
+function iterationVerdictSuffix(reason: unknown, verdict: any): string {
+  let label = verdictLabel(verdict);
+  const outcome = typeof verdict?.pass === "boolean" ? (verdict.pass ? "passed" : "failed") : "";
+  if (outcome && friendlyStatus(String(reason || "completed")).text.toLowerCase() === outcome) {
+    label = label === outcome ? "" : label.replace(new RegExp(`^${outcome} · `), "");
+  }
+  return label ? ` · ${label}` : "";
 }
 
 // guiReason rewrites the backend's CLI-oriented non-interactive auto-deny
@@ -1086,7 +1109,7 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(
           seq,
           `Iteration ${p.iter} · ${friendlyStatus(p.child_reason || "completed").text}${
-            p.verdict ? " · " + verdictLabel(p.verdict) : ""
+            p.verdict ? iterationVerdictSuffix(p.child_reason || "completed", p.verdict) : ""
           }`,
           p.verdict && p.verdict.pass === false ? "warn" : "good",
         );
@@ -1118,7 +1141,7 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(
           seq,
           `Iteration ${p.n}${p.skipped ? " skipped" : ` · ${friendlyStatus(p.reason || "completed").text}`}${
-            p.verdict && !p.skipped ? " · " + verdictLabel(p.verdict) : ""
+            p.verdict && !p.skipped ? iterationVerdictSuffix(p.reason || "completed", p.verdict) : ""
           }`,
           p.skipped || (p.verdict && p.verdict.pass === false) ? "warn" : "good",
         );

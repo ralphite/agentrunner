@@ -515,6 +515,15 @@ INC-98 将该方法固化为持续循环：
   立即进入 New chat；我方修前仍停在已隐藏但可继续输入的 thread，修后回 Home 并替换当前
   history entry，Back/Forward/reload 不会重开它，显式 Archived Open/deep-link 仍可达。
   driver 只增加已实测的 current-thread menu 与 pin/archive action，不扩张未验证能力。
+- **98.4x running Review / Scheduled failure truth**：在 `1100×700` 先让双方真实 thread
+  进入 running 与 populated Review；AgentRunner 的 361 字未发送 draft、390/390 split 和
+  idle complex diff 均无横溢，因此不为对标而改结构。转到双方 Scheduled list 后，shared
+  failed driver 暴露真正的闭环冲突：页面明说 driver 不接受 follow-up，header 却给普通
+  `Retry`；iteration chip 还把 `provider_invalid / Error 400 / INVALID_ARGUMENT` 直接贴在
+  主时间线。最小修订以 session-list `kind=driver` 或 series journal 任一来源提前压掉 Retry，
+  把已知 failure class 折成 bounded human summary，并给 driver 使用“查看详情后启动替代 run”
+  的 terminal copy；完整 provider 原文仍只读保留在 `Run details → Raw run data`。不改
+  retry/promote/backend/journal 语义，G55/G56 继续开放。
 
 ## Spec delta
 

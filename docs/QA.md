@@ -2171,3 +2171,12 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | split 红转绿 | 修前 1100×700 conversation=358.8px、Review=421.2px，composer `scrollWidth=477 > clientWidth=359`；修后两轨约 390/390px，approval/AskForm、diff scope 与 composer 控件同屏，无裁切 |
 | close/focus | Environment→Changes 互斥；关闭后从错误的 `More session actions` 回到稳定 `Environment` trigger，approval/answer attention 仍为 1 |
 | Gate | `qa/runs/2026-07-23-QA88-98.4w-thread-review-attention/03/08..12`；shared health `daemonUp/versionMatch=true`、browser logs=`[]`；73 files / 759 frontend tests、production build、capture-driver contract 与 `./scripts/check.sh` 全绿 |
+
+| 98.4x 动作 | 硬断言 |
+|---|---|
+| running / Review | 双侧真实 thread 在 1100×700 捕获 running 与 populated Review；AgentRunner 361 字未发送 draft、390/390 split、idle 7-file complex diff 均可达且 body `scrollWidth=clientWidth=1100`。Codex 原 thread 因 worktree 已清理出现 Restore worktree 的尝试图 `10`，明确拒收，不用于裁决 |
+| Scheduled list | Codex All/Active/Paused 与 AgentRunner All/Active/Finished 同 viewport 合并图 `20`；G55 的 paused lifecycle 仍是 backend gap，不改 label 冒充 |
+| failed driver 红转绿 | 修前 header 同时出现 `Retry` 与“不接受 follow-up”，iteration chip 暴露 `provider_invalid / Error 400 / INVALID_ARGUMENT`；修后无 Retry，主线为 `Failed · score 0 · model provider rejected the request`，terminal copy 指向 replacement 而非 retry |
+| diagnostics / focus | `Run details` 仍为 structured Overview/Usage/Activity；展开 `Raw run data` 可见完整 provider 原文，关闭后焦点精确回 `Run details`；Review 关闭后焦点回 `Review` |
+| 数据纪律 | retained shared session `20260723-125433-qa98-4x-run-use-bash-to-run-e-f043fb8a5107db55`、7-file workspace diff、Codex threads 与 Scheduled driver 全部保留；未 retry/promote/pause/close/delete/cleanup |
+| Gate | `qa/runs/2026-07-23-QA88-98.4x-running-review/01..21`；shared health `daemonUp/versionMatch=true`、browser logs=`[]`；73 files / 762 frontend tests、post-copy focused 110 tests、production build 与 `./scripts/check.sh` 全绿 |
