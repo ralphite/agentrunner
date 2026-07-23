@@ -7392,3 +7392,17 @@ summary，driver terminal copy 改为查看详情后启动 replacement。完整
 `qa/runs/2026-07-23-QA88-98.4x-running-review/01..21` 保存双侧 list/Review、修前后与
 structured/raw detail；73 files / 762 frontend tests、focused 110、build、full gate、
 shared health/versionMatch 与空 browser logs 全绿。G55/G56 不变，无新增 backend gap。
+
+---
+
+## 2026-07-23 · INC-98.4y Steer 不再伪装成 Queued
+
+1100×700 shared 真机在 foreground `sleep 75` 中暴露：选择 Steer 后，timeline 的
+`steering…` 与 `/queue` 轮询生成的 `Queued/Withdraw` 同时存在，同一输入被描述成当前
+与下个 turn。根因是 CLI `pendingQueue` 无条件返回所有未消费 input。
+
+现由权威 queue projection 排除 `DeliverySteer`，legacy empty/explicit queue 与
+unqueue/daemon/journal 语义不变。精确单测、full gate 通过；同一 retained session 复验
+`/queue=[]`，steer 在 tool 完成后的当前-turn安全边界落 seq188，并于 seq195 返回
+`STEER-FIXED-ACK`。证据 `qa/runs/2026-07-23-QA88-98.4y-queue-steer-review/01..09`；
+G47 仍开放，未用非原子 unqueue+resend 冒充 queued→steer。

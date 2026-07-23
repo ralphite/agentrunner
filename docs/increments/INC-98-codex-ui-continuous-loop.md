@@ -524,6 +524,12 @@ INC-98 将该方法固化为持续循环：
   把已知 failure class 折成 bounded human summary，并给 driver 使用“查看详情后启动替代 run”
   的 terminal copy；完整 provider 原文仍只读保留在 `Run details → Raw run data`。不改
   retry/promote/backend/journal 语义，G55/G56 继续开放。
+- **98.4y steer projection truth**：`Queue` 的 durable card/`Withdraw` 只表示下个
+  turn 的可撤回输入，`Steer` 则只保留当前 turn 的 optimistic `steering…`。真实长
+  `sleep` 边界证明旧 `/queue` 把尚未消费的 steer 也列为 Queued，造成同一消息同时宣称
+  当前与下个 turn。最小修复落在权威 CLI queue projection：过滤
+  `DeliverySteer`，保留 legacy empty/explicit queue；不改 daemon、journal、消费顺序或
+  composer。G47 的 queued→steer 原子提升能力仍开放。
 
 ## Spec delta
 

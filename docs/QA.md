@@ -2180,3 +2180,10 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | diagnostics / focus | `Run details` 仍为 structured Overview/Usage/Activity；展开 `Raw run data` 可见完整 provider 原文，关闭后焦点精确回 `Run details`；Review 关闭后焦点回 `Review` |
 | 数据纪律 | retained shared session `20260723-125433-qa98-4x-run-use-bash-to-run-e-f043fb8a5107db55`、7-file workspace diff、Codex threads 与 Scheduled driver 全部保留；未 retry/promote/pause/close/delete/cleanup |
 | Gate | `qa/runs/2026-07-23-QA88-98.4x-running-review/01..21`；shared health `daemonUp/versionMatch=true`、browser logs=`[]`；73 files / 762 frontend tests、post-copy focused 110 tests、production build 与 `./scripts/check.sh` 全绿 |
+
+| 98.4y 动作 | 硬断言 |
+|---|---|
+| Queue / Withdraw | shared session `20260723-132420-qa98-4y-run-use-bash-to-run-e-4f391c4b7838d78d` 的真实 foreground `sleep 60` 中发送 384 字 Queue，只出现一张 durable `Queued` card；Withdraw 后 card/queue 均为空且当前 tool 不受影响 |
+| Steer 修前红证据 | 同 session 的 foreground `sleep 75` 中选择 Steer；修前稳定 2.5s poll 后同一消息同时显示 `steering…` 与 `Queued/Withdraw`，证明 `/queue` 错把当前-turn input 投影成下一-turn work |
+| Steer 修后 | 权威 `ar queue` 排除 `DeliverySteer`，保留 legacy empty/explicit queue；同样长 tool 边界中 `/queue=[]`、UI 只有 `steering…`，journal `activity_completed` seq186 后在同 turn 落 steer `input_received` seq188、assistant `STEER-FIXED-ACK` seq195、最后 waiting seq198 |
+| 边界 / Gate | 不实现 G47 的 queued→steer 原子提升；retained session/worktree/journal 与 Codex thread 全保留。`TestPendingQueueExcludesCurrentTurnSteer`、`./scripts/check.sh`、shared health/versionMatch 与 1100×700 证据在 `qa/runs/2026-07-23-QA88-98.4y-queue-steer-review/` |

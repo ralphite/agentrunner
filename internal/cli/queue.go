@@ -14,9 +14,11 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
-// queueCmd lists a session's PENDING conversational inputs (INC-46): every
-// durable input command above the fold's consumed high-water, with its
-// command id (the unqueue handle) and whether a revoke already covers it.
+// queueCmd lists a session's PENDING next-turn inputs (INC-46): durable queue
+// commands above the fold's consumed high-water, with their command id (the
+// unqueue handle) and whether a revoke already covers them. Mid-turn steer
+// inputs are deliberately absent: presenting them as withdrawable "Queued"
+// work contradicts their current-turn delivery contract.
 func queueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("queue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -74,8 +76,8 @@ func queueCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 // pendingQueue reads the durable command log and the fold's high-water:
-// pending = input commands not yet consumed; revoked = targets a revoke
-// command already covers.
+// pending = next-turn queue commands not yet consumed; revoked = targets a
+// revoke command already covers. Empty delivery is the legacy queue default.
 func pendingQueue(dir string) ([]protocol.UserInput, map[string]bool, error) {
 	events, err := store.ReadEvents(dir)
 	if err != nil {
@@ -97,7 +99,8 @@ func pendingQueue(dir string) ([]protocol.UserInput, map[string]bool, error) {
 	}
 	var pending []protocol.UserInput
 	for _, c := range cmds {
-		if c.Kind == protocol.CommandInput && c.Input != nil {
+		if c.Kind == protocol.CommandInput && c.Input != nil &&
+			c.Input.Delivery != protocol.DeliverySteer {
 			pending = append(pending, *c.Input)
 		}
 	}
