@@ -144,7 +144,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
 | CheckpointBarrier（安全边界/turn 收尾/手动，向量+快照 ref） | ✅ | UJ-15 | S7 · TestBarrierPerTurnAndTerminal/TestBarrierVectorIncludesChildStreams（G30 还锚 audit-0717 C1） |
-| fork（单创世、in-flight 一律取消合成收尾（PLAN 5.9 裁 policy 向量）、随行库复制、独立 worktree、继承 parent 当前 durable title 为 `source:fork`） | ✅ | UJ-15 | S7 收口 review 修复 + fork-of-fork 测试 · TestCutOfForkKeepsSingleGenesis/TestCutAppliesCancelAtFork/TestCutInheritsCurrentParentTitle/TestCLIForkRewindsAndContinues（G30 还锚 audit-0717 C1） |
+| fork（单创世、in-flight 一律取消合成收尾（PLAN 5.9 裁 policy 向量）、随行库复制、独立 worktree、继承 parent 当前 durable title 为 `source:fork`；新 fork 必须等显式 Resume/Send，daemon restart 不得越权续跑） | ✅ | UJ-15 | S7 收口 review 修复 + fork-of-fork 测试 · TestCutOfForkKeepsSingleGenesis/TestCutAppliesCancelAtFork/TestCutInheritsCurrentParentTitle/TestCLIForkRewindsAndContinues/TestCheckpointForkWatermarkDoesNotAutoResumeOnDaemonRestart（G30 还锚 audit-0717 C1） |
 | rewind（fork 后显式切换） | ✅ | UJ-15 | S7 · TestCLIForkRewindsAndContinues（G30 还锚 audit-0717 C1） |
 | 多模态 blob 在 fork/rewind 下的归属语义 | ✅ | — | 文档对账(audit-0717 D3):DESIGN §13 早有裁决——artifacts CAS(含输入附件,同一 session store)随行库 verbatim 复制、fork 物理独立、排除路径天然缺席;锚 TestCutCopiesBarrierSlice(Side stores traveled verbatim) |
 | barrier 对在飞 background work 的处置语义 | ✅ | — | PLAN 5.9 写死:fork 一律取消并合成收尾(policy 向量裁除,旧 journal 字段 decode 忽略)、fold 无 in-doubt;锚 TestBarrierRecordsLiveWork/TestCutAppliesCancelAtFork/TestBarrierVectorIncludesChildStreams |

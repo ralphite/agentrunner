@@ -7219,3 +7219,19 @@ shared production 从同一 parent 的 `bar-t61` 新建并保留 child
 `Initialize Taskledger CLI Skeleton`，只显示 Resume；parent 保持 20 turns /
 `max_generation_steps`，两边 workspace 独立，未 Resume/Send/close/delete/cleanup。
 frontend `71 files / 738 tests` 与 `./scripts/check.sh` 全绿。
+
+---
+
+## 2026-07-23 · INC-98.4n checkpoint fork restart authority
+
+98.4m 的 clean daemon restart 暴露高影响恢复缺陷：`bar-t61` fork 明明只显示 Resume，
+restart 却未经用户操作自动续跑，并发起 `go build` bash approval。根因是 fork mailbox
+用空 legacy input 继承 delivery watermark；cut 中 seq 19 由 `InputRevoked` 消费，
+pending-command scanner 却只从 `InputReceived` 推高水位，因此把 watermark 误判为新消息。
+
+修复让 pending replay 直接使用 journal fold 的 `ConsumedInputSeq`，不再维护一份不完整
+的消费语义。scripted 回归同时覆盖 revoked → checkpoint fork → boot 两个扫描均不选中，
+以及显式新输入仍从 seq 20 可恢复。shared production 新建并永久保留 `bar-t62` child
+`20260723-075202-fork-bar-t62-5059d9a1155aacf1`：普通 daemon/webui restart 前后均为
+759 events、stranded，daemon log 无该 sid 的 resume；1100×700 UI 仅有 Resume，
+没有 Retry/approval。旧两个已被错误续跑的 child 保持原样供审计，不 answer/close/delete。

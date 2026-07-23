@@ -530,16 +530,12 @@ func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 	if err != nil {
 		return nil, err
 	}
+	folded, err := state.Fold(events)
+	if err != nil {
+		return nil, err
+	}
 	handled := map[string]bool{}
-	var consumedInputSeq int64
 	for _, env := range events {
-		if env.Type == event.TypeInputReceived {
-			if decoded, derr := event.DecodePayload(env); derr == nil {
-				if seq := decoded.(*event.InputReceived).DeliverySeq; seq > consumedInputSeq {
-					consumedInputSeq = seq
-				}
-			}
-		}
 		if env.CommandID == "" {
 			continue
 		}
@@ -559,7 +555,8 @@ func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 	}
 	var pending []protocol.SessionCommand
 	for _, cmd := range commands {
-		if cmd.Kind == protocol.CommandInput && cmd.CommandSeq <= consumedInputSeq {
+		if cmd.Kind == protocol.CommandInput &&
+			cmd.CommandSeq <= folded.Session.ConsumedInputSeq {
 			continue
 		}
 		if cmd.CommandID != "" && handled[cmd.CommandID] {

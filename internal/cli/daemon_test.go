@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/fork"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -270,6 +271,115 @@ func TestPendingCommandsHoistsChildApprovalToRootHost(t *testing.T) {
 	ids, err := scanPendingCommandSessions()
 	if err != nil || len(ids) != 1 || ids[0] != rootID {
 		t.Fatalf("pending roots = %v err=%v", ids, err)
+	}
+}
+
+// A checkpoint fork seeds its fresh mailbox at the cut's consumed-input
+// high-water mark. That mark may come from a revoked input rather than an
+// InputReceived event. The daemon boot scan must treat the seed as inert:
+// otherwise a normal restart resumes the fork without user authority.
+func TestCheckpointForkWatermarkDoesNotAutoResumeOnDaemonRestart(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	parentID := "checkpoint-parent"
+	parentDir, err := runtime.SessionDir(parentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parentStore, err := store.OpenEventStore(parentDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendParent := func(typ string, payload any) {
+		t.Helper()
+		env, nerr := event.New(typ, payload)
+		if nerr != nil {
+			t.Fatal(nerr)
+		}
+		if _, nerr = parentStore.Append(env); nerr != nil {
+			t.Fatal(nerr)
+		}
+	}
+	appendParent(event.TypeSessionStarted, &event.SessionStarted{
+		SpecName: "test", SubStateVersions: state.SubStateVersions(),
+	})
+	appendParent(event.TypeInputReceived, &event.InputReceived{
+		Text: "run", Source: "user", DeliverySeq: 18,
+	})
+	appendParent(event.TypeInputRevoked, &event.InputRevoked{
+		TargetCommandID: "cmd-withdrawn", DeliverySeq: 19,
+	})
+	appendParent(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})
+	appendParent(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+		BarrierID: "bar-t1", GenStep: 1, Vector: map[string]int64{".": 4},
+	})
+	if err := parentStore.Close(); err != nil {
+		t.Fatal(err)
+	}
+	parentEvents, err := store.ReadEvents(parentDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parentFold, err := state.Fold(parentEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	childID := "checkpoint-child"
+	childDir, err := runtime.SessionDir(childID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fork.Cut(fork.Options{
+		ParentDir: parentDir, ParentSession: parentID,
+		NewDir: childDir, NewSession: childID,
+		Barrier: parentFold.Barriers[0], WorkspaceRoot: t.TempDir(),
+		Now: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := pendingCommands(childID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("fresh checkpoint fork has phantom pending commands: %+v", pending)
+	}
+	pendingSessions, err := scanPendingCommandSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range pendingSessions {
+		if id == childID {
+			t.Fatalf("daemon boot scan would auto-resume untouched fork: %v", pendingSessions)
+		}
+	}
+	stranded, err := scanStrandedSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range stranded {
+		if id == childID {
+			t.Fatalf("stranded boot scan would auto-resume untouched fork: %v", stranded)
+		}
+	}
+
+	accepted, err := store.AppendInbox(childDir, protocol.UserInput{
+		Text: "continue explicitly", Source: "web",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accepted.DeliverySeq != 20 {
+		t.Fatalf("first explicit fork input seq = %d, want 20", accepted.DeliverySeq)
+	}
+	pending, err = pendingCommands(childID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].Input == nil ||
+		pending[0].Input.Text != "continue explicitly" {
+		t.Fatalf("explicit fork input is not recoverable: %+v", pending)
 	}
 }
 
