@@ -289,6 +289,20 @@ INC-98 将该方法固化为持续循环：
   blank/filled validation 与 Cancel；未创建新 run。两侧同 viewport 合并图确认 search shell 无新的
   视觉缺陷，但 Codex 有真实 Paused series，而我方只有 Finished：不能改 label 冒充，登记 G55。
   SC-05 从 UNTESTED 改 GAP；SC-02/03/04 仍据实 UNTESTED。
+- **98.3q Scheduled suggestions design note**：继续 SC-04，只测三张真实 suggestion 的 click→prefill/
+  cadence→dismiss，不提交、不创建计划。Codex driver 仅在 OCR 命中 suggestion title 后点击，并在
+  modal 内以可见 prompt/cadence 双锚验真；任何 modal 识别失败立即 Escape、拒收截图、移除半工作
+  action。AgentRunner 用 production shared store 同样点三张 card 并 Cancel，断言没有新增 run/
+  session。完成双侧同状态 comparison 后才决定 UI patch；若 Codex suggestion 需要外部 connector/
+  account 而无法安全进入，保持 UNTESTED，不以文案猜能力。
+  首次 Codex `Daily brief` 点击反证它不是 prefill/modal：单击即创建真实 automation，并立刻从
+  Suggestions 移入 All、显示 `Next run in 12 hours`。本轮按数据保留纪律不删除/不暂停该 automation，
+  立即停止另两张 Codex card，且完整移除会重复产生副作用的 driver action。AgentRunner 三张 card
+  则逐一打开同一 Schedule modal，分别精确预填 prompt + `0 8 * * 1-5`、`0 16 * * 5`、
+  `0 */6 * * *`，每次 Close，零 submit/零新 session。此处保留我方显式确认是安全优势，不向
+  Codex 的 one-click side effect 对齐。实窗还反证 pointer 打开后 Close 把焦点丢到 `BODY`；只在
+  suggestion pointerdown 上显式 focus 当前 card，复用 shared Modal 的既有 restore contract，keyboard
+  路径不变。SC-04 以双侧真实差异证据判 PASS。
 
 ## Spec delta
 

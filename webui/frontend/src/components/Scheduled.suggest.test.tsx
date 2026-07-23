@@ -146,6 +146,18 @@ describe("SC-18 · clicking a suggestion builds the cadence it advertises", () =
     expect(prompt.value).toBe("Start each weekday with a summary of your priorities");
   });
 
+  it("returns pointer focus to the suggestion after dismiss", () => {
+    mount();
+    const card = screen.getByText("Daily brief").closest("button")!;
+    fireEvent.click(card);
+    expect(screen.getByRole("dialog", { name: "Schedule a run" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+
+    expect(screen.queryByRole("dialog", { name: "Schedule a run" })).toBeNull();
+    expect(document.activeElement).toBe(card);
+  });
+
   it("leaves the cadence editable — it is a default, not a decision", () => {
     mount();
     clickCard("Weekly review");

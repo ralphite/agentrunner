@@ -29,11 +29,13 @@ function Modal({
   onClose,
   children,
   footer,
+  returnFocus,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  returnFocus?: HTMLElement;
 }) {
   const modalRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -90,7 +92,7 @@ function Modal({
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      previous?.focus();
+      (returnFocus?.isConnected ? returnFocus : previous)?.focus();
     };
   }, []);
   return (
@@ -134,7 +136,7 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
     case "new":
       return <NewSessionModal initialMessage={modal.message} initialSpec={modal.spec} initialWorker={modal.worker} />;
     case "run":
-      return <RunModal initialPrompt={modal.prompt} preset={modal.preset} cadence={modal.cadence} />;
+      return <RunModal initialPrompt={modal.prompt} preset={modal.preset} cadence={modal.cadence} returnFocus={modal.returnFocus} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
@@ -411,10 +413,12 @@ function RunModal({
   initialPrompt,
   preset = "one-time",
   cadence,
+  returnFocus,
 }: {
   initialPrompt?: string;
   preset?: RunPreset;
   cadence?: CadenceSpec;
+  returnFocus?: HTMLElement;
 }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, ensure, choose } = useWorkspace();
@@ -480,6 +484,7 @@ function RunModal({
     <Modal
       title={kind === "submit" ? "Start a run" : schedule === "immediate" ? "Set a goal" : schedule === "parallel" ? "Best of N" : "Schedule a run"}
       onClose={close}
+      returnFocus={returnFocus}
       footer={
         <button className="primary" disabled={busy || !prompt.trim() || scheduleBlocked} onClick={start}>
           {kind === "submit" ? "Start run" : "Start schedule"}

@@ -6931,3 +6931,23 @@ lifecycle 与 paused projection，不能靠把 Finished 改名伪装，新增 G5
 矩阵为 `PASS 22 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 41`；SC-02/03/04 仍保持
 UNTESTED。现有 clean production `6171302d-204104` health `daemonUp/versionMatch=true`；所有 shared
 数据原样保留，不 close/delete/cleanup。
+
+---
+
+## 2026-07-22 · INC-98.3q Scheduled suggestions 与 dismiss focus
+
+Codex `Daily brief` card 的真实点击反证它不是 prefill：一次单击即创建 automation，立刻从
+Suggestions 移入 All，并显示 Weekdays 8:00 AM / Next run in 12 hours。该动作原计划只到 modal，
+发现 side effect 后立即停止另两张 card、移除未验证的 capture action；按数据保留纪律不删除、
+不暂停新 automation。
+
+AgentRunner shared production 逐一点击 Daily/Weekly/Follow-up：三者只打开 `Schedule a run`，prompt
+与 cron 分别精确预填为 card 的 description 及 `0 8 * * 1-5` / `0 16 * * 5` / `0 */6 * * *`；
+每次 Close，零 submit/零新 run/session。`03` 同 viewport comparison 显示我方显式确认与可编辑
+workspace/cadence 是安全优势，不向 Codex one-click side effect 对齐。
+
+实窗又反证 pointer Close 后 activeElement 落 `BODY`。suggestion 现在把持久 card 作为 ephemeral
+`returnFocus` 交给 Run modal；dirty production 复拍后精确恢复到 Daily brief button，browser logs=`[]`。
+SC-04 升 PASS，矩阵为 `PASS 23 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 40`。
+targeted 10 tests、frontend 全量/build、capture contract 与 full gate 全绿；production stamp
+`2bdfebaa-dirty-210549`，全部 QA 数据保留。

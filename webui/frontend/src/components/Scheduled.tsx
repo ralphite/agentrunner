@@ -477,7 +477,15 @@ export function Scheduled() {
             className="sched-suggest"
             // SC-18: the rhythm rides along with the prompt, so the modal
             // opens on the cadence this card just promised.
-            onClick={() => openModal({ kind: "run", preset: "repeating", prompt: s.desc, cadence: s.cadence })}
+            onClick={(event) => openModal({
+              kind: "run",
+              preset: "repeating",
+              prompt: s.desc,
+              cadence: s.cadence,
+              // Pointer click on macOS may leave BODY active. Pass the durable
+              // card explicitly so dismiss can still restore the real opener.
+              returnFocus: event.currentTarget,
+            })}
           >
             <span className="sched-suggest-icon">
               <Ic size={22} color={s.color} />

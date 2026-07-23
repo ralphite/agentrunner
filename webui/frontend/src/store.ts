@@ -11,7 +11,15 @@ export type ModalKind =
   // showed the user — a Scheduled suggestion card's "Weekdays at 8:00 AM" — as
   // the driver-spec fields themselves. The launcher opens on it instead of the
   // preset's generic default, so what gets built is what was clicked.
-  | { kind: "run"; prompt?: string; preset?: RunPreset; cadence?: CadenceSpec }
+  | {
+      kind: "run";
+      prompt?: string;
+      preset?: RunPreset;
+      cadence?: CadenceSpec;
+      // Ephemeral UI reference only: lets pointer-launched suggestion dialogs
+      // return focus to the card that opened them. Never persisted or sent.
+      returnFocus?: HTMLElement;
+    }
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string }
   | { kind: "rename"; sid: string }

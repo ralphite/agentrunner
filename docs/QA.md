@@ -2065,3 +2065,17 @@ health 与 logs。专用 shared session/workspace/journal 保留且最终 archiv
 Scheduled All/search/Paused、AgentRunner All/search/Active/Finished/Create validation/cancel、三张 combined
 comparison、DOM contract、health/logs/gate。`03..06` 是 Create click/Enter/Space 校准拒收图，不能用于
 PASS；本批没有创建、关闭、删除或清理任何 run/session/workspace/journal。
+
+| 98.3q 动作 | 硬断言 |
+|---|---|
+| Codex suggestion side effect | OCR 唯一命中 `Daily brief` 后真实单击；没有 modal/prefill，立即创建并从 Suggestions 移入 All，显示 Weekdays 8:00 AM / Next run in 12 hours。该 automation 永久保留；停止另两张 card，移除会重复产生副作用的 driver action |
+| AgentRunner 三卡 | Daily/Weekly/Follow-up 逐一点击均只打开 `Schedule a run`；prompt 精确为三张 description，cron 分别 `0 8 * * 1-5`、`0 16 * * 5`、`0 */6 * * *`，cadence echo 与 card 一致；每次 Close，零 submit/零新 run/session |
+| safety verdict | 不复制 Codex 的 one-click create；我方 modal 让 workspace/cadence 可审阅和编辑，显式 Start 才创建，是有意的安全优势，不登记 backend gap |
+| focus 红转绿 | dirty production 修前 Close 后 activeElement=`BODY`；suggestion 将持久 card 作为 ephemeral `returnFocus` 传给 Run modal，修后 Close 精确回 `.sched-suggest` Daily brief；keyboard 路径/shared Modal 默认恢复均不变 |
+| same-input compare | `03` 将 Codex 创建后的 All 与 AgentRunner 同一 Daily fixture 的确认 modal 置于同逻辑 1952×1465 后验图；它用于 interaction/safety difference，不冒充 same-state visual parity |
+| Gate B | dirty shared production `2bdfebaa-dirty-210549` health `daemonUp/versionMatch=true`；browser logs=`[]`；targeted 10 tests、frontend 全量/build/capture contract/full gate 通过；不删除/关闭/清理任何既有数据 |
+
+**98.3q 证据**：`qa/runs/2026-07-22-QA88-98.3q-suggestions/` 保存 Codex one-click
+creation、AgentRunner Daily modal、同 viewport interaction comparison、修后 focus return、DOM contract、
+health/logs/gate。Codex 新 `Daily brief` automation 与所有 AgentRunner shared 数据永久保留；本批没有
+提交 AgentRunner modal，也没有创建 AgentRunner run/session。
