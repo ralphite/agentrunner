@@ -427,8 +427,8 @@
   .project-preview-path span { @apply min-w-0 truncate; }
 
   .home { @apply flex min-h-0 flex-1 flex-col; }
-  .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 py-8; }
-  .home-empty { @apply flex w-full flex-col items-center gap-4 text-center; }
+  .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 pb-4 pt-8; }
+  .home-empty { @apply flex w-full flex-col items-center gap-8 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
   .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-normal leading-tight text-ink; }
   .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-normal; }
@@ -511,6 +511,15 @@
     @apply border-0 shadow-none ring-0 outline-none;
   }
   .cx-bar { @apply flex min-w-0 items-center gap-[6px] px-[10px] py-[9px]; }
+  @media (min-width: 681px) {
+    .home-main:not(.intent-active) .home-empty {
+      transform: translateY(clamp(0px, calc(337.5px - 37.5dvh), 75px));
+    }
+    .cx-home .cx-env-strip { @apply py-[6px]; }
+    .cx-home .cx-input-wrap { @apply pt-[8px]; }
+    .cx-home .cx-input-wrap textarea { @apply min-h-[32px]; }
+    .cx-home .cx-bar { @apply py-[7px]; }
+  }
   .cx-icon { @apply h-8 w-8 shrink-0; }
   .cx-icon.active, .cx-icon.listening, .cx-icon.working { @apply bg-panel-2 text-blue; }
   .cx-delivery { @apply flex shrink-0 items-center gap-1; }

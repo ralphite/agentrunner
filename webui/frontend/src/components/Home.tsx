@@ -165,12 +165,6 @@ export function Home() {
   return (
     <div className="home home-welcome home-empty-state">
       <div className="hero max-[680px]:[@media(max-height:560px)]:py-2">
-        {/* Codex's landing is a pinned-composer chat layout: the hero (mark +
-            headline + cards) sits centered-ish in the upper space while the
-            composer docks to the bottom of the viewport, with clear whitespace
-            between. This flex-1 wrapper claims the vertical slack and centers
-            the hero within it, pushing the composer — the .hero's last child —
-            to the bottom on both desktop and mobile (HOME-COMPOSER-DOCK). */}
         <div className={`home-main relative flex w-full min-h-0 flex-1 flex-col items-center justify-center gap-5${activeSuggestion ? " intent-active" : ""}`}>
           <div className="home-empty">
             <div className="home-hero-icon" aria-hidden>

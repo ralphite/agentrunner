@@ -328,7 +328,7 @@ New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 
 | ID | surface/state/action | 状态 | 最近证据 / 裁决 |
 |---|---|---|---|
-| NS-01 | projectless 默认首页、starter cards、首屏 geometry | PASS | 2026-07-22 Codex `06` ↔ AgentRunner `13`；只判同 viewport 默认视觉/层级 |
+| NS-01 | projectless 默认首页、starter cards、首屏 geometry | PASS | 2026-07-23 `QA88-98.4v-home-hierarchy/00..09`：1100×700 新鲜同态图中，AgentRunner 的 icon/headline/cards/composer 由 y≈149/213/264/504 收敛到 230/310/377/548，与 Codex 约 229/310/374/548 对齐；1100×640、390×844、starter 展开/键盘清空及 16 行 draft 上长均无 overlap/横溢 |
 | NS-02 | Project picker：搜索/无结果/选择/清除/focus return | PASS | 2026-07-22 `QA88-98.2c-new-session/03..04/19..20`：双侧真实 project search/no-result；AgentRunner 选择/清除切换 headline+context controls，Escape 回 project opener |
 | NS-03 | Local/New worktree + Environment + Branch：展开/搜索/invalid/ref | GAP | 2026-07-22 `05..06/13/21..24/55/58`：双侧 Local/New worktree 与 Branch open/main/no-match 当前实证通过；AgentRunner 缺 Codex `No environment → Create local environment` 与 Cloud/usage 生命周期，G11；不画假 chip |
 | NS-04 | starter card：短 intent → 四条 suggestion、清空恢复、Send 前不创建 session | PASS | 2026-07-22 Codex `17/40/49/50` 四 intent ↔ AgentRunner 修后 `59..62`；`Home.starters.test.tsx` 钉 4 intents/16 suggestions/clear/no-send；root URL 保持 `/` |

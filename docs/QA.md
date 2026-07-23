@@ -2156,3 +2156,9 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | AgentRunner lifecycle | 专用 shared session 的 rename、pin、off-page unread/clear、reload persistence、archive/restore、Settings Archived 与显式 archived deep-link 均真测并保留 |
 | history correctness | 修前 archive-current 隐藏 sidebar row 却留在可写 thread，且 Back 可重开；修后以 `replaceState` 回 Home，Back/Forward/reload 均不重开；非当前 archive/restore 不改变现有 route |
 | evidence/gate | `qa/runs/2026-07-23-QA88-98.4u-session-lifecycle/` 保存 1100×700 双侧截图与合并图；PS-02 因 Remove 尚未同批覆盖，保持 UNTESTED |
+
+| 98.4v 动作 | 硬断言 |
+|---|---|
+| 首屏层级 | 1100×700 双侧 fresh New chat/Home 同态；修前/修后合并图与 DOM geometry 同时证明 icon、headline、cards、composer 垂直位置收敛，不用截图观感代替数值 |
+| hard states | shared production 真点 starter、真实 keyboard 清空、16 行 draft 上长；另测 1100×640 与 390×844，body 无横溢、hero/composer 无重叠、空态恢复原 geometry |
+| Gate | `qa/runs/2026-07-23-QA88-98.4v-home-hierarchy/`；73 files / 757 frontend tests、production build、Web UI Go 与 `check.sh` 全绿 |
