@@ -166,6 +166,18 @@ INC-98 将该方法固化为持续循环：
   的 exact action，再点击并确认 Allow/Deny 两个 action 一并离场；不触碰 dropdown 的 session/
   persistent 选项。approval card 可贴至窗口最底 1.5%，单独 `approval-tail` OCR region 避免把
   普通 thread 文本误当按钮。
+- **98.3g approval truth design note**：shared-store 真 Gemini approve/deny/reload 与 child
+  approval Gate B 均以真实浏览器跑通；child wait 从 fresh page 的 inspect tree 持久浮出，
+  approve 精确路由到 child，child 在隔离 worktree 执行后 parent 自动收到结果。对照图同时
+  暴露三处声明偏差：(1) Subagents 行只读 `report.status=waiting`，忽略更精确的
+  `report.waiting.kind=approval`，故错标 Ready；(2) child approval 卡把 parent session 的
+  workspace 当成执行位置，虽然同一份 parent inspect 已在 `delegations[].workspace` 给出精确
+  child path/mode；(3) 1280px desktop 上 approval 自动打开 340px Environment 浮卡，遮住
+  primary decision card。最小修订不改 runtime/event/schema：Subagents 以 typed wait 优先；
+  SessionView 缓存既有 delegations 并把 child 的 path/mode 传给 ApprovalCard，isolated 时明示
+  `Child worktree`；Environment 仅在 >1400px wide 自动强化，1280px 保留 header attention badge
+  与完整 inline card。parent 在 sidebar 仍显示 Ready 属 session-list backend 缺失，单列 G49，
+  不用 selected-thread local state 冒充全局修复。
 
 ## Spec delta
 
