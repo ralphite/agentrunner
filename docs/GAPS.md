@@ -725,6 +725,20 @@ replay 已完成弱 result 仍不落 title、manual rename 永远优先。证据
 `qa/runs/2026-07-22-QA88-98.3h-markdown/20-events.txt`。
 → UJ-01/UJ-24
 
+**G51 Gemini thought summary 混入最终 assistant answer — ✅ 已关闭（INC-98.3l，2026-07-22）**
+TH-03 media shared 真 Gemini session 开启 Medium thinking 后，provider 返回的 thought summary
+被 `mapPart` 当普通 text delta；最终 durable assistant message 在用户要求的 heading/images 前永久
+出现内部 response-format 推理。截图、DOM、reload 都可见，不只是 streaming transient；Codex
+同 fixture 只显示最终内容。Gemini adapter 现于 normalized answer stream 排除
+`genai.Part.Thought`，不做前端字符串 heuristic；普通 text 保留，tool call 的 opaque
+`ThoughtSignature` 仍 byte-identical 进入 extras，provider usage accounting 不变。单测钉住
+thought/text/signature 三边界；shared production 新 session 的 durable answer、reload DOM 均只剩
+请求内容，两张 media 完整加载且 link/alt 精确，browser logs 为空。修前/修后 session 分别为
+`20260723-023001-reply-with-the-following-media-93f0cdf756ea223f`、
+`20260723-023400-reply-with-the-following-media-edd595cb06932ebe`；证据
+`qa/runs/2026-07-22-QA88-98.3h-markdown/23..33`。
+→ UJ-01/UJ-24
+
 **G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue
 消失，并在当前 turn 的安全边界注入；这不是 composer 下一条消息的模式开关。AgentRunner
@@ -872,8 +886,8 @@ DESIGN 裁决,按 PROCESS 立 INC,不在 QA 轮内顺手改。
 remark-math + rehype-katex + KaTeX CSS/font。修后 inline/display math 均有 KaTeX/MathML DOM，
 raw-HTML red line 回归仍绿；production shared session cache-bust 复拍 `QA88-98.3h-markdown/16`，
 与 Codex reference 合并图 `17` 可读，browser logs 为空、health/gate 全绿。顺带修复已 mount
-Mermaid 在 dark/system→light 后沿用旧 SVG 的主题漂移。TH-03 因 media 当前同态尚缺而继续
-UNTESTED，不反向重开本条已关闭的 math capability。
+Mermaid 在 dark/system→light 后沿用旧 SVG 的主题漂移。TH-03 后续在 INC-98.3l 补齐 media
+同态并升 PASS，不反向重开本条已关闭的 math capability。
 → UJ-01/UJ-24（webui 产品面阅读体验）
 
 ---

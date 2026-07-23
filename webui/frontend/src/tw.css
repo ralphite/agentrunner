@@ -765,7 +765,7 @@
   .md-h3, .md-h4, .md-h5, .md-h6 { @apply text-[15px]; }
   .md-code { @apply rounded bg-panel-2 px-[4px] py-[1px] font-mono text-[12.5px]; }
   .md-img-grid { @apply my-3 grid gap-2; }
-  .md-img { @apply max-h-[420px] max-w-full cursor-zoom-in rounded-[12px] border border-line object-contain; }
+  .md-img { @apply max-h-[200px] max-w-full cursor-zoom-in rounded-[12px] border border-line object-contain; }
   .md-img-fallback { @apply inline-flex items-center gap-1 rounded-[8px] border border-line px-2 py-1 text-[12px]; }
 
   .approval-stack { @apply mx-auto w-full max-w-[660px] px-4; }

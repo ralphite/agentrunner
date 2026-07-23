@@ -75,6 +75,41 @@ func TestToResponseMapConventions(t *testing.T) {
 	}
 }
 
+func TestMapPartKeepsThoughtSummaryOutOfAnswer(t *testing.T) {
+	st := newStreamState(1)
+	if ev, ok := st.mapPart(&genai.Part{Thought: true, Text: "internal response-format reasoning"}); ok {
+		t.Fatalf("thought summary leaked as stream event: %+v", ev)
+	}
+
+	ev, ok := st.mapPart(&genai.Part{Text: "final answer"})
+	if !ok || ev.Kind != provider.EventTextDelta || ev.TextDelta != "final answer" {
+		t.Fatalf("ordinary answer text = (%+v, %v)", ev, ok)
+	}
+}
+
+func TestMapPartPreservesToolThoughtSignature(t *testing.T) {
+	st := newStreamState(2)
+	sig := []byte{0xde, 0xad, 0xbe, 0xef}
+	ev, ok := st.mapPart(&genai.Part{
+		FunctionCall:     &genai.FunctionCall{Name: "read_file", Args: map[string]any{"path": "a.go"}},
+		ThoughtSignature: sig,
+	})
+	if !ok || ev.Kind != provider.EventToolCall || ev.ToolCall == nil {
+		t.Fatalf("tool call = (%+v, %v)", ev, ok)
+	}
+	raw, ok := ev.ToolCall.Extras[extrasSignatureKey]
+	if !ok {
+		t.Fatalf("tool call extras = %v", ev.ToolCall.Extras)
+	}
+	var got []byte
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(sig) {
+		t.Fatalf("thought signature = %x, want %x", got, sig)
+	}
+}
+
 func TestToConfigTools(t *testing.T) {
 	req := provider.CompleteRequest{
 		System:    "be brief",

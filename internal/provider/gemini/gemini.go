@@ -150,6 +150,12 @@ func (st *streamState) mapResponse(resp *genai.GenerateContentResponse) []provid
 
 func (st *streamState) mapPart(part *genai.Part) (provider.StreamEvent, bool) {
 	switch {
+	case part.Thought:
+		// IncludeThoughts asks Gemini for an internal thought summary. It is
+		// useful for provider accounting/debugging, but it is not the model's
+		// answer and must never become a user-visible text delta. Tool-call
+		// thought signatures are carried on their FunctionCall part below.
+		return provider.StreamEvent{}, false
 	case part.FunctionCall != nil:
 		st.sawToolCall = true
 		args, err := json.Marshal(part.FunctionCall.Args)

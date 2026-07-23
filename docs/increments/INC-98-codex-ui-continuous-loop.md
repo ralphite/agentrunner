@@ -228,6 +228,21 @@ INC-98 将该方法固化为持续循环：
   access menu 只做 Escape 收回，不再依赖 checked row 的易漂 OCR；New chat starter 接受 heading 或
   starter card 两个独立视觉锚。未验证 root chip 时仍必须定位 row/modal，不能降级成猜坐标。该增量
   关闭 G38；不是 backend 缺口，不新增假 control。
+- **98.3l Gemini thought/media design note**：补 TH-03 media 的双侧同 fixture 时，Gemini
+  `IncludeThoughts=true` 返回的 `genai.Part{Thought:true,Text:…}` 被 provider 当前 `mapPart`
+  当普通 `EventTextDelta`，最终 durable assistant message 在图片前永久显示内部 response-format
+  推理；Codex reference 只显示最终 heading/images。该泄漏不是 Markdown renderer 问题，而是
+  provider normalization 缺失的 backend gap G51。最小修订在 Gemini adapter 的 text 分支前
+  丢弃 `part.Thought`：thought token 继续计入 usage，thinking budget/config 不变；tool call 自带的
+  opaque `ThoughtSignature` 仍随 ToolCall extras 持久往返，不能误删；非-thought text/图片 Markdown
+  原样进入 answer。Anthropic 已有“thinking deltas internal-only”同产品先例。用 mapPart 单测钉
+  thought 不产生 user-visible stream event、普通 text 与 tool signature 不回归，再在同一 shared
+  media session 的新 turn 或新 session 复拍。修后 standalone/link-wrapped external image 均需
+  真 DOM、加载完成、同 viewport/light 与 Codex 合并验图；点击 linked image 只验证 target/href，
+  不离开当前 QA tab。首次合并图另见我方 remote image 以 `420px` 高度撑大正文、约为 Codex
+  `200px` 的两倍；继续复用现有 lightbox 放大能力，只把 inline `.md-img` cap 收敛到 `200px`，
+  保持原图、alt/link、click-to-zoom 与窄屏 max-width 语义。无 schema/event/invariant 变更；本批
+  关闭 G51，并把 TH-03 整行由 UNTESTED 改 PASS。
 
 ## Spec delta
 

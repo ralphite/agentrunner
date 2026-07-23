@@ -39,7 +39,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 长贴折叠（>10KB 转 file part） | ✅ | UJ-04 | TestLongPasteFoldsToFilePart |
 | `ar new` 开场附件（`--image`/`--file`,与 send 对称;PLAN 5.5） | ✅ | UJ-04 | TestOpeningImageAttachmentEndToEnd（CAS ref 入开场 InputReceived,首个 provider 请求 inflate）;超长开场折叠仍 🧊（DESIGN §17 残余不对称记档） |
 | PDF/任意文件附件（`ar send --file`，sniff MIME、CAS ref、组装 inflate；Gemini inline_data / Anthropic document block） | ✅ | UJ-04 | INC-9 · TestConversationalFileInputEndToEnd/TestToPartFilePDF/TestUserBlocksFilePDF · QA-15（真实 Gemini 读 PDF 关键词） |
-| provider capability envelope（版本、provider/model、modalities、stream/tools/thinking/cache/parallel） | ✅ | 不变量 | INC-11.5 · TestCapabilitiesMatrix；SessionStarted 冻结、inspect 可见 |
+| provider capability envelope（版本、provider/model、modalities、stream/tools/thinking/cache/parallel；provider thought/reasoning summary 只作内部上下文/usage，不混入 user-visible answer；tool-call opaque signature 仍持久往返） | ✅ | 不变量 | INC-11.5/98.3l · TestCapabilitiesMatrix · Gemini mapPart thought/text/signature tests；SessionStarted 冻结、inspect 可见 |
 | WAITING_APPROVAL 挂起期间消息唤醒（INC-70 Option B：park 中 user-class 消息=转向式拒批——deny `denied_by_steer` + deferred 邮件按 seq 先 flush + 消息同边界入 context，工具不执行；machine/untrusted 只 defer 不解栈（G16）、revoked 输入按撤回消费不触发（INC-46）） | ✅ | UJ-07 | INC-70 · TestApprovalParkUserMessageSupersedes/TestApprovalParkMachineInputOnlyQueues/TestApprovalParkRevokedInputDoesNotDeny · TestWaitRulesAreResolutionSource（OnSteer）· 闸门 B 真机复验挂 G3 余项注记 |
 | 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · TestHandleCompactForwardsDirective · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 · TestCompactionTriggeredInLoop（G30 还锚 audit-0717 C1） |

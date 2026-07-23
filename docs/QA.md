@@ -1895,6 +1895,13 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | Mermaid theme | dark→system→light 后既有 diagram 必须重新 render；light screenshot 节点/label 对比可读；system media 改变也触发 fresh SVG，不复用旧主题 SVG |
 | Gate B | production shared store cache-bust `bf152d99-dirty-191950` reload；同 session 修后 `16/17` 验图；browser logs=`[]`、health `daemonUp/versionMatch=true`、frontend 68 files/709 tests 与 `check.sh` 全绿；build 主 JS 1301.40kB(gzip 373.19)、CSS 180.53kB(gzip 30.79)，KaTeX font assets 在案；不 close/delete/cleanup 测试数据 |
 
+| 98.3l 动作 | 硬断言 |
+|---|---|
+| media 同 fixture | 双侧真实回复 standalone external image + link-wrapped image；两张图均 load complete，有精确 alt；wrapped image 的 nearest link `href=https://github.com`；不以 broken fallback 或 prompt preview 冒充；修前合并图 `27` 暴露 420px 过大，修为 200px cap 后以 `28/29` 复验 |
+| thought leak 红转绿 | 修前 shared Gemini final assistant 永久包含 provider thought summary；修后新 session/reload 的 durable final answer 不含该段，只剩 TH03 Media Fixture + 两图。禁止前端按文案擦除 |
+| provider 边界 | `genai.Part{Thought:true}` 不产生 EventTextDelta；普通 text 保留；tool-call ThoughtSignature byte-identical 进入 extras；usage 的 thought tokens 仍计 output |
+| compare / restore | Codex complete `25` 与 AgentRunner 修后同逻辑 light screenshot `28` 合并为 `29` 后验图；linked image 只读 DOM href，不导航；`30..33` 保留 health/log/events/DOM contract，session/thread 永久保留 |
+
 | 98.3a 动作 | 硬断言 |
 |---|---|
 | Thread 层级与 disclosure | shared session `20260722-223026-codexverify-reply-exactly-veri-19413427829bd032` 默认只见 user / Worked / final answer；Worked 展开后见 `$ sleep 8`，tool 再展开后见完整 Shell command/result/Success；折叠/展开截图与 DOM 均在案 |
