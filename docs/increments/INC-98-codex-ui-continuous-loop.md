@@ -315,6 +315,21 @@ INC-98 将该方法固化为持续循环：
   series config/edit 投影，登记 G56。点击 terminal `Run details` 还把 inspect 全量 JSON 直接铺进 modal；
   这不是 backend 缺口，改为复用既有 structured Run details（Overview/Usage/Activity，raw 折到 disclosure）。
   SC-06 因 G56 判 GAP，不因 history/deep-link 已通过而提前判绿。
+- **98.3s Scheduled create/restart design note**：继续 SC-03/07，在 shared production 用 UI 创建
+  唯一专用 repeating fixture：prompt 只回复固定 marker、禁止工具，blank workspace 生成 retained
+  scratch，interval 设 168h，driver `max_iterations: 2`，因此只立即跑一次并最多七天后再跑一次。
+  自本批起视觉基线固定为双方真实 `1280×800` viewport：Codex 主窗口先经 AX 安全缩放、交互与
+  截图完成后恢复原 geometry；AgentRunner Browser 也设置同一 viewport 并 reload。证据图归一到
+  `1280×800`，高分辨率全窗图只作归档，不参与主要视觉裁决，禁止把大窗口截图事后缩小冒充布局
+  重排。每次裁决前必须把同 state 的 Codex/AgentRunner 图并排合并后再验。
+  实机已验证 Codex `1840×1353 → 1280×800 → 1840×1353` 可逆，输出像素严格为
+  `1280×800`；AgentRunner 的 `innerWidth/innerHeight/devicePixelRatio` 为 `1280/800/1`，并已保存
+  Scheduled 同 state 双图与 `2560×800` combined evidence。低分辨率首轮明确暴露 shared history
+  密度、series config 投影与 suggestions 可见性差异，后续据此继续 SC-03/07，而不再沿用大窗裁决。
+  创建前后记录 `/api/runs` + `/api/sessions`、modal validation、route、journal/events；普通 daemon
+  restart 前后分别记录 cadence/nextRunAt/status，验证不重复立即 tick、不丢 next run。fixture/session/
+  workspace/journal 永久保留，不 pause/cancel/close/delete/cleanup。若 Gemini/provider 当前不可用，
+  据实保留 failure 但仍验证 schedule persistence；不把 provider failure 当 scheduler bug。
 
 ## Spec delta
 

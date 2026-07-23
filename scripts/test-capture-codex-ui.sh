@@ -22,6 +22,7 @@ done
 [[ "$help" == *"--scheduled-search"* ]]
 [[ "$help" == *"--scheduled-filter"* ]]
 [[ "$help" == *"--scheduled-row"* ]]
+[[ "$help" == *"--viewport"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-send"* ]]
@@ -54,6 +55,12 @@ if $driver --settle 31 >"$tmpdir/settle.out" 2>"$tmpdir/settle.err"; then
   exit 1
 fi
 grep -Fq 'whole seconds from 0 to 30' "$tmpdir/settle.err"
+
+if $driver --viewport 800x600 >"$tmpdir/viewport.out" 2>"$tmpdir/viewport.err"; then
+  echo "capture driver accepted an undersized viewport" >&2
+  exit 1
+fi
+grep -Fq 'between 900x640 and 2560x1600' "$tmpdir/viewport.err"
 
 if $driver --palette-query QA >"$tmpdir/palette.out" 2>"$tmpdir/palette.err"; then
   echo "capture driver accepted a palette query without palette mode" >&2
@@ -261,6 +268,9 @@ grep -Fq 'codex-scheduled-search-validate' "$driver"
 grep -Fq 'codex-scheduled-filter' "$driver"
 grep -Fq 'codex-scheduled-row' "$driver"
 grep -Fq 'codex-scheduled-row-validate' "$driver"
+grep -Fq 'AXIsProcessTrusted()' "$driver"
+grep -Fq 'if ((window_resized))' "$driver"
+grep -Fq 'sips --resampleHeightWidth "$viewport_height" "$viewport_width"' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.

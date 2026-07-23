@@ -22,6 +22,7 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
                               [--scheduled-search TEXT | --scheduled-filter all|active|paused |
                                --scheduled-row VISIBLE_TITLE]
+                              [--viewport WIDTHxHEIGHT]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
@@ -63,6 +64,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --scheduled-search types a Scheduled search query for the capture.
 --scheduled-filter selects a Scheduled status filter for the capture.
 --scheduled-row opens an existing Scheduled row for a read-only detail capture.
+--viewport temporarily resizes the real Codex window before interaction, normalizes the
+  evidence image to that exact size, then restores the original window geometry.
 --settle waits for a navigated surface to become visually stable (default: 1 second).
 --restore-query returns to a Codex thread through Cmd+K after a surface capture.
 EOF
@@ -91,6 +94,9 @@ settings_tab="general"
 settings_tab_set=0
 scheduled_action=""
 scheduled_value=""
+viewport=""
+viewport_width=""
+viewport_height=""
 while (($#)); do
   case "$1" in
     --command-palette)
@@ -306,6 +312,20 @@ while (($#)); do
       restore_query="$2"
       shift 2
       ;;
+    --viewport)
+      if (($# < 2)) || [[ ! "$2" =~ ^([0-9]{3,4})x([0-9]{3,4})$ ]]; then
+        echo "capture-codex-ui: --viewport requires WIDTHxHEIGHT" >&2
+        exit 2
+      fi
+      viewport="$2"
+      viewport_width="${BASH_REMATCH[1]}"
+      viewport_height="${BASH_REMATCH[2]}"
+      if ((viewport_width < 900 || viewport_width > 2560 || viewport_height < 640 || viewport_height > 1600)); then
+        echo "capture-codex-ui: --viewport must be between 900x640 and 2560x1600" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
     --settle)
       if (($# < 2)) || [[ ! "$2" =~ ^([0-9]|[12][0-9]|30)$ ]]; then
         echo "capture-codex-ui: --settle requires whole seconds from 0 to 30" >&2
@@ -439,7 +459,8 @@ if [[ ! "$codex_pid" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-window_info=$(swift - "$codex_pid" <<'SWIFT'
+resolve_codex_window_info() {
+swift - "$codex_pid" <<'SWIFT'
 import CoreGraphics
 import Foundation
 
@@ -469,11 +490,105 @@ guard let target = candidates.max(by: { $0.area < $1.area }) else {
 }
 print("\(target.id)\t\(target.x)\t\(target.y)\t\(target.width)\t\(target.height)")
 SWIFT
-)
+}
+
+window_info=$(resolve_codex_window_info)
 IFS=$'\t' read -r window_id window_x window_y window_width window_height <<<"$window_info"
 if [[ ! "$window_id" =~ ^[0-9]+$ || -z "$window_height" ]]; then
   echo "capture-codex-ui: could not resolve the Codex window" >&2
   exit 1
+fi
+
+original_window_x="$window_x"
+original_window_y="$window_y"
+original_window_width="$window_width"
+original_window_height="$window_height"
+window_resized=0
+
+set_codex_window_geometry() {
+  local expected_width=$1
+  local expected_height=$2
+  local target_x=$3
+  local target_y=$4
+  local target_width=$5
+  local target_height=$6
+  swift - "$codex_pid" "$expected_width" "$expected_height" "$target_x" "$target_y" "$target_width" "$target_height" <<'SWIFT'
+import AppKit
+import ApplicationServices
+import Foundation
+
+guard CommandLine.arguments.count == 8,
+      let pid = Int32(CommandLine.arguments[1]),
+      let expectedWidth = Double(CommandLine.arguments[2]),
+      let expectedHeight = Double(CommandLine.arguments[3]),
+      let targetX = Double(CommandLine.arguments[4]),
+      let targetY = Double(CommandLine.arguments[5]),
+      let targetWidth = Double(CommandLine.arguments[6]),
+      let targetHeight = Double(CommandLine.arguments[7]) else {
+  fputs("invalid Codex window geometry\n", stderr)
+  exit(2)
+}
+guard AXIsProcessTrusted() else {
+  fputs("Accessibility permission is required for --viewport\n", stderr)
+  exit(1)
+}
+
+let app = AXUIElementCreateApplication(pid)
+var windowRef: CFTypeRef?
+guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
+      let rawWindow = windowRef else {
+  fputs("could not resolve focused Codex window through AX\n", stderr)
+  exit(1)
+}
+let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
+var sizeRef: CFTypeRef?
+guard AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef) == .success,
+      let rawSize = sizeRef else {
+  fputs("could not read Codex window size through AX\n", stderr)
+  exit(1)
+}
+var currentSize = CGSize.zero
+guard AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &currentSize),
+      abs(currentSize.width - expectedWidth) <= 3,
+      abs(currentSize.height - expectedHeight) <= 3 else {
+  fputs("focused AX window does not match selected Codex window\n", stderr)
+  exit(1)
+}
+
+var targetSize = CGSize(width: targetWidth, height: targetHeight)
+var targetPosition = CGPoint(x: targetX, y: targetY)
+guard let sizeValue = AXValueCreate(.cgSize, &targetSize),
+      let positionValue = AXValueCreate(.cgPoint, &targetPosition),
+      AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, positionValue) == .success,
+      AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue) == .success else {
+  fputs("could not update Codex window geometry through AX\n", stderr)
+  exit(1)
+}
+SWIFT
+}
+
+restore_codex_window_geometry() {
+  if ((window_resized)); then
+    if ! set_codex_window_geometry "$viewport_width" "$viewport_height" \
+      "$original_window_x" "$original_window_y" "$original_window_width" "$original_window_height"; then
+      echo "capture-codex-ui: failed to restore original Codex window geometry" >&2
+    fi
+    window_resized=0
+  fi
+}
+
+if [[ -n "$viewport" ]]; then
+  set_codex_window_geometry "$window_width" "$window_height" "$window_x" "$window_y" \
+    "$viewport_width" "$viewport_height"
+  window_resized=1
+  trap restore_codex_window_geometry EXIT
+  sleep 1
+  window_info=$(resolve_codex_window_info)
+  IFS=$'\t' read -r window_id window_x window_y window_width window_height <<<"$window_info"
+  if [[ "${window_width%.*}x${window_height%.*}" != "$viewport" ]]; then
+    echo "capture-codex-ui: Codex window did not settle at $viewport" >&2
+    exit 1
+  fi
 fi
 
 transient_open=0
@@ -986,6 +1101,7 @@ close_transient() {
     rm -f -- "$ocr_capture"
     ocr_capture=""
   fi
+  restore_codex_window_geometry
 }
 trap close_transient EXIT
 
@@ -1692,9 +1808,17 @@ if [[ "$mode" == "scheduled-row" ]]; then
   window_text_center "$ocr_capture" "Frequency" "main" >/dev/null
 fi
 
-if ! screencapture -x -l "$window_id" "$output"; then
+if [[ -n "$viewport" ]]; then
+  capture_args=(-x -o -l "$window_id")
+else
+  capture_args=(-x -l "$window_id")
+fi
+if ! screencapture "${capture_args[@]}" "$output"; then
   echo "capture-codex-ui: capture failed; grant Screen Recording permission to the invoking app" >&2
   exit 1
+fi
+if [[ -n "$viewport" ]]; then
+  sips --resampleHeightWidth "$viewport_height" "$viewport_width" "$output" >/dev/null
 fi
 close_transient
 
