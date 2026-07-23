@@ -243,6 +243,16 @@ INC-98 将该方法固化为持续循环：
   `200px` 的两倍；继续复用现有 lightbox 放大能力，只把 inline `.md-img` cap 收敛到 `200px`，
   保持原图、alt/link、click-to-zoom 与窄屏 max-width 语义。无 schema/event/invariant 变更；本批
   关闭 G51，并把 TH-03 整行由 UNTESTED 改 PASS。
+- **98.3m long-output/driver evidence note**：补 TH-02 缺失的 Codex long-output 同态，使用
+  harmless Python command 真实输出 220 行、约 20.9KB，再只回复 completion marker。Codex
+  completed thread 的 outer Worked 可展开，但 long `Ran a command` row 没有 nested chevron，
+  点击 label 也不投 raw stdout；这是真实当前产品行为，不凭空补截图。AgentRunner 保留既有
+  shared session 的完整 15,393-char stdout、240px inner scroll、full Copy 与零 body 横溢；能力
+  强于 reference，不向下删除。合并图确认两侧都把长输出隔离在正文之外，我方仍可审计全部
+  内容，故 TH-02 升 PASS。取证同时暴露非 Retina/低对比 disclosure label 会被 Vision OCR
+  漏掉或合并词间空格；driver 仅在正常识别 miss 时 2x retry，并只对 folded 长 query（>=6）
+  接受 joined-boundary match，短 query、region constraint 与 unknown state 仍 fail-closed；debug
+  初始/validation frame 只在显式 env 下保存。无 backend/schema/invariant 变更。
 
 ## Spec delta
 

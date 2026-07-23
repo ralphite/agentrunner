@@ -228,6 +228,9 @@ grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_prefix" "main"' 
 grep -Fq 'codex-thread-disclosure-normalize-outer' "$driver"
 grep -Fq 'nested disclosure did not collapse' "$driver"
 grep -Fq 'disclosure-nested-debug.png' "$driver"
+grep -Fq 'disclosure-validation-debug.png' "$driver"
+grep -Fq 'if matches.isEmpty, let doubledImage = doubled(image)' "$driver"
+grep -Fq 'foldedQuery.count >= 6 && foldedCandidate.contains(foldedQuery)' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.

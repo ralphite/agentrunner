@@ -596,43 +596,79 @@ guard CommandLine.arguments.count == 8,
 
 let query = CommandLine.arguments[2]
 let region = CommandLine.arguments[3]
-let request = VNRecognizeTextRequest()
-request.recognitionLevel = .accurate
-request.usesLanguageCorrection = true
-request.recognitionLanguages = ["zh-Hans", "en-US"]
-try VNImageRequestHandler(cgImage: image).perform([request])
-let matches = (request.results ?? []).compactMap { observation -> (Bool, Float, CGRect, String)? in
-  guard let candidate = observation.topCandidates(1).first else { return nil }
-  let inRegion: Bool
-  switch region {
-  case "composer":
-    inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY < 0.20
-  case "starter":
-    inRegion = observation.boundingBox.midX > 0.30 &&
-      observation.boundingBox.midY > 0.25 && observation.boundingBox.midY < 0.65
-  case "popover":
-    inRegion = observation.boundingBox.midX > 0.30 &&
-      observation.boundingBox.midY > 0.15 && observation.boundingBox.midY < 0.50
-  case "popover-low":
-    inRegion = observation.boundingBox.midX > 0.30 &&
-      observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
-  case "main":
-    inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
-  case "thread":
-    inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
-  case "thread-tail":
-    inRegion = observation.boundingBox.midX > 0.30 &&
-      observation.boundingBox.midY > 0.06 && observation.boundingBox.midY < 0.30
-  case "approval-tail":
-    inRegion = observation.boundingBox.midX > 0.30 &&
-      observation.boundingBox.midY > 0.015 && observation.boundingBox.midY < 0.15
-  default:
-    inRegion = false
+typealias TextMatch = (Bool, Float, CGRect, String)
+func foldedOCRText(_ value: String) -> String {
+  let base = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+  return String(base.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+}
+func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
+  let request = VNRecognizeTextRequest()
+  request.recognitionLevel = .accurate
+  request.usesLanguageCorrection = true
+  request.recognitionLanguages = ["zh-Hans", "en-US"]
+  try VNImageRequestHandler(cgImage: input).perform([request])
+  return (request.results ?? []).compactMap { observation -> TextMatch? in
+    guard let candidate = observation.topCandidates(1).first else { return nil }
+    let inRegion: Bool
+    switch region {
+    case "composer":
+      inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY < 0.20
+    case "starter":
+      inRegion = observation.boundingBox.midX > 0.30 &&
+        observation.boundingBox.midY > 0.25 && observation.boundingBox.midY < 0.65
+    case "popover":
+      inRegion = observation.boundingBox.midX > 0.30 &&
+        observation.boundingBox.midY > 0.15 && observation.boundingBox.midY < 0.50
+    case "popover-low":
+      inRegion = observation.boundingBox.midX > 0.30 &&
+        observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
+    case "main":
+      inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
+    case "thread":
+      inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
+    case "thread-tail":
+      inRegion = observation.boundingBox.midX > 0.30 &&
+        observation.boundingBox.midY > 0.06 && observation.boundingBox.midY < 0.30
+    case "approval-tail":
+      inRegion = observation.boundingBox.midX > 0.30 &&
+        observation.boundingBox.midY > 0.015 && observation.boundingBox.midY < 0.15
+    default:
+      inRegion = false
+    }
+    guard inRegion else { return nil }
+    let exact = candidate.string.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+    let contains = candidate.string.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    // Vision occasionally joins a low-contrast word boundary ("Ranacommand")
+    // or prefixes one stray glyph. Only use the folded fallback for a
+    // sufficiently long query; region constraints and the normal exact/
+    // contains path remain authoritative for short labels.
+    let foldedQuery = foldedOCRText(query)
+    let foldedCandidate = foldedOCRText(candidate.string)
+    let foldedContains = foldedQuery.count >= 6 && foldedCandidate.contains(foldedQuery)
+    return (exact || contains || foldedContains) ? (exact, candidate.confidence, observation.boundingBox, candidate.string) : nil
   }
-  guard inRegion else { return nil }
-  let exact = candidate.string.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-  let contains = candidate.string.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-  return (exact || contains) ? (exact, candidate.confidence, observation.boundingBox, candidate.string) : nil
+}
+func doubled(_ input: CGImage) -> CGImage? {
+  guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+        let context = CGContext(
+          data: nil,
+          width: input.width * 2,
+          height: input.height * 2,
+          bitsPerComponent: 8,
+          bytesPerRow: 0,
+          space: colorSpace,
+          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+  context.interpolationQuality = .high
+  context.draw(input, in: CGRect(x: 0, y: 0, width: input.width * 2, height: input.height * 2))
+  return context.makeImage()
+}
+var matches = try recognizeMatches(image)
+// Low-contrast disclosure labels can fall below Vision's minimum glyph size
+// in a non-Retina capture. Retry only a miss at 2x; normalized boxes still map
+// to the original window and normal successful captures keep their fast path.
+if matches.isEmpty, let doubledImage = doubled(image) {
+  matches = try recognizeMatches(doubledImage)
 }
 guard let match = matches.sorted(by: {
   if $0.0 != $1.0 { return $0.0 && !$1.0 }
@@ -1298,6 +1334,11 @@ fi
 if [[ "$mode" == "thread-disclosure" ]]; then
   ocr_capture=$(mktemp -t codex-thread-disclosure)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    disclosure_initial_debug="${output%.*}-disclosure-initial-debug.png"
+    cp -- "$ocr_capture" "$disclosure_initial_debug"
+    echo "capture-codex-ui: initial disclosure frame saved to $disclosure_initial_debug" >&2
+  fi
   if [[ -n "$disclosure_nested_target" ]]; then
     # Self-heal an interrupted prior capture. If the generic nested label is
     # visible, the outer level is open and the nested level is collapsed. If
@@ -1362,6 +1403,11 @@ if [[ "$mode" == "thread-disclosure" ]]; then
       cp -- "$ocr_capture" "$disclosure_nested_debug"
       echo "capture-codex-ui: nested disclosure saved to $disclosure_nested_debug" >&2
     fi
+  fi
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    disclosure_validation_debug="${output%.*}-disclosure-validation-debug.png"
+    cp -- "$ocr_capture" "$disclosure_validation_debug"
+    echo "capture-codex-ui: disclosure validation frame saved to $disclosure_validation_debug" >&2
   fi
   window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null
 fi

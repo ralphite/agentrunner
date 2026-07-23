@@ -1902,6 +1902,13 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | provider 边界 | `genai.Part{Thought:true}` 不产生 EventTextDelta；普通 text 保留；tool-call ThoughtSignature byte-identical 进入 extras；usage 的 thought tokens 仍计 output |
 | compare / restore | Codex complete `25` 与 AgentRunner 修后同逻辑 light screenshot `28` 合并为 `29` 后验图；linked image 只读 DOM href，不导航；`30..33` 保留 health/log/events/DOM contract，session/thread 永久保留 |
 
+| 98.3m 动作 | 硬断言 |
+|---|---|
+| Codex real long output | 新 thread 真跑 harmless 220-line / ~20.9KB stdout command，final marker=`TH02-LONG-DONE`；outer Worked 展开后 long command row 无 nested chevron/raw stdout，不能把 prompt 或未完成截图冒充 output detail |
+| AgentRunner real long output | shared session `20260711-011831-what-is-the-project-297d`：15,393-char stdout 的 detail open；`.shell-out clientHeight=240 / scrollHeight=6704 / overflowY=auto`，末行仍在 DOM，body 横溢=0；截图后 inner/outer 均恢复 collapsed |
+| same-state verdict | Codex `04` 与 AgentRunner 同逻辑 1952×1465 `05` 合并为 `06` 后判定；两侧均不让长 stdout 撑坏正文，我方额外保留完整 inspect/Copy，属能力优势，不删功能向下对齐 |
+| capture reliability | 非 Retina/低对比 OCR 正常 pass miss 后才 2x retry；仅 folded query 长度 >=6 时容忍 joined word boundary/单个 stray glyph，short query 与 region constraint 仍 fail-closed；显式 debug frame、live `07`、collapsed restore `08`、contract test/shellcheck 均通过 |
+
 | 98.3a 动作 | 硬断言 |
 |---|---|
 | Thread 层级与 disclosure | shared session `20260722-223026-codexverify-reply-exactly-veri-19413427829bd032` 默认只见 user / Worked / final answer；Worked 展开后见 `$ sleep 8`，tool 再展开后见完整 Shell command/result/Success；折叠/展开截图与 DOM 均在案 |
