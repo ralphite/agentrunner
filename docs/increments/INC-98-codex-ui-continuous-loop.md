@@ -503,6 +503,13 @@ INC-98 将该方法固化为持续循环：
   current-step pill（running 优先，其次 failed/pending），只显示 step index、当前 title 与
   done/total；点击复用 Environment 完整 checklist，terminal goal 不显示，不新增 projection。
   capture driver 增加 goal-bar region/offset/self-heal，避免 source diff 同文误点击。
+- **98.4t draft/create lifecycle**：把同一未发送 CJK draft 扩到 reload、A→B→A、
+  普通 daemon/webui restart、双 tab、keyboard clear 与真实 Send；Codex driver 新增可逆
+  `Cmd+R` 并要求 draft 保留，截图后仍清空。创建路径另发现一个真实 partial-failure
+  correctness 缺口：`POST /sessions` 已返回 durable sid 后，前端先等 sidebar refresh，
+  refresh 一旦失败就会清空 draft、报错却仍留在 Home，用户重试可重复创建。现以 create
+  response 为导航事实，先 `select(sid)`、再刷新 sidebar；无新增 UI/backend/invariant。
+  两次立即 Enter 与真实 Send 双击均只创建一次。
 
 ## Spec delta
 

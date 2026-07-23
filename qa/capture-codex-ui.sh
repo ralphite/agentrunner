@@ -7,7 +7,7 @@ usage() {
   cat <<'EOF'
 usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME |
                               --new-chat-control NAME [--control-query TEXT] |
-                              --composer-text TEXT --composer-validate VISIBLE_TEXT |
+                              --composer-text TEXT [--composer-reload] --composer-validate VISIBLE_TEXT |
                               --composer-send TEXT --composer-validate VISIBLE_TEXT
                                 [--composer-mode default|plan]
                                 [--composer-access current|ask|approve|full] |
@@ -41,6 +41,7 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   starter-explore, starter-build, starter-review, starter-fix
 --control-query enters read-only search text in an opened New chat picker.
 --composer-text fills an unsent New chat draft, captures it, then clears it.
+--composer-reload reloads Codex after filling that draft and requires it to survive.
 --composer-send fills and submits a New chat prompt, then retains the created thread.
 --composer-mode plan enables sticky Plan mode before --composer-send. It intentionally
   hands that mode to the created interactive thread; Codex currently restores the
@@ -92,6 +93,7 @@ new_chat_control=""
 control_query=""
 composer_text=""
 composer_validate=""
+composer_reload=0
 composer_mode="default"
 composer_access="current"
 thread_shortcut="enter"
@@ -166,6 +168,10 @@ while (($#)); do
       surface="new-chat"
       mode="composer-text"
       shift 2
+      ;;
+    --composer-reload)
+      composer_reload=1
+      shift
       ;;
     --composer-send)
       if (($# < 2)) || [[ -z "$2" ]]; then
@@ -447,6 +453,10 @@ if [[ -n "$control_query" && "$mode" != "new-chat-control" ]]; then
 fi
 if [[ -n "$composer_text" && -z "$composer_validate" ]]; then
   echo "capture-codex-ui: composer text/send requires --composer-validate" >&2
+  exit 2
+fi
+if ((composer_reload)) && [[ "$mode" != "composer-text" ]]; then
+  echo "capture-codex-ui: --composer-reload requires --composer-text" >&2
   exit 2
 fi
 if [[ -n "$composer_validate" && "$mode" != "composer-text" && "$mode" != "composer-send" &&
@@ -1662,6 +1672,23 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
   # horizontal main-pane guard, but do not reject a valid draft merely because
   # its OCR box crossed the composer's narrow vertical band.
   window_text_center "$ocr_capture" "$composer_validate" "main" >/dev/null
+  if ((composer_reload)); then
+    # Cmd+R exercises Codex's real renderer reload rather than merely revisiting
+    # New chat. Keep cleanup armed throughout, then require the same unsent
+    # marker in a fresh frame before accepting the post-reload evidence.
+    send_key 15 1
+    sleep 2
+    sleep "$settle_seconds"
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-composer-reload-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if ! window_text_center "$ocr_capture" "$composer_validate" "main" >/dev/null 2>&1; then
+      reload_debug="${output%.*}-reload-debug.png"
+      cp -- "$ocr_capture" "$reload_debug"
+      echo "capture-codex-ui: composer draft did not survive reload; frame saved: $reload_debug" >&2
+      exit 1
+    fi
+  fi
   if [[ "$mode" == "composer-send" ]]; then
     send_key 36
     composer_seeded=0

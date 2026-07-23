@@ -299,8 +299,9 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.4l 盘点**：81 行 = `PASS 24 / GAP 13 / INTENTIONAL 4 / BLOCKED 1 /
-UNTESTED 39`。98.4l 删除重复登记的 GL-12，并以 NS-13 替换，保持总行数不变。PASS 中
+**98.4t 盘点**：81 行 = `PASS 28 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 37`。98.4l 删除重复登记的 GL-12，并以 NS-13 替换，保持总行数不变；98.4t
+以双产品真实 reload 与 AgentRunner 完整 lifecycle 将 NS-13 升 PASS。PASS 中
 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
@@ -338,7 +339,7 @@ New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 | NS-10 | Send：validation/submitting/streaming/failure/retry | UNTESTED | 2026-07-22 `QA88-98.2h-send-states/01..33`：双侧真实 Send、running、completed 与同逻辑 1952×1465 合并图；AgentRunner 另有 empty validation、draft-preserving submit、queued/Stop、invalid-model failure→换 model→Retry success，3 个 shared session 永久保留。Codex failure/retry 尚无可控同态证据，故不提前判 PASS |
 | NS-11 | voice/dictation | INTENTIONAL | AgentRunner 核心 journey 不要求语音；Web Speech 既有实验入口不作为 parity 承诺 |
 | NS-12 | desktop 1840/1280、mobile 390、light/dark | PASS | 2026-07-22 `QA88-98.2g-responsive-theme/01..18/21`：1280×720、1840×1000、1952×1465、390×844 的 home/settings/sidebar 均无横溢；`21` 为双侧同逻辑 1952×1465 clean New chat 合并图；mobile composer/controls 全在 viewport |
-| NS-13 | text draft：session/Home 切换、reload、tab isolation、restart、Send/clear | UNTESTED | 2026-07-23 `QA88-98.4l-resilience/01..06`：AgentRunner shared unresolved-conflict session 在 1100×700 deep-link reload、同 tab draft byte-identical 恢复、显式 clear 不复活、第二 tab 隔离、550×350 等效 200% reflow 零横溢均通过；clean deploy restart 与 Codex 同态证据待本批收口，未提前判 PASS |
+| NS-13 | text draft：session/Home 切换、reload、tab isolation、restart、Send/clear | PASS | 2026-07-23 `QA88-98.4t-draft-lifecycle/02..13`：AgentRunner shared unresolved-conflict session 的两行 CJK draft 经 reload、A→B→A、普通 restart 保持 byte-identical，另一 session/tab 均为空；真实 keyboard clear 与 Send 后 reload 均不复活。Codex Desktop `--composer-reload` 真执行 `Cmd+R` 并保留未发送 draft，capture 后清空；1100×700 合并图 `13` |
 
 ### 7.3 Thread、timeline 与运行中协作
 
@@ -394,9 +395,9 @@ New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 | ST-03 | shortcuts/config/worktrees/archived sessions | GAP | 2026-07-22 `QA88-98.3o-settings-sections/04..22`：双侧四页同 viewport 合并图；我方 22 个真实 shortcuts + search、live health、shared Worktrees、Archived empty/populated/search/Unarchive/re-Archive 均真测。304 workspaces 全渲染已修为 40/Show more/full search；缺 shortcut override G52、worktree registry/GC G53、永久删除 G54 |
 | ST-04 | desktop Done/mobile Back/Escape/outside focus return | UNTESTED | 2026-07-22 `QA88-98.3n-settings/13` 已真测 desktop Done/Escape 从 sidebar menu 回 `More options`，并修复旧 `BODY` 落点；Codex capture cleanup 以 Escape 恢复原 thread。mobile Back/current dual evidence 尚未补齐；全窗 Settings 无 outside dismissal，不提前判 PASS |
 | ST-05 | profile/voice/pets/personalization | INTENTIONAL | 非 AgentRunner runtime journey；若形成工程效益另立产品 delta |
-| PS-01 | deep-link reload/back/forward/current selection | UNTESTED | — |
+| PS-01 | deep-link reload/back/forward/current selection | UNTESTED | 2026-07-23 `QA88-98.4t-draft-lifecycle/14`：AgentRunner post-create sid 在 shared production 中 Back→Home、Forward→原 sid/reply/current selection 全真通过；Codex 同批 deep-link history 尚缺，不提前判 PASS |
 | PS-02 | rename/pin/archive/read/remove + persistence | UNTESTED | Archive/Remove 必须用专用 shared QA data，永久保留 journal |
-| PS-03 | legacy/missing/corrupt session 与 projectless rows | UNTESTED | 不伪造 raw id/empty state |
+| PS-03 | legacy/missing/corrupt session 与 projectless rows | UNTESTED | 2026-07-23 `QA88-98.4t-draft-lifecycle/15`：不存在 sid 显式 `Session not found` + raw id + `Back to all sessions`，返回 Home 后 `Do anything` 聚焦；legacy/corrupt 仍缺，不提前判 PASS |
 
 ### 7.6 Accessibility、viewport 与 resilience 横切
 

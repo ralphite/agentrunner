@@ -26,6 +26,7 @@ done
 [[ "$help" == *"--viewport"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
+[[ "$help" == *"--composer-reload"* ]]
 [[ "$help" == *"--composer-send"* ]]
 [[ "$help" == *"--composer-mode"* ]]
 [[ "$help" == *"--composer-access"* ]]
@@ -92,6 +93,12 @@ if $driver --composer-send QA >"$tmpdir/composer-send.out" 2>"$tmpdir/composer-s
   exit 1
 fi
 grep -Fq 'composer text/send requires --composer-validate' "$tmpdir/composer-send.err"
+
+if $driver --composer-reload >"$tmpdir/composer-reload.out" 2>"$tmpdir/composer-reload.err"; then
+  echo "capture driver accepted reload without composer text" >&2
+  exit 1
+fi
+grep -Fq -- '--composer-reload requires --composer-text' "$tmpdir/composer-reload.err"
 
 if $driver --composer-mode plan >"$tmpdir/composer-mode.out" 2>"$tmpdir/composer-mode.err"; then
   echo "capture driver accepted Plan mode without composer send" >&2
@@ -282,6 +289,8 @@ grep -Fq 'window_text_center "$ocr_capture" "$composer_cleanup_validate" "starte
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$composer_validate" "main"' "$driver"
+grep -Fq 'codex-composer-reload-validate' "$driver"
+grep -Fq 'send_key 15 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "thread-composer-send" ]]' "$driver"

@@ -2139,3 +2139,13 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | evidence/gate | `qa/runs/2026-07-23-QA88-98.4r-goal-progress/` 保存 Codex、AgentRunner active/paused/budget/mobile 与合并图；72 files / 752 frontend tests、production build、`check.sh` 与 browser error/warning=`[]`；retained session/workspace/journal 不清理 |
 | 98.4s current step | driver 从 goal-bar 专区可逆展开/收起 native goal，并捕获 Codex `Step 5/7`；shared AgentRunner 显示 `Step 2/4 · Implement… · 1/4`，点击复用完整 Environment；1100×700 合并图 `23` |
 | 98.4s narrow/keyboard | 390×844 current title 截断但 step/count/actions 可见，详情四步完整、零横溢；关闭后焦点回 `Open progress details`，browser error/warning=`[]`；72 files / 753 frontend tests、build、capture-driver test 与 `check.sh` 全绿 |
+
+| 98.4t 动作 | 硬断言 |
+|---|---|
+| AgentRunner draft lifecycle | shared unresolved-conflict session 在 1100×700 真输入两行 CJK；reload、A→B→A、普通 daemon/webui restart 后 byte-identical；另一 session/第二 tab 为空；`Cmd+A` + Backspace 与真实 Send 后 reload 均不复活 |
+| Codex 同态 | capture driver `--composer-reload` 在真实 New chat 填入未发送 draft、执行 `Cmd+R`、再以 OCR 要求同 marker 仍在；截图后清空并以 empty starter 复核；`11` 与 AgentRunner restart 图组成同 viewport comparison `13` |
+| create partial failure 红转绿 | deterministic test 让 `AR.newSession` 成功返回 sid、随后 `refreshSessions` 失败：修前 `select=0`，draft 已消费却留在 Home；修后先路由 durable sid，再刷新 sidebar，错误不能诱发重复创建 |
+| create race / route | dirty shared production 对 Send 真双击；retained `20260723-105440-qa98-4t-postfix-create-0b879a743d1d81a9` 只有 1 `SessionStarted` + 1 `InputReceived`，reply/empty composer 正常；Back→Home、Forward→原 sid/reply 精确恢复 |
+| missing hard state | 不存在 sid 显示 bounded `Session not found`、原始 id 与 `Back to all sessions`；点击后返回 Home 且 composer 聚焦。legacy/corrupt 未测，PS-03 保持 UNTESTED |
+| 数据纪律 | 四个 shared session/worktree/journal、Codex capture 与全部截图保留；未 close/delete/cleanup。`07/07a/07b` 是无效 `fill("")` 校准图，明确拒收，只以真实 keyboard 的 `07c/07d` 裁决 |
+| Gate | dirty production `72ca8189-dirty-035347` health `daemonUp/versionMatch=true`；browser logs=`[]`；73 files / 755 frontend tests、production build、capture contract 与 `./scripts/check.sh` 全绿 |

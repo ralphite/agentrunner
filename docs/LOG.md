@@ -7316,3 +7316,24 @@ shared 4-step fixture 在 1100×700/390×844 显示 `Step 2/4 · Implement… ·
 full gate 全绿。Codex capture driver 同批加入 goal-bar 专区、click offset 与中断自愈，
 修掉 diff 同文误点击并保证展开后恢复。证据 `18..23`；replan 与 failed/complete progress
 仍待同态捕获。
+
+---
+
+## 2026-07-23 · INC-98.4t draft 与 create lifecycle
+
+用 1100×700 shared production 把 NS-13 补到真实复杂链：两行 CJK draft 依次经过
+reload、A→B→A、普通 daemon/webui restart 与另一 tab 隔离；真实 keyboard clear、真实
+Send 后 reload 均不复活。Codex capture driver 新增 `--composer-reload`，在 New chat
+未发送 draft 上执行原生 `Cmd+R`、要求 OCR marker 仍在，再自动清空；双侧合并图在案。
+NS-13 升 PASS，矩阵为 `PASS 28 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 37`。
+
+继续压创建竞态时发现 partial-failure 数据风险：`AR.newSession` 已成功返回 durable sid，
+前端却先 `refreshSessions()` 再 `select(sid)`；如果 list refresh 失败，draft 已消费、session
+已创建，但用户只看到 Home 上的错误，重试可能制造重复 session。现改为 create response
+一到即先导航 sid，sidebar refresh 退为后置 projection。确定性回归钉 refresh failure 与
+两次立即 Enter 单 create；dirty shared browser 真双击后 retained session
+`20260723-105440-qa98-4t-postfix-create-0b879a743d1d81a9` 只有一条
+`SessionStarted`/`InputReceived`，Back/Forward 与 missing-sid recovery 也通过。所有
+session/worktree/journal 与截图保留。73 files / 755 frontend tests、production build、
+capture contract、`./scripts/check.sh`、health/versionMatch 与 browser logs 全绿。

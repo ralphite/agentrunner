@@ -769,8 +769,11 @@ export function Composer(props: ComposerProps) {
         rememberSpec(r.sid, spec);
         rememberAccess(r.sid, access);
         resetInput();
-        await refreshSessions();
+        // The create response is already the durable navigation fact. Route to
+        // it before refreshing the sidebar so a transient list failure cannot
+        // strand the user on Home after their draft has been consumed.
         select(r.sid);
+        await refreshSessions();
         // The opening message (`ar new`) can't carry attachments (DESIGN §9.1);
         // deliver a first-message attachment on an immediate follow-up so it
         // still works from the landing composer.
