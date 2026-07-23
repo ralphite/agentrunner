@@ -567,10 +567,9 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // Recovery is for stranded sessions; interrupted keeps Retry (canRetry
   // below still matches it) and the ordinary composer.
   const needsRecovery = !live && /strand/i.test(listStatus || "");
-  // Retry (INC-44 §B) re-sends the last user message as a NEW turn — offered
-  // wherever the last one plausibly went wrong: crashed/failed/interrupted/
-  // stranded, but never mid-run or while a wait wants its answer.
-  const canRetry = !live && /strand|interrupt|crash|fail/i.test(listStatus || "");
+  // Retry re-sends the last message as a NEW turn. A stranded session must
+  // Resume instead: replaying its last message could duplicate partial work.
+  const canRetry = !live && !needsRecovery && /interrupt|crash|fail/i.test(listStatus || "");
   const running = status.cls === "run";
   // An explicitly-closed session still accepts input (a send reopens it), but
   // the composer alone reads as "live" — surface the closed state so it isn't

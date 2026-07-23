@@ -7203,3 +7203,19 @@ session/workspace/journal 全保留，未 Send/Commit/Push/Undo/resolve/abort/cl
 `70 files / 737 tests`、`./scripts/check.sh` 全绿。矩阵同时纠正重复的 GL-12：删掉重复
 Plugins 行、补 NS-13 resilience 行，总数仍为 81，真实分布为
 `PASS 24 / GAP 13 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 39`。
+
+---
+
+## 2026-07-23 · INC-98.4m complex recovery
+
+真实 20-turn / 125-agent-step step-limit session 的 fork modal 修前首屏挂 126 个 checkpoint，
+把 agent step 误称 turn；从 `bar-t60` fork 又因 parent 短标题事件晚于 cut，child 退回完整
+opening prompt，并同时给 stranded 的 Resume/Retry。修后默认只显示 Latest，较早点按需展开；
+core fork 在 cut 后追加 parent 当前 title 的 `SessionTitled{source:fork}`；stranded 禁止可能
+重放部分副作用的 Retry。
+
+shared production 从同一 parent 的 `bar-t61` 新建并保留 child
+`20260723-073947-fork-bar-t61-0dcfa33c208a786d`：CLI/sidebar/header/reload 标题均为
+`Initialize Taskledger CLI Skeleton`，只显示 Resume；parent 保持 20 turns /
+`max_generation_steps`，两边 workspace 独立，未 Resume/Send/close/delete/cleanup。
+frontend `71 files / 738 tests` 与 `./scripts/check.sh` 全绿。

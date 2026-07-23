@@ -339,8 +339,8 @@ describe("mobile session topbar", () => {
     expect(navSlot.classList.contains("w-9")).toBe(true);
     expect(topbar.querySelector(".tt-title")!.textContent).toBe("深度黑盒 QA 任务 2026-07-12-A");
 
-    // Recovery is the current-state action. Retry and fork remain reachable
-    // without competing with the title as two more unlabeled mobile icons.
+    // Recovery is the only safe current-state action. Retrying a stranded
+    // message could repeat work that finished before the host disappeared.
     expect(topbar.querySelector('button[aria-label="Resume session"]')).not.toBeNull();
     expect(topbar.querySelector('button[aria-label="Retry session"]')).toBeNull();
     expect(topbar.querySelector('button[aria-label="Fork session from checkpoint"]')).toBeNull();
@@ -355,7 +355,7 @@ describe("mobile session topbar", () => {
     await waitFor(() => expect(arMock.resume).toHaveBeenCalledWith(SID));
 
     fireEvent.click(screen.getByRole("button", { name: "More session actions" }));
-    expect(screen.getByRole("menuitem", { name: "Retry last message" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Retry last message" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Continue in new session…" })).toBeTruthy();
   });
 

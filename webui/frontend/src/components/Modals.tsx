@@ -619,7 +619,7 @@ function RunModal({
 function barrierLabel(b: string): string {
   if (b === "bar-final") return "Latest — end of the conversation";
   const t = b.match(/^bar-t(\d+)$/);
-  if (t) return `After turn ${t[1]}`;
+  if (t) return `After agent step ${t[1]}`;
   const m = b.match(/^bar-m(\d+)$/);
   if (m) return `Manual checkpoint (seq ${m[1]})`;
   return b;
@@ -640,6 +640,7 @@ function ForkModal({ sid }: { sid: string }) {
   const [barriers, setBarriers] = useState<string[]>([]);
   const [barrier, setBarrier] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showEarlier, setShowEarlier] = useState(false);
   const close = () => openModal(null);
 
   const loadBarriers = () => {
@@ -718,13 +719,32 @@ function ForkModal({ sid }: { sid: string }) {
           <button onClick={createCheckpoint} disabled={busy}>Create checkpoint</button>
         </div>
       ) : (
-        <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
-          {barriers.map((b) => (
-            <option key={b} value={b}>
-              {barrierLabel(b)}
-            </option>
-          ))}
-        </select>
+        <>
+          {!showEarlier && (
+            <div className="fork-latest">
+              <strong>{barrierLabel(barrier)}</strong>
+              {barriers.length > 1 && (
+                <button type="button" onClick={() => setShowEarlier(true)}>
+                  Choose an earlier checkpoint
+                </button>
+              )}
+            </div>
+          )}
+          {showEarlier && (
+            <>
+              <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
+                {barriers.map((b) => (
+                  <option key={b} value={b}>
+                    {barrierLabel(b)}
+                  </option>
+                ))}
+              </select>
+              <div className="dim mt-2">
+                Agent steps are internal model/tool checkpoints, not conversation turns.
+              </div>
+            </>
+          )}
+        </>
       )}
       <details className="advanced-settings">
         <summary>Advanced settings</summary>

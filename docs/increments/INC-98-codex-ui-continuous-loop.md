@@ -482,6 +482,11 @@ INC-98 将该方法固化为持续循环：
   不同 tab 各自独立；Send、slash clear 与显式清空同步删除；storage 异常时仍保留当前
   module memory，不阻断输入。附件、fork durable draft、daemon/journal 与跨设备同步均不
   改，本批不把 text 修复扩大为附件持久化。UI 无新增控件/文案，默认态保持安静。
+- **98.4m complex recovery**：20-turn / 125-agent-step 的 retained session 暴露三项主路径
+  问题：checkpoint picker 默认展开 126 项、把 agent step 误称 turn；fork 在所选 cut 早于
+  parent 后到的 auto title 时退回完整 opening prompt；stranded 同时提供 Resume 与可能重放
+  副作用的 Retry。修复限定为默认 latest、较早点按需展开、durable fork title 继承与
+  stranded 单一 Resume；不改 parent、checkpoint cut、worktree 或 resume 语义。
 
 ## Spec delta
 

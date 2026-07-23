@@ -374,7 +374,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    `Continue in new session`：前者从消息前切、以完整 recorded multimodal 内容
    预填 composer，后者从回答后切并聚焦空 composer；child 在显式 Send 前保持
    dormant，parent 不变。legacy/非 final/tool-call row 不伪造入口；Advanced
-   checkpoint fork 仍保留；仅终态 recovery 告警保留必要续跑动作；
+   checkpoint fork 仍保留，默认只呈现 latest，较早 agent step 按需展开；fork
+   继承 parent 当前短标题，stranded 只提供 Resume，不提供可能重复副作用的 Retry；
+   仅终态 recovery 告警保留必要续跑动作；
    有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅；
    Changes 可在 `Working tree`（repo HEAD 至当前）与 `Last turn`（最新 human
    turn 的 `bar-tN` 开工 snapshot 至当前）间切换，缺 durable baseline 时

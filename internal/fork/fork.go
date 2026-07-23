@@ -31,6 +31,7 @@ type Options struct {
 	Barrier       state.Barrier // fork target (from the parent fold's barriers)
 	WorkspaceRoot string        // the fork's own worktree (never the parent's)
 	Now           time.Time     // fork moment (genesis TS)
+	Title         string        // parent's current durable display title
 	// GenesisMeta adds message-scoped provenance/draft fields. Core fork
 	// identity fields are always overwritten from the authoritative options.
 	GenesisMeta *event.ForkedFrom
@@ -117,6 +118,21 @@ func Cut(opts Options) ([]string, error) {
 		return nil, err
 	}
 	lines = append(lines, cancels...)
+	if title := strings.TrimSpace(opts.Title); title != "" {
+		titled, err := event.New(event.TypeSessionTitled, &event.SessionTitled{
+			Title: title, Source: event.TitleSourceFork,
+		})
+		if err != nil {
+			return nil, err
+		}
+		titled.Seq = lines[len(lines)-1].Seq + 1
+		titled.ID = event.EventID(titled.Seq)
+		titled.CausationID = lines[len(lines)-1].ID
+		titled.CorrelationID = opts.NewSession
+		titled.Sender, titled.Target = "cli", "session"
+		titled.TS = opts.Now.UTC()
+		lines = append(lines, titled)
+	}
 	if err := writeJournal(opts.NewDir, lines); err != nil {
 		return nil, err
 	}

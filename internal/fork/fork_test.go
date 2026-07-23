@@ -182,6 +182,37 @@ func TestCutCopiesBarrierSlice(t *testing.T) {
 	}
 }
 
+func TestCutInheritsCurrentParentTitle(t *testing.T) {
+	parentDir, fold := seedParent(t)
+	newDir := filepath.Join(t.TempDir(), "forked")
+	_, err := Cut(Options{
+		ParentDir: parentDir, ParentSession: parentSession,
+		NewDir: newDir, NewSession: "20260704-110000-fork-title",
+		Barrier: fold.Barriers[0], WorkspaceRoot: "/w-fork",
+		Now:   time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC),
+		Title: "Initialize Taskledger CLI Skeleton",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(newDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := events[len(events)-1]
+	if last.Type != event.TypeSessionTitled {
+		t.Fatalf("last event = %s, want session_titled", last.Type)
+	}
+	folded, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folded.Session.RawTitle != "Initialize Taskledger CLI Skeleton" ||
+		folded.Session.TitleSource != event.TitleSourceFork {
+		t.Fatalf("title/source = %q/%q", folded.Session.RawTitle, folded.Session.TitleSource)
+	}
+}
+
 func TestCutUnknownBarrier(t *testing.T) {
 	parentDir, fold := seedParent(t)
 	bogus := fold.Barriers[0]

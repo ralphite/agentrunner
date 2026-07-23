@@ -73,6 +73,9 @@ func TestContinueFromUserMessageCutsBeforeInputAndIsIdempotent(t *testing.T) {
 			{Kind: provider.PartFile, Ref: blobRef, MediaType: "text/plain", Name: "note.txt"}},
 		Files: []event.AttachmentRef{{Ref: blobRef, MediaType: "text/plain", Name: "note.txt"}},
 	})
+	appendEvent(t, es, event.TypeSessionTitled, &event.SessionTitled{
+		Title: "Short parent title", Source: event.TitleSourceAuto,
+	})
 	if err := es.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +104,9 @@ func TestContinueFromUserMessageCutsBeforeInputAndIsIdempotent(t *testing.T) {
 	}
 	if folded.ForkPark == nil || folded.Session.ForkedFrom == nil || folded.Session.ForkedFrom.Draft == nil {
 		t.Fatalf("child is not durably parked with draft: %+v", folded.Session.ForkedFrom)
+	}
+	if folded.Session.RawTitle != "Short parent title" || folded.Session.TitleSource != event.TitleSourceFork {
+		t.Fatalf("child title/source = %q/%q", folded.Session.RawTitle, folded.Session.TitleSource)
 	}
 	if folded.Session.ForkedFrom.Draft.Content[1].Data != nil {
 		t.Fatal("draft contains raw attachment bytes")

@@ -129,6 +129,7 @@ func forkCmd(args []string, stdout, stderr io.Writer) int {
 		Barrier:       *target,
 		WorkspaceRoot: ws.Root(),
 		Now:           time.Now(),
+		Title:         fold.Session.RawTitle,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)

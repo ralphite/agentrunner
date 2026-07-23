@@ -206,6 +206,7 @@ type target struct {
 	barrier state.Barrier
 	side    string
 	draft   *event.ForkDraft
+	title   string
 }
 
 type registry struct {
@@ -340,6 +341,7 @@ func continueLocked(ctx context.Context, data, parentDir string, req Request) (R
 		ParentDir: parentDir, ParentSession: req.ParentSession,
 		NewDir: stageDir, NewSession: reg.ChildID, Barrier: t.barrier,
 		WorkspaceRoot: reg.Workspace, Now: time.Now(),
+		Title: t.title,
 		GenesisMeta: &event.ForkedFrom{RequestID: req.RequestID,
 			SourceItemID: req.ItemID, SourceSide: t.side, Draft: t.draft},
 	})
@@ -446,7 +448,7 @@ func resolve(events []event.Envelope, itemID string) (target, error) {
 	if side == SideAfterAssistant && b.Seq != message.Seq+1 {
 		return target{}, fmt.Errorf("%w: after-assistant anchor ordering", ErrInvalid)
 	}
-	return target{barrier: b, side: side, draft: draft}, nil
+	return target{barrier: b, side: side, draft: draft, title: folded.Session.RawTitle}, nil
 }
 
 func visibleAssistant(msg provider.Message) bool {

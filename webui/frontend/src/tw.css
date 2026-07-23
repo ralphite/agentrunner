@@ -1485,6 +1485,7 @@
   .row-flex > input, .row-flex > select { @apply min-w-0 flex-1; }
   textarea.code { @apply w-full font-mono text-[12px] leading-[1.55]; }
   .fork-empty { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-dashed border-line bg-panel-2 p-3 text-[12.5px] text-dim; }
+  .fork-latest { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-line bg-panel-2 p-3 text-[12.5px]; }
 
   /* approval Details 内部:gate 判定行与只读提示 */
   .approval-gates { @apply mt-2 flex flex-col gap-0.5 text-[11.5px] text-dim; }
