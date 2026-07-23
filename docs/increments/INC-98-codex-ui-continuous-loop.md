@@ -361,6 +361,16 @@ INC-98 将该方法固化为持续循环：
   `18px`，Escape 焦点精确回 `Create scheduled work`。修后同 viewport 证据为
   `combined-create-first-step-fixed-2560x800.png`，browser logs 空；Codex synthetic draft 已清空，
   原 Codex thread 已恢复，双方均未创建新 run/automation。
+- **98.3v Scheduled compact list disclosure design note**：`98.3u` 修后同 viewport 仍显示 shared
+  store 的长历史列表，Suggestions 被推到多屏之后；Codex 当前真实页只把少量 recent rows 放在
+  Suggestions 之前。沿用 Settings/Worktrees 与 Sidebar 已有 progressive disclosure，而不删除、
+  分页或伪造 backend：默认渲染最新 5 条，`Show 10 more` 逐批展开，并提供 `Show fewer` 回到首屏；
+  Suggestions 仍是 DOM 最末 terminal block。search 必须扫描并显示全部匹配结果，切换 query/filter
+  重置展开量；`Mark all as read` 只作用于当前真实可见 slice。该 delta 只改前端投影，不触及
+  DESIGN 不变量或 shared 数据。dirty production `d68b0766-dirty-220630` 的 shared 32-row All
+  首屏实测为 5 rows + `Show 10 more · 27 remaining`，Suggestions top=`610px`（800px viewport 内）；
+  展开为 15 rows 后可 `Show fewer` 回 5，search=`INC66-INTERVAL-OK` 穿透 cap 返回完整 2 rows，
+  清空恢复 5，DOM terminal 与 browser logs 空均通过。
 
 ## Spec delta
 

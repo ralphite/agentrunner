@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
 import { CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
 import { useStore } from "../store";
@@ -18,6 +18,8 @@ import type { Cadence } from "../types";
 // (SC-11) is the test behind it, which is now about the SERIES rather than
 // about whatever happens to be executing this second. See seriesActive.
 type Filter = "all" | "active" | "finished";
+const INITIAL_VISIBLE_ROWS = 5;
+const ROWS_PER_PAGE = 10;
 
 // Static template suggestions (Codex parity). Clicking one opens the existing
 // create-run modal prefilled for repeating work, with the description as the
@@ -243,6 +245,7 @@ export function Scheduled() {
   } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   // SC-12 — the cursor-anchored row menu (same component the sidebar rows use).
   const [ctx, setCtx] = useState<{ x: number; y: number; key: string } | null>(null);
 
@@ -377,6 +380,11 @@ export function Scheduled() {
       return false;
     return true;
   });
+  useEffect(() => setVisibleCount(INITIAL_VISIBLE_ROWS), [filter, ql]);
+  // Search is an exact retrieval surface: never hide matching results behind a
+  // second interaction. Browsing the unqueried history uses progressive
+  // disclosure so Suggestions remain discoverable in a compact viewport.
+  const visibleRows = ql ? filtered : filtered.slice(0, visibleCount);
   const totalEmpty = rows.length === 0;
 
   // SC-21 — "Mark all as read" clears exactly the rows you can SEE. It used to
@@ -388,7 +396,7 @@ export function Scheduled() {
   // the view in front of you actually has something unread in it, and never as a
   // dead grey control. The sidebar's Scheduled dot keeps its own store-wide count
   // (viewModels.scheduledUnread, E3): that badge is about the whole hub.
-  const unreadIds = filtered.filter((r) => r.unread).map((r) => r.id);
+  const unreadIds = visibleRows.filter((r) => r.unread).map((r) => r.id);
 
   // SC-14 — a search hit has to be VISIBLE. `meta` matches the project, but SC-4
   // took the project off the sub-line, so searching "scratch" returned a row on
@@ -603,7 +611,7 @@ export function Scheduled() {
             </span>
           </div>
         ) : (
-          filtered.map((r) => {
+          visibleRows.map((r) => {
             const isPinned = pinned.includes(r.id);
             const isArchived = archived.includes(r.id);
             const hasActions = r.kind === "session" || r.running;
@@ -744,6 +752,26 @@ export function Scheduled() {
             </Fragment>
             );
           })
+        )}
+        {!ql && filtered.length > INITIAL_VISIBLE_ROWS && (
+          <div className="sched-disclosure">
+            {visibleRows.length < filtered.length && (
+              <button
+                className="show-more"
+                onClick={() => setVisibleCount((count) => count + ROWS_PER_PAGE)}
+              >
+                Show {Math.min(ROWS_PER_PAGE, filtered.length - visibleRows.length)} more · {filtered.length - visibleRows.length} remaining
+              </button>
+            )}
+            {visibleCount > INITIAL_VISIBLE_ROWS && (
+              <button
+                className="show-more"
+                onClick={() => setVisibleCount(INITIAL_VISIBLE_ROWS)}
+              >
+                Show fewer · newest {INITIAL_VISIBLE_ROWS}
+              </button>
+            )}
+          </div>
         )}
         {suggestions}
       </div>

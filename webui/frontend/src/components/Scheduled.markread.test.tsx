@@ -104,4 +104,36 @@ describe("Mark all as read sits at the right end of the tab row (SC-21)", () => 
     expect(markAll()).toBeNull();
     expect(useStore.getState().unread).toEqual(["20250101-100000-digest"]);
   });
+
+  it("does not clear unread state hidden behind compact-list disclosure", () => {
+    const compactSessions: Session[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `20250101-${String(15 - index).padStart(2, "0")}0000-compact-${index}`,
+      status: "idle",
+      turns: 1,
+      title: `Compact scheduled row ${index + 1}`,
+      workspace: "/repo/app",
+      kind: "driver",
+      schedule: "interval",
+      cadence: "Every 1h",
+      nextRunAt: new Date(Date.now() + 3600_000).toISOString(),
+    }));
+    const visibleUnread = compactSessions[0].id;
+    const hiddenUnread = compactSessions[5].id;
+    useStore.setState({
+      runs: [],
+      sessions: compactSessions,
+      sessionsReady: true,
+      unread: [visibleUnread, hiddenUnread],
+      archived: [],
+      pinned: [],
+      renames: {},
+      modal: null,
+    });
+    const { container } = render(<Scheduled />);
+
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(5);
+    expect(screen.queryByText("Compact scheduled row 6")).toBeNull();
+    fireEvent.click(markAll()!);
+    expect(useStore.getState().unread).toEqual([hiddenUnread]);
+  });
 });

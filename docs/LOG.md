@@ -7011,3 +7011,17 @@ menu option 的 `<b>`/`<small>` 横排成连续句。现只把四项 option body
 纵向差 `18px`，Escape 焦点回 `Create scheduled work`，browser logs 空。双方均零新建，shared
 session/workspace/journal 未关闭、删除或清理。SC-03 仍 UNTESTED（尚缺 repeating validation/success
 全链），矩阵保持 `PASS 24 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 38`。
+
+---
+
+## 2026-07-22 · INC-98.3v Scheduled 长列表 progressive disclosure
+
+`1280×800` shared production 暴露 32 条 scheduled rows 时，Suggestions 被推到多屏之后。沿用
+Settings/Worktrees 与 Sidebar 的既有模式：默认最新 5 条、每次展开 10 条、`Show fewer` 可回首屏；
+Suggestions 仍是 DOM 最末 terminal block。search 不受 cap 限制，query/filter 变化重置展开量，
+`Mark all as read` 只清当前可见 slice。
+
+dirty production `d68b0766-dirty-220630` 真验：首屏 5 rows、`Show 10 more · 27 remaining`、
+Suggestions top=`610px`；展开 15、收起 5、search=`INC66-INTERVAL-OK` 返回完整 2 rows、清空回 5，
+browser logs 空。未删除/关闭/清理任何 shared 数据。SC-02 仍 UNTESTED（empty/loading/error 与
+Codex pagination 尚未齐），矩阵状态不变。

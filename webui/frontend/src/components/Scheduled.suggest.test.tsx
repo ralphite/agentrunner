@@ -62,6 +62,17 @@ const manyScheduled: Session[] = [
   cadence: "Every 1h",
   nextRunAt: "2099-01-01T00:00:00Z",
 }));
+const longScheduled: Session[] = Array.from({ length: 12 }, (_, index) => ({
+  id: `20260713-${String(12 - index).padStart(2, "0")}0000-row`,
+  title: `Scheduled row ${index + 1}`,
+  status: "idle",
+  turns: 1,
+  workspace: "/repo/app",
+  kind: "driver",
+  schedule: "interval",
+  cadence: "Every 1h",
+  nextRunAt: "2099-01-01T00:00:00Z",
+}));
 
 describe("SC-18 · clicking a suggestion builds the cadence it advertises", () => {
   it("stacks every Create choice title above its explanation", () => {
@@ -134,6 +145,37 @@ describe("SC-18 · clicking a suggestion builds the cadence it advertises", () =
     expect(screen.getByRole("dialog", { name: "Schedule a run" })).toBeTruthy();
     expect(scheduleSelect().value).toBe("cron");
     expect(cronInput().value).toBe("0 8 * * 1-5");
+  });
+
+  it("keeps Suggestions near a compact first screen without truncating search", () => {
+    useStore.setState({
+      runs: [],
+      sessions: longScheduled,
+      sessionsReady: true,
+      unread: [],
+      archived: [],
+      pinned: [],
+      renames: {},
+      modal: null,
+    });
+    const { container } = render(<Scheduled />);
+
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Show 7 more · 7 remaining" })).toBeTruthy();
+    const suggestions = container.querySelector("[data-testid='scheduled-suggestions']");
+    expect(container.querySelector(".scheduled-list")!.lastElementChild).toBe(suggestions);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 7 more · 7 remaining" }));
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(12);
+    expect(screen.getByRole("button", { name: "Show fewer · newest 5" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer · newest 5" }));
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(5);
+
+    fireEvent.change(screen.getByLabelText("Search scheduled runs"), { target: { value: "Scheduled row 12" } });
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(1);
+    expect(screen.getByText("Scheduled row 12")).toBeTruthy();
+    expect(container.querySelector(".sched-disclosure")).toBeNull();
   });
 
   it.each([

@@ -1089,6 +1089,8 @@
   .sched-tab { @apply rounded-md border-0 bg-transparent px-2.5 py-1 text-[13px] font-normal text-ink-2 shadow-none transition-colors duration-100 hover:bg-panel-2 hover:text-ink hover:shadow-none; }
   .sched-tab.on { @apply bg-panel-2 font-medium text-ink hover:bg-panel-2; }
   .scheduled-list, .sched-suggestions { @apply flex flex-col; }
+  .sched-disclosure { @apply mt-1 flex items-center gap-1; }
+  .sched-disclosure .show-more { @apply w-auto; }
   /* Codex parity: rows are a compact, flat, UNDIVIDED list — no per-row card
      (border/rounded/bg dropped), hover lights the whole row. R68 SCHED-BORDER-B:
      the Codex gold (qa/codex-reference/codex-crop-scheduled-list.jpg /
