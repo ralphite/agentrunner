@@ -344,6 +344,9 @@ INC-98 将该方法固化为持续循环：
   iteration，不代表并行竞赛。frontend fold 必须保留 `series_started.kind`：仅 `best_of_n/parallel`
   使用 winner/best，其他 series 使用 selected iteration/selected，按钮仍调用同一安全 promote API。
   新回归同时钉 interval 与 best-of-N 文案，不改 runtime selection/promotion 语义。
+  clean production `6ccd4bf5-214730` 复拍通过：interval 页面同时出现 `selected #1`、
+  `Selected iteration: #1`、`Apply selected iteration`，不再包含 `Best-of-N winner`，durable hash 与
+  reload history 继续保真。第二个 single-iteration fixture/workspace/journal 同样永久保留。
 
 ## Spec delta
 

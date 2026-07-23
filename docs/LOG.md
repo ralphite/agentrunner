@@ -6981,3 +6981,17 @@ capture contract/full gate 全绿；全部数据原样保留。
 - 真实重启发现创建后 `#run:run1` 是 process-local 假 deep link。Run modal 现轮询 run 的 durable
   `sessionId` 并导航 `#<sessionId>`，只有 id 未及时出现才回退 transient RunView；新增回归测试。
 - 矩阵为 `PASS 24 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 38`。
+
+---
+
+## 2026-07-22 · INC-98.3t Scheduled selected iteration 语义
+
+`98.3s` route 修复部署后，第二个 retained single-iteration fixture 真创建即落 durable `#sessionId`，
+reload 后 history 保留且无 transient `waiting for output…`。低分辨率复拍发现普通 interval series
+被 UI 叫作 `Best-of-N winner`；runtime 的 `best_iter` 在这里是可 promote 的 selected iteration，
+不是并行竞赛。
+
+timeline fold 现保留 `series_started.kind`：仅 `best_of_n/parallel` 使用 best/winner，其他 series
+使用 selected；按钮对应为 `Apply selected iteration`，底层 clean-or-nothing promote 不变。
+targeted 94 tests、frontend 69 files/718 tests、production build、full gate 全绿；clean production
+`6ccd4bf5-214730` 在原 durable route 复拍通过，数据继续保留。矩阵状态不变。
