@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { Subagents, type InspectNode } from "./Subagents";
+import { childAnswerRequests, Subagents, type InspectNode } from "./Subagents";
 
 describe("Subagents mobile layout", () => {
   it("stacks long identity and metadata while capping deep indentation", () => {
@@ -46,5 +46,36 @@ describe("Subagents mobile layout", () => {
     const row = screen.getByRole("button", { name: /worker Needs approval/i });
     expect(row.querySelector(".sa-status")?.textContent).toBe("Needs approval");
     expect(row.querySelector(".sa-dot")?.classList.contains("appr")).toBe(true);
+  });
+
+  it("surfaces nested structured asks as typed answer attention", () => {
+    const nodes: InspectNode[] = [{
+      agent: "lead-worker",
+      session: "parent-sub-lead-a1",
+      report: {
+        children: [{
+          agent: "release-reviewer",
+          session: "parent-sub-lead-a1-sub-ask-a1",
+          report: {
+            status: "waiting",
+            waiting: {
+              kind: "input",
+              ask_questions: [{
+                question: "Choose the release channel",
+                options: [{ label: "Stable" }, { label: "Beta" }],
+              }],
+            },
+          },
+        }],
+      },
+    }];
+    render(<Subagents nodes={nodes} onOpen={vi.fn()} />);
+
+    const row = screen.getByRole("button", { name: /release-reviewer Needs answer/i });
+    expect(row.querySelector(".sa-dot")?.classList.contains("appr")).toBe(true);
+    expect(childAnswerRequests(nodes)).toEqual([{
+      agent: "release-reviewer",
+      session: "parent-sub-lead-a1-sub-ask-a1",
+    }]);
   });
 });

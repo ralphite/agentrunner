@@ -24,6 +24,13 @@ export interface InspectNode {
     tool?: string;
     args?: string;
     answer_with?: string;
+    question?: string;
+    ask_questions?: Array<{
+      question: string;
+      options?: Array<{ label: string; description?: string }>;
+      multi_select?: boolean;
+      allow_free_text?: boolean;
+    }>;
   };
   delegations?: InspectDelegation[];
 }
@@ -34,6 +41,30 @@ export interface InspectDelegation {
     mode?: string;
     path?: string;
   };
+}
+
+export interface ChildAnswerRequest {
+  agent: string;
+  session: string;
+}
+
+export function childAnswerRequests(nodes: InspectNode[]): ChildAnswerRequest[] {
+  const requests: ChildAnswerRequest[] = [];
+  const visit = (level: InspectNode[]) => {
+    for (const node of dedupeInspectNodes(level || [])) {
+      const report = node.report || node;
+      if (
+        node.session &&
+        report.waiting?.kind === "input" &&
+        (report.waiting.ask_questions?.length || 0) > 0
+      ) {
+        requests.push({ agent: node.agent || "agent", session: node.session });
+      }
+      visit(report.children || []);
+    }
+  };
+  visit(nodes);
+  return requests;
 }
 
 function tokens(n?: number): string {
@@ -62,7 +93,12 @@ export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; 
         // A parked wait is more precise than the report's broad `waiting`
         // status. G39 made the approval discoverable, but the row still said
         // Ready because friendlyStatus("waiting") describes ordinary idle.
-        const raw = rep.waiting?.kind ? `waiting:${rep.waiting.kind}` : c.reason || rep.reason || rep.status || "";
+        const raw =
+          rep.waiting?.kind === "input" && (rep.waiting.ask_questions?.length || 0) > 0
+            ? "waiting:answer"
+            : rep.waiting?.kind
+              ? `waiting:${rep.waiting.kind}`
+              : c.reason || rep.reason || rep.status || "";
         const st = friendlyStatus(raw);
         const tok = rep.usage?.billed ?? ((rep.usage?.input_tokens || 0) + (rep.usage?.output_tokens || 0));
         const kids = dedupeInspectNodes(rep.children || []);

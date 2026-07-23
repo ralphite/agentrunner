@@ -48,6 +48,7 @@ function panelTree(over: Partial<React.ComponentProps<typeof SupervisionPanel>> 
         backgroundWork={[]}
         approvals={0}
         answers={0}
+        childAnswers={[]}
         sessionIdle={true}
         recovery={false}
         onGoalEdit={noop}
@@ -199,6 +200,19 @@ describe("TH-3 · groups with content are untouched", () => {
 
     expect(screen.getByText("Attention")).toBeTruthy();
     expect(container.querySelector(".attention-row")?.textContent).toContain("Answer requested");
+    expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
+  });
+
+  it("names a child answer request and opens the exact child", () => {
+    const onOpenChild = vi.fn();
+    renderPanel({
+      childAnswers: [{ agent: "release-reviewer", session: "parent-sub-ask-a1" }],
+      onOpenChild,
+    });
+
+    const action = screen.getByRole("button", { name: /release-reviewer — answer requested Open/i });
+    fireEvent.click(action);
+    expect(onOpenChild).toHaveBeenCalledWith("parent-sub-ask-a1");
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
 

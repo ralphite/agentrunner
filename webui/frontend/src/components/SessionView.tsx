@@ -10,7 +10,7 @@ import { Composer } from "./Composer";
 import { AskForm } from "./AskForm";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import type { InspectDelegation, InspectNode } from "./Subagents";
+import { childAnswerRequests, type InspectDelegation, type InspectNode } from "./Subagents";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
 import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "./pill";
@@ -537,6 +537,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     };
     walk(children, delegations);
   }
+  const childAnswers = useMemo(() => childAnswerRequests(children), [children]);
 
   // Status precedence: a live turn (tool running / step in flight / a pending
   // approval) wins — it's the most current. Otherwise the daemon's session
@@ -550,6 +551,8 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     ? openApprovals.length > 0
       ? { text: "Needs approval", cls: "appr" }
       : { text: "Working…", cls: "run" }
+    : askQuestions.length > 0
+      ? { text: "Needs answer", cls: "appr" }
     : folded.isDriver
       ? // a driver session's `sessions list` status is "unreadable"; its own
         // journal (driver_completed) is the authoritative status.
@@ -580,7 +583,13 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     const childStatus = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
     return childStatus.cls === "crash" || childStatus.cls === "stranded";
   }).length;
-  const attentionCount = openApprovals.length + (needsRecovery ? 1 : 0) + abnormalAgentCount + (backgroundWork.length > 0 && !running ? 1 : 0);
+  const attentionCount =
+    openApprovals.length +
+    (askQuestions.length > 0 ? 1 : 0) +
+    childAnswers.length +
+    (needsRecovery ? 1 : 0) +
+    abnormalAgentCount +
+    (backgroundWork.length > 0 && !running ? 1 : 0);
 
   const doSend = async (text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue",
     draft?: { draftId: string; sendRequestId: string;
@@ -826,7 +835,15 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // the decision. A >1400px viewport has room for both and may reinforce the
   // inline card by auto-opening Environment.
   const hasApprovals = openApprovals.length > 0;
+  const hasChildAnswers = childAnswers.length > 0;
   useEffect(() => {
+    if (hasChildAnswers && view === "chat" && (bp.desktop || bp.wide)) {
+      if (!supervisionOpen) {
+        approvalAdjustedSupervision.current ||= "opened";
+        setSupervisionOpen(true);
+      }
+      return;
+    }
     if (hasApprovals && view === "chat") {
       if (bp.desktop && supervisionOpen) {
         approvalAdjustedSupervision.current ||= "closed";
@@ -843,7 +860,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       setSupervisionOpen(true);
     }
     approvalAdjustedSupervision.current = null;
-  }, [hasApprovals, view, bp.desktop, bp.wide]);
+  }, [hasApprovals, hasChildAnswers, view, bp.desktop, bp.wide]);
 
   const showSupervision = supervisionOpen && view === "chat";
   const visibleTitle = isSub && subAgentName ? subAgentName : title;
@@ -882,7 +899,11 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           {/* N-parity: the session title is prose, no leading file icon (weight
               change is handled in tw.css). */}
           <div className="tt-title" title={`${visibleTitle}${visibleTitle !== title ? `\n${title}` : ""}\n${sid}`}>{visibleTitle}</div>
-          {isSub && <span className="readonly-tag">Read-only sub-agent</span>}
+          {isSub && (
+            <span className="readonly-tag">
+              {askQuestions.length > 0 ? "Sub-agent · answer requested" : "Read-only sub-agent"}
+            </span>
+          )}
         </div>
         <span className="spacer" />
         {!isSub && needsRecovery && (
@@ -1173,7 +1194,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
               {!isSub && !isDriver && isClosed && (
                 <div className="driver-note">This conversation is idle — send a message to continue it.</div>
               )}
-              {!isSub && askQuestions.length > 0 && (
+              {askQuestions.length > 0 && (
                 <AskForm questions={askQuestions} onSubmit={answerAsk} onSkip={skipAsk} />
               )}
               {!isSub && queued.filter((m) => !m.revoked).length > 0 && (
@@ -1246,6 +1267,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             backgroundWork={backgroundWork}
             approvals={openApprovals.length}
             answers={askQuestions.length > 0 ? 1 : 0}
+            childAnswers={childAnswers}
             sessionIdle={!running}
             recovery={needsRecovery}
             // TH-14 · the chrome above the composer already carries this goal's

@@ -543,6 +543,39 @@ describe("ask_user compatibility answer projection", () => {
     await waitFor(() => expect(screen.queryByText("queued…")).toBeNull(), { timeout: 3000 });
     expect(container.querySelector(".bubble.pending")).toBeNull();
   });
+
+  it("keeps a child read-only except for its exact structured answer path", async () => {
+    const childSID = SID + "-sub-call_1_0-a1";
+    arMock.events = vi.fn(async () => []);
+    arMock.inspect = async () => ({
+      spec: "release-reviewer",
+      children: [],
+      progress: [],
+      artifacts: [],
+      waiting: {
+        kind: "input",
+        ask_questions: [{
+          question: "Choose the release channel",
+          options: [{ label: "Stable" }, { label: "Beta" }, { label: "Canary" }],
+        }],
+      },
+    });
+    arMock.answer = vi.fn(async () => ({ status: "accepted" }));
+    arMock.skipAnswer = vi.fn(async () => ({ status: "accepted" }));
+    useStore.setState({
+      currentSid: childSID,
+      sessions: [{ id: SID, title: "parent", status: "waiting:input", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    render(<SessionView sid={childSID} />);
+    await waitFor(() => expect(screen.getByText("Choose the release channel")).toBeTruthy());
+    expect(screen.getByText("Sub-agent · answer requested")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Ask for follow-up changes")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(arMock.answer).toHaveBeenCalledWith(childSID, ["1:2"]));
+  });
 });
 
 // INC-41 RD-B · the Environment rail is a floating card, not a layout column.

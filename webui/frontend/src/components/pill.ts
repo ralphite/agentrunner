@@ -48,6 +48,7 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
   // rather than alarming ("host lost").
   if (s.includes("strand") || s.includes("interrupt")) return { text: "Needs recovery", cls: "stranded" };
   if (s.includes("approval")) return { text: "Needs approval", cls: "appr" };
+  if (s.includes("answer")) return { text: "Needs answer", cls: "appr" };
   if (s.includes("run") || s.includes("busy")) return { text: "Running", cls: "run" };
   // "idle" (a legacy lifecycle mark folded neutral, INC-83) falls through to
   // the Ready bucket below — an idle conversation is just ready for input.

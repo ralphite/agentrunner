@@ -244,14 +244,14 @@ type sessionAttention struct {
 	Answers   int `json:"answers,omitempty"`
 }
 
-func sessionHumanAttention(dir string, events []event.Envelope, folded state.State, includeAnswers bool, seen map[string]bool) sessionAttention {
+func sessionHumanAttention(dir string, events []event.Envelope, folded state.State, seen map[string]bool) sessionAttention {
 	var attention sessionAttention
 	if folded.Waiting != nil {
 		switch folded.Waiting.Kind {
 		case event.WaitApproval:
 			attention.Approvals++
 		case event.WaitInput:
-			if includeAnswers && structuredAskDetail(folded.Waiting.Detail) {
+			if structuredAskDetail(folded.Waiting.Detail) {
 				attention.Answers++
 			}
 		}
@@ -281,8 +281,9 @@ func sessionHumanAttention(dir string, events []event.Envelope, folded state.Sta
 		if err != nil {
 			continue
 		}
-		child := sessionHumanAttention(childDir, childEvents, childState, false, seen)
+		child := sessionHumanAttention(childDir, childEvents, childState, seen)
 		attention.Approvals += child.Approvals
+		attention.Answers += child.Answers
 	}
 	return attention
 }
@@ -297,6 +298,31 @@ func structuredAskDetail(detail json.RawMessage) bool {
 	}
 	return json.Unmarshal(detail, &ask) == nil &&
 		(strings.TrimSpace(ask.Question) != "" || len(ask.Questions) > 0)
+}
+
+// sessionTreeJournalMTime returns the newest durable activity in a root session
+// or any retained descendant. Child journals live only under sub/<call>-aN;
+// walking that structural edge avoids entering a child's worktree or artifacts.
+// A parent with fresh child activity must return to the recent sessions page,
+// otherwise the Web UI's bounded polling can keep its typed attention stale.
+func sessionTreeJournalMTime(dir string) int64 {
+	latest := int64(0)
+	if info, err := os.Stat(filepath.Join(dir, "events.jsonl")); err == nil {
+		latest = info.ModTime().UnixNano()
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "sub"))
+	if err != nil {
+		return latest
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if childLatest := sessionTreeJournalMTime(filepath.Join(dir, "sub", entry.Name())); childLatest > latest {
+			latest = childLatest
+		}
+	}
+	return latest
 }
 
 // sessionsCmd implements `agentrunner sessions [list] [--json] [--limit N]
@@ -375,12 +401,12 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 			continue
 		}
 		mtime := int64(0)
-		// A session directory's own mtime usually stays at creation time while
-		// events.jsonl keeps advancing. Sort by the journal mtime so an old session
-		// with new activity returns to the first page, matching the UI's notion
-		// of recent work.
-		if info, statErr := os.Stat(filepath.Join(root, e.Name(), "events.jsonl")); statErr == nil {
-			mtime = info.ModTime().UnixNano()
+		// Sort by the newest journal in the whole session tree. A child can keep
+		// working or ask for human input after the parent itself goes quiet; that
+		// is new activity on the parent conversation and must return it to the
+		// bounded recent page polled by the Web UI.
+		if treeMTime := sessionTreeJournalMTime(filepath.Join(root, e.Name())); treeMTime > 0 {
+			mtime = treeMTime
 		} else if info, infoErr := e.Info(); infoErr == nil {
 			mtime = info.ModTime().UnixNano()
 		}
@@ -506,7 +532,7 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						}
 					}
 				}
-				if attention := sessionHumanAttention(filepath.Join(root, e.Name()), events, s, true, map[string]bool{e.Name(): true}); attention.Approvals > 0 || attention.Answers > 0 {
+				if attention := sessionHumanAttention(filepath.Join(root, e.Name()), events, s, map[string]bool{e.Name(): true}); attention.Approvals > 0 || attention.Answers > 0 {
 					r.Attention = &attention
 				}
 			}

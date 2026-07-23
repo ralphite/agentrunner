@@ -30,7 +30,7 @@ import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from
 import type { BackgroundWork } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
-import { Subagents, type InspectNode } from "./Subagents";
+import { Subagents, type ChildAnswerRequest, type InspectNode } from "./Subagents";
 
 // backgroundLabel turns a raw `ar ps` row ("spawn_agent" +
 // "running agent=worker prompt=…") into a person-readable line.
@@ -135,8 +135,10 @@ function attentionRows(
   backgroundWork: BackgroundWork[],
   approvals: number,
   answers: number,
+  childAnswers: ChildAnswerRequest[],
   recovery: boolean,
   sessionIdle: boolean,
+  onOpenChild: (sid: string) => void,
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
   if (approvals > 0) {
@@ -151,6 +153,22 @@ function attentionRows(
       <div className="attention-row" key="answer">
         <span className="attention-dot" /> Answer requested
       </div>,
+    );
+  }
+  for (const request of childAnswers) {
+    rows.push(
+      <button
+        type="button"
+        className="attention-row w-full text-left"
+        key={"child-answer-" + request.session}
+        onClick={() => onOpenChild(request.session)}
+      >
+        <span className="attention-dot" />
+        <span className="min-w-0 flex-1 truncate">{request.agent} — answer requested</span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-dim">
+          Open <ArrowSquareIn size={12} />
+        </span>
+      </button>,
     );
   }
   if (recovery) {
@@ -202,6 +220,7 @@ export function SupervisionPanel({
   backgroundWork,
   approvals,
   answers,
+  childAnswers,
   sessionIdle,
   recovery,
   goalEchoed = false,
@@ -225,6 +244,7 @@ export function SupervisionPanel({
   backgroundWork: BackgroundWork[];
   approvals: number;
   answers: number;
+  childAnswers: ChildAnswerRequest[];
   // The conversation itself is idle (not mid-turn): background work running
   // in that state is worth the user's attention (W35).
   sessionIdle: boolean;
@@ -265,7 +285,16 @@ export function SupervisionPanel({
   // carrying real data. So: each of the three renders only when it has
   // something, and when none of them does they collapse into the single dim
   // line below (a resting panel must still read as "fine", not as "broken").
-  const attention = attentionRows(children, backgroundWork, approvals, answers, recovery, sessionIdle);
+  const attention = attentionRows(
+    children,
+    backgroundWork,
+    approvals,
+    answers,
+    childAnswers,
+    recovery,
+    sessionIdle,
+    onOpenChild,
+  );
   const hasGoal = !!goal || !!settledGoal;
   const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
   return (

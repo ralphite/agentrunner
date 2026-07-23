@@ -31,14 +31,15 @@ describe("progressive session hydration", () => {
 
     calls.length = 0;
     sessionsSpy.mockClear();
-    const updated = [row("recent-0", 2), ...recent.slice(1)];
+    const oldParentAttention = { ...row("older-a"), attention: { answers: 1 } };
+    const updated = [oldParentAttention, row("recent-0", 2), ...recent.slice(1, 39)];
     sessionsSpy.mockResolvedValue(updated);
     await useStore.getState().refreshSessions();
     expect(sessionsSpy).toHaveBeenCalledTimes(1);
     expect(sessionsSpy).toHaveBeenCalledWith(40, 0);
     expect(useStore.getState().sessions).toHaveLength(42);
-    expect(useStore.getState().sessions.find((session) => session.id === "older-a")).toBeTruthy();
-    expect(useStore.getState().sessions[0].turns).toBe(2);
+    expect(useStore.getState().sessions.find((session) => session.id === "older-a")?.attention?.answers).toBe(1);
+    expect(useStore.getState().sessions.find((session) => session.id === "recent-0")?.turns).toBe(2);
   });
 
   it("coalesces overlapping interval refreshes into one request chain", async () => {
