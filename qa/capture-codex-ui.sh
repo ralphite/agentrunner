@@ -18,7 +18,8 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                                 [--disclosure-nested VISIBLE_TEXT]
                                 --disclosure-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
-                              --account-menu | --user-menu]
+                              --account-menu | --user-menu |
+                              --settings [--settings-tab general|appearance]]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
@@ -54,6 +55,9 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   captures it, then dismisses it with Escape.
 --account-menu opens the top-left Codex/ChatGPT product switcher.
 --user-menu opens the bottom-left profile/status menu.
+--settings opens the Settings surface through the profile menu, captures it,
+  then restores the current thread with Escape.
+--settings-tab selects a read-only Settings tab before capture (default: general).
 --settle waits for a navigated surface to become visually stable (default: 1 second).
 --restore-query returns to a Codex thread through Cmd+K after a surface capture.
 EOF
@@ -78,6 +82,8 @@ disclosure_validate=""
 restore_query=""
 settle_seconds=1
 output=""
+settings_tab="general"
+settings_tab_set=0
 while (($#)); do
   case "$1" in
     --command-palette)
@@ -240,6 +246,19 @@ while (($#)); do
       mode="user-menu"
       shift
       ;;
+    --settings)
+      mode="settings"
+      shift
+      ;;
+    --settings-tab)
+      if (($# < 2)) || [[ "$2" != "general" && "$2" != "appearance" ]]; then
+        echo "capture-codex-ui: --settings-tab requires general or appearance" >&2
+        exit 2
+      fi
+      settings_tab="$2"
+      settings_tab_set=1
+      shift 2
+      ;;
     --restore-query)
       if (($# < 2)); then
         echo "capture-codex-ui: --restore-query requires text" >&2
@@ -351,6 +370,10 @@ if [[ -n "$control_query" && "$new_chat_control" != "project" && "$new_chat_cont
 fi
 if [[ -n "$restore_query" && -z "$surface" ]]; then
   echo "capture-codex-ui: --restore-query requires --surface" >&2
+  exit 2
+fi
+if ((settings_tab_set)) && [[ "$mode" != "settings" ]]; then
+  echo "capture-codex-ui: --settings-tab requires --settings" >&2
   exit 2
 fi
 
@@ -632,6 +655,8 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
     case "approval-tail":
       inRegion = observation.boundingBox.midX > 0.30 &&
         observation.boundingBox.midY > 0.015 && observation.boundingBox.midY < 0.15
+    case "settings-sidebar":
+      inRegion = observation.boundingBox.midX < 0.30 && observation.boundingBox.midY > 0.10
     default:
       inRegion = false
     }
@@ -1491,6 +1516,38 @@ if [[ "$mode" == "user-menu" ]]; then
     "$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 20 }')"
   transient_open=1
   sleep "$settle_seconds"
+fi
+
+if [[ "$mode" == "settings" ]]; then
+  send_click "$(awk -v x="$window_x" 'BEGIN { print x + 30 }')" \
+    "$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 20 }')"
+  transient_open=1
+  sleep 1
+  ocr_capture=$(mktemp -t codex-settings-menu)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  settings_point=$(sidebar_text_center "$ocr_capture" "Settings")
+  IFS=$'\t' read -r settings_x settings_y <<<"$settings_point"
+  send_click "$settings_x" "$settings_y"
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-settings-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    settings_debug="${output%.*}-validation-debug.png"
+    cp -- "$ocr_capture" "$settings_debug"
+    echo "capture-codex-ui: settings validation frame saved to $settings_debug" >&2
+  fi
+  window_text_center "$ocr_capture" "General" "main" >/dev/null
+  if [[ "$settings_tab" == "appearance" ]]; then
+    appearance_point=$(window_text_center "$ocr_capture" "Appearance" "settings-sidebar")
+    IFS=$'\t' read -r appearance_x appearance_y <<<"$appearance_point"
+    send_click "$appearance_x" "$appearance_y"
+    sleep "$settle_seconds"
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-settings-tab-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    window_text_center "$ocr_capture" "Appearance" "main" >/dev/null
+  fi
 fi
 
 if ! screencapture -x -l "$window_id" "$output"; then

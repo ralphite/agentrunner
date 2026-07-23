@@ -51,3 +51,10 @@ describe("Environment layout contract", () => {
     expect(rule).toContain("max-height: calc(100% - 72px);");
   });
 });
+
+describe("Settings focus return", () => {
+  it("returns a sidebar-menu launch to the persistent More options trigger", () => {
+    expect(src).toContain("active.closest('[role=\"menu\"]')");
+    expect(src).toContain("button[aria-label=\"More options\"]");
+  });
+});

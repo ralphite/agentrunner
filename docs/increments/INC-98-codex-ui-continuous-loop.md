@@ -253,6 +253,21 @@ INC-98 将该方法固化为持续循环：
   漏掉或合并词间空格；driver 仅在正常识别 miss 时 2x retry，并只对 folded 长 query（>=6）
   接受 joined-boundary match，短 query、region constraint 与 unknown state 仍 fail-closed；debug
   初始/validation frame 只在显式 env 下保存。无 backend/schema/invariant 变更。
+- **98.3n Settings shell design note**：通过真实 profile menu 打开 Codex Settings，补 General /
+  Appearance 双 tab 与 same-viewport 合并图；driver 新增语义 OCR `--settings` / read-only
+  `--settings-tab`，capture 后 Escape 回原 thread，不更改任何 toggle。Codex 的通用入口稳定落
+  General；AgentRunner 旧 `Settings` 组件默认 `initialSection="appearance"`，使普通 Settings
+  入口直接跳主题页，与 rail 顺序、页面名和用户预期不符。最小修订只把无定向入口 default 改为
+  General；从专用 deep link 传入 explicit initial section 的能力不变，Appearance/其已持久化设置
+  也不迁移。General 保留 truthful daemon status/reset，Codex 的 account/billing/pets/browser/
+  hosted integrations 属 INTENTIONAL 或既有 G43 等边界，不画假 row 填满页面。Desktop Done、
+  Escape 与 mobile Back 均须回原 opener/focus；本批只在双侧 General/Appearance 与 close contract
+  全部真测后升级 ST-01/ST-04，不用静态截图替代交互。真浏览器首次 Done 反证 activeElement 落
+  `body`：Settings 从 sidebar menuitem 打开时保存的是即将 unmount 的 menu row。修订只在 opener
+  位于 menu 时把 return target 提升到同一 `More options` trigger；⌘,、command palette、mobile
+  sidebar 的既有 return target/fallback 不变。shared production 实测 Search autofocus、General
+  `aria-current=true`，Done/Escape 均关闭 dialog 并回 `More options`；同 viewport 合并图通过，
+  browser logs 为空。ST-01 升 PASS；ST-04 因 mobile Back 的当前双侧证据未齐继续 UNTESTED。
 
 ## Spec delta
 

@@ -17,6 +17,8 @@ done
 [[ "$help" == *"--keyboard-context-menu"* ]]
 [[ "$help" == *"--account-menu"* ]]
 [[ "$help" == *"--user-menu"* ]]
+[[ "$help" == *"--settings"* ]]
+[[ "$help" == *"--settings-tab"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-send"* ]]
@@ -152,6 +154,12 @@ if $driver --restore-query QA >"$tmpdir/restore.out" 2>"$tmpdir/restore.err"; th
 fi
 grep -Fq -- '--restore-query requires --surface' "$tmpdir/restore.err"
 
+if $driver --settings-tab appearance >"$tmpdir/settings-tab.out" 2>"$tmpdir/settings-tab.err"; then
+  echo "capture driver accepted a Settings tab without Settings mode" >&2
+  exit 1
+fi
+grep -Fq -- '--settings-tab requires --settings' "$tmpdir/settings-tab.err"
+
 # Query entry must be reversible: the driver may borrow the clipboard to paste
 # into Electron, but it has to preserve every original pasteboard item/type.
 grep -Fq 'pasteboard.pasteboardItems' "$driver"
@@ -168,6 +176,7 @@ grep -Fq 'case "popover-low"' "$driver"
 grep -Fq 'case "thread"' "$driver"
 grep -Fq 'case "thread-tail"' "$driver"
 grep -Fq 'case "approval-tail"' "$driver"
+grep -Fq 'case "settings-sidebar"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
@@ -231,6 +240,7 @@ grep -Fq 'disclosure-nested-debug.png' "$driver"
 grep -Fq 'disclosure-validation-debug.png' "$driver"
 grep -Fq 'if matches.isEmpty, let doubledImage = doubled(image)' "$driver"
 grep -Fq 'foldedQuery.count >= 6 && foldedCandidate.contains(foldedQuery)' "$driver"
+grep -Fq 'codex-settings-validate' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.

@@ -43,7 +43,7 @@ const SECTIONS: SectionDef[] = [
   { id: "archived", label: "Archived sessions", group: "Archived", icon: Archive, keywords: "sessions conversations history project search unarchive restore" },
 ];
 
-export function Settings({ onClose, initialSection = "appearance" }: { onClose: () => void; initialSection?: SettingsSection }) {
+export function Settings({ onClose, initialSection = "general" }: { onClose: () => void; initialSection?: SettingsSection }) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [query, setQuery] = useState("");
   const [rev, setRev] = useState(0); // bump to remount panels after a reset

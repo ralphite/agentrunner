@@ -6875,3 +6875,20 @@ AgentRunner `05` 合并成 `06` 后裁决：我方长输出可审计能力更强
 长度 >=6 的 query 做去空白/标点 folded contains，short label 与 region 仍 fail-closed。显式
 debug frame、live fallback `07`、Codex collapsed restore `08`、driver contract/shellcheck 与空
 browser logs 通过。Codex thread、AgentRunner session 与全部证据永久保留。
+
+---
+
+## 2026-07-22 · INC-98.3n Settings 默认入口与 focus return
+
+经 Codex profile menu 真机取证，Settings 无定向入口稳定打开 General；General/Appearance 都以
+只读切换抓取并用 Escape 恢复原 thread。AgentRunner 旧入口默认 Appearance，与 rail 顺序和
+Codex shell 不同；改为默认 General，explicit initial section 与持久化 theme 不变。首次 shared
+browser Done 测试还证明 opener 保存了将卸载的 menuitem，关闭后焦点落 `BODY`；当 opener 位于
+menu 时改存持久 `More options` trigger，修后 Search autofocus，Done/Escape 都精确归还焦点。
+
+Codex `02` 与 AgentRunner 修后 `09` 合并为同逻辑 1952×1465 `10` 后验图；本地 runtime 不伪造
+Codex account/billing/pets/hosted integration 设置。dirty deployment `3587ebac-dirty-201242`
+health `daemonUp/versionMatch=true`、browser logs=`[]`。ST-01 升 PASS，矩阵为 `PASS 22 / GAP 9 /
+INTENTIONAL 4 / BLOCKED 1 / UNTESTED 43`；ST-04 等 mobile Back 当前双侧证据，继续 UNTESTED。
+frontend 68 files/711 tests、production build、webui Go vet/test、capture contract/shellcheck 与
+`./scripts/check.sh` 全绿；全部 QA 数据永久保留。

@@ -56,7 +56,9 @@ export function App() {
 
   const openSettings = () => {
     const active = document.activeElement;
-    settingsReturnFocusRef.current = active instanceof HTMLElement ? active : null;
+    settingsReturnFocusRef.current = active instanceof HTMLElement && active.closest('[role="menu"]')
+      ? document.querySelector<HTMLElement>('button[aria-label="More options"]')
+      : active instanceof HTMLElement ? active : null;
     if (isMobile) setMobileSidebarOpen(false);
     setSettingsOpen(true);
   };

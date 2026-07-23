@@ -1909,6 +1909,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | same-state verdict | Codex `04` 与 AgentRunner 同逻辑 1952×1465 `05` 合并为 `06` 后判定；两侧均不让长 stdout 撑坏正文，我方额外保留完整 inspect/Copy，属能力优势，不删功能向下对齐 |
 | capture reliability | 非 Retina/低对比 OCR 正常 pass miss 后才 2x retry；仅 folded query 长度 >=6 时容忍 joined word boundary/单个 stray glyph，short query 与 region constraint 仍 fail-closed；显式 debug frame、live `07`、collapsed restore `08`、contract test/shellcheck 均通过 |
 
+| 98.3n 动作 | 硬断言 |
+|---|---|
+| Codex Settings | 从真实 profile menu 进入，默认 General；只读切换 Appearance，capture 后 Escape 恢复原 thread。`02/04` 为 accepted，validation-debug 只作 OCR 校准 |
+| default / visual | AgentRunner 无定向 Settings 必须默认 General，explicit `initialSection` 不变；`10` 把 Codex General 与修后 AgentRunner `09` 置于同一 1952×1465 light comparison 后验图 |
+| open / close focus | sidebar menu 打开后 Search settings autofocus；修前 Done 反证 activeElement=`BODY`，修后 Done/Escape 都关闭 dialog 并将 focus 精确还给持久 `button[aria-label="More options"]` |
+| capability boundary | 我方只展示 local runtime 的 daemon status/reset、appearance 等真实设置；Codex account/billing/pets/browser/hosted integrations 不画假 row，继续按 INTENTIONAL/既有 G43 裁决 |
+| Gate B | shared production dirty deployment `3587ebac-dirty-201242` health `daemonUp/versionMatch=true`；browser logs=`[]`；frontend 68 files/711 tests、production build、webui Go vet/test、capture contract/shellcheck 与 `./scripts/check.sh` 全绿；session/workspace/journal 不 close/delete/cleanup |
+
 | 98.3a 动作 | 硬断言 |
 |---|---|
 | Thread 层级与 disclosure | shared session `20260722-223026-codexverify-reply-exactly-veri-19413427829bd032` 默认只见 user / Worked / final answer；Worked 展开后见 `$ sleep 8`，tool 再展开后见完整 Shell command/result/Success；折叠/展开截图与 DOM 均在案 |
@@ -2025,3 +2033,8 @@ driver 校准与 accepted Markdown reference、AgentRunner shared 真 Gemini ses
 修后 KaTeX + Mermaid theme hot-switch、两张 combined comparison、DOM、bundle、health/logs/gate。
 `01..10` 为 access/OCR/settle 校准或未发送拒收图；`12..17` 为裁决证据。Codex thread 与
 AgentRunner session/worktree/journal 全部保留；不 close、不删除、不清理。
+
+**98.3n 证据**：`qa/runs/2026-07-22-QA88-98.3n-settings/` 保存 Codex profile menu、
+General/Appearance、AgentRunner 修前 Appearance/default General/焦点修复后 General、三张同 viewport
+comparison、DOM focus contract、health 与 browser logs。`validation-debug` 只作 OCR 校准；其余
+`01..13` 按 `EVIDENCE.md` 裁决。没有更改 Codex toggle，没有 close/delete/cleanup 任何测试数据。

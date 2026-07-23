@@ -6,6 +6,13 @@ import { Settings } from "./Settings";
 afterEach(cleanup);
 
 describe("Settings search", () => {
+  it("opens the undirected Settings entry on General", () => {
+    render(<Settings onClose={() => {}} />);
+
+    expect(screen.getByRole("heading", { name: "General" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("true");
+  });
+
   it("shows a complete section when its name matches", () => {
     render(<Settings onClose={() => {}} />);
 
