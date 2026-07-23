@@ -372,7 +372,7 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | CH-03 | large/generated/binary/unavailable baseline disclosure | UNTESTED | 2026-07-22 `QA88-98.4g-diff-states/05..15`：真测 baseline 后新建 468KiB text、Mach-O binary 与 node_modules；发现并修复 Last Turn 全量内联 generated/large（319KiB/+7085）及前端再次 fetch/误标 binary 两层 bug，修后 1.7KiB/+10、large/binary name-only 且 zero-fetch、generated hidden=1；900×700 无横向溢出且 browser logs 空。Codex 与 unavailable baseline 同态仍缺 |
 | CH-04 | file/hunk expand-collapse、scroll、syntax/CJK/wrap | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：我方 filter→file jump→Collapse/Expand 与 focus return 真验；Codex 同态、hunk/CJK/wrap 尚未齐 |
 | CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell` + `98.4f-changes-compact`：双侧 1280 split；900 同图显示 Codex 三栏挤压、我方 intentional overlay；我方 900/390 containment 与 focus return 通过，Codex close focus 仍未取证 |
-| CH-06 | Commit or push menu/validation/progress/error/success | UNTESTED | 不执行真实 push；可用专用 shared QA repo 做 commit |
+| CH-06 | Commit or push menu/validation/progress/error/success | UNTESTED | 2026-07-22 `QA88-98.4h-commit-push/01..10`：retained shared repos + local bare remote 真验首次 Commit & push/set-upstream 成功、clean-tree push、no-remote、detached HEAD、non-fast-forward；修复 clean tree 后 Push 不可达、rejected 仅报 generic error、跨 session stale toast 三项，900×700 无溢出且 browser logs 空。未触外部 remote；Codex 同态尚缺 |
 | CH-07 | Apply to project/Remove worktree/dirty/conflict guards | UNTESTED | AgentRunner 特有强能力，需验证而非强行克隆 Codex |
 
 ### 7.5 Scheduled、Settings 与持久化

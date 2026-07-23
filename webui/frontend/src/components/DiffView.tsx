@@ -23,7 +23,7 @@ import {
   FolderDashed,
   ClockCounterClockwise,
 } from "@phosphor-icons/react";
-import { AR, isBinaryPath } from "../api";
+import { AR, isBinaryPath, pushErrorMessage } from "../api";
 import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
@@ -520,7 +520,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       load();
       bumpWorkspaceEpoch();
     } catch (e: any) {
-      toast(e.message, "error", e.details);
+      toast(pushErrorMessage(e), "error", e.details);
     } finally {
       setBusy(false);
     }
@@ -536,7 +536,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       load();
       bumpWorkspaceEpoch();
     } catch (e: any) {
-      toast(e.message, "error", e.details);
+      toast(pushErrorMessage(e), "error", e.details);
     } finally {
       setBusy(false);
     }
@@ -1192,20 +1192,19 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
                 "sm diff-commit-btn" + (open ? " active" : "") + (barTight ? " diff-commit-compact" : "")
               }
               onClick={toggle}
-              // Nothing changed → nothing to stage. The button stays put and
-              // says so; the turn's empty state gets the honest reason, since a
-              // clean *turn* does not mean a clean *working tree* — the earlier
-              // changes are one scope away, and the tooltip points there rather
-              // than leaving a dead control unexplained.
-              disabled={busy || empty}
+              // A clean tree has nothing to commit, but it can still have local
+              // commits to push. Keep the group reachable and disable only its
+              // two commit rows; disabling this trigger made the resident Push
+              // action impossible exactly after a local-only commit.
+              disabled={busy || !data?.isRepo}
               aria-label="Commit or push"
               aria-haspopup="menu"
               aria-expanded={open}
               title={
-                empty
-                  ? scope === "last-turn"
-                    ? "Nothing changed this turn — switch to Working tree to commit earlier changes"
-                    : "No changes to commit"
+                !data?.isRepo
+                  ? "This workspace is not a Git repository"
+                  : empty
+                    ? "No workspace changes to commit — you can still push existing commits"
                   : "Commit or push the workspace changes"
               }
             >
@@ -1224,6 +1223,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
               <PopItem
                 title="Commit"
                 desc="git add -A && git commit locally (no push)"
+                disabled={empty}
                 onClick={() => {
                   close();
                   commit();
@@ -1232,6 +1232,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
               <PopItem
                 title="Commit &amp; push"
                 desc="Commit locally, then push to the upstream branch"
+                disabled={empty}
                 onClick={() => {
                   close();
                   commitAndPush();

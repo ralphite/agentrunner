@@ -18,7 +18,8 @@ export class ApiError extends Error {
   }
 }
 
-// api wraps the arwebui JSON contract. A non-2xx carries {error, stderr, code?};
+// api wraps the arwebui JSON contract. A non-2xx carries
+// {error, stderr, code? | kind?};
 // we surface all of it so the cockpit shows the real ar failure (never swallow it).
 async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch("/api" + path, opts);
@@ -37,11 +38,33 @@ async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
     throw new ApiError(
       body.error || r.statusText,
       r.status,
-      typeof body.code === "string" && body.code ? body.code : undefined,
+      typeof body.code === "string" && body.code
+        ? body.code
+        : typeof body.kind === "string" && body.kind
+          ? body.kind
+          : undefined,
       typeof body.stderr === "string" && body.stderr ? body.stderr : undefined,
     );
   }
   return body as T;
+}
+
+// Git push failures are already classified by the server. Keep raw git prose in
+// Details, but make the first line say what happened and what the user can do.
+export function pushErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) {
+    return error instanceof Error ? error.message : "git push failed";
+  }
+  switch (error.code) {
+    case "rejected":
+      return "Push rejected — the remote has newer commits. Fetch or rebase, resolve conflicts, then push again.";
+    case "auth":
+      return "Push authentication failed — check this remote’s credentials and permissions.";
+    case "no-upstream":
+      return "This branch has no upstream — set one before pushing.";
+    default:
+      return error.message;
+  }
 }
 
 const post = <T = any>(path: string, body?: any) =>

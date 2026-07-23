@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { diffPath, sessionImageURL, uploadURL } from "./api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AR, ApiError, diffPath, pushErrorMessage, sessionImageURL, uploadURL } from "./api";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("diffPath", () => {
   it("keeps Working tree and Last turn as explicit backend scopes", () => {
@@ -23,5 +27,28 @@ describe("RT-6 — image URLs", () => {
 
   it("still maps a local upload path to the uploads route", () => {
     expect(uploadURL("/tmp/runtime/uploads/171-shot.png")).toBe("/api/uploads/171-shot.png");
+  });
+});
+
+describe("structured push failures", () => {
+  it("preserves the backend kind and turns a rejection into actionable copy", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        error: "git push failed",
+        kind: "rejected",
+        stderr: "! [rejected] main -> main (fetch first)",
+      }), { status: 502, headers: { "Content-Type": "application/json" } }),
+    ));
+
+    const error = await AR.push("session-1").catch((value) => value);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("rejected");
+    expect(error.details).toContain("fetch first");
+    expect(pushErrorMessage(error)).toContain("remote has newer commits");
+  });
+
+  it("keeps the backend's already-specific message for detached/no-remote errors", () => {
+    const error = new ApiError("the workspace is on a detached HEAD", 409, "detached");
+    expect(pushErrorMessage(error)).toBe(error.message);
   });
 });

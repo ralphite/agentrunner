@@ -32,6 +32,7 @@ vi.mock("../api", async () => ({
 }));
 
 import { DiffView } from "./DiffView";
+import { ApiError } from "../api";
 import { useStore } from "../store";
 import type { DiffResp, DiffScope } from "../types";
 
@@ -59,7 +60,7 @@ const baseDiff = (over: Partial<DiffResp> = {}): DiffResp => ({
 // own JSON, which carries scope/available/diff — and NOT isRepo/worktree. A
 // button gated on any of those would be dead on the default scope.
 const lastTurnResp = (over: Partial<DiffResp> = {}): DiffResp =>
-  ({ scope: "last-turn", available: true, workspace: "/tmp/ws", known: true, diff: editDiff, untracked: [], ...over }) as DiffResp;
+  ({ scope: "last-turn", available: true, workspace: "/tmp/ws", known: true, isRepo: true, diff: editDiff, untracked: [], ...over }) as DiffResp;
 
 // The bar measures itself with a ResizeObserver, which jsdom does not implement.
 // Stub it, and give the bar a real width to measure: the component reads
@@ -167,18 +168,44 @@ describe("Commit or push is the review's resident main action (INC-41 DIFF-CP)",
     await waitFor(() => expect(useStore.getState().prompt?.title).toBe("Commit changes"));
   });
 
-  it("stays put — disabled, not gone — when there is nothing to commit", async () => {
+  it("stays useful on a clean tree: commit is disabled but Push remains reachable", async () => {
+    const push = vi.fn(() => Promise.resolve({ branch: "main" }));
+    arMock.push = push;
     arMock.diff = (_sid: string, scope: DiffScope) =>
       Promise.resolve(scope === "last-turn" ? lastTurnResp({ diff: "" }) : baseDiff({ diff: "" }));
     render(<DiffView sid="cp5" />);
 
     await waitFor(() => expect(screen.getByText("No changes this turn")).toBeTruthy());
-    // The golden greys this button out; it does not remove it. A control that
-    // disappears teaches the user it was never there.
     const btn = commitBtn() as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
-    // …and says why, rather than leaving a dead control unexplained.
-    expect(btn.title).toContain("switch to Working tree");
+    expect(btn.disabled).toBe(false);
+    expect(btn.title).toContain("still push existing commits");
+
+    fireEvent.click(btn);
+    expect((screen.getByText("Commit").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText("Commit & push").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    const pushItem = screen.getByText("Push").closest("button") as HTMLButtonElement;
+    expect(pushItem.disabled).toBe(false);
+    fireEvent.click(pushItem);
+    await waitFor(() => expect(push).toHaveBeenCalledWith("cp5"));
+  });
+
+  it("shows an actionable non-fast-forward sentence while retaining raw details", async () => {
+    arMock.diff = (_sid: string, scope: DiffScope) =>
+      Promise.resolve(scope === "last-turn" ? lastTurnResp() : baseDiff());
+    arMock.push = () => Promise.reject(
+      new ApiError("git push failed", 502, "rejected", "! [rejected] main -> main (fetch first)"),
+    );
+    render(<DiffView sid="cp-rejected" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    fireEvent.click(commitBtn());
+    fireEvent.click(screen.getByText("Push"));
+    await waitFor(() => {
+      const toasts = useStore.getState().toasts;
+      const toast = toasts[toasts.length - 1];
+      expect(toast?.text).toContain("remote has newer commits");
+      expect(toast?.details).toContain("fetch first");
+    });
   });
 
   it("is not duplicated in the … overflow", async () => {

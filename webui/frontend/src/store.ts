@@ -549,7 +549,7 @@ export const useStore = create<AppState>((set, get) => ({
     get().select(order[next]);
   },
   select: (sid) => {
-    set({ currentSid: sid, currentRunId: null, currentPage: "home" });
+    set({ currentSid: sid, currentRunId: null, currentPage: "home", toasts: [] });
     if (sid) {
       location.hash = sid;
       get().markRead(sid); // opening a session clears its unread flag
@@ -558,11 +558,11 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   selectRun: (rid) => {
-    set({ currentRunId: rid, currentSid: null, currentPage: "scheduled" });
+    set({ currentRunId: rid, currentSid: null, currentPage: "scheduled", toasts: [] });
     location.hash = rid ? "run:" + rid : "";
   },
   showPage: (page) => {
-    set({ currentSid: null, currentRunId: null, currentPage: page });
+    set({ currentSid: null, currentRunId: null, currentPage: page, toasts: [] });
     // "home" is the bare route (no hash); Scheduled routes to a hash that
     // matches its key so deep links + back/forward work (#scheduled).
     location.hash = page === "home" ? "" : page;

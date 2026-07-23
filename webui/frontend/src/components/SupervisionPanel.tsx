@@ -19,7 +19,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { AR } from "../api";
+import { AR, pushErrorMessage } from "../api";
 import { useStore } from "../store";
 import { copyText } from "../clipboard";
 import { loadGitPrefs } from "../theme";
@@ -663,7 +663,7 @@ function EnvironmentSection({
       load();
       bumpWorkspaceEpoch();
     } catch (e: any) {
-      toast(e.message);
+      toast(pushErrorMessage(e), "error", e.details);
     } finally {
       setBusy(false);
     }
@@ -687,7 +687,7 @@ function EnvironmentSection({
       load();
       bumpWorkspaceEpoch();
     } catch (e: any) {
-      toast(e.message);
+      toast(pushErrorMessage(e), "error", e.details);
     } finally {
       setBusy(false);
     }

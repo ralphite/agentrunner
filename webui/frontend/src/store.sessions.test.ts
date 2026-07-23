@@ -8,7 +8,8 @@ const row = (id: string, turns = 1): Session => ({ id, status: "completed", turn
 describe("progressive session hydration", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    useStore.setState({ sessions: [], sessionsReady: false, sessionsLoadingOlder: false, unread: [] });
+    vi.stubGlobal("location", { hash: "" });
+    useStore.setState({ sessions: [], sessionsReady: false, sessionsLoadingOlder: false, unread: [], toasts: [] });
   });
 
   it("loads a recent page first, appends history, and preserves history on later refresh", async () => {
@@ -56,5 +57,21 @@ describe("progressive session hydration", () => {
   it("deduplicates rows while preserving head order", () => {
     expect(mergeSessionRows([row("b"), row("a")], [row("a"), row("old")]).map((session) => session.id))
       .toEqual(["b", "a", "old"]);
+  });
+
+  it("clears page-scoped notifications when navigation changes context", () => {
+    useStore.getState().toast("failure from previous session");
+    expect(useStore.getState().toasts).toHaveLength(1);
+
+    useStore.getState().select("next-session");
+    expect(useStore.getState().toasts).toEqual([]);
+
+    useStore.getState().toast("failure from previous run");
+    useStore.getState().selectRun("next-run");
+    expect(useStore.getState().toasts).toEqual([]);
+
+    useStore.getState().toast("failure from previous page");
+    useStore.getState().showPage("scheduled");
+    expect(useStore.getState().toasts).toEqual([]);
   });
 });

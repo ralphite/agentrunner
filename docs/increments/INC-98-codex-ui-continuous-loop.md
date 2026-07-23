@@ -443,6 +443,18 @@ INC-98 将该方法固化为持续循环：
   large/binary 分别显示真实 badge 与原因、不伪造行数。字段经 `ar diff --json` 原样传到
   Web UI；老 binary 缺字段时仍兼容空 map/array。tracked large/binary 仍由 Git 原生 patch
   语义呈现，本批不把“新增文件降噪”扩大成任意 tracked diff 截断。
+- **98.4h commit/push complex design note**：用 retained shared sessions、四个独立
+  workspace repo 与仅本机可见的 bare remote 跑完整 Git 状态机，不接触产品 repo 或外部
+  remote：首次 push 无 upstream 时自动 `--set-upstream`、clean tree push、no remote、
+  detached HEAD、peer advance 后 non-fast-forward rejection。真实 900×700 UI 暴露三个
+  不是 happy-path 单测能发现的闭环断点：① Commit 后 tree clean，整个 `Commit or push`
+  trigger 被禁用，菜单声称存在的 “Push existing commits” 实际不可达；② backend 已返回
+  `kind=rejected`，API client 却只读取 `code`，toast 退化成无行动信息的 `git push failed`；
+  ③ error toast 持久化是对的，但切换 session/run/page 不清理，旧 repo 的失败会与新 repo
+  的成功并排，制造错误归属。现改为 clean tree 只禁 Commit/Commit & push、Push 常可达；
+  API 保留 `kind` 并把 rejected/auth/no-upstream 映成可行动首句，raw stderr 仍只进
+  Details；导航边界清掉 page-scoped toast。成功、失败、隔离均在同批真实共享数据复验，
+  所有 repo/session/journal 保留。
 
 ## Spec delta
 
