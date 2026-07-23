@@ -57,6 +57,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/events", s.handleEvents)
 	mux.HandleFunc("GET /api/sessions/{sid}/state", s.handleState)
 	mux.HandleFunc("GET /api/sessions/{sid}/inspect", s.handleInspect)
+	mux.HandleFunc("GET /api/sessions/{sid}/schedule", s.handleScheduleDetail)
 	mux.HandleFunc("GET /api/sessions/{sid}/artifact", s.handleArtifact)
 	mux.HandleFunc("GET /api/sessions/{sid}/ps", s.handlePS)
 	mux.HandleFunc("GET /api/sessions/{sid}/barriers", s.handleBarriers)
@@ -411,6 +412,8 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		NextRunAt          string `json:"nextRunAt,omitempty"`
 		ScheduleControlCLI bool   `json:"schedule_control,omitempty"`
 		ScheduleControl    bool   `json:"scheduleControl,omitempty"`
+		ScheduleDetailCLI  bool   `json:"schedule_detail,omitempty"`
+		ScheduleDetail     bool   `json:"scheduleDetail,omitempty"`
 		// UpdatedAtCLI receives the journal mtime from the CLI; the frontend
 		// contract uses camelCase below, just like nextRunAt.
 		UpdatedAtCLI string `json:"updated_at,omitempty"`
@@ -470,6 +473,7 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		for i := range rows {
 			rows[i].NextRunAt, rows[i].NextRunAtCLI = rows[i].NextRunAtCLI, ""
 			rows[i].ScheduleControl, rows[i].ScheduleControlCLI = rows[i].ScheduleControlCLI, false
+			rows[i].ScheduleDetail, rows[i].ScheduleDetailCLI = rows[i].ScheduleDetailCLI, false
 			rows[i].UpdatedAt, rows[i].UpdatedAtCLI = rows[i].UpdatedAtCLI, ""
 		}
 		writeJSON(w, http.StatusOK, rows)
@@ -1397,6 +1401,94 @@ func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar resume", func(id string) []string { return []string{"resume", id} })(w, r)
+}
+
+type scheduleDetailCLI struct {
+	Kind                 string `json:"kind"`
+	SessionID            string `json:"session_id"`
+	Name                 string `json:"name,omitempty"`
+	Status               string `json:"status"`
+	Prompt               string `json:"prompt,omitempty"`
+	Workspace            string `json:"workspace,omitempty"`
+	Agent                string `json:"agent,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model,omitempty"`
+	ThinkingEnabled      bool   `json:"thinking_enabled,omitempty"`
+	ThinkingBudgetTokens int    `json:"thinking_budget_tokens,omitempty"`
+	Schedule             string `json:"schedule"`
+	Cadence              string `json:"cadence"`
+	Interval             string `json:"interval,omitempty"`
+	Cron                 string `json:"cron,omitempty"`
+	PaceMin              string `json:"pace_min,omitempty"`
+	PaceMax              string `json:"pace_max,omitempty"`
+	Overlap              string `json:"overlap,omitempty"`
+	Iterations           int    `json:"iterations"`
+	MaxIterations        int    `json:"max_iterations,omitempty"`
+	NextRunAt            string `json:"next_run_at,omitempty"`
+	ScheduleControl      bool   `json:"schedule_control,omitempty"`
+}
+
+type scheduleDetailResponse struct {
+	Kind                 string `json:"kind"`
+	SessionID            string `json:"sessionId"`
+	Name                 string `json:"name,omitempty"`
+	Status               string `json:"status"`
+	Prompt               string `json:"prompt,omitempty"`
+	Workspace            string `json:"workspace,omitempty"`
+	Agent                string `json:"agent,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model,omitempty"`
+	ThinkingEnabled      bool   `json:"thinkingEnabled,omitempty"`
+	ThinkingBudgetTokens int    `json:"thinkingBudgetTokens,omitempty"`
+	Schedule             string `json:"schedule"`
+	Cadence              string `json:"cadence"`
+	Interval             string `json:"interval,omitempty"`
+	Cron                 string `json:"cron,omitempty"`
+	PaceMin              string `json:"paceMin,omitempty"`
+	PaceMax              string `json:"paceMax,omitempty"`
+	Overlap              string `json:"overlap,omitempty"`
+	Iterations           int    `json:"iterations"`
+	MaxIterations        int    `json:"maxIterations,omitempty"`
+	NextRunAt            string `json:"nextRunAt,omitempty"`
+	ScheduleControl      bool   `json:"scheduleControl,omitempty"`
+}
+
+func (s *server) handleScheduleDetail(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	res := s.runAR(r.Context(), 15*time.Second, "schedule", id, "status", "--json")
+	if res.Err != nil {
+		arFail(w, "ar schedule status", res)
+		return
+	}
+	var cli scheduleDetailCLI
+	if err := json.Unmarshal([]byte(res.Stdout), &cli); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error": "schedule detail returned invalid data",
+			"code":  "invalid_schedule_detail",
+		})
+		return
+	}
+	if (cli.Kind != "series" && cli.Kind != "session") || cli.SessionID == "" ||
+		cli.Status == "" || cli.Schedule == "" || cli.Cadence == "" {
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error": "schedule detail returned incomplete data",
+			"code":  "invalid_schedule_detail",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, scheduleDetailResponse{
+		Kind: cli.Kind, SessionID: cli.SessionID, Name: cli.Name,
+		Status: cli.Status, Prompt: cli.Prompt, Workspace: cli.Workspace,
+		Agent: cli.Agent, Provider: cli.Provider, Model: cli.Model,
+		ThinkingEnabled: cli.ThinkingEnabled, ThinkingBudgetTokens: cli.ThinkingBudgetTokens,
+		Schedule: cli.Schedule, Cadence: cli.Cadence,
+		Interval: cli.Interval, Cron: cli.Cron, PaceMin: cli.PaceMin, PaceMax: cli.PaceMax,
+		Overlap: cli.Overlap, Iterations: cli.Iterations, MaxIterations: cli.MaxIterations,
+		NextRunAt: cli.NextRunAt, ScheduleControl: cli.ScheduleControl,
+	})
 }
 
 func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {

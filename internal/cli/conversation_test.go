@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/runtime"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -381,6 +383,129 @@ func TestScheduleStatusProjectsPausedMergedSeries(t *testing.T) {
 	if got := out.String(); !strings.Contains(got, "cadence   Every 30m") ||
 		!strings.Contains(got, "status    paused") {
 		t.Fatalf("status output = %q", got)
+	}
+}
+
+func TestScheduleStatusJSONWhitelistsCanonicalSeriesDetail(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	const id = "series-detail"
+	dir, err := runtime.SessionDir(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := driver.DriverSpec{
+		Name: "Nightly dependency audit", Schedule: driver.ScheduleInterval,
+		Interval: "30m", Overlap: driver.OverlapCoalesce,
+		Prompt: "Audit dependencies and report actionable changes.",
+		Agent: &agent.AgentSpec{
+			Name: "auditor",
+			Model: agent.ModelSpec{
+				Provider: "gemini", ID: "gemini-2.5-pro",
+				Thinking: agent.ThinkingSpec{Enabled: true, BudgetTokens: 4096},
+			},
+			SystemPrompt: "SECRET_SYSTEM_PROMPT_MUST_NOT_LEAK",
+			Tools:        []string{"bash", "read_file"},
+		},
+	}
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeSessionStarted, &event.SessionStarted{
+		SpecName: spec.Name, Spec: raw, WorkspaceRoot: "/repo/product"})
+	appendDriveEv(t, es, event.TypeSeriesStarted, &event.SeriesStarted{
+		SeriesID: id, Kind: spec.Schedule, MaxIterations: 12,
+		Overlap: spec.Overlap, Source: "user"})
+	appendDriveEv(t, es, event.TypeSeriesPaused, &event.SeriesPaused{
+		SeriesID: id, Source: "user"})
+	_ = es.Close()
+
+	var out, errOut bytes.Buffer
+	if code := scheduleCmd([]string{id, "status", "--json"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("status --json exit=%d stderr=%s", code, errOut.String())
+	}
+	var got scheduleStatusReport
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode %q: %v", out.String(), err)
+	}
+	if got.Kind != "series" || got.SessionID != id || got.Status != "paused" ||
+		got.Prompt != spec.Prompt || got.Workspace != "/repo/product" ||
+		got.Agent != "auditor" || got.Provider != "gemini" ||
+		got.Model != "gemini-2.5-pro" || !got.ThinkingEnabled ||
+		got.ThinkingBudgetTokens != 4096 || got.Cadence != "Every 30m" ||
+		got.Overlap != driver.OverlapCoalesce || got.Iterations != 0 ||
+		got.MaxIterations != 12 || got.NextRunAt != "" || !got.ScheduleControl {
+		t.Fatalf("detail = %+v", got)
+	}
+	if text := out.String(); strings.Contains(text, "SECRET_SYSTEM_PROMPT") ||
+		strings.Contains(text, `"Tools"`) || strings.Contains(text, "read_file") {
+		t.Fatalf("unsafe raw spec escaped projection: %s", text)
+	}
+}
+
+func TestScheduleStatusJSONProjectsTerminalAndLegacySchedules(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	const terminalID = "series-detail-terminal"
+	writeSeriesJournal(t, terminalID, driver.ScheduleInterval, true)
+	var terminalOut, terminalErr bytes.Buffer
+	if code := scheduleCmd([]string{terminalID, "status", "--json"}, &terminalOut, &terminalErr); code != ExitOK {
+		t.Fatalf("terminal status --json exit=%d stderr=%s", code, terminalErr.String())
+	}
+	var terminal scheduleStatusReport
+	if err := json.Unmarshal(terminalOut.Bytes(), &terminal); err != nil {
+		t.Fatal(err)
+	}
+	if terminal.Kind != "series" || terminal.Status != "max_iterations" ||
+		terminal.NextRunAt != "" || terminal.ScheduleControl {
+		t.Fatalf("terminal detail = %+v, want read-only ended projection", terminal)
+	}
+
+	const legacyID = "session-schedule-detail"
+	dir, err := runtime.SessionDir(legacyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeSessionStarted, &event.SessionStarted{
+		SpecName: "legacy-session", WorkspaceRoot: "/repo/legacy",
+		SubStateVersions: state.SubStateVersions(),
+	})
+	appendDriveEv(t, es, event.TypeScheduleAttached, &event.ScheduleAttached{
+		ScheduleID: "schedule", Interval: "45m", Prompt: "Check the release queue",
+		MaxWakes: 8, Base: time.Now().Add(-time.Hour), Source: "user",
+	})
+	appendDriveEv(t, es, event.TypeScheduleWake, &event.ScheduleWake{
+		ScheduleID: "schedule", N: 1, Tick: time.Now().Add(-15 * time.Minute),
+	})
+	_ = es.Close()
+	var legacyOut, legacyErr bytes.Buffer
+	if code := scheduleCmd([]string{legacyID, "status", "--json"}, &legacyOut, &legacyErr); code != ExitOK {
+		t.Fatalf("legacy status --json exit=%d stderr=%s", code, legacyErr.String())
+	}
+	var legacy scheduleStatusReport
+	if err := json.Unmarshal(legacyOut.Bytes(), &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.Kind != "session" || legacy.Status != "active" ||
+		legacy.Prompt != "Check the release queue" || legacy.Cadence != "Every 45m" ||
+		legacy.Iterations != 1 || legacy.MaxIterations != 8 || legacy.ScheduleControl {
+		t.Fatalf("legacy detail = %+v", legacy)
+	}
+
+	var missingOut, missingErr bytes.Buffer
+	if code := scheduleCmd([]string{"missing-series", "status", "--json"}, &missingOut, &missingErr); code != ExitUsage {
+		t.Fatalf("missing status exit=%d output=%q stderr=%q", code, missingOut.String(), missingErr.String())
+	}
+	if !strings.Contains(missingErr.String(), "no session matches") || missingOut.Len() != 0 {
+		t.Fatalf("missing projection output=%q stderr=%q", missingOut.String(), missingErr.String())
 	}
 }
 

@@ -384,6 +384,10 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		// series. Legacy DriverStarted journals remain inspectable but cannot
 		// truthfully expose pause/resume.
 		ScheduleControl bool `json:"schedule_control,omitempty"`
+		// ScheduleDetail is the read-only typed config capability. It remains
+		// true after a canonical series ends; legacy DriverStarted journals
+		// never opt in.
+		ScheduleDetail bool `json:"schedule_detail,omitempty"`
 		// UpdatedAt is the same journal mtime that orders pagination. Exposing it
 		// lets clients preserve durable activity recency instead of guessing from
 		// the session id's creation stamp.
@@ -530,6 +534,7 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						r.Status = "paused"
 					}
 					if spec, _, ok := readSeriesSpec(filepath.Join(root, e.Name())); ok {
+						r.ScheduleDetail = true
 						r.Cadence = spec.Cadence()
 						switch spec.Schedule {
 						case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:

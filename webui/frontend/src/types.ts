@@ -25,6 +25,9 @@ export interface Cadence {
   // True only for the canonical merged-stream repeating series whose daemon
   // implements durable pause/resume. Legacy driver journals omit it.
   scheduleControl?: boolean;
+  // True for any canonical merged series, including terminal history. It
+  // gates the safe typed detail endpoint; legacy driver streams omit it.
+  scheduleDetail?: boolean;
 }
 
 export interface Session extends Cadence {
@@ -41,6 +44,30 @@ export interface Session extends Cadence {
   title?: string;
   workspace?: string;
   kind?: "session" | "driver";
+}
+
+// Safe, typed read model for a scheduled series. The backend intentionally
+// excludes the raw driver/agent spec (system prompt, permissions and tool
+// configuration); this is the complete browser-visible contract.
+export interface ScheduleDetail extends Cadence {
+  kind: "series" | "session";
+  sessionId: string;
+  name?: string;
+  status: string;
+  prompt?: string;
+  workspace?: string;
+  agent?: string;
+  provider?: string;
+  model?: string;
+  thinkingEnabled?: boolean;
+  thinkingBudgetTokens?: number;
+  interval?: string;
+  cron?: string;
+  paceMin?: string;
+  paceMax?: string;
+  overlap?: string;
+  iterations: number;
+  maxIterations?: number;
 }
 
 export interface DiffResp {

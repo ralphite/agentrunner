@@ -23,4 +23,9 @@ describe("normalizeRoute", () => {
     expect(normalizeRoute("run:r-42")).toBe("run:r-42");
     expect(normalizeRoute("/run:r-42")).toBe("run:r-42");
   });
+
+  it("preserves a typed scheduled-detail deep link", () => {
+    expect(normalizeRoute("scheduled:20260723-series")).toBe("scheduled:20260723-series");
+    expect(normalizeRoute("/scheduled:20260723-series/")).toBe("scheduled:20260723-series");
+  });
 });

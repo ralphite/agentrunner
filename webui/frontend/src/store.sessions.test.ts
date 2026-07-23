@@ -10,7 +10,9 @@ describe("progressive session hydration", () => {
     vi.restoreAllMocks();
     vi.stubGlobal("location", { hash: "", pathname: "/", search: "" });
     vi.stubGlobal("history", {
-      replaceState: vi.fn(() => { location.hash = ""; }),
+      replaceState: vi.fn((_state, _title, url: string) => {
+        location.hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "";
+      }),
     });
     useStore.setState({
       sessions: [],
@@ -19,6 +21,7 @@ describe("progressive session hydration", () => {
       currentSid: null,
       currentRunId: null,
       currentPage: "home",
+      scheduledDetailSid: null,
       archived: [],
       unread: [],
       toasts: [],
@@ -113,5 +116,17 @@ describe("progressive session hydration", () => {
     expect(useStore.getState().archived).toEqual([]);
     expect(useStore.getState().currentSid).toBe("current-session");
     expect(location.hash).toBe("current-session");
+  });
+
+  it("closes an archived schedule detail without leaving the Scheduled hub", () => {
+    useStore.getState().showScheduledDetail("series-current");
+    expect(location.hash).toBe("scheduled:series-current");
+
+    useStore.getState().toggleArchive("series-current");
+
+    expect(useStore.getState().scheduledDetailSid).toBeNull();
+    expect(useStore.getState().currentPage).toBe("scheduled");
+    expect(location.hash).toBe("scheduled");
+    expect(history.replaceState).toHaveBeenCalledWith(null, "", "/#scheduled");
   });
 });

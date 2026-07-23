@@ -674,6 +674,7 @@ func TestCLISessionsJSONProjectsCadenceAndNextRun(t *testing.T) {
 		Cadence         string `json:"cadence"`
 		NextRunAt       string `json:"next_run_at"`
 		ScheduleControl bool   `json:"schedule_control"`
+		ScheduleDetail  bool   `json:"schedule_detail"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
 		t.Fatalf("decode: %v\n%s", err, out.String())
@@ -688,16 +689,17 @@ func TestCLISessionsJSONProjectsCadenceAndNextRun(t *testing.T) {
 	}
 	series := rows[byID["series-live"]]
 	if series.Kind != "driver" || series.Schedule != "cron" ||
-		series.Cadence != "Hourly at :00" || series.NextRunAt == "" || !series.ScheduleControl {
+		series.Cadence != "Hourly at :00" || series.NextRunAt == "" ||
+		!series.ScheduleControl || !series.ScheduleDetail {
 		t.Fatalf("series row = %+v, want driver kind + cron cadence + next run", series)
 	}
 	paused := rows[byID["series-paused"]]
 	if paused.Status != "paused" || paused.Cadence != "Every 30m" ||
-		paused.NextRunAt != "" || !paused.ScheduleControl {
+		paused.NextRunAt != "" || !paused.ScheduleControl || !paused.ScheduleDetail {
 		t.Fatalf("paused series row = %+v, want paused + cadence + NO next run", paused)
 	}
 	done := rows[byID["loop-done"]]
-	if done.Cadence != "Every 30m" || done.NextRunAt != "" {
-		t.Fatalf("terminal driver row = %+v, want cadence and NO next run", done)
+	if done.Cadence != "Every 30m" || done.NextRunAt != "" || done.ScheduleDetail {
+		t.Fatalf("terminal legacy driver row = %+v, want cadence + NO next run/detail", done)
 	}
 }

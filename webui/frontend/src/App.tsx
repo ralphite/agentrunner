@@ -19,7 +19,7 @@ import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
 
 export function App() {
-  const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage } =
+  const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage, showScheduledDetail } =
     useStore();
   const helpOpen = useStore((s) => s.helpOpen);
   const openHelp = useStore((s) => s.openHelp);
@@ -191,6 +191,9 @@ export function App() {
       const raw = normalizeRoute(raw0);
       if (raw === "scheduled") {
         showPage(raw);
+      } else if (raw.startsWith("scheduled:")) {
+        const sid = raw.slice("scheduled:".length);
+        if (sid) showScheduledDetail(sid);
       } else if (raw.startsWith("run:")) {
         const rid = raw.slice(4);
         if (rid && rid !== useStore.getState().currentRunId) selectRun(rid);

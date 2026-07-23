@@ -1,4 +1,4 @@
-import type { BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, Session, SpecFile } from "./types";
+import type { BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, ScheduleDetail, Session, SpecFile } from "./types";
 
 // ApiError carries the HTTP status and the server's machine-readable `code`
 // (e.g. 404 / "session_not_found") next to the human message, so callers branch
@@ -236,6 +236,7 @@ export const AR = {
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   retry: (sid: string) => post(`/sessions/${sid}/retry`),
+  scheduleDetail: (sid: string) => api<ScheduleDetail>(`/sessions/${sid}/schedule`),
   schedule: (sid: string, action: "pause" | "resume") =>
     post(`/sessions/${sid}/schedule`, { action }),
   // Structured ask (INC-47.2): specs are 1-based "<q>:<n>" the form builds.

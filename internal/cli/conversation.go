@@ -18,6 +18,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -833,6 +834,87 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 // continues), and re-arms. One schedule per session (id "schedule"); attach
 // replaces any existing one. pause stops wakes without compensation; resume
 // re-anchors the cadence at resume time.
+type scheduleStatusReport struct {
+	Kind                 string `json:"kind"` // series | session
+	SessionID            string `json:"session_id"`
+	Name                 string `json:"name,omitempty"`
+	Status               string `json:"status"`
+	Prompt               string `json:"prompt,omitempty"`
+	Workspace            string `json:"workspace,omitempty"`
+	Agent                string `json:"agent,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model,omitempty"`
+	ThinkingEnabled      bool   `json:"thinking_enabled,omitempty"`
+	ThinkingBudgetTokens int    `json:"thinking_budget_tokens,omitempty"`
+	Schedule             string `json:"schedule"`
+	Cadence              string `json:"cadence"`
+	Interval             string `json:"interval,omitempty"`
+	Cron                 string `json:"cron,omitempty"`
+	PaceMin              string `json:"pace_min,omitempty"`
+	PaceMax              string `json:"pace_max,omitempty"`
+	Overlap              string `json:"overlap,omitempty"`
+	Iterations           int    `json:"iterations"`
+	MaxIterations        int    `json:"max_iterations,omitempty"`
+	NextRunAt            string `json:"next_run_at,omitempty"`
+	ScheduleControl      bool   `json:"schedule_control,omitempty"`
+}
+
+// seriesScheduleStatus is the safe, typed product projection of a journaled
+// driver spec. It deliberately whitelists fields instead of returning the raw
+// spec: system prompts, permissions, tool/MCP configuration and verifier
+// commands never cross into the browser through this surface.
+func seriesScheduleStatus(sessionID, workspace string, spec *driver.DriverSpec, sr *state.Series, now time.Time) scheduleStatusReport {
+	status := "active"
+	if sr.Ended {
+		status = sr.EndReason
+	} else if sr.Paused {
+		status = "paused"
+	}
+	report := scheduleStatusReport{
+		Kind: "series", SessionID: sessionID, Name: spec.Name,
+		Status: status, Prompt: spec.Prompt, Workspace: workspace,
+		Schedule: spec.Schedule, Cadence: spec.Cadence(),
+		Interval: spec.Interval, Cron: spec.Cron,
+		PaceMin: spec.PaceMin, PaceMax: spec.PaceMax,
+		Overlap: spec.Overlap, Iterations: len(sr.Iterations),
+		MaxIterations: sr.MaxIterations,
+	}
+	switch spec.Schedule {
+	case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
+		report.ScheduleControl = !sr.Ended
+	}
+	if !sr.Ended && !sr.Paused {
+		if next, ok := spec.NextRunAt(sr.LastTick, now); ok {
+			report.NextRunAt = next.Format(time.RFC3339)
+		}
+	}
+	if spec.Agent != nil {
+		report.Agent = spec.Agent.Name
+		report.Provider = spec.Agent.Model.Provider
+		report.Model = spec.Agent.Model.ID
+		report.ThinkingEnabled = spec.Agent.Model.Thinking.Enabled
+		report.ThinkingBudgetTokens = spec.Agent.Model.Thinking.BudgetTokens
+	}
+	return report
+}
+
+func sessionScheduleStatus(sessionID string, sc *state.Schedule) scheduleStatusReport {
+	schedule, cadence := driver.ScheduleInterval, "Every "+sc.Interval
+	if sc.Cron != "" {
+		schedule, cadence = driver.ScheduleCron, "Cron "+sc.Cron
+	}
+	status := "active"
+	if sc.Paused {
+		status = "paused"
+	}
+	return scheduleStatusReport{
+		Kind: "session", SessionID: sessionID, Status: status,
+		Prompt: sc.Prompt, Schedule: schedule, Cadence: cadence,
+		Interval: sc.Interval, Cron: sc.Cron,
+		Iterations: sc.Wakes, MaxIterations: sc.MaxWakes,
+	}
+}
+
 func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		fmt.Fprintln(stderr, "usage: agentrunner schedule <session-id-or-prefix> <attach|status|pause|resume|cancel> [flags]")
@@ -842,6 +924,16 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 	sub, rest := args[1], args[2:]
 	switch sub {
 	case "status":
+		fs := flag.NewFlagSet("schedule status", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		asJSON := fs.Bool("json", false, "emit the typed schedule projection as JSON")
+		if err := fs.Parse(rest); err != nil {
+			return ExitUsage
+		}
+		if fs.NArg() != 0 {
+			fmt.Fprintln(stderr, "usage: agentrunner schedule <session-id-or-prefix> status [--json]")
+			return ExitUsage
+		}
 		// Journal fold, no daemon round-trip — works on idle and stopped
 		// sessions alike (the goal-status precedent).
 		dir, err := resolveSessionDir(session)
@@ -860,10 +952,18 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 			return ExitRun
 		}
 		if fold.Series != nil {
-			spec, _, ok := readSeriesSpec(dir)
+			spec, workspace, ok := readSeriesSpec(dir)
 			if !ok {
 				fmt.Fprintln(stderr, "agentrunner: series metadata is unreadable")
 				return ExitRun
+			}
+			if *asJSON {
+				if err := json.NewEncoder(stdout).Encode(seriesScheduleStatus(
+					filepath.Base(dir), workspace, spec, fold.Series, time.Now())); err != nil {
+					fmt.Fprintf(stderr, "agentrunner: encode schedule status: %v\n", err)
+					return ExitRun
+				}
+				return ExitOK
 			}
 			fmt.Fprintf(stdout, "cadence   %s\n", spec.Cadence())
 			fmt.Fprintf(stdout, "iterations %d\n", len(fold.Series.Iterations))
@@ -883,6 +983,13 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 		sc := fold.Schedule
 		if sc == nil {
 			fmt.Fprintln(stdout, "no active schedule")
+			return ExitOK
+		}
+		if *asJSON {
+			if err := json.NewEncoder(stdout).Encode(sessionScheduleStatus(filepath.Base(dir), sc)); err != nil {
+				fmt.Fprintf(stderr, "agentrunner: encode schedule status: %v\n", err)
+				return ExitRun
+			}
 			return ExitOK
 		}
 		if sc.Interval != "" {

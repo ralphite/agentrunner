@@ -85,6 +85,7 @@ interface AppState {
   currentSid: string | null;
   currentRunId: string | null;
   currentPage: Page;
+  scheduledDetailSid: string | null;
   // One-shot intent from a project-row New chat shortcut. The request id lets
   // an already-mounted Home composer react even when the same project is
   // chosen twice in a row, without remounting and losing its draft/settings.
@@ -157,6 +158,7 @@ interface AppState {
   select: (sid: string | null) => void;
   selectRun: (rid: string | null) => void;
   showPage: (page: Page) => void;
+  showScheduledDetail: (sid: string | null) => void;
   openModal: (m: ModalKind) => void;
   openPrompt: (p: PromptState | null) => void;
   toast: (text: string, kind?: "error" | "info", details?: string) => void;
@@ -289,6 +291,7 @@ export const useStore = create<AppState>((set, get) => ({
   currentSid: null,
   currentRunId: null,
   currentPage: "home",
+  scheduledDetailSid: null,
   newSessionProject: null,
   newSessionForProject: (workspace) => {
     const normalized = workspace.trim().replace(/\/+$/, "");
@@ -297,6 +300,7 @@ export const useStore = create<AppState>((set, get) => ({
       currentSid: null,
       currentRunId: null,
       currentPage: "home",
+      scheduledDetailSid: null,
       newSessionProject: { workspace: normalized, requestId: ++newSessionProjectSeq },
     });
     location.hash = "";
@@ -330,6 +334,25 @@ export const useStore = create<AppState>((set, get) => ({
       /* ignore quota */
     }
     set({ archived: next });
+    // A schedule detail route is still the archived session's current
+    // destination even though currentSid is deliberately null. Close only the
+    // detail pane and stay on the Scheduled hub; Back must not resurrect a
+    // route whose row is now hidden.
+    if (!restoring && get().scheduledDetailSid === id) {
+      set({
+        currentSid: null,
+        currentRunId: null,
+        currentPage: "scheduled",
+        scheduledDetailSid: null,
+        toasts: [],
+      });
+      if (typeof history !== "undefined" && typeof history.replaceState === "function") {
+        history.replaceState(null, "", `${location.pathname}${location.search}#scheduled`);
+      } else {
+        location.hash = "scheduled";
+      }
+      return;
+    }
     // Replace archive-current history so Back cannot reopen the hidden session.
     if (!restoring && get().currentSid === id) {
       set({ currentSid: null, currentRunId: null, currentPage: "home", toasts: [] });
@@ -559,7 +582,7 @@ export const useStore = create<AppState>((set, get) => ({
     get().select(order[next]);
   },
   select: (sid) => {
-    set({ currentSid: sid, currentRunId: null, currentPage: "home", toasts: [] });
+    set({ currentSid: sid, currentRunId: null, currentPage: "home", scheduledDetailSid: null, toasts: [] });
     if (sid) {
       location.hash = sid;
       get().markRead(sid); // opening a session clears its unread flag
@@ -568,14 +591,24 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   selectRun: (rid) => {
-    set({ currentRunId: rid, currentSid: null, currentPage: "scheduled", toasts: [] });
+    set({ currentRunId: rid, currentSid: null, currentPage: "scheduled", scheduledDetailSid: null, toasts: [] });
     location.hash = rid ? "run:" + rid : "";
   },
   showPage: (page) => {
-    set({ currentSid: null, currentRunId: null, currentPage: page, toasts: [] });
+    set({ currentSid: null, currentRunId: null, currentPage: page, scheduledDetailSid: null, toasts: [] });
     // "home" is the bare route (no hash); Scheduled routes to a hash that
     // matches its key so deep links + back/forward work (#scheduled).
     location.hash = page === "home" ? "" : page;
+  },
+  showScheduledDetail: (sid) => {
+    set({
+      currentSid: null,
+      currentRunId: null,
+      currentPage: "scheduled",
+      scheduledDetailSid: sid,
+      toasts: [],
+    });
+    location.hash = sid ? `scheduled:${sid}` : "scheduled";
   },
   openModal: (m) => set({ modal: m }),
   openPrompt: (p) => set({ prompt: p }),

@@ -146,7 +146,7 @@ func TestHandleSessionsPaginationForwardsBoundedCLIArgs(t *testing.T) {
 func TestHandleSessionsMapsJournalUpdatedAt(t *testing.T) {
 	dir := t.TempDir()
 	arPath := filepath.Join(dir, "ar")
-	script := "#!/bin/sh\nprintf '%s\\n' '[{\"id\":\"old-id\",\"status\":\"paused\",\"turns\":2,\"kind\":\"driver\",\"schedule_control\":true,\"updated_at\":\"2026-07-22T08:09:10.123Z\"}]'\n"
+	script := "#!/bin/sh\nprintf '%s\\n' '[{\"id\":\"old-id\",\"status\":\"paused\",\"turns\":2,\"kind\":\"driver\",\"schedule_control\":true,\"schedule_detail\":true,\"updated_at\":\"2026-07-22T08:09:10.123Z\"}]'\n"
 	if err := os.WriteFile(arPath, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -166,11 +166,17 @@ func TestHandleSessionsMapsJournalUpdatedAt(t *testing.T) {
 	if rows[0]["scheduleControl"] != true {
 		t.Fatalf("rows=%v, want camelCase scheduleControl", rows)
 	}
+	if rows[0]["scheduleDetail"] != true {
+		t.Fatalf("rows=%v, want camelCase scheduleDetail", rows)
+	}
 	if _, leaked := rows[0]["updated_at"]; leaked {
 		t.Fatalf("CLI key leaked into frontend response: %v", rows[0])
 	}
 	if _, leaked := rows[0]["schedule_control"]; leaked {
 		t.Fatalf("CLI schedule_control leaked into frontend response: %v", rows[0])
+	}
+	if _, leaked := rows[0]["schedule_detail"]; leaked {
+		t.Fatalf("CLI schedule_detail leaked into frontend response: %v", rows[0])
 	}
 }
 
@@ -202,6 +208,58 @@ func TestHandleScheduleControlForwardsTypedAction(t *testing.T) {
 			if !strings.HasSuffix(string(got), "schedule\nseries-1\n"+tc.action+"\n") {
 				t.Fatalf("%s args=%q", tc.action, got)
 			}
+		}
+	}
+}
+
+func TestHandleScheduleDetailMapsSafeTypedProjection(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	reply := `{"kind":"series","session_id":"series-1","name":"Nightly audit","status":"paused","prompt":"Audit dependencies","workspace":"/repo/product","agent":"auditor","provider":"gemini","model":"gemini-2.5-pro","thinking_enabled":true,"thinking_budget_tokens":4096,"schedule":"interval","cadence":"Every 30m","interval":"30m","overlap":"coalesce","iterations":3,"max_iterations":12,"schedule_control":true}`
+	s := &server{arPath: writeFakeAR(t, argsFile, reply)}
+	req := httptest.NewRequest("GET", "/api/sessions/series-1/schedule", nil)
+	req.SetPathValue("sid", "series-1")
+	rr := httptest.NewRecorder()
+	s.handleScheduleDetail(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	gotArgs, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(gotArgs), "schedule\nseries-1\nstatus\n--json\n") {
+		t.Fatalf("args=%q", gotArgs)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]any{
+		"sessionId": "series-1", "thinkingEnabled": true,
+		"thinkingBudgetTokens": float64(4096), "maxIterations": float64(12),
+		"scheduleControl": true,
+	} {
+		if got[key] != want {
+			t.Fatalf("%s=%v, want %v; body=%s", key, got[key], want, rr.Body.String())
+		}
+	}
+	for _, leaked := range []string{"session_id", "thinking_enabled", "max_iterations", "schedule_control"} {
+		if _, ok := got[leaked]; ok {
+			t.Fatalf("CLI key %q leaked: %v", leaked, got)
+		}
+	}
+}
+
+func TestHandleScheduleDetailRejectsMalformedProjection(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	for _, malformed := range []string{`not-json`, `{}`, `{"kind":"series","session_id":"series-1"}`} {
+		s := &server{arPath: writeFakeAR(t, argsFile, malformed)}
+		req := httptest.NewRequest("GET", "/api/sessions/series-1/schedule", nil)
+		req.SetPathValue("sid", "series-1")
+		rr := httptest.NewRecorder()
+		s.handleScheduleDetail(rr, req)
+		if rr.Code != http.StatusBadGateway || !strings.Contains(rr.Body.String(), "invalid_schedule_detail") {
+			t.Fatalf("malformed=%q status=%d body=%s", malformed, rr.Code, rr.Body.String())
 		}
 	}
 }

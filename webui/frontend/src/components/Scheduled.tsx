@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
-import { CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
+import { ArrowLeft, CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin, X } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { AR } from "../api";
 import { friendlyStatus } from "./pill";
@@ -10,7 +10,7 @@ import { relTimeAgo, sessionDate } from "../time";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { cadenceText, type CadenceSpec } from "../runPreset";
-import type { Cadence } from "../types";
+import type { Cadence, ScheduleDetail } from "../types";
 
 type Filter = "all" | "active" | "paused";
 const INITIAL_VISIBLE_ROWS = 5;
@@ -149,12 +149,13 @@ interface SchedRow {
   active: boolean; // the series still has ticks coming / needs you (SC-11)
   paused: boolean; // durable SeriesPaused lifecycle; never inferred from missing nextRunAt
   scheduleControl: boolean; // backend-confirmed merged series lifecycle capability
+  scheduleDetail: boolean; // backend-confirmed safe typed detail capability
   running: boolean; // an iteration is executing right now — the only stoppable state
   settled: boolean; // nothing more will happen: closed/done/stopped, or a limit (SC-16)
   recover: boolean; // genuinely broken (crash/stranded) — Resume is the fix (SC-17)
   unread: boolean; // driver row with new activity you haven't opened (F2)
   sortTs: number;
-  onClick: () => void;
+  onClick: (opener?: HTMLElement) => void;
 }
 
 // nextRunPhrase renders the backend's nextRunAt (RFC3339) as Codex's
@@ -202,6 +203,124 @@ function isQuiet(r: SchedRow): boolean {
   return !r.recover && !r.active;
 }
 
+function detailTime(iso?: string): string {
+  if (!iso) return "Not scheduled";
+  const d = new Date(iso);
+  return isNaN(d.getTime())
+    ? "Not available"
+    : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function reasoningText(detail: ScheduleDetail): string {
+  if (!detail.thinkingEnabled) return "Off";
+  if (detail.thinkingBudgetTokens) {
+    return `${detail.thinkingBudgetTokens.toLocaleString()} token budget`;
+  }
+  return "Enabled";
+}
+
+interface ScheduleDetailPanelProps {
+  title: string;
+  detail: ScheduleDetail | null;
+  loading: boolean;
+  error: string;
+  acting: boolean;
+  onClose: () => void;
+  onRetry: () => void;
+  onHistory: () => void;
+  onCadence: (action: "pause" | "resume") => void;
+}
+
+function ScheduleDetailPanel({
+  title,
+  detail,
+  loading,
+  error,
+  acting,
+  onClose,
+  onRetry,
+  onHistory,
+  onCadence,
+}: ScheduleDetailPanelProps) {
+  const status = (detail?.status || "").toLowerCase() === "active"
+    ? { text: "Active", cls: "run" }
+    : friendlyStatus(detail?.status || "");
+  const paused = (detail?.status || "").toLowerCase() === "paused";
+  const project = detail?.workspace ? projectLabel(detail.workspace) : "No project";
+  const model = detail?.model
+    ? [detail.provider, detail.model].filter(Boolean).join(" · ")
+    : "Not recorded";
+  const overlap = detail?.overlap ? detail.overlap[0].toUpperCase() + detail.overlap.slice(1) : "Skip";
+  const progress = detail?.maxIterations
+    ? `${detail.iterations} of ${detail.maxIterations}`
+    : `${detail?.iterations || 0}`;
+
+  return (
+    <aside className="schedule-detail" aria-label={`Schedule details for ${title}`}>
+      <header className="schedule-detail-head">
+        <button className="schedule-detail-back" onClick={onClose} aria-label="Back to scheduled runs">
+          <ArrowLeft size={17} />
+          <span>Scheduled</span>
+        </button>
+        <button className="icon-btn schedule-detail-close" onClick={onClose} aria-label="Close schedule details">
+          <X size={17} />
+        </button>
+      </header>
+      {loading ? (
+        <div className="schedule-detail-loading" role="status">Loading schedule details…</div>
+      ) : error ? (
+        <div className="schedule-detail-error" role="alert">
+          <b>Schedule details unavailable</b>
+          <span>{error}</span>
+          <button onClick={onRetry}>Try again</button>
+        </div>
+      ) : detail ? (
+        <div className="schedule-detail-scroll">
+          <div className="schedule-detail-title">
+            <span className={`status ${status.cls}`}>{status.text}</span>
+            <h2>{title}</h2>
+          </div>
+
+          <div className="schedule-detail-prompt">{detail.prompt || "No standing prompt recorded."}</div>
+
+          <section className="schedule-detail-section" aria-labelledby="schedule-detail-general">
+            <h3 id="schedule-detail-general">Details</h3>
+            <dl>
+              <div><dt>Project</dt><dd title={detail.workspace}>{project}</dd></div>
+              <div><dt>Agent</dt><dd>{detail.agent || "Default agent"}</dd></div>
+              <div><dt>Model</dt><dd>{model}</dd></div>
+              <div><dt>Reasoning</dt><dd>{reasoningText(detail)}</dd></div>
+            </dl>
+          </section>
+
+          <section className="schedule-detail-section" aria-labelledby="schedule-detail-frequency">
+            <h3 id="schedule-detail-frequency">Schedule</h3>
+            <dl>
+              <div><dt>Cadence</dt><dd>{detail.cadence || scheduleLabel(detail.schedule)}</dd></div>
+              <div><dt>Next run</dt><dd>{paused ? "Paused" : detailTime(detail.nextRunAt)}</dd></div>
+              <div><dt>Overlap</dt><dd>{overlap}</dd></div>
+              <div><dt>Iterations</dt><dd>{progress}</dd></div>
+            </dl>
+          </section>
+
+          <div className="schedule-detail-actions">
+            {detail.scheduleControl && (
+              <button
+                className="primary"
+                disabled={acting}
+                onClick={() => onCadence(paused ? "resume" : "pause")}
+              >
+                {acting ? "Saving…" : paused ? "Resume" : "Pause"}
+              </button>
+            )}
+            <button onClick={onHistory}>Open history</button>
+          </div>
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
 // Scheduled is Codex's Scheduled runs hub: repeating work that keeps running on
 // its own (SC-1 — nothing one-shot lives here; see hasRhythm above). The two
 // facts that justify a scheduled thing are the whole row — its CADENCE and its
@@ -227,12 +346,69 @@ export function Scheduled() {
     refreshRuns,
     refreshSessions,
     toast,
+    scheduledDetailSid,
+    showScheduledDetail,
   } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
+  const [detail, setDetail] = useState<ScheduleDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [detailActing, setDetailActing] = useState(false);
+  const detailRequest = useRef(0);
+  const detailOpener = useRef<HTMLElement | null>(null);
   // SC-12 — the cursor-anchored row menu (same component the sidebar rows use).
   const [ctx, setCtx] = useState<{ x: number; y: number; key: string } | null>(null);
+
+  const loadDetail = useCallback(async (sid: string) => {
+    const request = ++detailRequest.current;
+    setDetailLoading(true);
+    setDetailError("");
+    try {
+      const next = await AR.scheduleDetail(sid);
+      if (request === detailRequest.current) setDetail(next);
+    } catch (e: any) {
+      if (request === detailRequest.current) {
+        setDetail(null);
+        setDetailError(e?.message || "The schedule could not be read.");
+      }
+    } finally {
+      if (request === detailRequest.current) setDetailLoading(false);
+    }
+  }, []);
+
+  const detailSession = sessions.find((session) => session.id === scheduledDetailSid);
+  useEffect(() => {
+    if (!scheduledDetailSid) {
+      detailRequest.current++;
+      setDetail(null);
+      setDetailLoading(false);
+      setDetailError("");
+      return;
+    }
+    void loadDetail(scheduledDetailSid);
+  }, [scheduledDetailSid, detailSession?.status, detailSession?.updatedAt, loadDetail]);
+
+  const closeDetail = useCallback(() => {
+    showScheduledDetail(null);
+    const opener = detailOpener.current;
+    requestAnimationFrame(() => {
+      if (opener?.isConnected) opener.focus();
+      else document.querySelector<HTMLElement>(".sched-search input, .scheduled-row")?.focus();
+    });
+  }, [showScheduledDetail]);
+
+  useEffect(() => {
+    if (!scheduledDetailSid) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeDetail();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [scheduledDetailSid, closeDetail]);
 
   const rows = useMemo<SchedRow[]>(() => {
     const flagged = new Set(unread);
@@ -308,6 +484,7 @@ export function Scheduled() {
             raw: run.status || "",
             status,
             scheduleControl: false,
+            scheduleDetail: false,
             unread: false,
             sortTs: isNaN(ts) ? 0 : ts,
             onClick: () => selectRun(run.id),
@@ -336,9 +513,18 @@ export function Scheduled() {
             raw: s.status || "",
             status,
             scheduleControl: !!s.scheduleControl,
+            scheduleDetail: !!s.scheduleDetail,
             unread: flagged.has(s.id),
             sortTs: d ? d.getTime() : 0,
-            onClick: () => select(s.id),
+            onClick: (opener) => {
+              if (!s.scheduleDetail) {
+                select(s.id);
+                return;
+              }
+              detailOpener.current = opener || null;
+              markRead(s.id);
+              showScheduledDetail(s.id);
+            },
           },
           s.nextRunAt,
           d,
@@ -348,7 +534,7 @@ export function Scheduled() {
     // Newest-first; the coloured status dot and label carry the state.
     out.sort((a, b) => b.sortTs - a.sortTs);
     return out;
-  }, [runs, sessions, select, selectRun, unread, renames]);
+  }, [runs, sessions, select, selectRun, showScheduledDetail, markRead, unread, renames]);
 
   const ql = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
@@ -429,19 +615,23 @@ export function Scheduled() {
     retry: async (sid: string) => {
       try {
         await AR.retry(sid);
-		toast("starting a new scheduled series", "info");
+        toast("starting a new scheduled series", "info");
         setTimeout(refreshSessions, 800);
       } catch (e: any) {
         toast(e.message);
       }
     },
     cadence: async (sid: string, action: "pause" | "resume") => {
+      if (scheduledDetailSid === sid) setDetailActing(true);
       try {
         await AR.schedule(sid, action);
         toast(action === "pause" ? "pause recorded" : "resuming schedule", "info");
-        setTimeout(refreshSessions, 300);
+        await refreshSessions();
+        if (scheduledDetailSid === sid) await loadDetail(sid);
       } catch (e: any) {
         toast(e.message);
+      } finally {
+        if (scheduledDetailSid === sid) setDetailActing(false);
       }
     },
     cancel: (sid: string) => {
@@ -509,9 +699,18 @@ export function Scheduled() {
       })}
     </div>
   );
+  const selectedDetailRow = scheduledDetailSid
+    ? rows.find((row) => row.id === scheduledDetailSid)
+    : undefined;
+  const detailTitle =
+    selectedDetailRow?.title ||
+    detail?.name ||
+    detailSession?.title ||
+    "Scheduled run";
 
   return (
-    <div className="scheduled-page">
+    <div className={"scheduled-shell" + (scheduledDetailSid ? " has-detail" : "")}>
+      <main className="scheduled-page">
       <div className="page-heading">
         <div>
           <h2>Scheduled runs</h2>
@@ -636,7 +835,7 @@ export function Scheduled() {
                 // eye lands on first.
                 (isQuiet(r) ? " is-quiet" : "")
               }
-              onClick={r.onClick}
+              onClick={(e) => r.onClick(e.currentTarget)}
               onKeyDown={(e) => {
                 // Same keyboard affordance the sidebar rows carry: the menu is
                 // reachable without a right mouse button.
@@ -813,6 +1012,20 @@ export function Scheduled() {
             </>
           )}
         </ContextMenu>
+      )}
+      </main>
+      {scheduledDetailSid && (
+        <ScheduleDetailPanel
+          title={detailTitle}
+          detail={detail}
+          loading={detailLoading}
+          error={detailError}
+          acting={detailActing}
+          onClose={closeDetail}
+          onRetry={() => void loadDetail(scheduledDetailSid)}
+          onHistory={() => select(scheduledDetailSid)}
+          onCadence={(action) => void act.cadence(scheduledDetailSid, action)}
+        />
       )}
     </div>
   );

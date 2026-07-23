@@ -1090,11 +1090,69 @@
   .changes-outcome-icon { @apply grid h-8 w-8 place-items-center rounded-full bg-green-soft text-green; }
   .changes-outcome-files { @apply mt-2 grid gap-1; }
 
-  .scheduled-page { @apply mx-auto w-full max-w-[760px] px-6 py-6; }
   /* Scheduled 页骨架(QA-0718 实测整页丢样式:副标题级联成大标题、
      Create 按钮碎裂、empty-state 挤行)。page-heading 是"标题行容器"
      (h2+p 左、动作按钮右),不是文字类。 */
-  .scheduled-page { @apply mx-auto w-full max-w-[860px] px-6 py-6 max-[680px]:px-4; }
+  .scheduled-shell {
+    @apply flex h-full min-h-0 min-w-0 flex-1 overflow-hidden;
+    container-name: scheduled-shell;
+    container-type: inline-size;
+  }
+  .scheduled-page { @apply mx-auto h-full w-full max-w-[860px] overflow-y-auto px-6 py-6 max-[680px]:px-4; }
+  /* G56: Codex keeps selection context visible. At a desktop-sized content
+     rail the scheduled list becomes a compact master column and the typed
+     detail owns the remaining width; at narrow widths the detail becomes the
+     whole destination with an explicit Back affordance. */
+  .scheduled-shell.has-detail > .scheduled-page {
+    @apply m-0 w-[44%] min-w-[340px] max-w-[480px] shrink-0;
+  }
+  .schedule-detail {
+    @apply flex min-h-0 min-w-0 flex-1 flex-col border-l border-line bg-panel;
+  }
+  .schedule-detail-head {
+    @apply flex h-12 shrink-0 items-center justify-between border-b border-line px-3;
+  }
+  .schedule-detail-back {
+    @apply inline-flex h-9 items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-[13px] text-ink-2 shadow-none hover:bg-panel-2 hover:text-ink hover:shadow-none;
+  }
+  .schedule-detail-back span { @apply hidden; }
+  .schedule-detail-close { @apply shrink-0; }
+  .schedule-detail-scroll { @apply min-h-0 flex-1 overflow-y-auto px-6 pb-6; }
+  .schedule-detail-title { @apply pt-6; }
+  .schedule-detail-title .status { @apply mb-3 inline-flex; }
+  .schedule-detail-title h2 {
+    @apply break-words text-[24px] font-normal leading-[1.25] text-ink;
+  }
+  .schedule-detail-prompt {
+    @apply mt-5 whitespace-pre-wrap break-words rounded-[12px] border border-line bg-bg px-4 py-3 text-[14px] leading-6 text-ink;
+  }
+  .schedule-detail-section { @apply mt-6; }
+  .schedule-detail-section h3 {
+    @apply mb-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-dim;
+  }
+  .schedule-detail-section dl { @apply divide-y divide-line border-y border-line; }
+  .schedule-detail-section dl > div {
+    @apply grid min-w-0 grid-cols-[minmax(88px,0.35fr)_minmax(0,0.65fr)] gap-4 py-2.5 text-[13px];
+  }
+  .schedule-detail-section dt { @apply text-dim; }
+  .schedule-detail-section dd { @apply min-w-0 break-words text-right text-ink; }
+  .schedule-detail-actions {
+    @apply sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2 border-t border-line bg-panel px-6 py-4;
+  }
+  .schedule-detail-actions button { @apply min-h-9; }
+  .schedule-detail-loading,
+  .schedule-detail-error { @apply m-6 text-[13px] text-dim; }
+  .schedule-detail-loading { @apply animate-pulse; }
+  .schedule-detail-error { @apply grid justify-items-start gap-2 rounded-[12px] border border-line bg-bg p-4; }
+  .schedule-detail-error b { @apply text-[14px] text-ink; }
+  @container scheduled-shell (max-width: 760px) {
+    .scheduled-shell.has-detail > .scheduled-page { @apply hidden; }
+    .schedule-detail { @apply border-l-0; }
+    .schedule-detail-back span { @apply inline; }
+    .schedule-detail-close { @apply hidden; }
+    .schedule-detail-scroll { @apply px-4 pb-4; }
+    .schedule-detail-actions { @apply -mx-4 px-4; }
+  }
   .page-heading { @apply mb-4 flex items-start justify-between gap-3; }
   /* R80 SCHED-TITLE-SIZE: the Scheduled page title is our own big-heading
      system — Home's `.home-empty-headline` is 28px/400/leading-tight and

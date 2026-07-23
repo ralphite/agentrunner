@@ -554,6 +554,34 @@ INC-98 将该方法固化为持续循环：
   将第三个 filter 从 Finished 改为真实 Paused，paused row 明示 `Paused` 且只有 Resume；
   active row 有 Pause，terminal/legacy row 均无假 action。Cancel series 仍是不可逆终态，
   与可恢复 pause 分立。
+- **98.5b typed Scheduled detail（G56 第一纵切）**：复用 Codex Scheduled
+  row→same-page detail 与本产品 Changes 的 responsive split/full-surface pattern；
+  canonical series row click 打开可 deep-link/reload 的 read-only detail，窄容器以
+  Back 返回 list，宽容器保留 list context。detail 只从 journal head + series fold 的
+  typed safe projection 显示 full prompt、project/workspace、agent/model/reasoning、
+  cadence/overlap、iterations/limit/status/next run；显式 `Open history` 保留我方 durable
+  iteration audit 优势，Pause/Resume 复用 98.5a capability。不得向 browser 下发 raw
+  driver spec、system prompt、permissions/tool config，也不从 child iteration 猜配置。
+  Edit/cadence update、Notifications 与 Delete/Close 不在本纵切，继续留 G56；legacy
+  driver 没有 canonical typed detail 时仍直接打开既有 history。
+
+### 98.5b UI/UX design note
+
+- **既有 pattern**：Codex 是 list+detail split；AgentRunner 已有 Changes 在宽容器 split、
+  窄容器 full-surface，以及 session history 的 durable deep link。
+- **界面**：`#scheduled:<sid>`；header=status/title/close，正文为 prompt card +
+  `Details`/`Schedule` 两组安静 key-value rows；底部 primary lifecycle action
+  `Pause|Resume`（有 capability 才出现）与 secondary `Open history`。
+- **风险/数据**：detail 是只读且无 destructive action；API 只返回白名单字段，
+  loading/not-found/legacy/error 均显式，不以 raw JSON 或空数组伪造成功。
+- **未决问题**：Edit 的版本冲突/rebase、Notifications policy 与 Delete/Close 生命周期
+  尚无 backend 契约，保持 G56，不在 UI 放 disabled/placeholder 控件。
+- **A 闸结果（2026-07-23）**：已通过 canonical paused/terminal、legacy in-session、
+  not-found、secret exclusion、malformed API、snake→camel capability、deep-link、
+  Pause→Resume→history、Escape/focus return、error/retry、archive-current 与
+  `760px` container split/full-surface contract；production build 与
+  `./scripts/check.sh` 全绿。B 闸仍待 shared daemon 的安全重启窗口，不用组件测试冒充
+  1100×700/390×844 真浏览器证据。
 
 ## Spec delta
 
@@ -596,6 +624,15 @@ INC-98 将该方法固化为持续循环：
   resume → next tick anchored after resume`；1100×700 light/dark 捕获 All/Active/Paused、
   row menu 与 reload/deep-link，browser warning/error 为空。不得 close/delete/cleanup，
   不触碰正在运行的 QA-88 schedule driver。
+
+### 98.5b G56 第一纵切双闸门
+
+- A 闸：CLI `schedule status --json` 的 canonical/paused/terminal/legacy/not-found/
+  secret-exclusion table；Web API casing/error；route hash reload/back；wide split、
+  narrow full-surface、focus return、Open history 与 capability action component tests。
+- B 闸：shared-store 选择 retained canonical series，在 1100×700 与 390×844 真浏览器
+  覆盖 active/paused/loading/error、deep-link reload、Back/Open history、light/dark，
+  并与 Codex retained Scheduled detail 同 viewport 合并比较；不编辑、不删除、不清理。
 
 ## 实施步骤
 
