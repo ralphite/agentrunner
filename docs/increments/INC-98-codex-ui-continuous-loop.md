@@ -530,6 +530,11 @@ INC-98 将该方法固化为持续循环：
   当前与下个 turn。最小修复落在权威 CLI queue projection：过滤
   `DeliverySteer`，保留 legacy empty/explicit queue；不改 daemon、journal、消费顺序或
   composer。G47 的 queued→steer 原子提升能力仍开放。
+- **98.4z manual Retry truth**：真实 `provider_invalid` 链路在切换 model 后由用户点击
+  Retry；旧 timeline 因同一 `activity_id` 后续完成，无条件显示 `retried automatically`，
+  把人工恢复伪装成 runtime 自动恢复。现沿用既有 `retry:<original command id>` 血统标记
+  manual recovery；只有没有显式 Retry 血统的同 activity completion 才显示 automatic。
+  不改 journal、Retry API、fold header 或 backend；历史与新建 session 均按原事件重投影。
 
 ## Spec delta
 

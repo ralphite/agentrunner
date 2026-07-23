@@ -271,7 +271,8 @@ export interface FailureNotice {
   hint?: string;
   raw: string; // the untouched technical string — never dropped
   attempt?: number;
-  recovered: boolean; // a later attempt of the same activity completed
+  recovered: boolean; // a later automatic attempt or explicit Retry addressed it
+  recovery?: "automatic" | "manual";
 }
 
 export interface RuntimeItem {
@@ -916,7 +917,10 @@ export function foldEvents(events: Envelope[]): Folded {
             }
             items.push({ kind: "retried", key: "rt" + seq, children: superseded });
             for (const f of llmFailures.values()) {
-              if (f.notice.seq < seq) f.notice.recovered = true;
+              if (f.notice.seq < seq) {
+                f.notice.recovered = true;
+                f.notice.recovery = "manual";
+              }
             }
           }
         }
@@ -1001,10 +1005,13 @@ export function foldEvents(events: Envelope[]): Folded {
         break;
       case "activity_completed": {
         // RT-5 · The runtime's own retry of a failed model call landed. The
-        // failure is history, not a standing problem: no banner, and its note
-        // reads as a recovered hiccup.
+        // A later completion settles the failure. Command lineage has already
+        // marked an explicit Retry; otherwise this is the runtime's own retry.
         const failed = llmFailures.get(p.activity_id);
-        if (failed) failed.notice.recovered = true;
+        if (failed) {
+          failed.notice.recovered = true;
+          failed.notice.recovery ??= "automatic";
+        }
         const t = toolByActivity.get(p.activity_id);
         if (t) {
           t.status = p.is_error ? "error" : "done";
@@ -1348,7 +1355,9 @@ export function foldEvents(events: Envelope[]): Folded {
   for (const { notice, chip: c } of llmFailures.values()) {
     if (notice.recovered) {
       c.tone = "warn";
-      c.text = notice.title + " · retried automatically";
+      c.text = notice.recovery === "manual"
+        ? notice.title
+        : notice.title + " · retried automatically";
       continue;
     }
     if (!failure || notice.seq > failure.seq) failure = notice;

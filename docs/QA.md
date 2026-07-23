@@ -2187,3 +2187,10 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | Steer 修前红证据 | 同 session 的 foreground `sleep 75` 中选择 Steer；修前稳定 2.5s poll 后同一消息同时显示 `steering…` 与 `Queued/Withdraw`，证明 `/queue` 错把当前-turn input 投影成下一-turn work |
 | Steer 修后 | 权威 `ar queue` 排除 `DeliverySteer`，保留 legacy empty/explicit queue；同样长 tool 边界中 `/queue=[]`、UI 只有 `steering…`，journal `activity_completed` seq186 后在同 turn 落 steer `input_received` seq188、assistant `STEER-FIXED-ACK` seq195、最后 waiting seq198 |
 | 边界 / Gate | 不实现 G47 的 queued→steer 原子提升；retained session/worktree/journal 与 Codex thread 全保留。`TestPendingQueueExcludesCurrentTurnSteer`、`./scripts/check.sh`、shared health/versionMatch 与 1100×700 证据在 `qa/runs/2026-07-23-QA88-98.4y-queue-steer-review/` |
+
+| 98.4z 动作 | 硬断言 |
+|---|---|
+| legacy red→green | retained manual-retry session 修前展开显示 `retried automatically`；同一 journal 在修后重投影只显示原 failure，1100×700 同态合并图 `08` |
+| fresh failure→Retry | shared session `20260723-140300-qa98-4z-fresh-failure-reply-e-a3a2cff81b1e72d8` 真实触发 model-not-found，切 Gemini Flash 后点 Retry，得到 `QA98Z_RECOVERED`；展开 fold 保留 failure、agent change、原输入与 answer |
+| follow-up continuity | 同一 recovered session 再发新 turn，得到 `QA98Z_FOLLOWUP_OK`，status=`waiting:input`、queue empty、workspace diff empty、browser logs=`[]` |
+| 边界 / Gate | Codex provider/network Retry 仍不可安全控制，TH-10 保持 UNTESTED；retained session/worktree/journal 与证据均保留。timeline 74 tests、frontend/build 与 `./scripts/check.sh` 全绿 |

@@ -968,6 +968,31 @@ describe("retry supersedes the failed block (INC-84)", () => {
     expect(kinds.indexOf("retried")).toBeLessThan(model.items.findIndex((i) => i.kind === "user"));
   });
 
+  it("never labels a manual Retry as an automatic recovery", () => {
+    const model = foldEvents([
+      { seq: 1, type: "session_started", payload: { spec_name: "t" } },
+      { seq: 2, type: "input_received", payload: { text: "try this", source: "cli" }, command_id: "cmd-1" },
+      { seq: 3, type: "activity_failed", payload: {
+        activity_id: "llm-t1",
+        error: { class: "provider_invalid", message: "model not found" },
+        attempt: 1,
+        final: true,
+      } },
+      { seq: 4, type: "input_received", payload: { text: "try this", source: "cli" }, command_id: "retry:cmd-1" },
+      { seq: 5, type: "generation_started", payload: { gen_step: 1 } },
+      { seq: 6, type: "activity_completed", payload: { activity_id: "llm-t1" } },
+      { seq: 7, type: "assistant_message", payload: { message: { parts: [{ text: "done" }] } } },
+    ] as any);
+
+    const group = model.items.find((item) => item.kind === "retried") as any;
+    expect(group.children).toContainEqual(expect.objectContaining({
+      kind: "chip",
+      text: "The selected model isn't available",
+      tone: "warn",
+    }));
+    expect(group.children.some((item: any) => /automatically/i.test(item.text || ""))).toBe(false);
+  });
+
   it("flattens a retry-of-a-retry into a single fold", () => {
     const chained = [
       ...failedThenRetried,

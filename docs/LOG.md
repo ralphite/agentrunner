@@ -7406,3 +7406,13 @@ unqueue/daemon/journal 语义不变。精确单测、full gate 通过；同一 r
 `/queue=[]`，steer 在 tool 完成后的当前-turn安全边界落 seq188，并于 seq195 返回
 `STEER-FIXED-ACK`。证据 `qa/runs/2026-07-23-QA88-98.4y-queue-steer-review/01..09`；
 G47 仍开放，未用非原子 unqueue+resend 冒充 queued→steer。
+
+---
+
+## 2026-07-23 · INC-98.4z manual Retry 归因真实
+
+真实 model-not-found→切模型→Retry 链路暴露：同一 LLM activity 后续完成时，timeline
+把人工 Retry 无条件写成 `retried automatically`。现以已有 `retry:<command id>` 血统区分
+manual/automatic recovery；legacy 与 fresh journal 都重投影正确。fresh shared session
+随后同线程 follow-up 成功，queue/workspace diff/browser logs 为空。Codex provider/network
+Retry 仍无安全可控同态证据，TH-10 保持 UNTESTED。
