@@ -244,6 +244,39 @@ func TestScanDriveSessionsPausedAndPendingResume(t *testing.T) {
 	}
 }
 
+func TestReadSeriesSpecReplaysEffectiveConfigAfterRestart(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	const id = "series-config-replay"
+	writeSeriesJournal(t, id, driver.ScheduleInterval, false)
+	dir, err := runtime.SessionDir(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+		SeriesID: id, ExpectedRevision: 0, Revision: 1,
+		Prompt: "Audit the release queue", Schedule: driver.ScheduleCron,
+		Cron: "0 9 * * 1-5", Overlap: driver.OverlapCoalesce,
+		Base: time.Date(2026, 7, 23, 9, 0, 0, 0, time.UTC), Source: "user",
+	})
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+	spec, _, ok := readSeriesSpec(dir)
+	if !ok || spec.Prompt != "Audit the release queue" ||
+		spec.Schedule != driver.ScheduleCron || spec.Cron != "0 9 * * 1-5" ||
+		spec.Interval != "" || spec.Overlap != driver.OverlapCoalesce {
+		t.Fatalf("effective spec = %+v ok=%v", spec, ok)
+	}
+	current, err := seriesControlState(id)
+	if err != nil || !current.Eligible || !current.Editable || current.Revision != 1 {
+		t.Fatalf("series control state = %+v err=%v", current, err)
+	}
+}
+
 // INC-80 review P0-1/P0-2: the drive sweep collects a merged-stream
 // self_paced series (its graceful shutdown leaves no terminal on exactly
 // this promise), and the TIMER sweep never offers a series session to the

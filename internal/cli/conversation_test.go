@@ -360,6 +360,27 @@ func TestScheduleAttachValidation(t *testing.T) {
 	}
 }
 
+func TestScheduleUpdateValidationBeforeDaemonRoundTrip(t *testing.T) {
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"s", "update", "--prompt", "new"}, "--revision"},
+		{[]string{"s", "update", "--revision", "0"}, "at least one"},
+		{[]string{"s", "update", "--revision", "0", "--every", "30m", "--cron", "* * * * *"}, "not both"},
+		{[]string{"s", "update", "--revision", "-1", "--prompt", "new"}, "non-negative"},
+	}
+	for _, tc := range cases {
+		var out, errOut bytes.Buffer
+		if code := scheduleCmd(tc.args, &out, &errOut); code != ExitUsage {
+			t.Fatalf("args=%v code=%d stderr=%s", tc.args, code, errOut.String())
+		}
+		if !strings.Contains(errOut.String(), tc.want) {
+			t.Fatalf("args=%v stderr=%q want %q", tc.args, errOut.String(), tc.want)
+		}
+	}
+}
+
 func TestScheduleStatusProjectsPausedMergedSeries(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	const id = "series-status"
@@ -420,6 +441,10 @@ func TestScheduleStatusJSONWhitelistsCanonicalSeriesDetail(t *testing.T) {
 	appendDriveEv(t, es, event.TypeSeriesStarted, &event.SeriesStarted{
 		SeriesID: id, Kind: spec.Schedule, MaxIterations: 12,
 		Overlap: spec.Overlap, Source: "user"})
+	appendDriveEv(t, es, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+		SeriesID: id, ExpectedRevision: 0, Revision: 1,
+		Prompt: "Audit release blockers.", Schedule: driver.ScheduleInterval,
+		Interval: "45m", Overlap: driver.OverlapSkip, Source: "user"})
 	appendDriveEv(t, es, event.TypeSeriesPaused, &event.SeriesPaused{
 		SeriesID: id, Source: "user"})
 	_ = es.Close()
@@ -433,12 +458,13 @@ func TestScheduleStatusJSONWhitelistsCanonicalSeriesDetail(t *testing.T) {
 		t.Fatalf("decode %q: %v", out.String(), err)
 	}
 	if got.Kind != "series" || got.SessionID != id || got.Status != "paused" ||
-		got.Prompt != spec.Prompt || got.Workspace != "/repo/product" ||
+		got.Prompt != "Audit release blockers." || got.Workspace != "/repo/product" ||
 		got.Agent != "auditor" || got.Provider != "gemini" ||
 		got.Model != "gemini-2.5-pro" || !got.ThinkingEnabled ||
-		got.ThinkingBudgetTokens != 4096 || got.Cadence != "Every 30m" ||
-		got.Overlap != driver.OverlapCoalesce || got.Iterations != 0 ||
-		got.MaxIterations != 12 || got.NextRunAt != "" || !got.ScheduleControl {
+		got.ThinkingBudgetTokens != 4096 || got.Cadence != "Every 45m" ||
+		got.Overlap != driver.OverlapSkip || got.Iterations != 0 ||
+		got.MaxIterations != 12 || got.NextRunAt != "" || !got.ScheduleControl ||
+		!got.ScheduleEdit || got.Revision != 1 {
 		t.Fatalf("detail = %+v", got)
 	}
 	if text := out.String(); strings.Contains(text, "SECRET_SYSTEM_PROMPT") ||

@@ -852,6 +852,15 @@ func (d *Driver) awaitSeriesTick(ctx context.Context, ss *state.State, appendE a
 				if _, err := d.applySeriesControl(ss, ctl); err != nil {
 					return err
 				}
+				if d.seriesCadenceChanged {
+					cancel()
+					<-waited
+					if _, err := appendE(event.TypeTimerCancelled, &event.TimerCancelled{TimerID: timerID}); err != nil {
+						return err
+					}
+					d.seriesCadenceChanged = false
+					return errSeriesCadenceUpdated
+				}
 			case <-ctx.Done():
 				cancel()
 				<-waited
@@ -859,83 +868,95 @@ func (d *Driver) awaitSeriesTick(ctx context.Context, ss *state.State, appendE a
 			}
 		}
 	}
-	now := d.Clock.Now()
-	switch d.Spec.schedule() {
-	case ScheduleInterval:
-		every, _ := d.Spec.interval()
-		if every <= 0 {
-			return true, now, nil // back-to-back interval mode
-		}
-		if first {
-			d.lastTick = now
-			return true, now, nil
-		}
-		if d.lastTick.IsZero() {
-			d.lastTick = now
-		}
-		next := d.lastTick.Add(every)
-		if !next.After(now) {
-			d.lastTick = next
-			if d.Spec.Overlap == OverlapCoalesce {
-				for !d.lastTick.Add(every).After(now) {
-					d.lastTick = d.lastTick.Add(every)
-				}
-				return true, d.lastTick, nil
+	for {
+		now := d.Clock.Now()
+		switch d.Spec.schedule() {
+		case ScheduleInterval:
+			every, _ := d.Spec.interval()
+			if every <= 0 {
+				return true, now, nil // back-to-back interval mode
 			}
-			ok, tick, err := skip(next)
-			return ok, tick, err
-		}
-		if err := wait(next); err != nil {
-			return false, time.Time{}, err
-		}
-		d.lastTick = next
-		return true, next, nil
-	case ScheduleCron:
-		if d.lastTick.IsZero() {
-			d.lastTick = now
-		}
-		next, ok := d.cronSched.Next(d.lastTick)
-		if !ok {
-			return false, time.Time{}, fmt.Errorf("series: cron %q never fires", d.Spec.Cron)
-		}
-		if !next.After(now) {
-			d.lastTick = next
-			if d.Spec.Overlap == OverlapCoalesce {
-				for {
-					nn, ok := d.cronSched.Next(d.lastTick)
-					if !ok || nn.After(now) {
-						break
+			if first {
+				d.lastTick = now
+				return true, now, nil
+			}
+			if d.lastTick.IsZero() {
+				d.lastTick = now
+			}
+			next := d.lastTick.Add(every)
+			if !next.After(now) {
+				d.lastTick = next
+				if d.Spec.Overlap == OverlapCoalesce {
+					for !d.lastTick.Add(every).After(now) {
+						d.lastTick = d.lastTick.Add(every)
 					}
-					d.lastTick = nn
+					return true, d.lastTick, nil
 				}
-				return true, d.lastTick, nil
+				ok, tick, err := skip(next)
+				return ok, tick, err
 			}
-			okS, tick, err := skip(next)
-			return okS, tick, err
-		}
-		if err := wait(next); err != nil {
-			return false, time.Time{}, err
-		}
-		d.lastTick = next
-		return true, next, nil
-	case ScheduleSelfPaced:
-		// The child's own schedule_next intent paces the series (legacy
-		// 语义): nextPace is runner memory, re-derived on resume from the
-		// last child's journal. The durable timer is only a daemon wake
-		// hint; the returned tick stays zero — self-paced series have no
-		// absolute timeline (state.Series.LastTick contract).
-		if first || d.nextPace <= 0 {
+			if err := wait(next); err != nil {
+				if errors.Is(err, errSeriesCadenceUpdated) {
+					continue
+				}
+				return false, time.Time{}, err
+			}
+			d.lastTick = next
+			return true, next, nil
+		case ScheduleCron:
+			if d.lastTick.IsZero() {
+				d.lastTick = now
+			}
+			next, ok := d.cronSched.Next(d.lastTick)
+			if !ok {
+				return false, time.Time{}, fmt.Errorf("series: cron %q never fires", d.Spec.Cron)
+			}
+			if !next.After(now) {
+				d.lastTick = next
+				if d.Spec.Overlap == OverlapCoalesce {
+					for {
+						nn, ok := d.cronSched.Next(d.lastTick)
+						if !ok || nn.After(now) {
+							break
+						}
+						d.lastTick = nn
+					}
+					return true, d.lastTick, nil
+				}
+				okS, tick, err := skip(next)
+				return okS, tick, err
+			}
+			if err := wait(next); err != nil {
+				if errors.Is(err, errSeriesCadenceUpdated) {
+					continue
+				}
+				return false, time.Time{}, err
+			}
+			d.lastTick = next
+			return true, next, nil
+		case ScheduleSelfPaced:
+			// The child's own schedule_next intent paces the series (legacy
+			// 语义): nextPace is runner memory, re-derived on resume from the
+			// last child's journal. The durable timer is only a daemon wake
+			// hint; the returned tick stays zero — self-paced series have no
+			// absolute timeline (state.Series.LastTick contract).
+			if first || d.nextPace <= 0 {
+				return true, time.Time{}, nil
+			}
+			if err := wait(now.Add(d.nextPace)); err != nil {
+				if errors.Is(err, errSeriesCadenceUpdated) {
+					continue
+				}
+				return false, time.Time{}, err
+			}
 			return true, time.Time{}, nil
 		}
-		if err := wait(now.Add(d.nextPace)); err != nil {
-			return false, time.Time{}, err
-		}
-		return true, time.Time{}, nil
+		return false, time.Time{}, fmt.Errorf("series: schedule %q has no cadence", d.Spec.schedule())
 	}
-	return false, time.Time{}, fmt.Errorf("series: schedule %q has no cadence", d.Spec.schedule())
 }
 
 var errSeriesPaused = errors.New("series paused")
+var errSeriesCadenceUpdated = errors.New("series cadence updated")
 
 // applySeriesControl is the sole lifecycle applier. A domain event carries the
 // command id when state changes; a no-op gets CommandHandled so command replay
@@ -977,6 +998,57 @@ func (d *Driver) applySeriesControl(ss *state.State, ctl protocol.Control) (bool
 			SeriesID: sr.SeriesID, Base: d.Clock.Now(), Source: "user",
 		}, ctl.CommandID)
 		return false, err
+	case protocol.ControlScheduleUpdate:
+		update := ctl.SeriesConfig
+		if update == nil {
+			_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+				CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+				Kind: ctl.Kind, Result: "invalid_config",
+			}, ctl.CommandID)
+			return false, err
+		}
+		if update.ExpectedRevision != sr.ConfigRevision {
+			_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+				CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+				Kind: ctl.Kind, Result: "revision_conflict",
+			}, ctl.CommandID)
+			return false, err
+		}
+		next, cadenceChanged, configErr := ApplySeriesConfigUpdate(d.Spec, update)
+		if configErr != nil {
+			_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+				CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+				Kind: ctl.Kind, Result: "invalid_config",
+			}, ctl.CommandID)
+			return false, err
+		}
+		base := time.Time{}
+		if cadenceChanged {
+			base = d.Clock.Now()
+		}
+		if _, err := d.seriesAppend(ss, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+			SeriesID: sr.SeriesID, ExpectedRevision: update.ExpectedRevision,
+			Revision: update.ExpectedRevision + 1, Prompt: next.Prompt,
+			Schedule: next.schedule(), Interval: next.Interval, Cron: next.Cron,
+			Overlap: next.Overlap, Base: base, Source: "user",
+		}, ctl.CommandID); err != nil {
+			return false, err
+		}
+		d.Spec = next
+		if next.schedule() == ScheduleCron {
+			sched, err := cron.Parse(next.Cron)
+			if err != nil {
+				return false, err
+			}
+			d.cronSched = sched
+		} else {
+			d.cronSched = nil
+		}
+		if cadenceChanged {
+			d.lastTick = base
+			d.seriesCadenceChanged = true
+		}
+		return false, nil
 	default:
 		_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
 			CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
@@ -995,6 +1067,10 @@ func (d *Driver) drainSeriesControls(ss *state.State) (bool, error) {
 				return false, nil
 			}
 			paused, err := d.applySeriesControl(ss, ctl)
+			// Cadence updates drained at an iteration boundary already changed
+			// d.lastTick directly; the wait-cancellation signal is only for an
+			// update consumed inside awaitSeriesTick.
+			d.seriesCadenceChanged = false
 			if err != nil || paused {
 				return paused, err
 			}
@@ -1021,6 +1097,7 @@ func (d *Driver) awaitSeriesResume(ctx context.Context, ss *state.State) error {
 			if _, err := d.applySeriesControl(ss, ctl); err != nil {
 				return err
 			}
+			d.seriesCadenceChanged = false
 			if ss.Series != nil && !ss.Series.Paused {
 				return nil
 			}

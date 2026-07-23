@@ -7463,3 +7463,28 @@ Pause；500 条 shared session 中无 paused canonical fixture，因此 paused/l
 真浏览器与 dark theme 继续待测。证据在
 `qa/runs/2026-07-23-QA88-98.5b-scheduled-detail/`；75 files/777 frontend tests、
 production build 与 `./scripts/check.sh` 全绿。G56 的 edit/notification 仍开放。
+
+---
+
+## 2026-07-23 · INC-98.5c Scheduled revisioned config update
+
+真实 Codex `1100×700` Scheduled detail 进一步确认 Repeat/At 是详情内直接配置，而非另建
+Settings 流。AgentRunner 现可在 canonical interval/cron series 上原位编辑 standing prompt、
+cadence 与 overlap；更新以 revision + pending command reservation 防止并发覆盖，cadence
+变更撤旧 timer、从当前 clock base 重锚且不补跑，restart 由 journal 的完整 effective config
+恢复。checkpoint 复审发现并关闭 state/pending 分开读取的 CAS 竞态：daemon 现在只接受
+journal cursor 稳定的 journal→command→journal snapshot，runner 在中间落盘会触发重读；
+同一 command retry 即使 revision 已推进也验证原 payload 后幂等返回。Web UI 冲突时保留
+草稿并要求显式二次 Save。
+
+复杂 A 闸覆盖等待中改 cadence、in-flight 边界、stale daemon/runner 双层防御、重启重建、
+HTTP 409 与前端 conflict draft。B 闸在 shared production 的 retained active series
+`20260723-043024-qa88-schedule-restart-6d2120bc409214e4` 真写：
+Web revision 1 更新 prompt/169h/Coalesce；浏览器保留 revision 1 草稿时由 CLI 抢先写成
+revision 2，首次 Save 收到 409、草稿与 171h 不丢，显式二次 Save 落 revision 3；随后
+graceful daemon restart、同 hash deep-link reload，prompt/cadence/overlap/revision/next timer
+全部从共享 journal 恢复，browser warning/error 为零。真实 Edit 还暴露前端曾放行 `500ms`
+而 Go backend 要求 `>=1s`，已把 validator 改为按复合 Go duration 求总纳秒并钉
+`300ms/999999999ns` 拒绝、`1000ms/0.5s500ms` 接受。证据：
+`qa/runs/2026-07-23-QA88-98.5c-scheduled-edit/`。G56 只剩 Notifications
+policy/durable receipt 及 paused/loading/error/dark 真验。

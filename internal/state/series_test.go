@@ -93,6 +93,37 @@ func TestSeriesFoldLifecycle(t *testing.T) {
 		t.Fatalf("resume did not re-anchor: %+v", s.Series)
 	}
 
+	// Editable configuration is revisioned and complete. A cadence update
+	// re-anchors LastTick; a prompt-only update keeps that anchor.
+	configBase := resumeBase.Add(time.Minute)
+	s = apply(s, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+		SeriesID: "ser-1", ExpectedRevision: 0, Revision: 1,
+		Prompt: "Audit blockers", Schedule: "interval", Interval: "45m",
+		Overlap: "coalesce", Base: configBase, Source: "user",
+	})
+	if s.Series.ConfigRevision != 1 || s.Series.Prompt != "Audit blockers" ||
+		s.Series.Interval != "45m" || s.Series.Overlap != "coalesce" ||
+		!s.Series.LastTick.Equal(configBase) {
+		t.Fatalf("config update did not fold: %+v", s.Series)
+	}
+	s = apply(s, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+		SeriesID: "ser-1", ExpectedRevision: 1, Revision: 2,
+		Prompt: "Audit only release blockers", Schedule: "interval", Interval: "45m",
+		Overlap: "coalesce", Source: "user",
+	})
+	if s.Series.ConfigRevision != 2 || s.Series.Prompt != "Audit only release blockers" ||
+		!s.Series.LastTick.Equal(configBase) {
+		t.Fatalf("prompt-only update moved cadence: %+v", s.Series)
+	}
+	stale := s
+	s = apply(s, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+		SeriesID: "ser-1", ExpectedRevision: 0, Revision: 1,
+		Prompt: "stale", Schedule: "cron", Cron: "* * * * *", Source: "user",
+	})
+	if s.Series.ConfigRevision != stale.Series.ConfigRevision || s.Series.Prompt != stale.Series.Prompt {
+		t.Fatalf("stale config update changed the series: before=%+v after=%+v", stale.Series, s.Series)
+	}
+
 	// Wrong-ID facts are stale-control no-ops.
 	s = apply(s, event.TypeSeriesPaused, &event.SeriesPaused{SeriesID: "other", Source: "user"})
 	if s.Series.Paused {

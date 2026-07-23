@@ -857,6 +857,8 @@ type scheduleStatusReport struct {
 	MaxIterations        int    `json:"max_iterations,omitempty"`
 	NextRunAt            string `json:"next_run_at,omitempty"`
 	ScheduleControl      bool   `json:"schedule_control,omitempty"`
+	ScheduleEdit         bool   `json:"schedule_edit,omitempty"`
+	Revision             int    `json:"revision"`
 }
 
 // seriesScheduleStatus is the safe, typed product projection of a journaled
@@ -877,11 +879,15 @@ func seriesScheduleStatus(sessionID, workspace string, spec *driver.DriverSpec, 
 		Interval: spec.Interval, Cron: spec.Cron,
 		PaceMin: spec.PaceMin, PaceMax: spec.PaceMax,
 		Overlap: spec.Overlap, Iterations: len(sr.Iterations),
-		MaxIterations: sr.MaxIterations,
+		MaxIterations: sr.MaxIterations, Revision: sr.ConfigRevision,
 	}
 	switch spec.Schedule {
 	case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
 		report.ScheduleControl = !sr.Ended
+	}
+	switch spec.Schedule {
+	case driver.ScheduleInterval, driver.ScheduleCron:
+		report.ScheduleEdit = !sr.Ended
 	}
 	if !sr.Ended && !sr.Paused {
 		if next, ok := spec.NextRunAt(sr.LastTick, now); ok {
@@ -917,7 +923,7 @@ func sessionScheduleStatus(sessionID string, sc *state.Schedule) scheduleStatusR
 
 func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
-		fmt.Fprintln(stderr, "usage: agentrunner schedule <session-id-or-prefix> <attach|status|pause|resume|cancel> [flags]")
+		fmt.Fprintln(stderr, "usage: agentrunner schedule <session-id-or-prefix> <attach|status|update|pause|resume|cancel> [flags]")
 		return ExitUsage
 	}
 	session := resolvePrefixLenient(args[0])
@@ -1023,6 +1029,67 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 			}
 		}
 		return oneShot(stderr, daemon.Command{Cmd: "schedule-" + sub, Session: session}, stdout)
+	case "update":
+		fs := flag.NewFlagSet("schedule update", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		revision := fs.Int("revision", 0, "expected configuration revision")
+		prompt := fs.String("prompt", "", "new standing prompt")
+		every := fs.String("every", "", "new interval cadence")
+		cronExpr := fs.String("cron", "", "new 5-field cron cadence")
+		overlap := fs.String("overlap", "", "overlap policy: skip or coalesce")
+		if err := fs.Parse(rest); err != nil {
+			return ExitUsage
+		}
+		if fs.NArg() != 0 {
+			fmt.Fprintln(stderr, "usage: agentrunner schedule <session> update --revision N [--prompt TEXT] [--every DURATION|--cron EXPR] [--overlap skip|coalesce]")
+			return ExitUsage
+		}
+		set := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		if !set["revision"] || *revision < 0 {
+			fmt.Fprintln(stderr, "schedule update: --revision must be set to a non-negative value")
+			return ExitUsage
+		}
+		if set["every"] && set["cron"] {
+			fmt.Fprintln(stderr, "schedule update: set --every or --cron, not both")
+			return ExitUsage
+		}
+		if !set["prompt"] && !set["every"] && !set["cron"] && !set["overlap"] {
+			fmt.Fprintln(stderr, "schedule update: set at least one of --prompt, --every, --cron, or --overlap")
+			return ExitUsage
+		}
+		update := &protocol.SeriesConfigControl{ExpectedRevision: *revision}
+		if set["prompt"] {
+			update.Prompt = prompt
+		}
+		if set["overlap"] {
+			update.Overlap = overlap
+		}
+		if set["every"] {
+			schedule := driver.ScheduleInterval
+			update.Schedule, update.Interval = &schedule, every
+		}
+		if set["cron"] {
+			schedule := driver.ScheduleCron
+			update.Schedule, update.Cron = &schedule, cronExpr
+		}
+		dir, err := resolveSessionDir(session)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		spec, _, ok := readSeriesSpec(dir)
+		if !ok {
+			fmt.Fprintln(stderr, "schedule update: session is not a canonical scheduled series")
+			return ExitUsage
+		}
+		if _, _, err := driver.ApplySeriesConfigUpdate(spec, update); err != nil {
+			fmt.Fprintf(stderr, "schedule update: %v\n", err)
+			return ExitUsage
+		}
+		return oneShot(stderr, daemon.Command{
+			Cmd: "series-update", Session: session, SeriesConfig: update,
+		}, stdout)
 	case "attach":
 		fs := flag.NewFlagSet("schedule attach", flag.ContinueOnError)
 		fs.SetOutput(stderr)
@@ -1068,7 +1135,7 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		return oneShot(stderr, daemon.Command{Cmd: "schedule-attach", Session: session, Schedule: sc}, stdout)
 	default:
-		fmt.Fprintf(stderr, "schedule: unknown subcommand %q (attach|status|pause|resume|cancel)\n", sub)
+		fmt.Fprintf(stderr, "schedule: unknown subcommand %q (attach|status|update|pause|resume|cancel)\n", sub)
 		return ExitUsage
 	}
 }

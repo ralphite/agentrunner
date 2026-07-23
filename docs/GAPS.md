@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97/98.4o：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + typed human attention + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87/88；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume lifecycle/detail-edit 缺 G55/G56（均不阻断主 journey） |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97/98.4o：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + typed human attention + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87/88；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume 真环境闸门与 notification policy 缺 G55/G56（均不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -771,7 +771,7 @@ scheduled work 的获准窗口完成 shared-store `pause in-flight → daemon re
 SC-05 继续 GAP。
 → UJ-14/UJ-24
 
-**G56 Scheduled series detail/edit/notification projection 缺失 — 🟡 detail 第一纵切已交付（INC-98.5b，中）**
+**G56 Scheduled series notification policy 缺失 — 🟡 detail/edit 已交付（INC-98.5b/c，中）**
 Codex 对真实 `Daily brief` row 单击后在同页 split panel 显示完整 prompt、Runs in/Project、Model、
 Reasoning、Repeat/At、Notifications 与 pause/close；AgentRunner row 单击进入的是 driver iteration history，
 该 history 的 hash deep-link/reload/back 与审计细节更强，但没有 series-level configuration surface。
@@ -779,9 +779,16 @@ INC-98.5b 已新增 safe typed series detail projection/API 与 responsive same-
 prompt、workspace、agent/model/reasoning、cadence/overlap、iterations/status/next run 均来自 canonical
 journal fold；保留 Open history，并复用 G55 lifecycle capability。1100×700 与 390×844 shared-store
 active series 真验 deep-link/reload/Back/history/零 console；500 条 shared session 中无 paused canonical
-fixture，未为取证改动真实 series。G56 仍开放：需要 typed edit/update API、版本冲突、cadence
-validation/rebase、notification policy 与 durable receipt；paused/loading/error 真浏览器与 dark theme
-也未冒充已测。
+fixture，未为取证改动真实 series。INC-98.5c 已补 canonical interval/cron 的 revisioned
+prompt/cadence/overlap update：daemon 用 journal cursor 稳定 snapshot 消除 state/pending 跨读取
+竞态、对 pending suffix 预留 revision、同 command retry 幂等，runner 防御 stale command、
+cadence change 撤旧 timer 并以 clock base 重锚、restart 从 `SeriesConfigUpdated` 重建 effective spec；
+CLI/API 与 Web UI Edit modal 同源，409 保留草稿、拉取最新 revision 后要求显式二次 Save。低分辨率
+shared production 已用 retained active series 真写验证 `rev1 Web update → rev2 concurrent CLI
+writer → 409 draft preserved → rev3 explicit second Save → daemon restart/deep-link reload`；
+prompt、171h cadence、Coalesce、revision 3 与重锚 timer 均从共享 journal 恢复，console 为空。
+真交互另发现并修复 `<1s` interval 前端误放行。G56 仍开放：Notifications 的
+policy/schema/durable receipt，以及 paused/loading/error 与 dark theme，均未冒充已测。
 → UJ-14/UJ-24
 
 **G57 当前 context window/compaction 状态的 backend projection 缺失 — ❌ 开放（INC-98.4k 主界面对照，中）**

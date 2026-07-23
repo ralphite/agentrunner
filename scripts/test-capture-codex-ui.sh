@@ -22,6 +22,8 @@ done
 [[ "$help" == *"--scheduled-search"* ]]
 [[ "$help" == *"--scheduled-filter"* ]]
 [[ "$help" == *"--scheduled-row"* ]]
+[[ "$help" == *"--scheduled-detail-control"* ]]
+[[ "$help" == *"--scheduled-detail-validate"* ]]
 [[ "$help" == *"--scheduled-create"* ]]
 [[ "$help" == *"--viewport"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
@@ -248,6 +250,18 @@ if $driver --scheduled-filter paused >"$tmpdir/scheduled.out" 2>"$tmpdir/schedul
 fi
 grep -Fq -- 'Scheduled actions require --surface scheduled' "$tmpdir/scheduled.err"
 
+if $driver --scheduled-detail-control repeat --scheduled-detail-validate Daily >"$tmpdir/scheduled-detail.out" 2>"$tmpdir/scheduled-detail.err"; then
+  echo "capture driver accepted a detail control without a scheduled row" >&2
+  exit 1
+fi
+grep -Fq -- '--scheduled-detail-control requires --scheduled-row' "$tmpdir/scheduled-detail.err"
+
+if $driver --surface scheduled --scheduled-row Daily --scheduled-detail-control repeat >"$tmpdir/scheduled-detail-validate.out" 2>"$tmpdir/scheduled-detail-validate.err"; then
+  echo "capture driver accepted a detail control without visual validation" >&2
+  exit 1
+fi
+grep -Fq -- '--scheduled-detail-control requires --scheduled-detail-validate' "$tmpdir/scheduled-detail-validate.err"
+
 # Query entry must be reversible: the driver may borrow the clipboard to paste
 # into Electron, but it has to preserve every original pasteboard item/type.
 grep -Fq 'pasteboard.pasteboardItems' "$driver"
@@ -362,6 +376,7 @@ grep -Fq 'codex-scheduled-search-validate' "$driver"
 grep -Fq 'codex-scheduled-filter' "$driver"
 grep -Fq 'codex-scheduled-row' "$driver"
 grep -Fq 'codex-scheduled-row-validate' "$driver"
+grep -Fq 'codex-scheduled-detail-control' "$driver"
 grep -Fq 'codex-scheduled-create-validate' "$driver"
 grep -Fq 'AXIsProcessTrusted()' "$driver"
 grep -Fq 'if ((window_resized))' "$driver"

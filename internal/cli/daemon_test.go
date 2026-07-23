@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/fork"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -220,6 +222,73 @@ func TestPendingCommandsUsesJournalCommandReceipts(t *testing.T) {
 	ids, err := scanPendingCommandSessions()
 	if err != nil || len(ids) != 1 || ids[0] != "pending-test" {
 		t.Fatalf("pending sessions = %v err=%v", ids, err)
+	}
+}
+
+func TestSeriesConfigSnapshotRetriesWhenJournalAdvancesAcrossCommandRead(t *testing.T) {
+	rawSpec, err := json.Marshal(driver.DriverSpec{
+		Schedule: driver.ScheduleInterval,
+		Interval: "1h",
+		Prompt:   "original",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeEvent := func(seq int64, typ string, payload any, commandID string) event.Envelope {
+		t.Helper()
+		env, eventErr := event.New(typ, payload)
+		if eventErr != nil {
+			t.Fatal(eventErr)
+		}
+		env.Seq = seq
+		env.CommandID = commandID
+		return env
+	}
+	base := []event.Envelope{
+		makeEvent(1, event.TypeSessionStarted, &event.SessionStarted{
+			Spec: rawSpec, SubStateVersions: state.SubStateVersions(),
+		}, ""),
+		makeEvent(2, event.TypeSeriesStarted, &event.SeriesStarted{
+			SeriesID: "series-1", Kind: "loop", Overlap: "skip", Source: "user",
+		}, ""),
+	}
+	advanced := append(append([]event.Envelope(nil), base...),
+		makeEvent(3, event.TypeSeriesConfigUpdated, &event.SeriesConfigUpdated{
+			SeriesID: "series-1", ExpectedRevision: 0, Revision: 1,
+			Prompt: "writer A", Schedule: driver.ScheduleInterval,
+			Interval: "2h", Overlap: "skip",
+		}, "cmd-a"))
+	promptA := "writer A"
+	commands := []protocol.SessionCommand{{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-a", CommandSeq: 1},
+		Kind:       protocol.CommandControl,
+		Control: &protocol.Control{
+			Kind: protocol.ControlScheduleUpdate,
+			SeriesConfig: &protocol.SeriesConfigControl{
+				ExpectedRevision: 0, Prompt: &promptA,
+			},
+		},
+	}}
+
+	eventReads := 0
+	snapshot, err := readStableSeriesConfigSnapshot("cmd-b",
+		func() ([]event.Envelope, error) {
+			eventReads++
+			if eventReads == 1 {
+				return base, nil
+			}
+			return advanced, nil
+		},
+		func() ([]protocol.SessionCommand, error) { return commands, nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if eventReads != 4 {
+		t.Fatalf("event reads = %d, want one rejected view plus one stable retry", eventReads)
+	}
+	if snapshot.State.Revision != 1 || snapshot.ReservedRevision != 1 {
+		t.Fatalf("snapshot = %+v, stale revision must not survive the retry", snapshot)
 	}
 }
 

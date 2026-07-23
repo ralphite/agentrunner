@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -275,6 +276,110 @@ func TestSeriesPauseDuringWaitAndResumeReanchors(t *testing.T) {
 	}
 	if resumed == nil || !folded.Series.Iterations[1].Tick.Equal(resumed.Base.Add(time.Minute)) {
 		t.Fatalf("resume base/next tick mismatch: resumed=%+v iterations=%+v", resumed, folded.Series.Iterations)
+	}
+}
+
+func TestSeriesConfigUpdateDuringWaitCancelsAndReanchorsCadence(t *testing.T) {
+	d, dStore, clk := seriesControlHarness(t, 2)
+	controls := make(chan protocol.Control, 2)
+	d.SeriesControls = controls
+	result := make(chan driver.Result, 1)
+	go func() {
+		res, err := d.RunSeries(context.Background())
+		if err != nil {
+			t.Errorf("run: %v", err)
+		}
+		result <- res
+	}()
+	waitIdle(t, clk)
+	base := clk.Now()
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-update", CommandSeq: 1},
+		Kind:       protocol.ControlScheduleUpdate,
+		SeriesConfig: &protocol.SeriesConfigControl{
+			ExpectedRevision: 0,
+			Prompt:           strptr("new standing prompt"),
+			Schedule:         strptr(driver.ScheduleInterval),
+			Interval:         strptr("2m"),
+			Overlap:          strptr(driver.OverlapCoalesce),
+		},
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		events, _ := store.ReadEvents(dStore.Dir())
+		if slices.ContainsFunc(events, func(env event.Envelope) bool {
+			return env.Type == event.TypeSeriesConfigUpdated
+		}) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-stale", CommandSeq: 2},
+		Kind:       protocol.ControlScheduleUpdate,
+		SeriesConfig: &protocol.SeriesConfigControl{
+			ExpectedRevision: 0,
+			Prompt:           strptr("stale prompt"),
+		},
+	}
+	clk.Advance(time.Minute)
+	select {
+	case res := <-result:
+		t.Fatalf("series fired on the cancelled one-minute cadence: %+v", res)
+	default:
+	}
+	clk.Advance(time.Minute)
+	if res := <-result; res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("result = %+v", res)
+	}
+
+	events, _ := store.ReadEvents(dStore.Dir())
+	folded, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folded.Series == nil || folded.Series.ConfigRevision != 1 ||
+		folded.Series.Prompt != "new standing prompt" ||
+		folded.Series.Interval != "2m" ||
+		!folded.Series.Iterations[1].Tick.Equal(base.Add(2*time.Minute)) {
+		t.Fatalf("updated series = %+v", folded.Series)
+	}
+	cancelled, updated, conflicts := 0, 0, 0
+	for _, env := range events {
+		switch env.Type {
+		case event.TypeTimerCancelled:
+			cancelled++
+		case event.TypeSeriesConfigUpdated:
+			updated++
+			if env.CommandID != "cmd-update" {
+				t.Fatalf("update receipt command_id = %q", env.CommandID)
+			}
+		case event.TypeCommandHandled:
+			decoded, _ := event.DecodePayload(env)
+			handled := decoded.(*event.CommandHandled)
+			if handled.CommandID == "cmd-stale" && handled.Result == "revision_conflict" {
+				conflicts++
+			}
+		}
+	}
+	if cancelled == 0 || updated != 1 || conflicts != 1 {
+		t.Fatalf("timer cancellations=%d config updates=%d conflicts=%d", cancelled, updated, conflicts)
+	}
+	secondEvents, err := store.ReadEvents(filepath.Join(dStore.Dir(), "sub", "iter-2-a1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var secondPrompt string
+	for _, env := range secondEvents {
+		if env.Type != event.TypeInputReceived {
+			continue
+		}
+		decoded, _ := event.DecodePayload(env)
+		secondPrompt = decoded.(*event.InputReceived).Text
+		break
+	}
+	if !strings.Contains(secondPrompt, "new standing prompt") {
+		t.Fatalf("iteration 2 prompt = %q", secondPrompt)
 	}
 }
 

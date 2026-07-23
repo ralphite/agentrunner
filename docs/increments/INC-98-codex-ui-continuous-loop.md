@@ -586,6 +586,33 @@ INC-98 将该方法固化为持续循环：
   改动真实 series，故 paused/loading/error 真浏览器状态与 dark theme 仍待后续批次；
   `qa/runs/2026-07-23-QA88-98.5b-scheduled-detail/` 保留全部证据。
 
+### 98.5c Scheduled config update
+
+- **Codex / 既有 pattern**：1100×700 真机显示 detail 内 `Repeat`/`At` 直接可开菜单；
+  AgentRunner 复用现有轻量 modal、cadence validator 与 detail，而不新增独立 settings 页。
+- **产品面**：canonical active/paused `interval|cron` detail 提供 `Edit`；可改 standing
+  prompt、interval/cron 与 overlap，agent/model/workspace/iteration history 保持只读。
+  Save 成功后同页刷新 cadence/next run，draft 与错误留在 modal 内。
+- **并发与恢复**：GET 返回 `revision`；update 携 `expected_revision`。daemon 以稳定
+  `journal → command log → journal` snapshot 做 CAS：journal cursor 跨读取推进则重试，
+  pending update 继续预留 revision，已完成的同 `command_id` retry 则验证原 payload 后
+  幂等返回；runner 再防御性复核。成功落完整
+  `SeriesConfigUpdated` fact；cadence 改动由 runner clock 盖 `Base` 并撤旧 timer、从
+  Base 重锚，不补跑旧 slot；prompt/overlap-only 更新不移动 next run。in-flight child
+  使用旧配置完成，更新在下一 iteration boundary 生效。restart 从 journal head +
+  config facts 重建 effective spec；legacy/terminal/self-paced 不暴露假能力。
+- **冲突 UX**：409 不丢用户草稿；前端读取最新 revision，明确提示 review 后再次 Save，
+  不静默覆盖另一窗口的改动。
+- **边界**：Notifications、agent/model/reasoning、Delete/Close 仍留 G56；不触 DESIGN
+  不变量，沿用 journal-first、single-writer、fsync-before-ack 与 crash replay。
+- **B 闸结果**：shared production retained active series
+  `20260723-043024-qa88-schedule-restart-6d2120bc409214e4` 在 1100×700 完成
+  `rev1 Web update → rev2 concurrent CLI writer → 409 draft preserved → rev3
+  explicit second Save → graceful daemon restart → deep-link reload`；effective
+  prompt/171h/Coalesce/revision 3/next timer 恢复且 browser logs 为空。真交互另发现并修复
+  `<1s` interval 前端误放行；截图保存在
+  `qa/runs/2026-07-23-QA88-98.5c-scheduled-edit/`，共享 session/journal 全部保留。
+
 ## Spec delta
 
 - `JOURNEYS.md` UJ-24：增加“全部可见 surface/state 有持续 evidence matrix”的验收责任。
@@ -636,6 +663,17 @@ INC-98 将该方法固化为持续循环：
 - B 闸：shared-store 选择 retained canonical series，在 1100×700 与 390×844 真浏览器
   覆盖 active/paused/loading/error、deep-link reload、Back/Open history、light/dark，
   并与 Codex retained Scheduled detail 同 viewport 合并比较；不编辑、不删除、不清理。
+
+### 98.5c revisioned config update 双闸门
+
+- A 闸：fake clock + scripted runner 覆盖 wait/in-flight boundary、timer cancel/re-anchor、
+  restart fold、stable journal/command snapshot、pending revision reservation、exact retry、
+  stale writer、CLI/API casing 与 HTTP 409；前端覆盖 successful edit、invalid cadence、
+  conflict-preserved draft 与 explicit second Save。
+- B 闸：shared production retained active series 在 1100×700 真实执行 Web 更新、并发 CLI
+  writer、409、二次 Save、graceful daemon restart 与 deep-link reload；以 CLI status、
+  journal `SeriesConfigUpdated`、DOM、截图、health 与空 browser logs 共同断言，不
+  close/delete/cleanup。2026-07-23 已通过，最终 revision 3。
 
 ## 实施步骤
 

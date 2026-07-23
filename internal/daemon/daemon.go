@@ -76,7 +76,8 @@ type Command struct {
 	Goal *protocol.GoalControl `json:"goal,omitempty"`
 	// Schedule carries the parameters of a schedule-attach control (INC-74).
 	// pause/resume/cancel need only the command verb.
-	Schedule *protocol.ScheduleControl `json:"schedule,omitempty"`
+	Schedule     *protocol.ScheduleControl     `json:"schedule,omitempty"`
+	SeriesConfig *protocol.SeriesConfigControl `json:"series_config,omitempty"`
 	// Follow keeps the send connection open after the "delivered" ack,
 	// streaming the session's live events until the client disconnects
 	// (INC-2: the reply becomes visible on the send itself). Subscribe
@@ -184,8 +185,20 @@ type DriveRequest struct {
 // inspection; the daemon only provides durable acceptance and live delivery.
 type SeriesControlState struct {
 	Eligible bool
+	Editable bool
 	Paused   bool
 	Ended    bool
+	Revision int
+}
+
+// SeriesConfigSnapshot is one stable reservation view for optimistic schedule
+// edits. The CLI implementation reads journal → command log → journal and
+// retries when the journal cursor moves, so a runner that applies an update
+// between those reads cannot make a stale writer look current.
+type SeriesConfigSnapshot struct {
+	State              SeriesControlState
+	ReservedRevision   int
+	PreviouslyAccepted bool
 }
 
 // NewSessionID mints a session id for a hosted run; injected for
@@ -255,9 +268,10 @@ type Server struct {
 	// daemon was down. Both non-nil → the daemon runs the drive boot sweep
 	// once at startup. nil = drives do not survive a restart (the pre-INC-54
 	// behavior).
-	ScanDrives         func() ([]string, error)
-	ResumeDrive        func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
-	SeriesControlState func(sessionID string) (SeriesControlState, error)
+	ScanDrives               func() ([]string, error)
+	ResumeDrive              func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
+	SeriesControlState       func(sessionID string) (SeriesControlState, error)
+	ReadSeriesConfigSnapshot func(sessionID, commandID string) (SeriesConfigSnapshot, error)
 	// ScanStranded lists mid-turn stranded agent sessions for the boot sweep
 	// (INC-71, G22a): journal shows running, no live writer — the previous
 	// host died mid-turn and nothing will advance them until a resume. The
@@ -1004,6 +1018,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleSeriesControl(ctx, cmd, true, enc)
 	case "series-resume":
 		s.handleSeriesControl(ctx, cmd, false, enc)
+	case "series-update":
+		s.handleSeriesConfigUpdate(ctx, cmd, enc)
 	case "unqueue":
 		s.handleUnqueue(ctx, cmd, enc)
 	case "answer":
@@ -1012,7 +1028,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, title, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, schedule-attach, schedule-pause, schedule-resume, schedule-cancel, series-pause, series-resume, unqueue, answer, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, title, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, schedule-attach, schedule-pause, schedule-resume, schedule-cancel, series-pause, series-resume, series-update, unqueue, answer, agent)", cmd.Cmd)})
 	}
 }
 
@@ -1082,6 +1098,69 @@ func (s *Server) handleSeriesControl(ctx context.Context, cmd Command, pause boo
 		message = "resume recorded — cadence re-anchors when the series resumes"
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session, Text: message})
+}
+
+func (s *Server) handleSeriesConfigUpdate(ctx context.Context, cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" || cmd.SeriesConfig == nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "series update needs session and config"})
+		return
+	}
+	if s.ReadSeriesConfigSnapshot == nil || s.ResumeDrive == nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no scheduled-series control configured"})
+		return
+	}
+
+	s.commandMu.Lock()
+	defer s.commandMu.Unlock()
+	snapshot, err := s.ReadSeriesConfigSnapshot(cmd.Session, cmd.CommandID)
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "scheduled series: " + err.Error()})
+		return
+	}
+	if !snapshot.PreviouslyAccepted {
+		if !snapshot.State.Editable || snapshot.State.Ended {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "session is not an editable repeating series"})
+			return
+		}
+		if cmd.SeriesConfig.ExpectedRevision != snapshot.ReservedRevision {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: fmt.Sprintf(
+				"schedule revision conflict: expected %d, current %d",
+				cmd.SeriesConfig.ExpectedRevision, snapshot.ReservedRevision)})
+			return
+		}
+	}
+
+	ctl := protocol.Control{Kind: protocol.ControlScheduleUpdate, SeriesConfig: cmd.SeriesConfig}
+	accepted, durable, err := s.acceptCommand(cmd.Session, cmd.CommandID,
+		attributedCommand(cmd, protocol.SessionCommand{Kind: protocol.CommandControl, Control: &ctl}))
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "update not accepted: " + err.Error()})
+		return
+	}
+	if !s.commandNeedsDelivery(cmd.Session, accepted) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session, Text: "schedule update already applied"})
+		return
+	}
+	s.mu.Lock()
+	hub := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if hub == nil {
+		s.hostResumeDrive(ctx, cmd.Session)
+		s.mu.Lock()
+		hub = s.runs[cmd.Session]
+		s.mu.Unlock()
+	}
+	posted := hub != nil && hub.postControl(accepted)
+	if !posted && durable {
+		s.reviveDriveAcceptedAfter(ctx, cmd.Session, hub)
+		posted = true
+	}
+	if !posted {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "scheduled series is not accepting update"})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+		Text: "schedule update recorded — the current iteration, if any, finishes with its existing configuration"})
 }
 
 func (s *Server) reviveDriveAcceptedAfter(ctx context.Context, session string, old *hostedRun) {

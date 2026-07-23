@@ -24,7 +24,7 @@ export function dedupeCaps(labels: string[]): string[] {
   });
 }
 
-function Modal({
+export function Modal({
   title,
   onClose,
   children,
@@ -92,7 +92,7 @@ function Modal({
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      (returnFocus?.isConnected ? returnFocus : previous)?.focus();
+      (returnFocus?.isConnected ? returnFocus : previous)?.focus({ preventScroll: true });
     };
   }, []);
   return (

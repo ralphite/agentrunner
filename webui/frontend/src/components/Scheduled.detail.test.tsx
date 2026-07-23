@@ -6,21 +6,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const { scheduleDetail, schedule, sessions } = vi.hoisted(() => ({
+const { scheduleDetail, schedule, scheduleUpdate, sessions } = vi.hoisted(() => ({
   scheduleDetail: vi.fn(),
   schedule: vi.fn(async () => ({})),
+  scheduleUpdate: vi.fn(async () => ({})),
   sessions: vi.fn(async () => [] as any[]),
 }));
 
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: new Proxy(
-    { scheduleDetail, schedule, sessions },
+    { scheduleDetail, schedule, scheduleUpdate, sessions },
     { get: (target, key) => key in target ? target[key as keyof typeof target] : vi.fn(async () => ({})) },
   ),
 }));
 
 import { Scheduled } from "./Scheduled";
+import { ApiError } from "../api";
 import { useStore } from "../store";
 import type { ScheduleDetail, Session } from "../types";
 
@@ -58,6 +60,8 @@ const activeDetail: ScheduleDetail = {
   maxIterations: 12,
   nextRunAt: "2099-01-01T00:00:00Z",
   scheduleControl: true,
+  scheduleEdit: true,
+  revision: 0,
 };
 
 function mount(session: Session = canonical) {
@@ -84,6 +88,8 @@ beforeEach(() => {
   scheduleDetail.mockReset();
   scheduleDetail.mockResolvedValue(activeDetail);
   schedule.mockClear();
+  scheduleUpdate.mockReset();
+  scheduleUpdate.mockResolvedValue({});
   sessions.mockReset();
   sessions.mockResolvedValue([]);
 });
@@ -138,6 +144,60 @@ describe("typed Scheduled detail journey (G56)", () => {
     useStore.getState().showScheduledDetail(sid);
     await waitFor(() => expect(scheduleDetail).toHaveBeenCalledTimes(2));
     expect(window.location.hash).toBe(`#scheduled:${sid}`);
+  });
+
+  it("edits prompt, cadence, and overlap as one revision-checked update", async () => {
+    const updated = {
+      ...activeDetail,
+      prompt: "Audit release blockers.",
+      interval: "45m",
+      cadence: "Every 45m",
+      overlap: "skip",
+      revision: 1,
+    };
+    scheduleDetail.mockResolvedValueOnce(activeDetail).mockResolvedValue(updated);
+    mount();
+    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Audit release blockers." } });
+    fireEvent.change(screen.getByLabelText("Interval"), { target: { value: "45m" } });
+    fireEvent.change(screen.getByLabelText("If a run is still active"), { target: { value: "skip" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(scheduleUpdate).toHaveBeenCalledWith(sid, {
+      expectedRevision: 0,
+      prompt: "Audit release blockers.",
+      schedule: "interval",
+      interval: "45m",
+      overlap: "skip",
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit schedule" })).toBeNull());
+    expect(await screen.findByText("Audit release blockers.")).toBeTruthy();
+  });
+
+  it("preserves the draft on a concurrent edit and requires an explicit second save", async () => {
+    scheduleUpdate.mockRejectedValueOnce(
+      new ApiError("changed elsewhere", 409, "schedule_conflict"),
+    );
+    scheduleDetail
+      .mockResolvedValueOnce(activeDetail)
+      .mockResolvedValueOnce({ ...activeDetail, revision: 1, interval: "1h" })
+      .mockResolvedValue({ ...activeDetail, revision: 2, prompt: "My draft survives." });
+    mount();
+    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "My draft survives." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Your draft is preserved");
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("My draft survives.");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(scheduleUpdate).toHaveBeenLastCalledWith(
+      sid,
+      expect.objectContaining({ expectedRevision: 1, prompt: "My draft survives." }),
+    ));
+    expect(scheduleUpdate).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the error visible, retries, and never invents detail for a legacy journal", async () => {

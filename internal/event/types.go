@@ -114,11 +114,12 @@ const (
 	// series identity/bounds, per-iteration verdict/carry/skip, and the
 	// terminal. The legacy driver stream (DriverStarted/Iteration*) stays
 	// readable but is deprecated for WRITE in the merged form.
-	TypeSeriesStarted   = "series_started"
-	TypeSeriesIteration = "series_iteration"
-	TypeSeriesPaused    = "series_paused"
-	TypeSeriesResumed   = "series_resumed"
-	TypeSeriesEnded     = "series_ended"
+	TypeSeriesStarted       = "series_started"
+	TypeSeriesIteration     = "series_iteration"
+	TypeSeriesPaused        = "series_paused"
+	TypeSeriesResumed       = "series_resumed"
+	TypeSeriesConfigUpdated = "series_config_updated"
+	TypeSeriesEnded         = "series_ended"
 
 	// INC-52 (HANDA-PARITY #14): journal-backed auto session title. Additive —
 	// legacy journals carry none and the title projection falls back to the
@@ -568,6 +569,22 @@ type SeriesResumed struct {
 	SeriesID string    `json:"series_id"`
 	Base     time.Time `json:"base"`
 	Source   string    `json:"source"`
+}
+
+// SeriesConfigUpdated records the complete effective editable configuration
+// after one optimistic-concurrency update. Base is set only when cadence
+// changes; it becomes the new no-catch-up anchor.
+type SeriesConfigUpdated struct {
+	SeriesID         string    `json:"series_id"`
+	ExpectedRevision int       `json:"expected_revision"`
+	Revision         int       `json:"revision"`
+	Prompt           string    `json:"prompt"`
+	Schedule         string    `json:"schedule"`
+	Interval         string    `json:"interval,omitempty"`
+	Cron             string    `json:"cron,omitempty"`
+	Overlap          string    `json:"overlap,omitempty"`
+	Base             time.Time `json:"base,omitzero"`
+	Source           string    `json:"source"`
 }
 
 // SeriesEnded is the series terminal (the DriverCompleted analog). Like
@@ -1247,6 +1264,7 @@ var Registry = map[string]func() any{
 	TypeSeriesIteration:       func() any { return &SeriesIteration{} },
 	TypeSeriesPaused:          func() any { return &SeriesPaused{} },
 	TypeSeriesResumed:         func() any { return &SeriesResumed{} },
+	TypeSeriesConfigUpdated:   func() any { return &SeriesConfigUpdated{} },
 	TypeSeriesEnded:           func() any { return &SeriesEnded{} },
 	TypeGoalUpdated:           func() any { return &GoalUpdated{} },
 	TypeGoalPaused:            func() any { return &GoalPaused{} },

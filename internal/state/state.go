@@ -38,7 +38,7 @@ func SubStateVersions() map[string]int {
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 		"team":         2, // INC-11.6 delegation/workspace projection;v2 PLAN 5.3 砍 DAG/lease(零消费)
 		"schedule":     1, // INC-74 in-session schedule (E1① loop-mode 挂会话)
-		"series":       3, // INC-98.5a: durable paused lifecycle + resume cadence base
+		"series":       4, // INC-98.5c: revisioned editable repeating-series config
 	}
 }
 
@@ -318,12 +318,17 @@ type SeriesIterationRec struct {
 // re-derives its whole position (next N, budget, best, stall) from this
 // fold on every resume (journal, never memory; the driver.State mirror).
 type Series struct {
-	SeriesID      string               `json:"series_id"`
-	Kind          string               `json:"kind"`
-	MaxIterations int                  `json:"max_iterations,omitempty"`
-	Patience      int                  `json:"patience,omitempty"`
-	Overlap       string               `json:"overlap,omitempty"`
-	Iterations    []SeriesIterationRec `json:"iterations,omitempty"`
+	SeriesID       string               `json:"series_id"`
+	Kind           string               `json:"kind"`
+	MaxIterations  int                  `json:"max_iterations,omitempty"`
+	Patience       int                  `json:"patience,omitempty"`
+	Overlap        string               `json:"overlap,omitempty"`
+	ConfigRevision int                  `json:"config_revision,omitempty"`
+	Prompt         string               `json:"prompt,omitempty"`
+	Schedule       string               `json:"schedule,omitempty"`
+	Interval       string               `json:"interval,omitempty"`
+	Cron           string               `json:"cron,omitempty"`
+	Iterations     []SeriesIterationRec `json:"iterations,omitempty"`
 	// BestIter is the 1-based iteration with the highest verdict score so
 	// far (ties keep the earliest); 0 means none completed yet.
 	BestIter int `json:"best_iter,omitempty"`
@@ -1336,6 +1341,24 @@ func Apply(s State, env event.Envelope) (State, error) {
 		sc := *s.Series
 		sc.Paused = false
 		sc.LastTick = p.Base
+		s.Series = &sc
+
+	case *event.SeriesConfigUpdated:
+		if s.Series == nil || s.Series.SeriesID != p.SeriesID || s.Series.Ended ||
+			p.ExpectedRevision != s.Series.ConfigRevision ||
+			p.Revision != p.ExpectedRevision+1 {
+			break
+		}
+		sc := *s.Series
+		sc.ConfigRevision = p.Revision
+		sc.Prompt = p.Prompt
+		sc.Schedule = p.Schedule
+		sc.Interval = p.Interval
+		sc.Cron = p.Cron
+		sc.Overlap = p.Overlap
+		if !p.Base.IsZero() {
+			sc.LastTick = p.Base
+		}
 		s.Series = &sc
 
 	case *event.SeriesEnded:

@@ -279,6 +279,148 @@ func TestSeriesPauseDurableReplayStartsDriveHost(t *testing.T) {
 	}
 }
 
+func TestSeriesUpdateReservesPendingRevisionAndRejectsConcurrentStaleWriter(t *testing.T) {
+	var mu sync.Mutex
+	var pending []protocol.SessionCommand
+	var persisted int
+	delivered := make(chan protocol.Control, 1)
+	release := make(chan struct{})
+	s := &Server{
+		runs:   map[string]*hostedRun{},
+		failed: map[string]bool{},
+		ReadSeriesConfigSnapshot: func(_ string, commandID string) (SeriesConfigSnapshot, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			snapshot := SeriesConfigSnapshot{
+				State: SeriesControlState{Eligible: true, Editable: true, Revision: 0},
+			}
+			for _, accepted := range pending {
+				if accepted.CommandID == commandID {
+					snapshot.PreviouslyAccepted = true
+				}
+				if accepted.Control != nil &&
+					accepted.Control.Kind == protocol.ControlScheduleUpdate &&
+					accepted.Control.SeriesConfig != nil &&
+					accepted.Control.SeriesConfig.ExpectedRevision == snapshot.ReservedRevision {
+					snapshot.ReservedRevision++
+				}
+			}
+			return snapshot, nil
+		},
+		PersistCommand: func(_ string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			persisted++
+			cmd.CommandSeq = int64(persisted)
+			cmd.Control.CommandRef = cmd.CommandRef
+			pending = append(pending, cmd)
+			return cmd, nil
+		},
+		PendingCommands: func(string) ([]protocol.SessionCommand, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]protocol.SessionCommand(nil), pending...), nil
+		},
+		ResumeDrive: func(_ context.Context, req DriveRequest, _ protocol.Sink) error {
+			delivered <- <-req.Controls
+			<-release
+			return nil
+		},
+	}
+	promptA := "writer A"
+	first := &protocol.SeriesConfigControl{ExpectedRevision: 0, Prompt: &promptA}
+	var firstReply bytes.Buffer
+	s.handleSeriesConfigUpdate(context.Background(), Command{
+		Session: "series-1", CommandID: "cmd-a", SeriesConfig: first,
+	}, json.NewEncoder(&firstReply))
+	var firstAck protocol.Event
+	if err := json.Unmarshal(firstReply.Bytes(), &firstAck); err != nil {
+		t.Fatal(err)
+	}
+	if firstAck.Kind != protocol.KindMessage {
+		t.Fatalf("first ack = %+v", firstAck)
+	}
+	select {
+	case ctl := <-delivered:
+		if ctl.Kind != protocol.ControlScheduleUpdate || ctl.SeriesConfig == nil ||
+			ctl.SeriesConfig.ExpectedRevision != 0 {
+			t.Fatalf("delivered update = %+v", ctl)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("accepted update was not delivered")
+	}
+
+	promptB := "writer B"
+	var staleReply bytes.Buffer
+	s.handleSeriesConfigUpdate(context.Background(), Command{
+		Session: "series-1", CommandID: "cmd-b",
+		SeriesConfig: &protocol.SeriesConfigControl{ExpectedRevision: 0, Prompt: &promptB},
+	}, json.NewEncoder(&staleReply))
+	var staleAck protocol.Event
+	if err := json.Unmarshal(staleReply.Bytes(), &staleAck); err != nil {
+		t.Fatal(err)
+	}
+	if staleAck.Kind != protocol.KindError ||
+		!strings.Contains(staleAck.Text, "expected 0, current 1") {
+		t.Fatalf("stale ack = %+v", staleAck)
+	}
+	mu.Lock()
+	gotPersisted := persisted
+	mu.Unlock()
+	if gotPersisted != 1 {
+		t.Fatalf("persisted commands = %d, stale update must be rejected before append", gotPersisted)
+	}
+	close(release)
+}
+
+func TestSeriesUpdateExactRetryBypassesAdvancedRevision(t *testing.T) {
+	persisted := 0
+	s := &Server{
+		runs:   map[string]*hostedRun{},
+		failed: map[string]bool{},
+		ReadSeriesConfigSnapshot: func(_ string, commandID string) (SeriesConfigSnapshot, error) {
+			return SeriesConfigSnapshot{
+				State: SeriesControlState{
+					Eligible: true, Editable: true, Revision: 1,
+				},
+				ReservedRevision:   1,
+				PreviouslyAccepted: commandID == "cmd-a",
+			}, nil
+		},
+		PersistCommand: func(_ string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+			persisted++
+			cmd.CommandSeq = 1
+			cmd.PreviouslyAccepted = true
+			return cmd, nil
+		},
+		PendingCommands: func(string) ([]protocol.SessionCommand, error) {
+			return nil, nil
+		},
+		ResumeDrive: func(context.Context, DriveRequest, protocol.Sink) error {
+			t.Fatal("completed retry must not restart the series")
+			return nil
+		},
+	}
+	prompt := "writer A"
+	var reply bytes.Buffer
+	s.handleSeriesConfigUpdate(context.Background(), Command{
+		Session: "series-1", CommandID: "cmd-a",
+		SeriesConfig: &protocol.SeriesConfigControl{
+			ExpectedRevision: 0, Prompt: &prompt,
+		},
+	}, json.NewEncoder(&reply))
+	var ack protocol.Event
+	if err := json.Unmarshal(reply.Bytes(), &ack); err != nil {
+		t.Fatal(err)
+	}
+	if ack.Kind != protocol.KindMessage || ack.Text != "schedule update already applied" {
+		t.Fatalf("retry ack = %+v", ack)
+	}
+	if persisted != 1 {
+		t.Fatalf("persist attempts = %d, want idempotency payload verification", persisted)
+	}
+}
+
 // run: the daemon hosts the run, streams its events (tagged with the
 // session), and reports the assigned session id first.
 func TestDaemonRunStreams(t *testing.T) {

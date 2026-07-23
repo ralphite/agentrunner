@@ -212,9 +212,49 @@ func TestHandleScheduleControlForwardsTypedAction(t *testing.T) {
 	}
 }
 
+func TestHandleScheduleControlForwardsRevisionCheckedUpdate(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	s := &server{arPath: writeFakeAR(t, argsFile, "schedule update recorded")}
+	body := `{"action":"update","expectedRevision":3,"prompt":"Audit blockers","schedule":"cron","cron":"0 9 * * 1-5","overlap":"coalesce"}`
+	req := httptest.NewRequest("POST", "/api/sessions/series-1/schedule", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("sid", "series-1")
+	rr := httptest.NewRecorder()
+	s.handleScheduleControl(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	got, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "schedule\nseries-1\nupdate\n--revision\n3\n--prompt\nAudit blockers\n--cron\n0 9 * * 1-5\n--overlap\ncoalesce\n"
+	if !strings.HasSuffix(string(got), want) {
+		t.Fatalf("args=%q, want suffix %q", got, want)
+	}
+}
+
+func TestHandleScheduleControlMapsRevisionConflict(t *testing.T) {
+	dir := t.TempDir()
+	arPath := filepath.Join(dir, "ar")
+	if err := os.WriteFile(arPath, []byte("#!/bin/sh\necho 'agentrunner: schedule revision conflict: expected 2, current 3' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: arPath}
+	req := httptest.NewRequest("POST", "/api/sessions/series-1/schedule",
+		strings.NewReader(`{"action":"update","expectedRevision":2,"prompt":"Keep this draft"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("sid", "series-1")
+	rr := httptest.NewRecorder()
+	s.handleScheduleControl(rr, req)
+	if rr.Code != http.StatusConflict || !strings.Contains(rr.Body.String(), `"code":"schedule_conflict"`) {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestHandleScheduleDetailMapsSafeTypedProjection(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
-	reply := `{"kind":"series","session_id":"series-1","name":"Nightly audit","status":"paused","prompt":"Audit dependencies","workspace":"/repo/product","agent":"auditor","provider":"gemini","model":"gemini-2.5-pro","thinking_enabled":true,"thinking_budget_tokens":4096,"schedule":"interval","cadence":"Every 30m","interval":"30m","overlap":"coalesce","iterations":3,"max_iterations":12,"schedule_control":true}`
+	reply := `{"kind":"series","session_id":"series-1","name":"Nightly audit","status":"paused","prompt":"Audit dependencies","workspace":"/repo/product","agent":"auditor","provider":"gemini","model":"gemini-2.5-pro","thinking_enabled":true,"thinking_budget_tokens":4096,"schedule":"interval","cadence":"Every 30m","interval":"30m","overlap":"coalesce","iterations":3,"max_iterations":12,"schedule_control":true,"schedule_edit":true,"revision":4}`
 	s := &server{arPath: writeFakeAR(t, argsFile, reply)}
 	req := httptest.NewRequest("GET", "/api/sessions/series-1/schedule", nil)
 	req.SetPathValue("sid", "series-1")
@@ -237,13 +277,13 @@ func TestHandleScheduleDetailMapsSafeTypedProjection(t *testing.T) {
 	for key, want := range map[string]any{
 		"sessionId": "series-1", "thinkingEnabled": true,
 		"thinkingBudgetTokens": float64(4096), "maxIterations": float64(12),
-		"scheduleControl": true,
+		"scheduleControl": true, "scheduleEdit": true, "revision": float64(4),
 	} {
 		if got[key] != want {
 			t.Fatalf("%s=%v, want %v; body=%s", key, got[key], want, rr.Body.String())
 		}
 	}
-	for _, leaked := range []string{"session_id", "thinking_enabled", "max_iterations", "schedule_control"} {
+	for _, leaked := range []string{"session_id", "thinking_enabled", "max_iterations", "schedule_control", "schedule_edit"} {
 		if _, ok := got[leaked]; ok {
 			t.Fatalf("CLI key %q leaked: %v", leaked, got)
 		}

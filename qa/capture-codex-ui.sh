@@ -28,7 +28,10 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --account-menu | --user-menu |
                               --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
                               [--scheduled-search TEXT | --scheduled-filter all|active|paused |
-                               --scheduled-row VISIBLE_TITLE | --scheduled-create]
+                               --scheduled-row VISIBLE_TITLE
+                                 [--scheduled-detail-control repeat|at|notifications
+                                  --scheduled-detail-validate VISIBLE_TEXT] |
+                               --scheduled-create]
                               [--viewport WIDTHxHEIGHT]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
@@ -83,6 +86,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --scheduled-search types a Scheduled search query for the capture.
 --scheduled-filter selects a Scheduled status filter for the capture.
 --scheduled-row opens an existing Scheduled row for a read-only detail capture.
+--scheduled-detail-control opens one read-only dropdown in that detail.
+--scheduled-detail-validate is a visible option required before accepting the dropdown capture.
 --scheduled-create opens Codex's reversible assisted New chat draft, captures it,
   then clears the synthetic prompt before restoring the original thread.
 --viewport temporarily resizes the real Codex window before interaction, normalizes the
@@ -123,6 +128,8 @@ settings_tab="general"
 settings_tab_set=0
 scheduled_action=""
 scheduled_value=""
+scheduled_detail_control=""
+scheduled_detail_validate=""
 viewport=""
 viewport_width=""
 viewport_height=""
@@ -397,6 +404,22 @@ while (($#)); do
       scheduled_value="$2"
       shift 2
       ;;
+    --scheduled-detail-control)
+      if (($# < 2)) || [[ "$2" != "repeat" && "$2" != "at" && "$2" != "notifications" ]]; then
+        echo "capture-codex-ui: --scheduled-detail-control requires repeat, at, or notifications" >&2
+        exit 2
+      fi
+      scheduled_detail_control="$2"
+      shift 2
+      ;;
+    --scheduled-detail-validate)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --scheduled-detail-validate requires visible text" >&2
+        exit 2
+      fi
+      scheduled_detail_validate="$2"
+      shift 2
+      ;;
     --scheduled-create)
       mode="scheduled-create"
       scheduled_action="create"
@@ -559,6 +582,18 @@ if ((settings_tab_set)) && [[ "$mode" != "settings" ]]; then
 fi
 if [[ -n "$scheduled_action" && "$surface" != "scheduled" ]]; then
   echo "capture-codex-ui: Scheduled actions require --surface scheduled" >&2
+  exit 2
+fi
+if [[ -n "$scheduled_detail_control" && "$mode" != "scheduled-row" ]]; then
+  echo "capture-codex-ui: --scheduled-detail-control requires --scheduled-row" >&2
+  exit 2
+fi
+if [[ -n "$scheduled_detail_control" && -z "$scheduled_detail_validate" ]]; then
+  echo "capture-codex-ui: --scheduled-detail-control requires --scheduled-detail-validate" >&2
+  exit 2
+fi
+if [[ -n "$scheduled_detail_validate" && -z "$scheduled_detail_control" ]]; then
+  echo "capture-codex-ui: --scheduled-detail-validate requires --scheduled-detail-control" >&2
   exit 2
 fi
 
@@ -2151,6 +2186,28 @@ if [[ "$mode" == "scheduled-row" ]]; then
   # missed click cannot be accepted as a detail capture.
   window_text_center "$ocr_capture" "Runs in" "main" >/dev/null
   window_text_center "$ocr_capture" "Frequency" "main" >/dev/null
+  if [[ -n "$scheduled_detail_control" ]]; then
+    case "$scheduled_detail_control" in
+      repeat) scheduled_detail_label="Repeat" ;;
+      at) scheduled_detail_label="At" ;;
+      notifications) scheduled_detail_label="Notifications" ;;
+    esac
+    scheduled_detail_point=$(window_text_center "$ocr_capture" "$scheduled_detail_label" "main")
+    IFS=$'\t' read -r _ scheduled_detail_y <<<"$scheduled_detail_point"
+    scheduled_detail_x=$(awk -v x="$window_x" -v w="$window_width" 'BEGIN { print x + w - 86 }')
+    send_click "$scheduled_detail_x" "$scheduled_detail_y"
+    transient_open=1
+    sleep "$settle_seconds"
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-scheduled-detail-control)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if ! window_text_center "$ocr_capture" "$scheduled_detail_validate" "main" >/dev/null 2>&1; then
+      scheduled_debug="${output%.*}-validation-debug.png"
+      cp "$ocr_capture" "$scheduled_debug"
+      echo "capture-codex-ui: scheduled detail dropdown did not reveal validation text; frame saved: $scheduled_debug" >&2
+      exit 1
+    fi
+  fi
 fi
 
 if [[ "$mode" == "scheduled-create" ]]; then

@@ -137,6 +137,10 @@ var samples = map[string]any{
 	TypeSeriesPaused: &SeriesPaused{SeriesID: "ser-1", Source: "user"},
 	TypeSeriesResumed: &SeriesResumed{SeriesID: "ser-1",
 		Base: time.Date(2026, 7, 18, 15, 0, 0, 0, time.UTC), Source: "user"},
+	TypeSeriesConfigUpdated: &SeriesConfigUpdated{SeriesID: "ser-1",
+		ExpectedRevision: 0, Revision: 1, Prompt: "Audit the release queue",
+		Schedule: "interval", Interval: "45m", Overlap: "coalesce",
+		Base: time.Date(2026, 7, 18, 15, 5, 0, 0, time.UTC), Source: "user"},
 	TypeSeriesEnded: &SeriesEnded{SeriesID: "ser-1", Reason: "goal_satisfied",
 		Iterations: 2, BestIter: 2},
 }

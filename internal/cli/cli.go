@@ -176,7 +176,7 @@ func commandHelp(cmd string) string {
 	case "goal":
 		return "usage: agentrunner goal <session-id-or-prefix> <attach|update|status|pause|resume|cancel> [flags]\n\nAttach a goal to the session (it keeps working until the goal is\nmet), or manage the one it has. status shows the active goal and\nits check budget. attach/update take the goal text and optional\n--verify \"<cmd>\" / --max-checks N.\n"
 	case "schedule":
-		return "usage: agentrunner schedule <session-id-or-prefix> <attach|status|pause|resume|cancel> [flags]\n\nAttach a recurring self-wake cadence to the session: at each tick it\nwakes, runs one turn on the standing prompt (context continues), and\nre-arms — even across daemon restarts. attach takes the prompt plus\n--every <duration> or --cron \"<5-field>\" and optional --max-wakes N.\npause stops wakes (no catch-up); resume re-anchors the cadence.\n"
+		return "usage: agentrunner schedule <session-id-or-prefix> <attach|status|update|pause|resume|cancel> [flags]\n\nAttach a recurring self-wake cadence to the session: at each tick it\nwakes, runs one turn on the standing prompt (context continues), and\nre-arms — even across daemon restarts. attach takes the prompt plus\n--every <duration> or --cron \"<5-field>\" and optional --max-wakes N.\nCanonical series support revision-checked update of prompt, cadence and\noverlap. pause stops wakes (no catch-up); resume re-anchors the cadence.\n"
 	case "agent":
 		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
 	case "ps":

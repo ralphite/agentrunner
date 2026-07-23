@@ -143,6 +143,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		ScanStranded:               scanStrandedSessions,
 		ResumeDrive:                hostResumeDriveFunc(version, stderr, broker),
 		SeriesControlState:         seriesControlState,
+		ReadSeriesConfigSnapshot:   seriesConfigSnapshot,
 		PersistCommand:             persistCommandFunc(),
 		PendingCommands:            pendingCommands,
 		ScanPendingCommandSessions: scanPendingCommandSessions,
@@ -535,24 +536,7 @@ func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 	if err != nil {
 		return nil, err
 	}
-	handled := map[string]bool{}
-	for _, env := range events {
-		if env.CommandID == "" {
-			continue
-		}
-		switch env.Type {
-		case event.TypeInputReceived, event.TypeContextCompacted,
-			event.TypeGoalAttached, event.TypeGoalUpdated, event.TypeGoalPaused,
-			event.TypeGoalResumed, event.TypeGoalCancelled, event.TypeGoalAchieved,
-			event.TypeGoalExhausted,
-			event.TypeScheduleAttached, event.TypeSchedulePaused,
-			event.TypeScheduleResumed, event.TypeScheduleCancelled,
-			event.TypeSeriesPaused, event.TypeSeriesResumed,
-			event.TypeSessionClosed, event.TypeLimitExceeded,
-			event.TypeApprovalResponded, event.TypeCommandHandled:
-			handled[env.CommandID] = true
-		}
-	}
+	handled := handledCommandIDs(events)
 	commands, err := store.ReadCommands(dir, 0)
 	if err != nil {
 		return nil, err
@@ -569,6 +553,28 @@ func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 		pending = append(pending, cmd)
 	}
 	return pending, nil
+}
+
+func handledCommandIDs(events []event.Envelope) map[string]bool {
+	handled := map[string]bool{}
+	for _, env := range events {
+		if env.CommandID == "" {
+			continue
+		}
+		switch env.Type {
+		case event.TypeInputReceived, event.TypeContextCompacted,
+			event.TypeGoalAttached, event.TypeGoalUpdated, event.TypeGoalPaused,
+			event.TypeGoalResumed, event.TypeGoalCancelled, event.TypeGoalAchieved,
+			event.TypeGoalExhausted,
+			event.TypeScheduleAttached, event.TypeSchedulePaused,
+			event.TypeScheduleResumed, event.TypeScheduleCancelled,
+			event.TypeSeriesPaused, event.TypeSeriesResumed, event.TypeSeriesConfigUpdated,
+			event.TypeSessionClosed, event.TypeLimitExceeded,
+			event.TypeApprovalResponded, event.TypeCommandHandled:
+			handled[env.CommandID] = true
+		}
+	}
+	return handled
 }
 
 func pendingChildApprovals(parentID, parentDir string) ([]protocol.SessionCommand, error) {
@@ -1005,6 +1011,14 @@ func readSeriesSpec(dir string) (*driver.DriverSpec, string, bool) {
 	if err := json.Unmarshal(head.Spec, &spec); err != nil {
 		return nil, "", false
 	}
+	if folded, foldErr := state.Fold(events); foldErr == nil && folded.Series != nil &&
+		folded.Series.ConfigRevision > 0 {
+		spec.Prompt = folded.Series.Prompt
+		spec.Schedule = folded.Series.Schedule
+		spec.Interval = folded.Series.Interval
+		spec.Cron = folded.Series.Cron
+		spec.Overlap = folded.Series.Overlap
+	}
 	return &spec, head.WorkspaceRoot, true
 }
 
@@ -1013,18 +1027,35 @@ func seriesControlState(sessionID string) (daemon.SeriesControlState, error) {
 	if err != nil {
 		return daemon.SeriesControlState{}, err
 	}
-	spec, _, ok := readSeriesSpec(dir)
-	if !ok {
-		return daemon.SeriesControlState{}, nil
-	}
-	switch spec.Schedule {
-	case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
-	default:
-		return daemon.SeriesControlState{}, nil
-	}
 	events, err := store.ReadEvents(dir)
 	if err != nil {
 		return daemon.SeriesControlState{}, err
+	}
+	return seriesControlStateFromEvents(events)
+}
+
+func seriesControlStateFromEvents(events []event.Envelope) (daemon.SeriesControlState, error) {
+	if len(events) == 0 || events[0].Type != event.TypeSessionStarted {
+		return daemon.SeriesControlState{}, nil
+	}
+	hasSeries := false
+	for _, env := range events {
+		if env.Type == event.TypeSeriesStarted {
+			hasSeries = true
+			break
+		}
+	}
+	if !hasSeries {
+		return daemon.SeriesControlState{}, nil
+	}
+	decoded, err := event.DecodePayload(events[0])
+	if err != nil {
+		return daemon.SeriesControlState{}, err
+	}
+	head := decoded.(*event.SessionStarted)
+	var spec driver.DriverSpec
+	if err := json.Unmarshal(head.Spec, &spec); err != nil {
+		return daemon.SeriesControlState{}, fmt.Errorf("journaled series spec: %w", err)
 	}
 	folded, err := state.Fold(events)
 	if err != nil {
@@ -1033,11 +1064,88 @@ func seriesControlState(sessionID string) (daemon.SeriesControlState, error) {
 	if folded.Series == nil {
 		return daemon.SeriesControlState{}, nil
 	}
+	schedule := spec.Schedule
+	if folded.Series.ConfigRevision > 0 {
+		schedule = folded.Series.Schedule
+	}
+	switch schedule {
+	case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
+	default:
+		return daemon.SeriesControlState{}, nil
+	}
 	return daemon.SeriesControlState{
 		Eligible: true,
+		Editable: schedule == driver.ScheduleInterval || schedule == driver.ScheduleCron,
 		Paused:   folded.Series.Paused,
 		Ended:    folded.Series.Ended,
+		Revision: folded.Series.ConfigRevision,
 	}, nil
+}
+
+const seriesConfigSnapshotAttempts = 8
+
+func seriesConfigSnapshot(sessionID, commandID string) (daemon.SeriesConfigSnapshot, error) {
+	dir, err := resolveSessionDir(sessionID)
+	if err != nil {
+		return daemon.SeriesConfigSnapshot{}, err
+	}
+	return readStableSeriesConfigSnapshot(commandID,
+		func() ([]event.Envelope, error) { return store.ReadEvents(dir) },
+		func() ([]protocol.SessionCommand, error) { return store.ReadCommands(dir, 0) })
+}
+
+func readStableSeriesConfigSnapshot(commandID string,
+	readEvents func() ([]event.Envelope, error),
+	readCommands func() ([]protocol.SessionCommand, error),
+) (daemon.SeriesConfigSnapshot, error) {
+	for attempt := 0; attempt < seriesConfigSnapshotAttempts; attempt++ {
+		before, err := readEvents()
+		if err != nil {
+			return daemon.SeriesConfigSnapshot{}, err
+		}
+		commands, err := readCommands()
+		if err != nil {
+			return daemon.SeriesConfigSnapshot{}, err
+		}
+		after, err := readEvents()
+		if err != nil {
+			return daemon.SeriesConfigSnapshot{}, err
+		}
+		if journalCursor(before) != journalCursor(after) {
+			continue
+		}
+		current, err := seriesControlStateFromEvents(after)
+		if err != nil {
+			return daemon.SeriesConfigSnapshot{}, err
+		}
+		snapshot := daemon.SeriesConfigSnapshot{
+			State: current, ReservedRevision: current.Revision,
+		}
+		handled := handledCommandIDs(after)
+		for _, accepted := range commands {
+			if commandID != "" && accepted.CommandID == commandID {
+				snapshot.PreviouslyAccepted = true
+			}
+			if handled[accepted.CommandID] || accepted.Control == nil ||
+				accepted.Control.Kind != protocol.ControlScheduleUpdate ||
+				accepted.Control.SeriesConfig == nil {
+				continue
+			}
+			if accepted.Control.SeriesConfig.ExpectedRevision == snapshot.ReservedRevision {
+				snapshot.ReservedRevision++
+			}
+		}
+		return snapshot, nil
+	}
+	return daemon.SeriesConfigSnapshot{}, fmt.Errorf(
+		"scheduled series changed while reading its revision; retry")
+}
+
+func journalCursor(events []event.Envelope) int64 {
+	if len(events) == 0 {
+		return 0
+	}
+	return events[len(events)-1].Seq
 }
 
 // assembleHostedDriver builds the daemon's IterationDriver over an already

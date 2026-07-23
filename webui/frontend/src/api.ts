@@ -239,6 +239,14 @@ export const AR = {
   scheduleDetail: (sid: string) => api<ScheduleDetail>(`/sessions/${sid}/schedule`),
   schedule: (sid: string, action: "pause" | "resume") =>
     post(`/sessions/${sid}/schedule`, { action }),
+  scheduleUpdate: (sid: string, update: {
+    expectedRevision: number;
+    prompt?: string;
+    schedule?: "interval" | "cron";
+    interval?: string;
+    cron?: string;
+    overlap?: "skip" | "coalesce";
+  }) => post(`/sessions/${sid}/schedule`, { action: "update", ...update }),
   // Structured ask (INC-47.2): specs are 1-based "<q>:<n>" the form builds.
   answer: (sid: string, specs: string[]) => post(`/sessions/${sid}/answer`, { specs }),
   skipAnswer: (sid: string) => post(`/sessions/${sid}/answer`, { skip: true }),

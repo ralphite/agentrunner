@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { Icon } from "@phosphor-icons/react";
 import { ArrowLeft, CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin, X } from "@phosphor-icons/react";
 import { useStore } from "../store";
-import { AR } from "../api";
+import { AR, ApiError } from "../api";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
 import { scheduledTitle } from "../scheduledTitle";
@@ -11,6 +11,8 @@ import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { cadenceText, type CadenceSpec } from "../runPreset";
 import type { Cadence, ScheduleDetail } from "../types";
+import { scheduleFieldError } from "../scheduleValidate";
+import { Modal } from "./Modals";
 
 type Filter = "all" | "active" | "paused";
 const INITIAL_VISIBLE_ROWS = 5;
@@ -229,6 +231,7 @@ interface ScheduleDetailPanelProps {
   onRetry: () => void;
   onHistory: () => void;
   onCadence: (action: "pause" | "resume") => void;
+  onEdit: () => void;
 }
 
 function ScheduleDetailPanel({
@@ -241,6 +244,7 @@ function ScheduleDetailPanel({
   onRetry,
   onHistory,
   onCadence,
+  onEdit,
 }: ScheduleDetailPanelProps) {
   const status = (detail?.status || "").toLowerCase() === "active"
     ? { text: "Active", cls: "run" }
@@ -295,7 +299,10 @@ function ScheduleDetailPanel({
             </section>
 
             <section className="schedule-detail-section" aria-labelledby="schedule-detail-frequency">
-              <h3 id="schedule-detail-frequency">Schedule</h3>
+              <div className="schedule-detail-section-head">
+                <h3 id="schedule-detail-frequency">Frequency</h3>
+                {detail.scheduleEdit && <button className="ghost" onClick={onEdit}>Edit</button>}
+              </div>
               <dl>
                 <div><dt>Cadence</dt><dd>{detail.cadence || scheduleLabel(detail.schedule)}</dd></div>
                 <div><dt>Next run</dt><dd>{paused ? "Paused" : detailTime(detail.nextRunAt)}</dd></div>
@@ -319,6 +326,114 @@ function ScheduleDetailPanel({
         </>
       ) : null}
     </aside>
+  );
+}
+
+function ScheduleEditDialog({
+  detail,
+  onClose,
+  onSaved,
+}: {
+  detail: ScheduleDetail;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [prompt, setPrompt] = useState(detail.prompt || "");
+  const [schedule, setSchedule] = useState<"interval" | "cron">(
+    detail.schedule === "cron" ? "cron" : "interval",
+  );
+  const [interval, setInterval] = useState(detail.interval || "30m");
+  const [cron, setCron] = useState(detail.cron || "0 8 * * 1-5");
+  const [overlap, setOverlap] = useState<"skip" | "coalesce">(
+    detail.overlap === "coalesce" ? "coalesce" : "skip",
+  );
+  const [revision, setRevision] = useState(detail.revision);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const cadenceValue = schedule === "interval" ? interval : cron;
+  const cadenceError = scheduleFieldError(schedule, cadenceValue);
+  const blocked = !prompt.trim() || !cadenceValue.trim() || !!cadenceError;
+
+  const save = async () => {
+    if (blocked) return;
+    setBusy(true);
+    setError("");
+    try {
+      await AR.scheduleUpdate(detail.sessionId, {
+        expectedRevision: revision,
+        prompt: prompt.trim(),
+        schedule,
+        ...(schedule === "interval" ? { interval: interval.trim() } : { cron: cron.trim() }),
+        overlap,
+      });
+      await onSaved();
+    } catch (e: any) {
+      if (e instanceof ApiError && e.code === "schedule_conflict") {
+        try {
+          const latest = await AR.scheduleDetail(detail.sessionId);
+          setRevision(latest.revision);
+        } catch {
+          // Keep the draft and the old revision; a later Save will surface the
+          // conflict again instead of replacing user input with guessed state.
+        }
+        setError("This schedule changed elsewhere. Your draft is preserved; review it, then save again.");
+      } else {
+        setError(e?.message || "The schedule could not be updated.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Edit schedule"
+      onClose={onClose}
+      footer={
+        <>
+          <button disabled={busy} onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy || blocked} onClick={() => void save()}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </>
+      }
+    >
+      <label className="field" htmlFor="schedule-edit-prompt">Prompt</label>
+      <textarea
+        id="schedule-edit-prompt"
+        rows={4}
+        value={prompt}
+        onChange={(event) => setPrompt(event.target.value)}
+      />
+      <label className="field" htmlFor="schedule-edit-repeat">Repeat</label>
+      <div className="row-flex">
+        <select
+          id="schedule-edit-repeat"
+          value={schedule}
+          onChange={(event) => setSchedule(event.target.value as "interval" | "cron")}
+        >
+          <option value="interval">Every interval</option>
+          <option value="cron">Cron schedule</option>
+        </select>
+        <input
+          aria-label={schedule === "interval" ? "Interval" : "Cron expression"}
+          value={cadenceValue}
+          onChange={(event) => schedule === "interval" ? setInterval(event.target.value) : setCron(event.target.value)}
+          placeholder={schedule === "interval" ? "30m · 1h" : "0 8 * * 1-5"}
+        />
+      </div>
+      {cadenceError && <div className="text-[12px] text-red" role="alert">{cadenceError}</div>}
+      <label className="field" htmlFor="schedule-edit-overlap">If a run is still active</label>
+      <select
+        id="schedule-edit-overlap"
+        value={overlap}
+        onChange={(event) => setOverlap(event.target.value as "skip" | "coalesce")}
+      >
+        <option value="skip">Skip missed runs</option>
+        <option value="coalesce">Run once when available</option>
+      </select>
+      {error && <div className="rounded-lg border border-line bg-bg p-3 text-[12px] text-red" role="alert">{error}</div>}
+    </Modal>
   );
 }
 
@@ -357,6 +472,7 @@ export function Scheduled() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [detailActing, setDetailActing] = useState(false);
+  const [detailEditing, setDetailEditing] = useState(false);
   const detailRequest = useRef(0);
   const detailOpener = useRef<HTMLElement | null>(null);
   // SC-12 — the cursor-anchored row menu (same component the sidebar rows use).
@@ -393,6 +509,7 @@ export function Scheduled() {
 
   const closeDetail = useCallback(() => {
     showScheduledDetail(null);
+    setDetailEditing(false);
     const opener = detailOpener.current;
     requestAnimationFrame(() => {
       if (opener?.isConnected) opener.focus();
@@ -1026,6 +1143,19 @@ export function Scheduled() {
           onRetry={() => void loadDetail(scheduledDetailSid)}
           onHistory={() => select(scheduledDetailSid)}
           onCadence={(action) => void act.cadence(scheduledDetailSid, action)}
+          onEdit={() => setDetailEditing(true)}
+        />
+      )}
+      {scheduledDetailSid && detail && detailEditing && (
+        <ScheduleEditDialog
+          detail={detail}
+          onClose={() => setDetailEditing(false)}
+          onSaved={async () => {
+            setDetailEditing(false);
+            toast("schedule updated", "info");
+            await refreshSessions();
+            await loadDetail(scheduledDetailSid);
+          }}
         />
       )}
     </div>

@@ -68,6 +68,8 @@ export interface ScheduleDetail extends Cadence {
   overlap?: string;
   iterations: number;
   maxIterations?: number;
+  scheduleEdit?: boolean;
+  revision: number;
 }
 
 export interface DiffResp {

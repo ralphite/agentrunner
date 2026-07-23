@@ -1426,6 +1426,8 @@ type scheduleDetailCLI struct {
 	MaxIterations        int    `json:"max_iterations,omitempty"`
 	NextRunAt            string `json:"next_run_at,omitempty"`
 	ScheduleControl      bool   `json:"schedule_control,omitempty"`
+	ScheduleEdit         bool   `json:"schedule_edit,omitempty"`
+	Revision             int    `json:"revision"`
 }
 
 type scheduleDetailResponse struct {
@@ -1451,6 +1453,8 @@ type scheduleDetailResponse struct {
 	MaxIterations        int    `json:"maxIterations,omitempty"`
 	NextRunAt            string `json:"nextRunAt,omitempty"`
 	ScheduleControl      bool   `json:"scheduleControl,omitempty"`
+	ScheduleEdit         bool   `json:"scheduleEdit,omitempty"`
+	Revision             int    `json:"revision"`
 }
 
 func (s *server) handleScheduleDetail(w http.ResponseWriter, r *http.Request) {
@@ -1488,23 +1492,76 @@ func (s *server) handleScheduleDetail(w http.ResponseWriter, r *http.Request) {
 		Interval: cli.Interval, Cron: cli.Cron, PaceMin: cli.PaceMin, PaceMax: cli.PaceMax,
 		Overlap: cli.Overlap, Iterations: cli.Iterations, MaxIterations: cli.MaxIterations,
 		NextRunAt: cli.NextRunAt, ScheduleControl: cli.ScheduleControl,
+		ScheduleEdit: cli.ScheduleEdit, Revision: cli.Revision,
 	})
 }
 
 func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Action string `json:"action"`
+		Action           string  `json:"action"`
+		ExpectedRevision *int    `json:"expectedRevision,omitempty"`
+		Prompt           *string `json:"prompt,omitempty"`
+		Schedule         *string `json:"schedule,omitempty"`
+		Interval         *string `json:"interval,omitempty"`
+		Cron             *string `json:"cron,omitempty"`
+		Overlap          *string `json:"overlap,omitempty"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
-	if req.Action != "pause" && req.Action != "resume" {
-		badRequest(w, "schedule action must be pause or resume")
+	if req.Action == "pause" || req.Action == "resume" {
+		s.oneShotHandler("ar schedule", func(id string) []string {
+			return []string{"schedule", id, req.Action}
+		})(w, r)
 		return
 	}
-	s.oneShotHandler("ar schedule", func(id string) []string {
-		return []string{"schedule", id, req.Action}
-	})(w, r)
+	if req.Action != "update" || req.ExpectedRevision == nil || *req.ExpectedRevision < 0 {
+		badRequest(w, "schedule action must be pause, resume, or an update with expectedRevision")
+		return
+	}
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	args := []string{"schedule", id, "update", "--revision", strconv.Itoa(*req.ExpectedRevision)}
+	if req.Prompt != nil {
+		args = append(args, "--prompt", *req.Prompt)
+	}
+	if req.Schedule != nil {
+		switch *req.Schedule {
+		case "interval":
+			if req.Interval == nil {
+				badRequest(w, "interval is required for an interval schedule")
+				return
+			}
+			args = append(args, "--every", *req.Interval)
+		case "cron":
+			if req.Cron == nil {
+				badRequest(w, "cron is required for a cron schedule")
+				return
+			}
+			args = append(args, "--cron", *req.Cron)
+		default:
+			badRequest(w, "editable schedule must be interval or cron")
+			return
+		}
+	}
+	if req.Overlap != nil {
+		args = append(args, "--overlap", *req.Overlap)
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, args...)
+	if res.Err != nil {
+		if strings.Contains(res.Stderr, "schedule revision conflict:") {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": "This schedule changed elsewhere. Review the latest revision and save again.",
+				"code":  "schedule_conflict",
+			})
+			return
+		}
+		arFail(w, "ar schedule update", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
 // handleRetry is domain-aware: conversations re-send their last user turn;

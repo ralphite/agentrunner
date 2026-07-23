@@ -5,10 +5,26 @@
 // toast. Empty input is "invalid but quiet": the field is required, the
 // message only appears once something was typed.
 
-// Go time.ParseDuration shape: one or more <number><unit> segments, decimals
-// allowed, units ns/us/µs/ms/s/m/h (e.g. "5m", "1h30m", "1.5h").
+const durationUnitMS: Record<string, number> = {
+  ns: 0.000001,
+  us: 0.001,
+  "µs": 0.001,
+  "μs": 0.001,
+  ms: 1,
+  s: 1000,
+  m: 60_000,
+  h: 3_600_000,
+};
+
+// Mirrors the backend's supported Go duration shape and its >=1s floor.
 export function validGoDuration(s: string): boolean {
-  return /^([0-9]+(\.[0-9]+)?(ns|us|µs|μs|ms|s|m|h))+$/.test(s.trim());
+  const value = s.trim();
+  if (!/^([0-9]+(\.[0-9]+)?(ns|us|µs|μs|ms|s|m|h))+$/.test(value)) return false;
+  let totalMS = 0;
+  for (const match of value.matchAll(/([0-9]+(?:\.[0-9]+)?)(ns|us|µs|μs|ms|s|m|h)/g)) {
+    totalMS += Number(match[1]) * durationUnitMS[match[2]];
+  }
+  return totalMS >= 1000;
 }
 
 // 5-field cron (min hour dom mon dow). Field syntax is left to the backend's
@@ -26,7 +42,7 @@ export function scheduleFieldError(kind: "interval" | "cron", value: string): st
   const v = value.trim();
   if (!v) return "";
   if (kind === "interval") {
-    return validGoDuration(v) ? "" : "Not a Go duration — try 30s, 5m, 1h or 1h30m.";
+    return validGoDuration(v) ? "" : "Use a Go duration of at least 1s — try 30s, 5m, 1h or 1h30m.";
   }
   return validCron(v) ? "" : "Needs 5 space-separated cron fields (min hour dom mon dow), e.g. 0 8 * * 1-5.";
 }

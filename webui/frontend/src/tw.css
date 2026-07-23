@@ -1130,7 +1130,14 @@
   .schedule-detail-section h3 {
     @apply mb-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-dim;
   }
-  .schedule-detail-section dl { @apply divide-y divide-line border-y border-line; }
+  .schedule-detail-section-head { @apply mb-2 flex items-center justify-between; }
+  .schedule-detail-section-head h3 { @apply mb-0; }
+  .schedule-detail-section-head button {
+    @apply min-h-7 border-0 bg-transparent px-2 py-1 text-[12px] text-ink-2 shadow-none hover:bg-panel-2 hover:text-ink hover:shadow-none;
+  }
+  .schedule-detail-section dl {
+    @apply overflow-hidden rounded-[12px] border border-line bg-bg px-4 divide-y divide-line;
+  }
   .schedule-detail-section dl > div {
     @apply grid min-w-0 grid-cols-[minmax(88px,0.35fr)_minmax(0,0.65fr)] gap-4 py-2.5 text-[13px];
   }

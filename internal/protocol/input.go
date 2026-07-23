@@ -201,10 +201,11 @@ type Revoke struct {
 // or Goal* event) is what lands in the journal.
 type Control struct {
 	CommandRef
-	Kind      string           `json:"kind"`                // compact | clear | goal_* | schedule_*
-	Directive string           `json:"directive,omitempty"` // optional focus for a compact
-	Goal      *GoalControl     `json:"goal,omitempty"`      // payload for goal_attach / goal_update
-	Schedule  *ScheduleControl `json:"schedule,omitempty"`  // payload for schedule_attach
+	Kind         string               `json:"kind"`                // compact | clear | goal_* | schedule_*
+	Directive    string               `json:"directive,omitempty"` // optional focus for a compact
+	Goal         *GoalControl         `json:"goal,omitempty"`      // payload for goal_attach / goal_update
+	Schedule     *ScheduleControl     `json:"schedule,omitempty"`  // payload for schedule_attach
+	SeriesConfig *SeriesConfigControl `json:"series_config,omitempty"`
 }
 
 // GoalControl carries the parameters of an in-session goal control (INC-D1).
@@ -227,6 +228,18 @@ type ScheduleControl struct {
 	MaxWakes   int    `json:"max_wakes,omitempty"` // 0 = unbounded
 }
 
+// SeriesConfigControl is a concurrency-checked partial update of a canonical
+// merged-stream repeating series. Nil fields are unchanged; cadence is changed
+// by setting Schedule plus its matching Interval or Cron.
+type SeriesConfigControl struct {
+	ExpectedRevision int     `json:"expected_revision"`
+	Prompt           *string `json:"prompt,omitempty"`
+	Schedule         *string `json:"schedule,omitempty"`
+	Interval         *string `json:"interval,omitempty"`
+	Cron             *string `json:"cron,omitempty"`
+	Overlap          *string `json:"overlap,omitempty"`
+}
+
 // Control kinds.
 const (
 	ControlCompact        = "compact"
@@ -243,5 +256,6 @@ const (
 	ControlSchedulePause  = "schedule_pause"
 	ControlScheduleResume = "schedule_resume"
 	ControlScheduleCancel = "schedule_cancel"
+	ControlScheduleUpdate = "schedule_update"
 	ControlClose          = "close"
 )
