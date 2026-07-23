@@ -6969,3 +6969,15 @@ UNTESTED 改 GAP；矩阵为 `PASS 23 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 / UNT
 已有 structured projection：status、Overview、Usage、Activity 首屏可读，raw 仍在 disclosure；dirty
 production `dee480cd-dirty-211448` 复拍 `05` 与 DOM 均通过。targeted 21 tests、frontend 全量/build、
 capture contract/full gate 全绿；全部数据原样保留。
+
+---
+
+## 2026-07-22 · INC-98.3s compact viewport 与 Scheduled restart
+
+- 双侧视觉基线改为真实 `1280×800`：Codex AX 缩窗后严格归一截图并恢复原 geometry，
+  AgentRunner Browser 同 viewport reload；同 state combined evidence 不再由大窗事后缩图代替。
+- shared UI 创建 `168h` / `max_iterations: 2` / no-tools retained fixture。首轮完成后普通 daemon
+  restart，cadence、nextRunAt、status 均保真，只有一次 `series_iteration`，SC-07 升 PASS。
+- 真实重启发现创建后 `#run:run1` 是 process-local 假 deep link。Run modal 现轮询 run 的 durable
+  `sessionId` 并导航 `#<sessionId>`，只有 id 未及时出现才回退 transient RunView；新增回归测试。
+- 矩阵为 `PASS 24 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 38`。

@@ -420,7 +420,7 @@ function RunModal({
   cadence?: CadenceSpec;
   returnFocus?: HTMLElement;
 }) {
-  const { openModal, selectRun, refreshRuns, toast } = useStore();
+  const { openModal, select, selectRun, refreshRuns, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose } = useWorkspace();
   // SC-18 — the form OPENS on the cadence the caller already showed the user (a
   // Scheduled suggestion card's cron), not on the preset's generic `interval:
@@ -460,6 +460,25 @@ function RunModal({
       });
       close();
       await refreshRuns();
+      // A drive's run id (run1, run2…) belongs to this Web UI process and is
+      // deliberately reused after restart. The daemon-assigned session id is
+      // the durable route. Land there as soon as it appears; keep RunView only
+      // as a short startup fallback while the first event is still arriving.
+      if (kind === "drive") {
+        for (let i = 0; i < 10; i++) {
+          try {
+            const sid = (await AR.runs()).find((run) => run.id === r.runId)?.sessionId;
+            if (sid) {
+              await refreshSessions();
+              select(sid);
+              return;
+            }
+          } catch {
+            /* transient — keep polling */
+          }
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+      }
       selectRun(r.runId);
     } catch (e: any) {
       toast(e.message, "error", e.details);

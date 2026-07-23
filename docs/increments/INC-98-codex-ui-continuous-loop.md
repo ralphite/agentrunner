@@ -330,6 +330,13 @@ INC-98 将该方法固化为持续循环：
   restart 前后分别记录 cadence/nextRunAt/status，验证不重复立即 tick、不丢 next run。fixture/session/
   workspace/journal 永久保留，不 pause/cancel/close/delete/cleanup。若 Gemini/provider 当前不可用，
   据实保留 failure 但仍验证 schedule persistence；不把 provider failure 当 scheduler bug。
+  实测创建 `20260723-043024-qa88-schedule-restart-6d2120bc409214e4` 后首轮无工具完成，timer 指向
+  `2026-07-29T21:30:25-07:00`；普通 `SIGTERM` deploy/restart 后 cadence/nextRun/status 保留，journal
+  只有一次 `series_iteration(n=1)`，仅出现预期 timer cancel/re-arm，没有重复 tick。但创建流程落到
+  process-local `#run:run1`，Web UI restart 后该 route 只剩 `waiting for output…`。修复契约：drive
+  创建后短轮询 `/api/runs` 的 daemon-assigned `sessionId`，一旦出现就刷新 sessions 并导航 durable
+  `#<sessionId>`；仅在 session id 未及时出现时保留 transient run fallback。新增真实 modal→API→route
+  回归，禁止 scheduled creation 再把 process-local run id 当 durable deep link。
 
 ## Spec delta
 
