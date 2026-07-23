@@ -146,7 +146,7 @@ func TestHandleSessionsPaginationForwardsBoundedCLIArgs(t *testing.T) {
 func TestHandleSessionsMapsJournalUpdatedAt(t *testing.T) {
 	dir := t.TempDir()
 	arPath := filepath.Join(dir, "ar")
-	script := "#!/bin/sh\nprintf '%s\\n' '[{\"id\":\"old-id\",\"status\":\"idle\",\"turns\":2,\"kind\":\"session\",\"updated_at\":\"2026-07-22T08:09:10.123Z\"}]'\n"
+	script := "#!/bin/sh\nprintf '%s\\n' '[{\"id\":\"old-id\",\"status\":\"paused\",\"turns\":2,\"kind\":\"driver\",\"schedule_control\":true,\"updated_at\":\"2026-07-22T08:09:10.123Z\"}]'\n"
 	if err := os.WriteFile(arPath, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -163,8 +163,46 @@ func TestHandleSessionsMapsJournalUpdatedAt(t *testing.T) {
 	if len(rows) != 1 || rows[0]["updatedAt"] != "2026-07-22T08:09:10.123Z" {
 		t.Fatalf("rows=%v, want camelCase updatedAt", rows)
 	}
+	if rows[0]["scheduleControl"] != true {
+		t.Fatalf("rows=%v, want camelCase scheduleControl", rows)
+	}
 	if _, leaked := rows[0]["updated_at"]; leaked {
 		t.Fatalf("CLI key leaked into frontend response: %v", rows[0])
+	}
+	if _, leaked := rows[0]["schedule_control"]; leaked {
+		t.Fatalf("CLI schedule_control leaked into frontend response: %v", rows[0])
+	}
+}
+
+func TestHandleScheduleControlForwardsTypedAction(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	s := &server{arPath: writeFakeAR(t, argsFile, "pause recorded")}
+	for _, tc := range []struct {
+		action string
+		status int
+	}{
+		{action: "pause", status: http.StatusOK},
+		{action: "resume", status: http.StatusOK},
+		{action: "delete", status: http.StatusBadRequest},
+	} {
+		req := httptest.NewRequest("POST", "/api/sessions/series-1/schedule",
+			strings.NewReader(`{"action":"`+tc.action+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.SetPathValue("sid", "series-1")
+		rr := httptest.NewRecorder()
+		s.handleScheduleControl(rr, req)
+		if rr.Code != tc.status {
+			t.Fatalf("%s status=%d body=%s", tc.action, rr.Code, rr.Body.String())
+		}
+		if tc.status == http.StatusOK {
+			got, err := os.ReadFile(argsFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasSuffix(string(got), "schedule\nseries-1\n"+tc.action+"\n") {
+				t.Fatalf("%s args=%q", tc.action, got)
+			}
+		}
 	}
 }
 

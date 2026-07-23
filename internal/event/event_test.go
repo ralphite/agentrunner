@@ -134,6 +134,9 @@ var samples = map[string]any{
 		CarryRef: "carry@v2", Carry: "两条断言修复",
 		Tick:  time.Date(2026, 7, 18, 14, 30, 0, 0, time.UTC),
 		Usage: provider.Usage{InputTokens: 100, OutputTokens: 50}},
+	TypeSeriesPaused: &SeriesPaused{SeriesID: "ser-1", Source: "user"},
+	TypeSeriesResumed: &SeriesResumed{SeriesID: "ser-1",
+		Base: time.Date(2026, 7, 18, 15, 0, 0, 0, time.UTC), Source: "user"},
 	TypeSeriesEnded: &SeriesEnded{SeriesID: "ser-1", Reason: "goal_satisfied",
 		Iterations: 2, BestIter: 2},
 }

@@ -2,12 +2,14 @@ package cli
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -159,6 +161,86 @@ func TestScanDriveSessionsIncludesSeriesForm(t *testing.T) {
 		if strings.HasPrefix(id, "series-") {
 			t.Errorf("stranded sweep picked up series session %s — it belongs to the drive sweep", id)
 		}
+	}
+}
+
+// INC-98.5a: a durably paused series stays out of the boot sweep. If a resume
+// command was fsynced but the daemon crashed before applying it, that pending
+// receipt puts the series back in the drive sweep (never the agent sweep).
+func TestScanDriveSessionsPausedAndPendingResume(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	const id = "series-paused"
+	writeSeriesJournal(t, id, driver.ScheduleInterval, false)
+	dir, err := runtime.SessionDir(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeSeriesPaused, &event.SeriesPaused{SeriesID: id, Source: "user"})
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ids, err := scanDriveSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(ids, id) {
+		t.Fatalf("paused series auto-resumed: %v", ids)
+	}
+	control, err := store.AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-resume"},
+		Kind:       protocol.CommandControl,
+		Control:    &protocol.Control{Kind: protocol.ControlScheduleResume},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if control.CommandSeq == 0 {
+		t.Fatal("resume command was not durably sequenced")
+	}
+	ids, err = scanDriveSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(ids, id) {
+		t.Fatalf("paused series with pending resume missing from drive sweep: %v", ids)
+	}
+	pending, err := pendingCommandsInDir(dir)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("pending resume = %+v err=%v", pending, err)
+	}
+	es, err = store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied, err := event.New(event.TypeSeriesResumed, &event.SeriesResumed{
+		SeriesID: id, Base: time.Now(), Source: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied.CommandID = control.CommandID
+	if _, err := es.Append(applied); err != nil {
+		t.Fatal(err)
+	}
+	_ = es.Close()
+	pending, err = pendingCommandsInDir(dir)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("applied resume remained pending: %+v err=%v", pending, err)
+	}
+	pendingAgent, err := scanPendingCommandSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(pendingAgent, id) {
+		t.Fatalf("series command routed into conversational resume sweep: %v", pendingAgent)
+	}
+	current, err := seriesControlState(id)
+	if err != nil || !current.Eligible || current.Paused || current.Ended {
+		t.Fatalf("series control state = %+v err=%v", current, err)
 	}
 }
 

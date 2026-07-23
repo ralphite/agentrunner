@@ -7430,3 +7430,20 @@ amber 数字 badge，单项仍保留具体类型。主 timeline 同步按 root/c
 Back to root 均保持正确。另保留一个双待办 fixture 未解决供持续回归。证据
 `qa/runs/2026-07-23-QA88-98.4aa-combined-attention/01..10`；无 backend/journal 变更，
 无新增 gap，EV-03/04/05 因仍缺 Codex 同态保持 UNTESTED。
+
+---
+
+## 2026-07-23 · INC-98.5a Scheduled durable Pause/Resume（闸门 A）
+
+G55 不再停留在 label/UI 层：canonical merged interval/cron/self-paced series 新增
+`SeriesPaused/SeriesResumed`、fsync-before-ack command receipt、drive-only replay、
+paused boot-sweep exclusion 与 resume clock-base 重锚；Pause 在 cadence wait 立即撤
+timer，在 in-flight child 后安全停。CLI/API/session capability 与 Scheduled
+All/Active/Paused、Pause/Resume action 同源，legacy driver 不画假入口。
+
+复杂 scripted A 闸覆盖 wait/in-flight/crash replay/paused sweep/re-anchor/control
+failure；race gate 另抓出并修复 replay pump 与 ack 路径共享 mutation。Go full gate、
+relevant race suites、Scheduled 40 focused、frontend 73 files/767 tests 与 production build
+已绿。因共享 daemon
+仍承载 retained live scheduled work，本批未擅自 restart；shared-store 真 series 与
+1100×700 双侧 B 闸待不影响现有 work 的获准窗口，故 G55/SC-05 仍为未关闭。

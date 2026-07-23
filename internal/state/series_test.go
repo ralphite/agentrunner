@@ -79,7 +79,25 @@ func TestSeriesFoldLifecycle(t *testing.T) {
 		t.Fatalf("duplicate N forked the list: %+v", s.Series.Iterations)
 	}
 
+	// Pause/resume is change-as-event. Resume's explicit Base replaces the
+	// cadence anchor, discarding slots elapsed during the pause.
+	beforePause := s
+	s = apply(s, event.TypeSeriesPaused, &event.SeriesPaused{SeriesID: "ser-1", Source: "user"})
+	if !s.Series.Paused || beforePause.Series.Paused {
+		t.Fatalf("pause fold/copy-on-write: before=%+v after=%+v", beforePause.Series, s.Series)
+	}
+	resumeBase := tick3.Add(3 * time.Hour)
+	s = apply(s, event.TypeSeriesResumed, &event.SeriesResumed{
+		SeriesID: "ser-1", Base: resumeBase, Source: "user"})
+	if s.Series.Paused || !s.Series.LastTick.Equal(resumeBase) {
+		t.Fatalf("resume did not re-anchor: %+v", s.Series)
+	}
+
 	// Wrong-ID facts are stale-control no-ops.
+	s = apply(s, event.TypeSeriesPaused, &event.SeriesPaused{SeriesID: "other", Source: "user"})
+	if s.Series.Paused {
+		t.Fatal("wrong-id pause changed the series")
+	}
 	s = apply(s, event.TypeSeriesEnded, &event.SeriesEnded{SeriesID: "other", Reason: "stopped"})
 	if s.Series.Ended {
 		t.Fatal("wrong-id terminal ended the series")

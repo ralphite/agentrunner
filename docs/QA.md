@@ -2202,3 +2202,12 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | child 导航 | Environment completed child row 直达只读 child 完整 timeline；deep-link reload 保持 child，Back to root 恢复 root 与 Environment，不清理 journal/worktree |
 | 红转绿 | 修前 sidebar/palette 只以 amber dot/`Needs approval` 隐藏第二动作；修后汇总为 `2 actions needed`，sidebar 与 command palette 都显示可见 amber `2`。单 approval/answer 仍保留具体文案 |
 | 保留 fixture / Gate | postfix shared root session `20260723-142251…cd009d3876e84e32` 永久停在双待办供回归；`qa/runs/2026-07-23-QA88-98.4aa-combined-attention/01..10` 保存 1100×700 before/after、palette、child deep-link、raw events 与 workspace 摘要；98 focused frontend tests、production build、full gate、shared health/versionMatch 与 browser warning/error=`[]` |
+
+| 98.5a 动作 | 硬断言 |
+|---|---|
+| cadence wait Pause | durable command fsync 后 ack；pending timer 先 `TimerCancelled`，再落带同一 `command_id` 的 `SeriesPaused`；无 `SeriesEnded` |
+| in-flight Pause | child 不被取消且正常结算 `SeriesIteration`；下一 iteration boundary 才暂停，暂停期间不启动下一 child |
+| crash/replay + boot sweep | paused 且无 pending command 不自动 host；pause/resume append 后 crash 的 pending receipt 只进 drive sweep、不进 conversational sweep，并重放到 drive-only host |
+| Resume re-anchor | `SeriesResumed.Base=runner clock.Now`；interval/cron 下一 tick 从 Base 计算，暂停期间 slot 不补跑；self-paced 立即下一轮；坏 control transport 不伪装成功 |
+| user surfaces | CLI status 明示 paused；sessions JSON status=`paused`、无 `next_run_at`、仅 canonical series 带 `schedule_control`；Web API 只收 pause/resume；Scheduled 为 All/Active/Paused，paused row 仅 Resume，active canonical 才 Pause，legacy/terminal 无假 action |
+| Gate | A 闸：driver/daemon/CLI/Web API targeted Go tests、Scheduled 40 focused tests、frontend 73 files/767 tests、production build、Go full gate 与 relevant race suites 已绿。B 闸必须在不影响现有 live work 的获准 restart 窗口执行 shared-store retained series + 1100×700 light/dark/reload/deep-link/browser logs；完成前 G55/SC-05 保持未关闭 |

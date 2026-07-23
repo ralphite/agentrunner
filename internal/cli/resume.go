@@ -380,6 +380,10 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		// consumes these verbatim instead of re-deriving them.
 		Cadence   string `json:"cadence,omitempty"`
 		NextRunAt string `json:"next_run_at,omitempty"`
+		// ScheduleControl is true only for canonical merged-stream repeating
+		// series. Legacy DriverStarted journals remain inspectable but cannot
+		// truthfully expose pause/resume.
+		ScheduleControl bool `json:"schedule_control,omitempty"`
 		// UpdatedAt is the same journal mtime that orders pagination. Exposing it
 		// lets clients preserve durable activity recency instead of guessing from
 		// the session id's creation stamp.
@@ -522,10 +526,16 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 					r.Turns = len(s.Series.Iterations)
 					if s.Series.Ended && s.Series.EndReason != "" {
 						r.Status = s.Series.EndReason
+					} else if s.Series.Paused {
+						r.Status = "paused"
 					}
 					if spec, _, ok := readSeriesSpec(filepath.Join(root, e.Name())); ok {
 						r.Cadence = spec.Cadence()
-						if !s.Series.Ended {
+						switch spec.Schedule {
+						case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
+							r.ScheduleControl = !s.Series.Ended
+						}
+						if !s.Series.Ended && !s.Series.Paused {
 							if t, ok := spec.NextRunAt(s.Series.LastTick, now); ok {
 								r.NextRunAt = t.Format(time.RFC3339)
 							}

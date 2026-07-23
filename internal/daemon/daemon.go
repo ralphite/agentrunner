@@ -175,7 +175,17 @@ type DriveRequest struct {
 	Workspace string
 	// Series opts the drive into the merged-stream session form (INC-80.2a);
 	// the resume path ignores it (journal head decides the form there).
-	Series bool
+	Series   bool
+	Controls <-chan protocol.Control
+}
+
+// SeriesControlState is the daemon's semantics-free eligibility seam for the
+// merged-series pause/resume transport. The CLI implementation owns journal
+// inspection; the daemon only provides durable acceptance and live delivery.
+type SeriesControlState struct {
+	Eligible bool
+	Paused   bool
+	Ended    bool
 }
 
 // NewSessionID mints a session id for a hosted run; injected for
@@ -245,8 +255,9 @@ type Server struct {
 	// daemon was down. Both non-nil → the daemon runs the drive boot sweep
 	// once at startup. nil = drives do not survive a restart (the pre-INC-54
 	// behavior).
-	ScanDrives  func() ([]string, error)
-	ResumeDrive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
+	ScanDrives         func() ([]string, error)
+	ResumeDrive        func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
+	SeriesControlState func(sessionID string) (SeriesControlState, error)
 	// ScanStranded lists mid-turn stranded agent sessions for the boot sweep
 	// (INC-71, G22a): journal shows running, no live writer — the previous
 	// host died mid-turn and nothing will advance them until a resume. The
@@ -360,6 +371,17 @@ func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hos
 	return h
 }
 
+func newHostedDriveRun(id string, notify func(protocol.Event)) *hostedRun {
+	h := newHostedRun(id, notify, false)
+	h.controls = make(chan protocol.Control, 8)
+	h.commandWake = make(chan struct{}, 1)
+	h.commandStop = make(chan struct{})
+	h.postedCommands = map[string]struct{}{}
+	h.commandPumpWG.Add(1)
+	go h.pumpCommands()
+	return h
+}
+
 func (h *hostedRun) pumpCommands() {
 	defer h.commandPumpWG.Done()
 	// approvalTries counts delivery attempts per approval command: an answer
@@ -414,6 +436,11 @@ func (h *hostedRun) pumpCommands() {
 				break
 			}
 			ctl := *cmd.Control
+			// The durable receipt lives canonically on SessionCommand. Stamp
+			// the delivery copy here so replay and first delivery are
+			// identical without mutating a command another goroutine may
+			// already be pumping.
+			ctl.CommandRef = cmd.CommandRef
 			select {
 			case controls <- ctl:
 				delivered = true
@@ -827,13 +854,14 @@ func (s *Server) hostResumeDrive(ctx context.Context, id string) {
 		s.mu.Unlock()
 		return
 	}
-	hub := s.newHostedRun(id, false)
+	hub := s.newHostedDriveRun(id)
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	s.mu.Unlock()
 
 	runCtx, runCancel := context.WithCancelCause(ctx)
 	hub.stop = runCancel
+	s.replayPendingCommands(ctx, id, hub)
 	slog.Info("daemon: resuming drive", "session", id)
 	go func() {
 		defer runCancel(nil)
@@ -845,7 +873,7 @@ func (s *Server) hostResumeDrive(ctx context.Context, id string) {
 			s.rehostIfPendingInput(ctx, id)
 		}()
 		defer hub.finish()
-		if err := s.ResumeDrive(runCtx, DriveRequest{SessionID: id}, hub); err != nil {
+		if err := s.ResumeDrive(runCtx, DriveRequest{SessionID: id, Controls: hub.controls}, hub); err != nil {
 			slog.Warn("daemon: drive resume failed", "session", id, "err", err)
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive resume failed: " + err.Error()})
 		}
@@ -886,6 +914,10 @@ func (s *Server) newHostedRun(id string, interactive bool) *hostedRun {
 		}
 	}
 	return hub
+}
+
+func (s *Server) newHostedDriveRun(id string) *hostedRun {
+	return newHostedDriveRun(id, s.Notify)
 }
 
 // serveConn handles one connection: ONE command line in, an event stream
@@ -968,6 +1000,10 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleResume}, "schedule resume requested — the cadence re-anchors at resume time (a no-op unless a schedule is paused)", enc)
 	case "schedule-cancel":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleCancel}, "schedule cancel requested (a no-op unless a schedule is attached)", enc)
+	case "series-pause":
+		s.handleSeriesControl(ctx, cmd, true, enc)
+	case "series-resume":
+		s.handleSeriesControl(ctx, cmd, false, enc)
 	case "unqueue":
 		s.handleUnqueue(ctx, cmd, enc)
 	case "answer":
@@ -976,8 +1012,97 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, title, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, schedule-attach, schedule-pause, schedule-resume, schedule-cancel, unqueue, answer, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, title, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, schedule-attach, schedule-pause, schedule-resume, schedule-cancel, series-pause, series-resume, unqueue, answer, agent)", cmd.Cmd)})
 	}
+}
+
+func (s *Server) handleSeriesControl(ctx context.Context, cmd Command, pause bool, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "series control needs session"})
+		return
+	}
+	if s.SeriesControlState == nil || s.ResumeDrive == nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no scheduled-series control configured"})
+		return
+	}
+	current, err := s.SeriesControlState(cmd.Session)
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "scheduled series: " + err.Error()})
+		return
+	}
+	if !current.Eligible || current.Ended {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "session is not an active repeating series"})
+		return
+	}
+	verb := "resume"
+	kind := protocol.ControlScheduleResume
+	if pause {
+		verb, kind = "pause", protocol.ControlSchedulePause
+	}
+	if current.Paused == pause {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: "scheduled series already " + map[bool]string{true: "paused", false: "active"}[pause]})
+		return
+	}
+
+	s.commandMu.Lock()
+	defer s.commandMu.Unlock()
+	ctl := protocol.Control{Kind: kind}
+	accepted, durable, err := s.acceptCommand(cmd.Session, cmd.CommandID,
+		attributedCommand(cmd, protocol.SessionCommand{Kind: protocol.CommandControl, Control: &ctl}))
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: verb + " not accepted: " + err.Error()})
+		return
+	}
+	if !s.commandNeedsDelivery(cmd.Session, accepted) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: verb + " already applied"})
+		return
+	}
+	s.mu.Lock()
+	hub := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if hub == nil {
+		s.hostResumeDrive(ctx, cmd.Session)
+		s.mu.Lock()
+		hub = s.runs[cmd.Session]
+		s.mu.Unlock()
+	}
+	posted := hub != nil && hub.postControl(accepted)
+	if !posted && durable {
+		s.reviveDriveAcceptedAfter(ctx, cmd.Session, hub)
+		posted = true
+	}
+	if !posted {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "scheduled series is not accepting " + verb})
+		return
+	}
+	message := "pause recorded — the current iteration, if any, finishes before the series pauses"
+	if !pause {
+		message = "resume recorded — cadence re-anchors when the series resumes"
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session, Text: message})
+}
+
+func (s *Server) reviveDriveAcceptedAfter(ctx context.Context, session string, old *hostedRun) {
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			s.mu.Lock()
+			current := s.runs[session]
+			s.mu.Unlock()
+			if current == nil || current != old {
+				s.hostResumeDrive(ctx, session)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 }
 
 func (s *Server) acceptCommand(session, commandID string, cmd protocol.SessionCommand) (protocol.SessionCommand, bool, error) {
@@ -1671,7 +1796,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		}
 	}
 	id := s.NewID("drive")
-	hub := s.newHostedRun(id, false)
+	hub := s.newHostedDriveRun(id)
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()
@@ -1705,7 +1830,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		defer hub.finish()
 		if err := s.Drive(runCtx, DriveRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Workspace: cmd.Workspace,
-			Series: cmd.Series,
+			Series: cmd.Series, Controls: hub.controls,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive failed: " + err.Error()})
 		}

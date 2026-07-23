@@ -38,7 +38,7 @@ func SubStateVersions() map[string]int {
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 		"team":         2, // INC-11.6 delegation/workspace projection;v2 PLAN 5.3 砍 DAG/lease(零消费)
 		"schedule":     1, // INC-74 in-session schedule (E1① loop-mode 挂会话)
-		"series":       2, // INC-80.2b③: BaseRef pin + SeriesEnded BestIter authority
+		"series":       3, // INC-98.5a: durable paused lifecycle + resume cadence base
 	}
 }
 
@@ -333,6 +333,7 @@ type Series struct {
 	// LastTick is the latest consumed cadence slot (max over iteration
 	// Ticks) — the INC-54 catch-up anchor for cron/interval series.
 	LastTick  time.Time `json:"last_tick,omitzero"`
+	Paused    bool      `json:"paused,omitempty"`
 	Ended     bool      `json:"ended,omitempty"`
 	EndReason string    `json:"end_reason,omitempty"`
 	// BaseRef is a best_of_n round's shared base snapshot (from
@@ -1320,12 +1321,29 @@ func Apply(s State, env event.Envelope) (State, error) {
 		}
 		s.Series = &sc
 
+	case *event.SeriesPaused:
+		if s.Series == nil || s.Series.SeriesID != p.SeriesID || s.Series.Ended {
+			break
+		}
+		sc := *s.Series
+		sc.Paused = true
+		s.Series = &sc
+
+	case *event.SeriesResumed:
+		if s.Series == nil || s.Series.SeriesID != p.SeriesID || s.Series.Ended || !s.Series.Paused {
+			break
+		}
+		sc := *s.Series
+		sc.Paused = false
+		sc.LastTick = p.Base
+		s.Series = &sc
+
 	case *event.SeriesEnded:
 		if s.Series == nil || s.Series.SeriesID != p.SeriesID {
 			break
 		}
 		sc := *s.Series
-		sc.Ended, sc.EndReason = true, p.Reason
+		sc.Ended, sc.Paused, sc.EndReason = true, false, p.Reason
 		// A best_of_n terminal carries the SELECTION (pass beats score) —
 		// it overrides the fold's max-score BestIter (INC-80.2b③).
 		if p.BestIter > 0 {

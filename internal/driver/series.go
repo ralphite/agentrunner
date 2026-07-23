@@ -132,42 +132,48 @@ func (d *Driver) prepareSeries() error {
 	return nil
 }
 
-// seriesAppendFunc is the single write path of the merged stream: append,
-// fold into the session state, tee lifecycle events to watchers.
-func (d *Driver) seriesAppendFunc(ss *state.State) appendFunc {
+// seriesAppend is the single write path of the merged stream: append, fold
+// into session state, and tee lifecycle events to watchers. commandID links a
+// durable daemon command to the domain fact that applied it.
+func (d *Driver) seriesAppend(ss *state.State, typ string, payload any, commandID string) (event.Envelope, error) {
 	r := redact.FromEnv()
+	env, err := event.New(typ, payload)
+	if err != nil {
+		return env, err
+	}
+	// Blanket credential redaction on EVERY journaled payload — the
+	// same invariant the agent appender enforces (loop.go): prompts and
+	// series-memory excerpts ride SessionStarted/SpawnRequested here,
+	// and the harness never journals a credential (INC-80 安全 review P1).
+	env.Payload = r.JSON(env.Payload)
+	env.CorrelationID = d.DriverID
+	env.CommandID = commandID
+	appended, err := d.Store.Append(env)
+	if err != nil {
+		return appended, err
+	}
+	next, err := state.Apply(*ss, appended)
+	if err != nil {
+		return appended, err
+	}
+	*ss = next
+	switch p := payload.(type) {
+	case *event.SeriesIteration:
+		if !p.Skipped {
+			d.emit(protocol.Event{Kind: protocol.KindIteration, N: p.N,
+				Reason: p.Reason,
+				Text: fmt.Sprintf("iteration %d %s (pass=%v score=%g)",
+					p.N, p.Reason, p.Verdict.Pass, p.Verdict.Score)})
+		}
+	case *event.SeriesEnded:
+		d.emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.Iterations, Reason: p.Reason})
+	}
+	return appended, nil
+}
+
+func (d *Driver) seriesAppendFunc(ss *state.State) appendFunc {
 	return func(typ string, payload any) (event.Envelope, error) {
-		env, err := event.New(typ, payload)
-		if err != nil {
-			return env, err
-		}
-		// Blanket credential redaction on EVERY journaled payload — the
-		// same invariant the agent appender enforces (loop.go): prompts and
-		// series-memory excerpts ride SessionStarted/SpawnRequested here,
-		// and the harness never journals a credential (INC-80 安全 review P1).
-		env.Payload = r.JSON(env.Payload)
-		env.CorrelationID = d.DriverID
-		appended, err := d.Store.Append(env)
-		if err != nil {
-			return appended, err
-		}
-		next, err := state.Apply(*ss, appended)
-		if err != nil {
-			return appended, err
-		}
-		*ss = next
-		switch p := payload.(type) {
-		case *event.SeriesIteration:
-			if !p.Skipped {
-				d.emit(protocol.Event{Kind: protocol.KindIteration, N: p.N,
-					Reason: p.Reason,
-					Text: fmt.Sprintf("iteration %d %s (pass=%v score=%g)",
-						p.N, p.Reason, p.Verdict.Pass, p.Verdict.Score)})
-			}
-		case *event.SeriesEnded:
-			d.emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.Iterations, Reason: p.Reason})
-		}
-		return appended, nil
+		return d.seriesAppend(ss, typ, payload, "")
 	}
 }
 
@@ -246,7 +252,23 @@ func (d *Driver) ResumeSeries(ctx context.Context) (Result, error) {
 	}
 	sr := ss.Series
 	if sr.Ended {
+		if _, err := d.drainSeriesControls(&ss); err != nil {
+			return Result{}, err
+		}
 		return Result{Reason: sr.EndReason, Iterations: len(sr.Iterations), BestIter: sr.BestIter}, nil
+	}
+	resumedNow := false
+	if sr.Paused {
+		if err := d.awaitSeriesResume(ctx, &ss); err != nil {
+			// A paused series stays paused through daemon shutdown. A pending
+			// durable resume command is replayed by the next drive host.
+			if errors.Is(err, errSeriesPaused) || ctx.Err() != nil {
+				return Result{Reason: "paused", Iterations: len(sr.Iterations), BestIter: sr.BestIter}, nil
+			}
+			return Result{}, err
+		}
+		resumedNow = true
+		sr = ss.Series
 	}
 	// INC-54 backfill: anchor cadence at the last consumed slot so missed
 	// ticks settle exactly once per the overlap policy.
@@ -276,7 +298,7 @@ func (d *Driver) ResumeSeries(ctx context.Context) (Result, error) {
 	// self_paced pace is runner memory — re-derive it from the last
 	// completed child's journal so a resumed series honors the declared
 	// pace instead of firing immediately (legacy Resume contract).
-	if d.Spec.schedule() == ScheduleSelfPaced && startN > 1 {
+	if d.Spec.schedule() == ScheduleSelfPaced && startN > 1 && !resumedNow {
 		if last, ok := lastSeriesCompleted(sr); ok {
 			floor, ceil, _ := d.Spec.paceBounds()
 			tail := last.ChildSession
@@ -353,6 +375,14 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 		if ctx.Err() != nil {
 			return d.seriesCancelTerminal(ctx, appendE, sr, n-1)
 		}
+		paused, err := d.drainSeriesControls(ss)
+		if err != nil {
+			return Result{}, err
+		}
+		if paused {
+			sr = ss.Series
+			return Result{Reason: "paused", Iterations: len(sr.Iterations), BestIter: sr.BestIter}, nil
+		}
 		if n > maxIter {
 			return d.finishSeries(appendE, sr, seriesLimitReason(sr), maxIter)
 		}
@@ -370,6 +400,10 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 			} else {
 				run, t, terr := d.awaitSeriesTick(ctx, ss, appendE, n, n == 1)
 				if terr != nil {
+					if errors.Is(terr, errSeriesPaused) {
+						sr = ss.Series
+						return Result{Reason: "paused", Iterations: len(sr.Iterations), BestIter: sr.BestIter}, nil
+					}
 					if ctx.Err() != nil {
 						return d.seriesCancelTerminal(ctx, appendE, ss.Series, n-1)
 					}
@@ -784,11 +818,46 @@ func (d *Driver) awaitSeriesTick(ctx context.Context, ss *state.State, appendE a
 		}); err != nil {
 			return err
 		}
-		if err := d.Clock.WaitUntil(ctx, next); err != nil {
-			return err
+		waitCtx, cancel := context.WithCancel(ctx)
+		waited := make(chan error, 1)
+		go func() { waited <- d.Clock.WaitUntil(waitCtx, next) }()
+		defer cancel()
+		for {
+			select {
+			case err := <-waited:
+				if err != nil {
+					return err
+				}
+				_, err = appendE(event.TypeTimerFired, &event.TimerFired{TimerID: timerID})
+				return err
+			case ctl, ok := <-d.SeriesControls:
+				if !ok {
+					d.SeriesControls = nil
+					continue
+				}
+				if ctl.Kind == protocol.ControlSchedulePause && ss.Series != nil && !ss.Series.Paused {
+					// Cancel the durable wake hint before the paused fact. If a
+					// crash lands between them, the still-pending command makes
+					// boot sweep re-host and finish the pause.
+					cancel()
+					<-waited
+					if _, err := appendE(event.TypeTimerCancelled, &event.TimerCancelled{TimerID: timerID}); err != nil {
+						return err
+					}
+					if _, err := d.applySeriesControl(ss, ctl); err != nil {
+						return err
+					}
+					return errSeriesPaused
+				}
+				if _, err := d.applySeriesControl(ss, ctl); err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				cancel()
+				<-waited
+				return ctx.Err()
+			}
 		}
-		_, err := appendE(event.TypeTimerFired, &event.TimerFired{TimerID: timerID})
-		return err
 	}
 	now := d.Clock.Now()
 	switch d.Spec.schedule() {
@@ -864,6 +933,102 @@ func (d *Driver) awaitSeriesTick(ctx context.Context, ss *state.State, appendE a
 		return true, time.Time{}, nil
 	}
 	return false, time.Time{}, fmt.Errorf("series: schedule %q has no cadence", d.Spec.schedule())
+}
+
+var errSeriesPaused = errors.New("series paused")
+
+// applySeriesControl is the sole lifecycle applier. A domain event carries the
+// command id when state changes; a no-op gets CommandHandled so command replay
+// still settles exactly once.
+func (d *Driver) applySeriesControl(ss *state.State, ctl protocol.Control) (bool, error) {
+	sr := ss.Series
+	if sr == nil {
+		return false, fmt.Errorf("series control: journal has no series")
+	}
+	if sr.Ended {
+		_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+			CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+			Kind: ctl.Kind, Result: "series_ended",
+		}, ctl.CommandID)
+		return false, err
+	}
+	switch ctl.Kind {
+	case protocol.ControlSchedulePause:
+		if sr.Paused {
+			_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+				CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+				Kind: ctl.Kind, Result: "already_paused",
+			}, ctl.CommandID)
+			return true, err
+		}
+		_, err := d.seriesAppend(ss, event.TypeSeriesPaused, &event.SeriesPaused{
+			SeriesID: sr.SeriesID, Source: "user",
+		}, ctl.CommandID)
+		return err == nil, err
+	case protocol.ControlScheduleResume:
+		if !sr.Paused {
+			_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+				CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+				Kind: ctl.Kind, Result: "already_active",
+			}, ctl.CommandID)
+			return false, err
+		}
+		_, err := d.seriesAppend(ss, event.TypeSeriesResumed, &event.SeriesResumed{
+			SeriesID: sr.SeriesID, Base: d.Clock.Now(), Source: "user",
+		}, ctl.CommandID)
+		return false, err
+	default:
+		_, err := d.seriesAppend(ss, event.TypeCommandHandled, &event.CommandHandled{
+			CommandID: ctl.CommandID, CommandSeq: ctl.CommandSeq,
+			Kind: ctl.Kind, Result: "unsupported_series_control",
+		}, ctl.CommandID)
+		return false, err
+	}
+}
+
+func (d *Driver) drainSeriesControls(ss *state.State) (bool, error) {
+	for d.SeriesControls != nil {
+		select {
+		case ctl, ok := <-d.SeriesControls:
+			if !ok {
+				d.SeriesControls = nil
+				return false, nil
+			}
+			paused, err := d.applySeriesControl(ss, ctl)
+			if err != nil || paused {
+				return paused, err
+			}
+		default:
+			return false, nil
+		}
+	}
+	return false, nil
+}
+
+func (d *Driver) awaitSeriesResume(ctx context.Context, ss *state.State) error {
+	if d.SeriesControls == nil {
+		return fmt.Errorf("series resume: control channel unavailable")
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ctl, ok := <-d.SeriesControls:
+			if !ok {
+				d.SeriesControls = nil
+				return fmt.Errorf("series resume: control channel closed")
+			}
+			if _, err := d.applySeriesControl(ss, ctl); err != nil {
+				return err
+			}
+			if ss.Series != nil && !ss.Series.Paused {
+				return nil
+			}
+			if ctl.Kind == protocol.ControlSchedulePause {
+				return errSeriesPaused
+			}
+		}
+	}
 }
 
 // seriesCancelTerminal mirrors cancelTerminal (INC-72): a graceful host

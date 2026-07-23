@@ -142,6 +142,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		ScanDrives:                 scanDriveSessions,
 		ScanStranded:               scanStrandedSessions,
 		ResumeDrive:                hostResumeDriveFunc(version, stderr, broker),
+		SeriesControlState:         seriesControlState,
 		PersistCommand:             persistCommandFunc(),
 		PendingCommands:            pendingCommands,
 		ScanPendingCommandSessions: scanPendingCommandSessions,
@@ -544,6 +545,9 @@ func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 			event.TypeGoalAttached, event.TypeGoalUpdated, event.TypeGoalPaused,
 			event.TypeGoalResumed, event.TypeGoalCancelled, event.TypeGoalAchieved,
 			event.TypeGoalExhausted,
+			event.TypeScheduleAttached, event.TypeSchedulePaused,
+			event.TypeScheduleResumed, event.TypeScheduleCancelled,
+			event.TypeSeriesPaused, event.TypeSeriesResumed,
 			event.TypeSessionClosed, event.TypeLimitExceeded,
 			event.TypeApprovalResponded, event.TypeCommandHandled:
 			handled[env.CommandID] = true
@@ -617,6 +621,13 @@ func scanPendingCommandSessions() ([]string, error) {
 	var ids []string
 	for _, entry := range entries {
 		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(data, "sessions", entry.Name())
+		if _, _, series := readSeriesSpec(dir); series {
+			// Drive commands replay through the drive host. Sending them into
+			// the conversational resume path would open the same journal with
+			// the wrong runner.
 			continue
 		}
 		pending, perr := pendingCommands(entry.Name())
@@ -903,6 +914,7 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 			return err
 		}
 		defer cleanup()
+		d.SeriesControls = req.Controls
 		// Merged-stream by default for supported shapes (INC-80.2c flip);
 		// req.Series insists and errors instead of silently falling back.
 		var runErr error
@@ -940,6 +952,7 @@ func hostResumeDriveFunc(version string, stderr io.Writer, broker *daemon.Approv
 				return err
 			}
 			defer cleanup()
+			d.SeriesControls = req.Controls
 			_, runErr := d.ResumeSeries(ctx)
 			return runErr
 		}
@@ -993,6 +1006,38 @@ func readSeriesSpec(dir string) (*driver.DriverSpec, string, bool) {
 		return nil, "", false
 	}
 	return &spec, head.WorkspaceRoot, true
+}
+
+func seriesControlState(sessionID string) (daemon.SeriesControlState, error) {
+	dir, err := resolveSessionDir(sessionID)
+	if err != nil {
+		return daemon.SeriesControlState{}, err
+	}
+	spec, _, ok := readSeriesSpec(dir)
+	if !ok {
+		return daemon.SeriesControlState{}, nil
+	}
+	switch spec.Schedule {
+	case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
+	default:
+		return daemon.SeriesControlState{}, nil
+	}
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return daemon.SeriesControlState{}, err
+	}
+	folded, err := state.Fold(events)
+	if err != nil {
+		return daemon.SeriesControlState{}, err
+	}
+	if folded.Series == nil {
+		return daemon.SeriesControlState{}, nil
+	}
+	return daemon.SeriesControlState{
+		Eligible: true,
+		Paused:   folded.Series.Paused,
+		Ended:    folded.Series.Ended,
+	}, nil
 }
 
 // assembleHostedDriver builds the daemon's IterationDriver over an already
@@ -1180,6 +1225,12 @@ func scanDriveSessions() ([]string, error) {
 				if ferr != nil || st.Series == nil || st.Series.Ended {
 					continue
 				}
+				if st.Series.Paused {
+					pending, perr := pendingCommandsInDir(dir)
+					if perr != nil || !hasPendingSeriesControl(pending) {
+						continue
+					}
+				}
 				out = append(out, e.Name())
 			}
 			continue
@@ -1207,6 +1258,17 @@ func scanDriveSessions() ([]string, error) {
 		out = append(out, e.Name())
 	}
 	return out, nil
+}
+
+func hasPendingSeriesControl(commands []protocol.SessionCommand) bool {
+	for _, cmd := range commands {
+		if cmd.Kind == protocol.CommandControl && cmd.Control != nil &&
+			(cmd.Control.Kind == protocol.ControlSchedulePause ||
+				cmd.Control.Kind == protocol.ControlScheduleResume) {
+			return true
+		}
+	}
+	return false
 }
 
 // scanStrandedSessions derives the stranded-session boot-sweep index

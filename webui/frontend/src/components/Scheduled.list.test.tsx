@@ -126,10 +126,10 @@ describe("Scheduled admits only rhythmic work (SC-1)", () => {
     expect(screen.getByText("Saturdays at 4:00 AM")).toBeTruthy();
   });
 
-  it("names the third filter Finished — we have no paused state to show (SC-7)", () => {
+  it("names the third filter Paused from the durable series lifecycle", () => {
     mount();
-    expect(screen.getByRole("tab", { name: "Finished" })).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: "Paused" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Paused" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Finished" })).toBeNull();
   });
 });
 
@@ -149,6 +149,7 @@ const seriesSessions: Session[] = [
     schedule: "interval",
     cadence: "Every 30m",
     nextRunAt: "2099-01-01T00:00:00Z",
+    scheduleControl: true,
   },
   {
     // The live regression (driver 20260712-033455-cx3-cadence-61b9): claims a
@@ -171,6 +172,17 @@ const seriesSessions: Session[] = [
     kind: "driver",
     schedule: "cron",
     cadence: "Daily at 6:00 AM",
+  },
+  {
+    id: "20260712-075000-paused",
+    status: "paused",
+    turns: 5,
+    title: "Paused: nightly digest",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 1h",
+    scheduleControl: true,
   },
   {
     id: "20260712-070000-done",
@@ -200,8 +212,8 @@ const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }))
 const titles = (c: HTMLElement) =>
   [...c.querySelectorAll(".scheduled-row .scheduled-copy b")].map((e) => e.textContent);
 
-describe("Active is a fact about the series, not about this instant (SC-11)", () => {
-  it("keeps a healthy between-ticks series in Active — it is not Finished", () => {
+describe("Active and Paused are durable series facts (SC-11 / INC-98.5a)", () => {
+  it("keeps a healthy between-ticks series in Active — it is not Paused", () => {
     const { container } = mountSeries();
     tab("Active");
     // The whole bug: a series with a future tick is ACTIVE even though nothing
@@ -210,7 +222,7 @@ describe("Active is a fact about the series, not about this instant (SC-11)", ()
     // when you happen to look.
     expect(titles(container)).toContain("Healthy: watch the queue");
 
-    tab("Finished");
+    tab("Paused");
     expect(titles(container)).not.toContain("Healthy: watch the queue");
   });
 
@@ -220,19 +232,20 @@ describe("Active is a fact about the series, not about this instant (SC-11)", ()
     expect(titles(container)).toContain("Broken: cadence driver that died");
     expect(titles(container)).toContain("Broken: nightly sweep that crashed");
 
-    tab("Finished");
-    const finished = titles(container);
-    expect(finished).not.toContain("Broken: cadence driver that died");
-    expect(finished).not.toContain("Broken: nightly sweep that crashed");
+    tab("Paused");
+    const paused = titles(container);
+    expect(paused).not.toContain("Broken: cadence driver that died");
+    expect(paused).not.toContain("Broken: nightly sweep that crashed");
   });
 
-  it("Finished holds only terminal series — nothing more will ever happen there", () => {
+  it("Paused contains only the durable paused lifecycle; terminal rows stay in All", () => {
     const { container } = mountSeries();
-    tab("Finished");
-    expect(titles(container)).toEqual(["Finished: the goal was met"]);
+    tab("Paused");
+    expect(titles(container)).toEqual(["Paused: nightly digest"]);
 
     tab("Active");
     expect(titles(container)).not.toContain("Finished: the goal was met");
+    expect(titles(container)).not.toContain("Paused: nightly digest");
     // …and Active is no longer empty by construction: everything still ticking
     // or still needing you is here.
     expect(titles(container)).toHaveLength(3);
@@ -286,7 +299,7 @@ describe("every row wears its state on its left (SCH-ICON)", () => {
   it("leaves no row with an empty icon slot", () => {
     const { container } = mountSeries();
     const rows = [...container.querySelectorAll(".scheduled-row")];
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
     // The finished row used to render `.sched-blank` — an empty span in a column
     // that still reserved the icon's width, so it read as an icon that had failed
     // to load. Every row is anchored now.
@@ -326,7 +339,7 @@ describe("every row wears its state on its left (SCH-ICON)", () => {
     // Adding a glyph to every row must not add an alarm to every row: exactly the
     // two genuinely broken series are allowed to be coloured (SC-10 / SC-16).
     expect(container.querySelectorAll(".sched-glyph.sched-warn")).toHaveLength(2);
-    for (const title of ["Healthy: watch the queue", "Finished: the goal was met"]) {
+    for (const title of ["Healthy: watch the queue", "Paused: nightly digest", "Finished: the goal was met"]) {
       const row = screen.getByText(title).closest(".scheduled-row")!;
       expect(row.querySelector(".sched-glyph")!.className).not.toContain("sched-warn");
     }
@@ -338,6 +351,7 @@ describe("every row wears its state on its left (SCH-ICON)", () => {
     // Codex greys the whole paused row, title included; the rows still ticking —
     // and the broken one, which needs you — keep their emphasis.
     expect(quiet("Finished: the goal was met")).toBe(true);
+    expect(quiet("Paused: nightly digest")).toBe(true);
     expect(quiet("Healthy: watch the queue")).toBe(false);
     expect(quiet("Broken: cadence driver that died")).toBe(false);
     expect(quiet("Broken: nightly sweep that crashed")).toBe(false);
@@ -390,6 +404,7 @@ const promptTitled: Session[] = [
     schedule: "interval",
     cadence: "Every 30m",
     nextRunAt: "2099-01-01T00:00:00Z",
+    scheduleControl: true,
   },
 ];
 const promptRuns: Run[] = [
@@ -465,8 +480,9 @@ describe("a scheduled row can be acted on (SC-12)", () => {
     const items = [...menu.querySelectorAll("[role='menuitem']")].map((e) => e.textContent);
     // SC-17/INC-83: the series' own actions lead; the housekeeping follows.
     // This row is healthy and idle between ticks, so there is nothing to
-    // resume — but it can still be retried or cancelled (its own terminal).
+    // resume — its primary lifecycle action is Pause.
     expect(items).toEqual([
+      "Pause",
       "Retry",
       "Cancel series…",
       "Pin",
@@ -628,7 +644,7 @@ describe("a configured limit is a finish, not a failure (SC-16)", () => {
     }
   });
 
-  it("files a limit-reached series under Finished — it will never fire again", () => {
+  it("keeps terminal limits out of both Active and Paused", () => {
     const { container } = mountLimits();
     tab("Active");
     // The whole Active tab used to be these rows (live: All=3 / Active=3 /
@@ -636,12 +652,8 @@ describe("a configured limit is a finish, not a failure (SC-16)", () => {
     // "is my background work still running?" — answer wrong.
     expect(titles(container)).toEqual(["Genuinely broken: host died"]);
 
-    tab("Finished");
-    expect(titles(container)).toEqual([
-      "Ran its configured 20 iterations",
-      "Spent its configured token budget",
-      "Hit its generation-step ceiling",
-    ]);
+    tab("Paused");
+    expect(titles(container)).toEqual([]);
   });
 
   it("offers no Resume on a limit row — there is nothing broken to recover", () => {

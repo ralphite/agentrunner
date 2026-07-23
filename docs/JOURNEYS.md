@@ -159,8 +159,11 @@ GAPS.md，本文件只回答"产品要做什么"。
 3. 有 CVE → 升级、跑全量测试、开 PR、发通知。
 4. 某晚任务跑超了，撞上下一个 tick → 按 overlap 策略跳过并留痕。
 5. 每次迭代的结论作为 carry 传给下一次（"上次 3 个包没敢动，原因…"）。
+6. 用户可在 cadence wait 或一次迭代运行中 Pause；已在飞迭代正常结算后
+   series 持久停住，跨 daemon 重启仍不补跑。Resume 从恢复时刻重锚 cadence，
+   Scheduled 的 Active/Paused、下一次运行时间与动作始终来自同一 journal 真相。
 
-**覆盖功能**：`cron/interval 驱动` `overlap 策略` `静默/通知分寸` `迭代 carry 记忆` `无人值守审批策略(fail-closed)`
+**覆盖功能**：`cron/interval 驱动` `overlap 策略` `durable pause/resume` `resume cadence 重锚` `静默/通知分寸` `迭代 carry 记忆` `无人值守审批策略(fail-closed)`
 
 ### UJ-15 通宵冲目标 `高级`
 **场景**：给一个可验证的目标，让它自己迭代。
@@ -404,6 +407,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    inspect/ps/diff 的 projection；首次 session page 成功前显示 loading，不用
    空数组伪造 `No sessions yet`；deep link 在所在页到达前从 durable id 派生可读
    fallback，journal title 到达后替换，不把完整 raw id 或长期 loading 当标题。
+   canonical repeating series 的 Paused 是 durable lifecycle：Paused filter、row
+   状态、Pause/Resume action 与 `nextRunAt` 都由 backend capability/journal 投影；
+   legacy driver 不显示无法兑现的动作。
    connected daemon 是安静 status（build id 仅 tooltip/Settings），只有 offline 才出现
    Restart button；Settings desktop 只有 Done，mobile 只有 Back。
 7. 以真实 Codex Desktop 为参照的全部可见 surface/state 必须登记在

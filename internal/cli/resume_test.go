@@ -629,6 +629,20 @@ func TestCLISessionsJSONProjectsCadenceAndNextRun(t *testing.T) {
 	}
 	// Live merged-stream series session (cron).
 	writeSeriesJournal(t, "series-live", "cron", false)
+	// Paused merged-stream series: cadence remains visible, next run does not.
+	writeSeriesJournal(t, "series-paused", "interval", false)
+	{
+		dir := filepath.Join(xdg, "agentrunner", "sessions", "series-paused")
+		es, err := store.OpenEventStore(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := es.Append(mkEnv(t, event.TypeSeriesPaused, &event.SeriesPaused{
+			SeriesID: "series-paused", Source: "user"})); err != nil {
+			t.Fatal(err)
+		}
+		_ = es.Close()
+	}
 	// Terminal driver: cadence yes, next run never.
 	{
 		dir := filepath.Join(xdg, "agentrunner", "sessions", "loop-done")
@@ -653,11 +667,13 @@ func TestCLISessionsJSONProjectsCadenceAndNextRun(t *testing.T) {
 		t.Fatalf("sessions exit=%d stderr=%s", code, errOut.String())
 	}
 	var rows []struct {
-		ID        string `json:"id"`
-		Kind      string `json:"kind"`
-		Schedule  string `json:"schedule"`
-		Cadence   string `json:"cadence"`
-		NextRunAt string `json:"next_run_at"`
+		ID              string `json:"id"`
+		Status          string `json:"status"`
+		Kind            string `json:"kind"`
+		Schedule        string `json:"schedule"`
+		Cadence         string `json:"cadence"`
+		NextRunAt       string `json:"next_run_at"`
+		ScheduleControl bool   `json:"schedule_control"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
 		t.Fatalf("decode: %v\n%s", err, out.String())
@@ -672,8 +688,13 @@ func TestCLISessionsJSONProjectsCadenceAndNextRun(t *testing.T) {
 	}
 	series := rows[byID["series-live"]]
 	if series.Kind != "driver" || series.Schedule != "cron" ||
-		series.Cadence != "Hourly at :00" || series.NextRunAt == "" {
+		series.Cadence != "Hourly at :00" || series.NextRunAt == "" || !series.ScheduleControl {
 		t.Fatalf("series row = %+v, want driver kind + cron cadence + next run", series)
+	}
+	paused := rows[byID["series-paused"]]
+	if paused.Status != "paused" || paused.Cadence != "Every 30m" ||
+		paused.NextRunAt != "" || !paused.ScheduleControl {
+		t.Fatalf("paused series row = %+v, want paused + cadence + NO next run", paused)
 	}
 	done := rows[byID["loop-done"]]
 	if done.Cadence != "Every 30m" || done.NextRunAt != "" {

@@ -83,6 +83,10 @@ type Driver struct {
 	// iteration completions and the terminal — what a hosting surface tees
 	// to watchers and the notifier. nil = silent (journal stays the truth).
 	Out protocol.Sink
+	// SeriesControls receives durable pause/resume commands from the daemon.
+	// The runner is the journal's sole writer and applies them at iteration
+	// boundaries; a pause never cancels an in-flight child.
+	SeriesControls <-chan protocol.Control
 	// Pipeline adjudicates verifier effects (S7 还债①: verifier 过四关卡,
 	// 收回 S6 的直连例外): a command verifier is a tool_call effect, a
 	// judge an llm_call. The CLI builds it with the merged user/project

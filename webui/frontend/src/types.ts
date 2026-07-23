@@ -22,6 +22,9 @@ export interface Cadence {
   cadence?: string;
   // RFC3339 instant of the next tick; only present for a LIVE interval/cron series.
   nextRunAt?: string;
+  // True only for the canonical merged-stream repeating series whose daemon
+  // implements durable pause/resume. Legacy driver journals omit it.
+  scheduleControl?: boolean;
 }
 
 export interface Session extends Cadence {

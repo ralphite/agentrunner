@@ -1668,6 +1668,20 @@ limits:
   interrupt`；跳过是 `IterationSkipped` event，不是沉默。interval 与 cron
   都使用 durable fixed-rate absolute tick；iteration 跑过 tick 时按
   skip/coalesce 消费错过的 slot，不从 completion 时刻重新 fixed-delay。
+- **canonical merged-series lifecycle control（INC-98.5a）**：只有
+  `SessionStarted+SeriesStarted` 头的 `interval|cron|self_paced` series
+  接受 Pause/Resume；legacy `DriverStarted` journal 只读，不暴露假能力。
+  daemon 先把 typed control fsync 到 session command log 再 ack；runner
+  在 iteration boundary 落 `SeriesPaused`，因此 cadence wait 可立即撤
+  timer，已在飞 child 则正常结算后再停。paused series 不进普通 drive
+  boot sweep；若 pause/resume 已接收但事实事件尚未落盘，pending command
+  反而使 sweep 重挂 host 并重放，domain event 的 `CommandID` 是完成收据。
+  `SeriesResumed.Base` 必须由 runner clock 在应用 command 时盖章并写入
+  journal；fold 以它更新 `LastTick`，interval/cron 从该点重锚、
+  self-paced 立即进入下一轮，暂停期间 slot 永不 catch-up。Web/CLI 的
+  Paused、`nextRunAt` 与动作资格只读该 fold/capability，不从“没有下一
+  tick”猜状态。该增量是 additive lifecycle，不改变 journal-first、
+  single-writer 或 crash-replay 不变量。
 - **Loop 也有两种形态（INC-74，E1①——goal 两形态的镜像）**：
   - **driver loop**（批式/fresh-child）= 上面的 schedule 教义，维持至
     E1 收敛完成。

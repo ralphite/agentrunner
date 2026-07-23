@@ -822,8 +822,8 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// scheduleCmd drives an in-session schedule (INC-74, UJ-14/UJ-22 — the
-// loop-mode-on-a-conversation form):
+// scheduleCmd controls either an in-session repeating schedule or the
+// canonical merged-stream repeating series behind the Scheduled product face.
 //
 //	agentrunner schedule <session> attach --every 30m|--cron "…" [--max-wakes N] "<prompt>"
 //	agentrunner schedule <session> status|pause|resume|cancel
@@ -859,6 +859,27 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "agentrunner: fold: %v\n", err)
 			return ExitRun
 		}
+		if fold.Series != nil {
+			spec, _, ok := readSeriesSpec(dir)
+			if !ok {
+				fmt.Fprintln(stderr, "agentrunner: series metadata is unreadable")
+				return ExitRun
+			}
+			fmt.Fprintf(stdout, "cadence   %s\n", spec.Cadence())
+			fmt.Fprintf(stdout, "iterations %d\n", len(fold.Series.Iterations))
+			if !fold.Series.LastTick.IsZero() {
+				fmt.Fprintf(stdout, "last tick %s\n", fold.Series.LastTick.Format(time.RFC3339))
+			}
+			switch {
+			case fold.Series.Ended:
+				fmt.Fprintf(stdout, "status    %s\n", fold.Series.EndReason)
+			case fold.Series.Paused:
+				fmt.Fprintln(stdout, "status    paused (resume re-anchors the cadence)")
+			default:
+				fmt.Fprintln(stdout, "status    active")
+			}
+			return ExitOK
+		}
 		sc := fold.Schedule
 		if sc == nil {
 			fmt.Fprintln(stdout, "no active schedule")
@@ -883,6 +904,17 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		return ExitOK
 	case "pause", "resume", "cancel":
+		dir, err := resolveSessionDir(session)
+		if err == nil {
+			if events, readErr := store.ReadEvents(dir); readErr == nil {
+				if fold, foldErr := state.Fold(events); foldErr == nil && fold.Series != nil {
+					if sub == "cancel" {
+						return oneShot(stderr, daemon.Command{Cmd: "stop", Session: session}, stdout)
+					}
+					return oneShot(stderr, daemon.Command{Cmd: "series-" + sub, Session: session}, stdout)
+				}
+			}
+		}
 		return oneShot(stderr, daemon.Command{Cmd: "schedule-" + sub, Session: session}, stdout)
 	case "attach":
 		fs := flag.NewFlagSet("schedule attach", flag.ContinueOnError)

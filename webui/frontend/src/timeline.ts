@@ -1153,6 +1153,16 @@ export function foldEvents(events: Envelope[]): Folded {
           p.skipped || (p.verdict && p.verdict.pass === false) ? "warn" : "good",
         );
         break;
+      case "series_paused":
+        isDriver = true;
+        chip(seq, "Schedule paused");
+        status = { text: "paused", cls: "idle" };
+        break;
+      case "series_resumed":
+        isDriver = true;
+        chip(seq, "Schedule resumed");
+        status = { text: "running", cls: "run" };
+        break;
       case "series_ended": {
         isDriver = true;
         const selectedLabel = seriesKind === "best_of_n" || seriesKind === "parallel" ? "best" : "selected";

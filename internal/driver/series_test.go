@@ -13,6 +13,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -186,6 +187,206 @@ func TestSeriesIntervalOverlapSkip(t *testing.T) {
 	if len(ss.Timers) != 0 {
 		t.Fatalf("pending timers after series end = %v, want none", ss.Timers)
 	}
+}
+
+// INC-98.5a: a pause accepted while the series is parked on its cadence
+// cancels that wake hint immediately. Resume is a durable lifecycle fact and
+// re-anchors the interval at resume time, so the paused minute is not caught up.
+func TestSeriesPauseDuringWaitAndResumeReanchors(t *testing.T) {
+	d, dStore, clk := seriesControlHarness(t, 2)
+	controls := make(chan protocol.Control, 4)
+	d.SeriesControls = controls
+
+	result := make(chan driver.Result, 1)
+	go func() {
+		res, err := d.RunSeries(context.Background())
+		if err != nil {
+			t.Errorf("run: %v", err)
+		}
+		result <- res
+	}()
+	waitIdle(t, clk)
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-pause", CommandSeq: 1},
+		Kind:       protocol.ControlSchedulePause,
+	}
+	if res := <-result; res.Reason != "paused" || res.Iterations != 1 {
+		t.Fatalf("pause result = %+v, want paused after settled iteration 1", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	pausedAt, cancelledAt := -1, -1
+	for i, env := range events {
+		switch env.Type {
+		case event.TypeTimerCancelled:
+			cancelledAt = i
+		case event.TypeSeriesPaused:
+			pausedAt = i
+			if env.CommandID != "cmd-pause" {
+				t.Fatalf("pause receipt command_id = %q", env.CommandID)
+			}
+		case event.TypeSeriesEnded:
+			t.Fatal("pause wrote a terminal SeriesEnded")
+		}
+	}
+	if cancelledAt < 0 || pausedAt <= cancelledAt {
+		t.Fatalf("timer cancel / pause ordering = %d/%d, want cancel before durable pause", cancelledAt, pausedAt)
+	}
+
+	clk.Advance(10 * time.Minute) // explicit pause discards elapsed slots
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-resume", CommandSeq: 2},
+		Kind:       protocol.ControlScheduleResume,
+	}
+	go func() {
+		res, err := d.ResumeSeries(context.Background())
+		if err != nil {
+			t.Errorf("resume: %v", err)
+		}
+		result <- res
+	}()
+	waitIdle(t, clk)
+	clk.Advance(59 * time.Second)
+	select {
+	case res := <-result:
+		t.Fatalf("series fired before the re-anchored minute: %+v", res)
+	default:
+	}
+	clk.Advance(time.Second)
+	if res := <-result; res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("resume result = %+v", res)
+	}
+	events, _ = store.ReadEvents(dStore.Dir())
+	folded, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folded.Series == nil || folded.Series.Paused || !folded.Series.Ended {
+		t.Fatalf("final series = %+v", folded.Series)
+	}
+	var resumed *event.SeriesResumed
+	for _, env := range events {
+		if env.Type == event.TypeSeriesResumed {
+			decoded, _ := event.DecodePayload(env)
+			resumed = decoded.(*event.SeriesResumed)
+			if env.CommandID != "cmd-resume" {
+				t.Fatalf("resume receipt command_id = %q", env.CommandID)
+			}
+		}
+	}
+	if resumed == nil || !folded.Series.Iterations[1].Tick.Equal(resumed.Base.Add(time.Minute)) {
+		t.Fatalf("resume base/next tick mismatch: resumed=%+v iterations=%+v", resumed, folded.Series.Iterations)
+	}
+}
+
+// A pause received while NewChild is already in flight is deliberately not a
+// cancel: that child settles normally, then the next boundary applies pause.
+func TestSeriesPauseWaitsForInFlightIteration(t *testing.T) {
+	d, dStore, _ := seriesControlHarness(t, 2)
+	controls := make(chan protocol.Control, 2)
+	d.SeriesControls = controls
+	started, release := make(chan struct{}), make(chan struct{})
+	original := d.NewChild
+	d.NewChild = func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+		close(started)
+		<-release
+		return original(cs, session, iter, budget)
+	}
+	result := make(chan driver.Result, 1)
+	go func() {
+		res, err := d.RunSeries(context.Background())
+		if err != nil {
+			t.Errorf("run: %v", err)
+		}
+		result <- res
+	}()
+	<-started
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-inflight", CommandSeq: 1},
+		Kind:       protocol.ControlSchedulePause,
+	}
+	select {
+	case res := <-result:
+		t.Fatalf("pause cancelled the in-flight iteration: %+v", res)
+	default:
+	}
+	close(release)
+	if res := <-result; res.Reason != "paused" || res.Iterations != 1 {
+		t.Fatalf("result = %+v, want settled iteration then paused", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	folded, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folded.Series == nil || !folded.Series.Paused || len(folded.Series.Iterations) != 1 ||
+		folded.Series.Iterations[0].Reason != "completed" {
+		t.Fatalf("series = %+v", folded.Series)
+	}
+}
+
+// A paused host must not turn a broken control transport or journal apply into
+// a successful "still paused" result. Only a duplicate pause or host shutdown
+// is a clean parked outcome; other errors must reach the daemon/operator.
+func TestPausedSeriesResumeSurfacesControlFailure(t *testing.T) {
+	d, _, clk := seriesControlHarness(t, 2)
+	controls := make(chan protocol.Control, 1)
+	d.SeriesControls = controls
+	result := make(chan driver.Result, 1)
+	go func() {
+		res, err := d.RunSeries(context.Background())
+		if err != nil {
+			t.Errorf("run: %v", err)
+		}
+		result <- res
+	}()
+	waitIdle(t, clk)
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-pause", CommandSeq: 1},
+		Kind:       protocol.ControlSchedulePause,
+	}
+	if res := <-result; res.Reason != "paused" {
+		t.Fatalf("pause result = %+v", res)
+	}
+	d.SeriesControls = nil
+
+	if _, err := d.ResumeSeries(context.Background()); err == nil ||
+		!strings.Contains(err.Error(), "control channel unavailable") {
+		t.Fatalf("resume error = %v, want control transport failure", err)
+	}
+}
+
+func seriesControlHarness(t *testing.T, max int) (*driver.Driver, *store.EventStore, *clock.Fake) {
+	t.Helper()
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "series"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	clk := clock.NewFake(time.Date(2026, 7, 23, 9, 0, 0, 0, time.UTC))
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "tick", MaxGenerationSteps: 5,
+	}
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "loop", Schedule: driver.ScheduleInterval, Interval: "1m",
+			Prompt: "tick", MaxIterations: max, Agent: childSpec,
+		},
+		Store: dStore, Clock: clk, DriverID: "ser-control", Exec: &tool.Executor{WS: ws},
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			fix := scripted.Fixture{Steps: []scripted.Step{{
+				Respond: []scripted.Event{{Text: "tick"}, {Finish: "end_turn"}},
+			}}}
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: &tool.Executor{WS: ws}, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+	return d, dStore, clk
 }
 
 // INC-83 (PLAN 6.1): a USER cancel of a running series lands the DOMAIN

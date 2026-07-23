@@ -11,16 +11,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 // vi.mock is hoisted above the imports, so the spies have to be too.
-const { resume, retry, stopSession, stopRun } = vi.hoisted(() => ({
+const { resume, retry, schedule, stopSession, stopRun } = vi.hoisted(() => ({
   resume: vi.fn(async () => ({})),
   retry: vi.fn(async () => ({})),
+  schedule: vi.fn(async () => ({})),
   stopSession: vi.fn(async () => ({})),
   stopRun: vi.fn(async () => ({})),
 }));
 
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
-  AR: { resume, retry, stopSession, stopRun },
+  AR: { resume, retry, schedule, stopSession, stopRun },
 }));
 
 import { Scheduled } from "./Scheduled";
@@ -29,7 +30,7 @@ import type { Session } from "../types";
 
 afterEach(cleanup);
 beforeEach(() => {
-  [resume, retry, stopSession, stopRun].forEach((f) => f.mockClear());
+  [resume, retry, schedule, stopSession, stopRun].forEach((f) => f.mockClear());
 });
 
 const sessions: Session[] = [
@@ -52,6 +53,18 @@ const sessions: Session[] = [
     kind: "driver",
     schedule: "cron",
     cadence: "Daily at 6:00 AM",
+    scheduleControl: true,
+  },
+  {
+    id: "20250101-080000-paused",
+    status: "paused",
+    turns: 3,
+    title: "Paused: nightly digest",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 1h",
+    scheduleControl: true,
   },
 ];
 
@@ -86,6 +99,40 @@ describe("the row menu can act on the schedule, not just tidy it (SC-17)", () =>
     menuFor("Broken: the host died mid-tick");
     fireEvent.click(screen.getByRole("menuitem", { name: "Retry" }));
     expect(retry).toHaveBeenCalledWith("20250101-100000-stranded");
+  });
+
+  it("pauses an active series and resumes only the durably paused row", () => {
+    mount();
+    menuFor("Live: an iteration is executing");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pause" }));
+    expect(schedule).toHaveBeenCalledWith("20250101-090000-running", "pause");
+
+    menuFor("Paused: nightly digest");
+    const items = screen.getAllByRole("menuitem").map((item) => item.textContent);
+    expect(items).toContain("Resume");
+    expect(items).not.toContain("Pause");
+    expect(items).not.toContain("Retry");
+    expect(items).not.toContain("Cancel series…");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Resume" }));
+    expect(schedule).toHaveBeenCalledWith("20250101-080000-paused", "resume");
+    expect(resume).not.toHaveBeenCalledWith("20250101-080000-paused");
+  });
+
+  it("does not expose Pause on a legacy driver journal", () => {
+    useStore.setState({
+      runs: [],
+      sessions: [{
+        ...sessions[1],
+        id: "20250101-legacy",
+        title: "Legacy scheduled history",
+        scheduleControl: undefined,
+      }],
+      sessionsReady: true,
+      unread: [], archived: [], pinned: [], renames: {}, modal: null,
+    });
+    render(<Scheduled />);
+    menuFor("Legacy scheduled history");
+    expect(screen.queryByRole("menuitem", { name: "Pause" })).toBeNull();
   });
 
   it("cancels a live series through the confirm modal — the series' own domain terminal (INC-83)", async () => {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -354,6 +355,32 @@ func TestScheduleAttachValidation(t *testing.T) {
 		if !strings.Contains(errOut.String(), tc.want) {
 			t.Errorf("%s: stderr = %q, want it to contain %q", tc.name, errOut.String(), tc.want)
 		}
+	}
+}
+
+func TestScheduleStatusProjectsPausedMergedSeries(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	const id = "series-status"
+	writeSeriesJournal(t, id, driver.ScheduleInterval, false)
+	dir, err := runtime.SessionDir(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeSeriesPaused, &event.SeriesPaused{
+		SeriesID: id, Source: "user"})
+	_ = es.Close()
+
+	var out, errOut bytes.Buffer
+	if code := scheduleCmd([]string{id, "status"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("status exit=%d stderr=%s", code, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "cadence   Every 30m") ||
+		!strings.Contains(got, "status    paused") {
+		t.Fatalf("status output = %q", got)
 	}
 }
 

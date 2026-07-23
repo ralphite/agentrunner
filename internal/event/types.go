@@ -116,6 +116,8 @@ const (
 	// readable but is deprecated for WRITE in the merged form.
 	TypeSeriesStarted   = "series_started"
 	TypeSeriesIteration = "series_iteration"
+	TypeSeriesPaused    = "series_paused"
+	TypeSeriesResumed   = "series_resumed"
 	TypeSeriesEnded     = "series_ended"
 
 	// INC-52 (HANDA-PARITY #14): journal-backed auto session title. Additive —
@@ -552,6 +554,20 @@ type SeriesIteration struct {
 	Skipped      bool             `json:"skipped,omitempty"`
 	Tick         time.Time        `json:"tick,omitzero"`
 	Usage        provider.Usage   `json:"usage,omitzero"`
+}
+
+// SeriesPaused / SeriesResumed are the durable lifecycle of a repeating
+// merged-stream series. Pause applies at an iteration boundary; Base is the
+// explicit resume anchor, so slots elapsed while paused are never backfilled.
+type SeriesPaused struct {
+	SeriesID string `json:"series_id"`
+	Source   string `json:"source"`
+}
+
+type SeriesResumed struct {
+	SeriesID string    `json:"series_id"`
+	Base     time.Time `json:"base"`
+	Source   string    `json:"source"`
 }
 
 // SeriesEnded is the series terminal (the DriverCompleted analog). Like
@@ -1229,6 +1245,8 @@ var Registry = map[string]func() any{
 	TypeScheduleWake:          func() any { return &ScheduleWake{} },
 	TypeSeriesStarted:         func() any { return &SeriesStarted{} },
 	TypeSeriesIteration:       func() any { return &SeriesIteration{} },
+	TypeSeriesPaused:          func() any { return &SeriesPaused{} },
+	TypeSeriesResumed:         func() any { return &SeriesResumed{} },
 	TypeSeriesEnded:           func() any { return &SeriesEnded{} },
 	TypeGoalUpdated:           func() any { return &GoalUpdated{} },
 	TypeGoalPaused:            func() any { return &GoalPaused{} },

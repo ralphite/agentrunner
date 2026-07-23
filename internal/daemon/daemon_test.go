@@ -225,6 +225,60 @@ func TestCompletedCommandRetryDoesNotWakeAfterRestart(t *testing.T) {
 	}
 }
 
+// INC-98.5a: series pause is fsynced into the independent command log before
+// ack, then delivered through a drive-only hub. Re-host replay uses that same
+// accepted receipt, so an append→crash window cannot lose the pause.
+func TestSeriesPauseDurableReplayStartsDriveHost(t *testing.T) {
+	var accepted protocol.SessionCommand
+	delivered := make(chan protocol.Control, 1)
+	s := &Server{
+		runs: map[string]*hostedRun{},
+		SeriesControlState: func(string) (SeriesControlState, error) {
+			return SeriesControlState{Eligible: true}, nil
+		},
+		PersistCommand: func(_ string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+			cmd.CommandSeq = 9
+			cmd.Control.CommandRef = cmd.CommandRef
+			accepted = cmd
+			return cmd, nil
+		},
+		PendingCommands: func(string) ([]protocol.SessionCommand, error) {
+			if accepted.CommandID == "" {
+				return nil, nil
+			}
+			return []protocol.SessionCommand{accepted}, nil
+		},
+		ResumeDrive: func(_ context.Context, req DriveRequest, _ protocol.Sink) error {
+			select {
+			case ctl := <-req.Controls:
+				delivered <- ctl
+			case <-time.After(time.Second):
+				t.Error("pending series command was not replayed")
+			}
+			return nil
+		},
+	}
+	var reply bytes.Buffer
+	s.handleSeriesControl(context.Background(), Command{
+		Session: "series-1", CommandID: "cmd-pause",
+	}, true, json.NewEncoder(&reply))
+	var ack protocol.Event
+	if err := json.Unmarshal(reply.Bytes(), &ack); err != nil {
+		t.Fatal(err)
+	}
+	if ack.Kind != protocol.KindMessage || !strings.Contains(ack.Text, "current iteration") {
+		t.Fatalf("ack = %+v", ack)
+	}
+	select {
+	case ctl := <-delivered:
+		if ctl.Kind != protocol.ControlSchedulePause || ctl.CommandID != "cmd-pause" || ctl.CommandSeq != 9 {
+			t.Fatalf("delivered control = %+v", ctl)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("drive host never received the durable pause")
+	}
+}
+
 // run: the daemon hosts the run, streams its events (tagged with the
 // session), and reports the assigned session id first.
 func TestDaemonRunStreams(t *testing.T) {

@@ -12,12 +12,7 @@ import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { cadenceText, type CadenceSpec } from "../runPreset";
 import type { Cadence } from "../types";
 
-// We have no real paused flag (nothing suspends a driver), so the third tab is
-// the honest "Finished" — the rows that have stopped ticking — not Codex's
-// "Paused" word borrowed for a different fact. The word stays; what changed
-// (SC-11) is the test behind it, which is now about the SERIES rather than
-// about whatever happens to be executing this second. See seriesActive.
-type Filter = "all" | "active" | "finished";
+type Filter = "all" | "active" | "paused";
 const INITIAL_VISIBLE_ROWS = 5;
 const ROWS_PER_PAGE = 10;
 
@@ -111,14 +106,13 @@ const ALERT_STATUS = new Set(["crash", "stranded"]);
 // — review the run before extending it") but catastrophic here: it painted a
 // driver that ran exactly the N iterations you asked for in the same amber, with
 // the same WarningCircle, as one whose host died mid-flight — and then filed it
-// under Active, a series that will never fire again. Live: 3/3 rows amber,
-// All=3 / Active=3 / Finished=0. Codex's list has zero alert colours; amber is a
-// scarce resource and three rows shouting is nobody shouting.
+// under Active, a series that will never fire again. Codex's list has zero
+// alert colours; amber is a scarce resource and three rows shouting is nobody
+// shouting.
 //
 // So this page judges the RAW status word itself, before friendlyStatus collapses
 // it (the cls mapping stays untouched — SessionView depends on it). A limit row
-// is settled: no alert colour, no WarningCircle, an empty glyph slot and the
-// neutral "Ran 2d ago" sub-line every other finished row wears.
+// is settled: no alert colour and the neutral last-run sub-line.
 const LIMIT_RE = /max_iterations|max_generation_steps|max_tokens|limit_exceeded|budget|step limit|token limit/i;
 
 export function isLimitStatus(raw: string): boolean {
@@ -128,11 +122,9 @@ export function isLimitStatus(raw: string): boolean {
 // SC-11 — "Active" is a fact about the SERIES, not about this instant. Judging
 // it by "an iteration is executing right now" (cls run/appr) made the tab
 // structurally empty: a healthy `Every 30m` run is idle between ticks by
-// construction, so every well-behaved series was filed under Finished — which
-// then advertised its cadence and its next run, a flat lie. A series is active
-// while it still has a future tick to fire, or while it is running / waiting on
-// you / broken (a crashed or stranded series is emphatically not finished — it
-// is waiting for YOU). Finished means terminal: nothing more will ever happen.
+// construction. A series is active while it still has a future tick to fire,
+// or while it is running / waiting on you / broken. Paused is a separate
+// durable lifecycle, never inferred from a missing tick.
 const LIVE_STATUS = new Set(["run", "appr", "stranded", "crash"]);
 
 function seriesActive(cls: string, hasNextTick: boolean): boolean {
@@ -155,6 +147,8 @@ interface SchedRow {
   meta: string; // the row's facts flattened (project included), for search
   status: { text: string; cls: string };
   active: boolean; // the series still has ticks coming / needs you (SC-11)
+  paused: boolean; // durable SeriesPaused lifecycle; never inferred from missing nextRunAt
+  scheduleControl: boolean; // backend-confirmed merged series lifecycle capability
   running: boolean; // an iteration is executing right now — the only stoppable state
   settled: boolean; // nothing more will happen: closed/done/stopped, or a limit (SC-16)
   recover: boolean; // genuinely broken (crash/stranded) — Resume is the fix (SC-17)
@@ -183,20 +177,14 @@ function nextRunPhrase(iso?: string): string {
   return `Next run in ${Math.floor(day / 30)}mo`;
 }
 
-// SCH-ICON — the leading glyph, one per row, derived from facts the row already
-// holds. No new state, no new backend field: just a mark for each of the five
-// answers this page exists to give at a glance.
+// SCH-ICON — the leading glyph, one per row, derived from the row's authoritative
+// lifecycle facts.
 //
 //   broken      WarningCircle  amber/red — the ONE loud mark (SC-10), unchanged
 //   running     PlayCircle     an iteration is executing this second
 //   settled     CheckCircle    terminal: closed, or a limit you configured (SC-16)
 //   active      Circle         a healthy series, idle between ticks (SC-11)
-//   dormant     PauseCircle    no future tick, but not terminal either
-//
-// The last one is the honest local reading of Codex's paused ⊘: nothing suspends
-// a driver here (see the Filter comment), so "paused" is not a flag we can read —
-// but a series with no next tick that has not finished has, in fact, stopped
-// ticking, and saying so is the whole point of the column.
+//   paused      PauseCircle    durable SeriesPaused lifecycle
 export function glyphFor(r: Pick<SchedRow, "alert" | "running" | "settled" | "active">) {
   const size = 16;
   if (r.alert) return <WarningCircle size={size} weight="regular" />;
@@ -208,8 +196,7 @@ export function glyphFor(r: Pick<SchedRow, "alert" | "running" | "settled" | "ac
 
 // SCH-ICON — a row that is not going to fire again should not shout as loudly as
 // one that is. Codex greys the whole paused row, title included (`cloc` in the
-// reference crop); ours used to paint a finished series' title in the same full
-// ink as a live one, so the list read as one undifferentiated column of black.
+// reference crop); paused and terminal rows step back from live work.
 // A broken row is never quiet — it is the one row that must keep its emphasis.
 function isQuiet(r: SchedRow): boolean {
   return !r.recover && !r.active;
@@ -220,10 +207,8 @@ function isQuiet(r: SchedRow): boolean {
 // facts that justify a scheduled thing are the whole row — its CADENCE and its
 // NEXT RUN (CX-3), both derived server-side from the driver spec
 // (schedule/interval/cron/n) and served on /api/runs and /api/sessions. When
-// there is no future tick to name (a finished series, a self-paced driver) the
-// row falls back to the honest "Ran 1d ago" — never a fabricated time. Search +
-// All / Active / Finished filters map to our live-vs-finished states (INC-41
-// W7, SC-7).
+// there is no future tick to name the row falls back to the honest last-run
+// time. Search + All / Active / Paused use the backend's durable lifecycle.
 export function Scheduled() {
   const {
     runs,
@@ -259,14 +244,15 @@ export function Scheduled() {
     const row = (
       base: Omit<
         SchedRow,
-        "when" | "isNext" | "meta" | "active" | "alert" | "title" | "running" | "settled" | "recover"
+        "when" | "isNext" | "meta" | "active" | "paused" | "alert" | "title" | "running" | "settled" | "recover"
       >,
       nextRunAt: string | undefined,
       lastRan: Date | null,
     ): SchedRow => {
       const next = nextRunPhrase(nextRunAt);
       const ago = relTimeAgo(lastRan);
-      const when = next || (ago ? `Ran ${ago}` : "");
+      const paused = base.raw.toLowerCase() === "paused";
+      const when = paused ? "Paused" : next || (ago ? `Ran ${ago}` : "");
       // SC-16 — a series that stopped at a limit you configured is FINISHED, not
       // broken: it wears no alert, it is not live, and it settles like any other
       // completed row. Only a crash or a lost host earns the amber.
@@ -288,7 +274,8 @@ export function Scheduled() {
         // A settled row is only "active" if the server still dates a future tick
         // for it (it does not, for a terminal series) — never because its cls
         // happens to be spelled "stranded".
-        active: settled ? !!next : seriesActive(base.status.cls, !!next),
+        active: paused ? false : settled ? !!next : seriesActive(base.status.cls, !!next),
+        paused,
         running: base.status.cls === "run",
         settled,
         recover,
@@ -320,6 +307,7 @@ export function Scheduled() {
             workspace: run.workspace || "",
             raw: run.status || "",
             status,
+            scheduleControl: false,
             unread: false,
             sortTs: isNaN(ts) ? 0 : ts,
             onClick: () => selectRun(run.id),
@@ -347,6 +335,7 @@ export function Scheduled() {
             workspace: s.workspace || "",
             raw: s.status || "",
             status,
+            scheduleControl: !!s.scheduleControl,
             unread: flagged.has(s.id),
             sortTs: d ? d.getTime() : 0,
             onClick: () => select(s.id),
@@ -361,14 +350,10 @@ export function Scheduled() {
     return out;
   }, [runs, sessions, select, selectRun, unread, renames]);
 
-  // Nothing suspends a driver, so there is no paused set to show: the third tab
-  // names what we actually have — the rows that have stopped ticking for good
-  // (SC-11: a healthy series idling between ticks is still Active). Codex shows
-  // no numeric counts on the pills (N-parity), so we only compute the filter.
   const ql = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
     if (filter === "active" && !r.active) return false;
-    if (filter === "finished" && r.active) return false;
+    if (filter === "paused" && !r.paused) return false;
     if (
       ql &&
       !(
@@ -431,9 +416,6 @@ export function Scheduled() {
   // shapes as SessionView.tsx's `act`, plus a list refresh so the row's state
   // catches up with what you just did to it.
   //
-  // Deliberately NOT here: Codex's pause / run-now / delete-schedule. There is no
-  // daemon suspend/trigger/delete endpoint behind them, and a menu item that
-  // cannot do what it says is worse than one that is missing.
   const act = {
     resume: async (sid: string) => {
       try {
@@ -449,6 +431,15 @@ export function Scheduled() {
         await AR.retry(sid);
 		toast("starting a new scheduled series", "info");
         setTimeout(refreshSessions, 800);
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
+    cadence: async (sid: string, action: "pause" | "resume") => {
+      try {
+        await AR.schedule(sid, action);
+        toast(action === "pause" ? "pause recorded" : "resuming schedule", "info");
+        setTimeout(refreshSessions, 300);
       } catch (e: any) {
         toast(e.message);
       }
@@ -566,7 +557,7 @@ export function Scheduled() {
           </div>
           <div className="sched-filters">
             <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
-              {(["all", "active", "finished"] as Filter[]).map((f) => (
+              {(["all", "active", "paused"] as Filter[]).map((f) => (
                 <button
                   key={f}
                   role="tab"
@@ -789,9 +780,15 @@ export function Scheduled() {
                   housekeeping: Resume only for a genuinely broken series,
                   Retry while there is a live series to retry, and Cancel — the
                   series' own domain terminal, not a session lifecycle verb. */}
-              {menuRow.recover && <MenuItem onClick={() => void act.resume(menuRow.id)}>Resume</MenuItem>}
-              {!menuRow.settled && <MenuItem onClick={() => void act.retry(menuRow.id)}>Retry</MenuItem>}
-              {!menuRow.settled && (
+              {menuRow.scheduleControl && menuRow.paused ? (
+                <MenuItem onClick={() => void act.cadence(menuRow.id, "resume")}>Resume</MenuItem>
+              ) : menuRow.recover ? (
+                <MenuItem onClick={() => void act.resume(menuRow.id)}>Resume</MenuItem>
+              ) : menuRow.scheduleControl && !menuRow.settled ? (
+                <MenuItem onClick={() => void act.cadence(menuRow.id, "pause")}>Pause</MenuItem>
+              ) : null}
+              {!menuRow.paused && !menuRow.settled && <MenuItem onClick={() => void act.retry(menuRow.id)}>Retry</MenuItem>}
+              {!menuRow.paused && !menuRow.settled && (
                 <MenuItem
                   danger
                   title="no more iterations; the series records its cancelled terminal"

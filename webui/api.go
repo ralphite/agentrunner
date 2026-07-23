@@ -78,6 +78,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
 	mux.HandleFunc("POST /api/sessions/{sid}/retry", s.handleRetry)
+	mux.HandleFunc("POST /api/sessions/{sid}/schedule", s.handleScheduleControl)
 	mux.HandleFunc("POST /api/sessions/{sid}/answer", s.handleAnswer)
 	mux.HandleFunc("GET /api/sessions/{sid}/queue", s.handleQueue)
 	mux.HandleFunc("POST /api/sessions/{sid}/unqueue", s.handleUnqueue)
@@ -406,8 +407,10 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Cadence string `json:"cadence,omitempty"`
 		// NextRunAtCLI receives the CLI's snake_case key; the response keeps
 		// the frontend's camelCase contract via NextRunAt below.
-		NextRunAtCLI string `json:"next_run_at,omitempty"`
-		NextRunAt    string `json:"nextRunAt,omitempty"`
+		NextRunAtCLI       string `json:"next_run_at,omitempty"`
+		NextRunAt          string `json:"nextRunAt,omitempty"`
+		ScheduleControlCLI bool   `json:"schedule_control,omitempty"`
+		ScheduleControl    bool   `json:"scheduleControl,omitempty"`
 		// UpdatedAtCLI receives the journal mtime from the CLI; the frontend
 		// contract uses camelCase below, just like nextRunAt.
 		UpdatedAtCLI string `json:"updated_at,omitempty"`
@@ -466,6 +469,7 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		// themselves; only key casing is remapped for the frontend contract.
 		for i := range rows {
 			rows[i].NextRunAt, rows[i].NextRunAtCLI = rows[i].NextRunAtCLI, ""
+			rows[i].ScheduleControl, rows[i].ScheduleControlCLI = rows[i].ScheduleControlCLI, false
 			rows[i].UpdatedAt, rows[i].UpdatedAtCLI = rows[i].UpdatedAtCLI, ""
 		}
 		writeJSON(w, http.StatusOK, rows)
@@ -1393,6 +1397,22 @@ func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar resume", func(id string) []string { return []string{"resume", id} })(w, r)
+}
+
+func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action string `json:"action"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	if req.Action != "pause" && req.Action != "resume" {
+		badRequest(w, "schedule action must be pause or resume")
+		return
+	}
+	s.oneShotHandler("ar schedule", func(id string) []string {
+		return []string{"schedule", id, req.Action}
+	})(w, r)
 }
 
 // handleRetry is domain-aware: conversations re-send their last user turn;

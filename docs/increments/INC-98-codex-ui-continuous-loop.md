@@ -542,6 +542,18 @@ INC-98 将该方法固化为持续循环：
   `Needs answer`，多个动作时主状态显示 `N actions needed`，sidebar 与 command palette
   使用可见 amber 数字 badge。主 timeline 同样按当前 root/child projection 精确计数；
   Environment 的既有全类 attention 数、backend/journal/answer/approval 路由均不改。
+- **98.5a durable Scheduled Pause/Resume**：推进 G55；闸门 B 完成后关闭。只覆盖 canonical
+  merged-stream `interval|cron|self_paced` series；旧 `DriverStarted` journal 继续只读，
+  不展示无法兑现的 action。Pause 是 fsync 后才 ack 的 typed command，在 runner 的下一个
+  iteration boundary 落 `SeriesPaused`：已在飞 child 正常结算，不被 pause 取消；cadence
+  wait 立即撤销 durable timer 后暂停。paused series 不进 boot sweep、无 `nextRunAt`；
+  daemon 在 command ack 后崩溃时，从独立 command log 重放未处理 pause/resume。Resume
+  落 `SeriesResumed{base=clock.Now}`，interval/cron 从该 base 重锚，暂停期间 slot 不补跑；
+  self-paced 清除旧 wait 并立即进入下一轮。CLI 继续使用用户词汇
+  `ar schedule <sid> pause|resume|status`，daemon 内部 transport 不进入产品面。Web UI
+  将第三个 filter 从 Finished 改为真实 Paused，paused row 明示 `Paused` 且只有 Resume；
+  active row 有 Pause，terminal/legacy row 均无假 action。Cancel series 仍是不可逆终态，
+  与可恢复 pause 分立。
 
 ## Spec delta
 
@@ -573,6 +585,17 @@ INC-98 将该方法固化为持续循环：
 4. 每批保存截图、DOM geometry、browser logs、health、events/workspace diff 到
    `qa/runs/<date>-QA88-*/`，不清理共享数据；
 5. CODEX-PARITY §7 的每个状态变化与证据目录同 commit 更新。
+
+### 98.5a G55 双闸门
+
+- A 闸：fake clock 覆盖 cadence wait 立即 pause、in-flight child 完成后 pause、command
+  crash/replay、paused boot-sweep exclusion、resume re-anchor/no catch-up、重复 command
+  幂等、legacy driver 拒绝；CLI/session JSON、Web API 与 Scheduled filter/action 同步断言。
+- B 闸：在不影响现有 live work 的获准重启窗口，用共享 daemon/store 创建 retained interval series，执行
+  `active → pause while in-flight → daemon restart → still paused/no nextRunAt →
+  resume → next tick anchored after resume`；1100×700 light/dark 捕获 All/Active/Paused、
+  row menu 与 reload/deep-link，browser warning/error 为空。不得 close/delete/cleanup，
+  不触碰正在运行的 QA-88 schedule driver。
 
 ## 实施步骤
 
