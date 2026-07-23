@@ -308,6 +308,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [scope, setScope] = useState<DiffScope>(() => initialScope ?? loadScope());
+  const scopeTriggerRef = useRef<HTMLButtonElement>(null);
+  const scopeFocusPending = useRef(false);
   // The panel stays mounted while the timeline's changes card is still
   // clickable beside it — a later card click must still land on its scope.
   useEffect(() => {
@@ -321,6 +323,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const picked = useRef(false);
   const pickScope = (s: DiffScope) => {
     picked.current = true;
+    scopeFocusPending.current = true;
     saveScope(s);
     setScope(s);
   };
@@ -333,6 +336,10 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const [override, setOverride] = useState<boolean | null>(null);
   const [foldEpoch, setFoldEpoch] = useState(0);
   const setAll = (open: boolean) => {
+    // A file-list jump pins its target open so the landing can never be a
+    // folded header. A later fold-all click is the newer, explicit intent:
+    // release that one-shot pin before applying the global state.
+    setFocusPath(null);
     setOverride(open);
     setFoldEpoch((e) => e + 1);
   };
@@ -439,6 +446,15 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       requestID.current += 1;
     };
   }, [sid, scope]);
+  // Scope changes intentionally replace the current diff with a loading
+  // skeleton. That briefly unmounts both the selected menuitem and its trigger,
+  // so Popover's ordinary next-frame focus return has no live target. Finish
+  // the handoff once the new payload restores the toolbar.
+  useEffect(() => {
+    if (!data || !scopeFocusPending.current) return;
+    scopeFocusPending.current = false;
+    requestAnimationFrame(() => scopeTriggerRef.current?.focus());
+  }, [data]);
   // Take the pending focus (TH-5). Runs on mount too — the panel is usually
   // mounted BY the click, so the request is waiting for us before the diff has
   // even loaded; the file list picks it up when the payload lands. Any active
@@ -570,6 +586,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       panelClass="diff-scope-menu"
       trigger={(open, toggle) => (
         <button
+          ref={scopeTriggerRef}
           className={"diff-scope-trigger inline-flex shrink-0 items-center gap-1 whitespace-nowrap" + (open ? " active" : "")}
           onClick={toggle}
           aria-label="Change diff scope"

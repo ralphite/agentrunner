@@ -14,6 +14,7 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --thread-composer-send TEXT --composer-validate VISIBLE_TEXT
                                 [--thread-shortcut enter|cmd-enter] |
                               --thread-approval allow-once|deny |
+                              --thread-review |
                               --thread-disclosure VISIBLE_TEXT
                                 [--disclosure-nested VISIBLE_TEXT]
                                 --disclosure-validate VISIBLE_TEXT |
@@ -46,6 +47,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --thread-shortcut chooses Enter or Cmd+Enter for that follow-up (default: enter).
 --thread-approval resolves the currently visible Codex approval card with the
   exact Allow once or Deny action, then proves that card left the thread tail.
+--thread-review opens the current thread's read-only Review panel, captures it,
+  then closes its resident Review tab and proves the panel-only heading disappeared.
 --thread-disclosure opens one visible disclosure in the current thread, validates its body,
   captures it, then restores the collapsed state.
 --disclosure-nested opens a second visible disclosure inside the first one before validation;
@@ -201,6 +204,10 @@ while (($#)); do
       thread_approval="$2"
       mode="thread-approval"
       shift 2
+      ;;
+    --thread-review)
+      mode="thread-review"
+      shift
       ;;
     --thread-disclosure)
       if (($# < 2)) || [[ -z "$2" ]]; then
@@ -608,6 +615,7 @@ goal_enabled=0
 plan_enabled=0
 disclosure_open=0
 disclosure_nested_open=0
+review_open=0
 ocr_capture=""
 send_key() {
   local key_code=$1
@@ -813,6 +821,8 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
         observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
     case "main":
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
+    case "review-tab":
+      inRegion = observation.boundingBox.midX > 0.60 && observation.boundingBox.midY > 0.90
     case "thread":
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
     case "thread-tail":
@@ -997,6 +1007,30 @@ close_transient() {
   # An assertion inside cleanup must fail once, not recursively re-enter the
   # EXIT trap forever. The primary interaction error remains the useful one.
   trap - EXIT
+  if ((review_open)); then
+    send_key 53 >/dev/null 2>&1 || true
+    sleep 1
+    rm -f -- "$ocr_capture" 2>/dev/null || true
+    ocr_capture=$(mktemp -t codex-thread-review-restored)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if window_text_center "$ocr_capture" "Last Turn" "main" >/dev/null 2>&1; then
+      # Review is a resident right-side tab, not an Escape-dismissed overlay.
+      # Anchor the close click to the exact tab label in the top-right strip;
+      # the native X sits 88px to its right at every supported viewport.
+      review_tab_point=$(window_text_center "$ocr_capture" "Review" "review-tab")
+      IFS=$'\t' read -r review_tab_x review_tab_y <<<"$review_tab_point"
+      send_click "$(awk -v x="$review_tab_x" 'BEGIN { print x + 88 }')" "$review_tab_y"
+      sleep 1
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-thread-review-close-validate)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      if window_text_center "$ocr_capture" "Last Turn" "main" >/dev/null 2>&1; then
+        echo "capture-codex-ui: Review panel did not close from its tab" >&2
+        exit 1
+      fi
+    fi
+    review_open=0
+  fi
   if ((disclosure_nested_open)); then
     rm -f -- "$ocr_capture" 2>/dev/null || true
     ocr_capture=$(mktemp -t codex-thread-disclosure-nested-restore)
@@ -1640,6 +1674,20 @@ if [[ "$mode" == "thread-disclosure" ]]; then
     echo "capture-codex-ui: disclosure validation frame saved to $disclosure_validation_debug" >&2
   fi
   window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null
+fi
+
+if [[ "$mode" == "thread-review" ]]; then
+  ocr_capture=$(mktemp -t codex-thread-review)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  review_point=$(window_text_center "$ocr_capture" "Review" "main")
+  IFS=$'\t' read -r review_x review_y <<<"$review_point"
+  send_click "$review_x" "$review_y"
+  review_open=1
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-thread-review-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  window_text_center "$ocr_capture" "Last Turn" "main" >/dev/null
 fi
 
 if [[ "$mode" == "thread-approval" ]]; then

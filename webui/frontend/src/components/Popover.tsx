@@ -49,7 +49,15 @@ export function Popover({
   const [place, setPlace] = useState<Place | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const close = () => setOpen(false);
+  // An item selection is a completed visit to this temporary surface. Return
+  // keyboard focus to the trigger after React removes the chosen row; outside
+  // clicks and anchor-loss use setOpen directly so they keep their own target.
+  const close = () => {
+    setOpen(false);
+    requestAnimationFrame(() => {
+      wrapRef.current?.querySelector<HTMLElement>(":scope > button, :scope > * > button")?.focus();
+    });
+  };
 
   // Measure the anchor, then pin the panel to those viewport coordinates.
   //

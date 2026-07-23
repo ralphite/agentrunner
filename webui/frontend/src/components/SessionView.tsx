@@ -154,13 +154,29 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // title names a scope), cleared by every entry that makes no scope claim, so
   // the panel always opens on the scope its entry point advertised.
   const [diffScopeHint, setDiffScopeHint] = useState<"working-tree" | "last-turn" | null>(null);
+  // INC-98.4c · Changes is a temporary inspection surface. Keep the element
+  // that opened it so its only close control can return keyboard users to
+  // their exact place; a menuitem disappears with its popover, so that path
+  // falls back to the stable topbar trigger.
+  const diffOpenerRef = useRef<HTMLElement | null>(null);
   // QA-0719 · UI-side workspace mutations (Undo/commit/push) emit no session
   // event, so event-driven git surfaces went stale; the epoch rides along in
   // their refreshKey.
   const workspaceEpoch = useStore((s) => s.workspaceEpoch);
   const openDiff = (hint: "working-tree" | "last-turn" | null = null) => {
+    const active = document.activeElement;
+    diffOpenerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
     setDiffScopeHint(hint);
     setView("diff");
+  };
+  const closeDiff = () => {
+    setView("chat");
+    requestAnimationFrame(() => {
+      const opener = diffOpenerRef.current;
+      const fallback = document.querySelector<HTMLButtonElement>('button[aria-label="More session actions"]');
+      (opener?.isConnected ? opener : fallback)?.focus();
+      diffOpenerRef.current = null;
+    });
   };
   // RT-5 · The failure banner's "technical details" fold is closed by default:
   // the raw provider string is available, never in your face.
@@ -1211,7 +1227,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 rail 48px above a toolbar that could already wrap to two rows.
                 Codex opens straight onto the diff under one toolbar; the ✕ moved
                 into it (DiffView's `onClose`). */}
-            <DiffView sid={sid} onClose={() => setView("chat")} initialScope={diffScopeHint} />
+            <DiffView sid={sid} onClose={closeDiff} initialScope={diffScopeHint} />
           </aside>
         ) : showSupervision ? (
           <SupervisionPanel

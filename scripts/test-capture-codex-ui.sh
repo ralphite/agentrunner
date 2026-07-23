@@ -32,6 +32,7 @@ done
 [[ "$help" == *"--thread-composer-send"* ]]
 [[ "$help" == *"--thread-shortcut"* ]]
 [[ "$help" == *"--thread-approval"* ]]
+[[ "$help" == *"--thread-review"* ]]
 [[ "$help" == *"--thread-disclosure"* ]]
 [[ "$help" == *"--disclosure-validate"* ]]
 [[ "$help" == *"--composer-validate"* ]]
@@ -253,6 +254,10 @@ grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_target" "main"' 
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_prefix" "main"' "$driver"
 grep -Fq 'codex-thread-disclosure-normalize-outer' "$driver"
+grep -Fq 'codex-thread-review-validate' "$driver"
+grep -Fq 'codex-thread-review-restored' "$driver"
+grep -Fq 'codex-thread-review-close-validate' "$driver"
+grep -Fq 'case "review-tab":' "$driver"
 grep -Fq 'nested disclosure did not collapse' "$driver"
 grep -Fq 'disclosure-nested-debug.png' "$driver"
 grep -Fq 'disclosure-validation-debug.png' "$driver"

@@ -661,7 +661,11 @@
   .topbar-tool.stop, .stop { @apply text-red; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
-  .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 46vw); }
+  /* INC-98.4b: size the review rail from the content area, not the whole
+     window. At 1280px with a 320px sidebar, 46vw consumed 61% of the remaining
+     track and squeezed conversation to 371px. 54% mirrors Codex's compact
+     Review split while preserving the existing 320px minimum. */
+  .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 54%); }
   /* INC-97: Environment is an inspection overlay, not a review workspace.
      Keep the conversation on the same track while the card is open; Changes
      remains the only state that earns a second layout column. */

@@ -371,6 +371,43 @@ INC-98 将该方法固化为持续循环：
   首屏实测为 5 rows + `Show 10 more · 27 remaining`，Suggestions top=`610px`（800px viewport 内）；
   展开为 15 rows 后可 `Show fewer` 回 5，search=`INC66-INTERVAL-OK` 穿透 cap 返回完整 2 rows，
   清空恢复 5，DOM terminal 与 browser logs 空均通过。
+- **98.4a Changes/Review driver design note**：Computer Use runtime 明确拒绝控制
+  `com.openai.codex`，因此不绕安全边界；继续沿用已验证的 native AX/CGEvent capture driver。
+  新增 `--thread-review`：只在当前 thread OCR 精确点击可见 `Review`，必须二次命中 panel-only
+  `Last Turn` 才收图；实测 Escape 不会关闭 resident tab，因此 cleanup 先安全探测 Escape，
+  若仍命中 `Last Turn` 则 OCR 锚定顶栏 `Review` 并点击其 `X`，再断言 panel-only heading
+  消失。该动作只读、可逆；不触发 Commit/Push/Apply/Remove，也不改变 shared AgentRunner 数据。
+- **98.4b compact Changes split design note**：同 `1280×800` combined evidence 显示 Codex
+  Review 占去 thread 可用宽度约 52%，仍给 conversation 留约 444px；AgentRunner 用
+  `46vw`（相对整个 window）占去可用内容区 61%，conversation 只剩约 371px。改为按
+  `.session-layout` 自身的 `54%` 分栏：同 viewport 预计 panel≈518px、conversation≈442px；
+  900px 以下既有全屏 overlay 规则不变。只修比例，不改 diff scope/数据/动作。dirty
+  production 实测 panel=`518.398px`、conversation=`441.602px`、双轴 overflow=`0`，
+  fixed combined evidence 为 `combined-review-working-tree-fixed-2560x800.png`。
+- **98.4c Changes close focus design note**：真实 browser 从 topbar `More session actions →
+  Changes` 打开后点击唯一 `Close changes`，panel 正常消失但 `document.activeElement`
+  退到 `body`；键盘用户无法继续原路径。沿用本产品 modal/menu/overlay 的 opener
+  focus-return 约定：打开 Changes 时记录当前有效 `HTMLElement`，关闭后若 opener 仍在
+  DOM 则精确恢复；从会卸载的 menuitem 打开时回退到同一 topbar 的
+  `More session actions`。只改变焦点，不增加 chrome、文案、确认步骤或数据动作；
+  opener 已不存在时安静回退，不影响关闭本身。
+- **98.4d Changes scope-menu focus design note**：同一真实 panel 从 `Last Turn` 选择
+  `Working Tree` 后 scope 与 diff 正确刷新，但关闭的 popup 再次把焦点丢到 `body`。
+  根因在通用 `Popover` 的 child `close()` 只卸载 panel，未遵守自身 Escape 路径已有的
+  trigger focus-return。最小修复放在 primitive：仅 child 显式 close 后下一帧恢复同一
+  trigger；outside-click、anchor 滚出 viewport 与 trigger 自身 toggle 保持原语义，避免
+  抢走用户刚点击的外部目标。Changes scope 选择还会进入 transient loading、连 trigger
+  一起短暂卸载，因此 `DiffView` 额外保留 pending focus，待新 payload 与新 trigger 同时
+  落地再交还；其他既有 popup 同享 primitive 的可访问性契约。
+- **98.4e file-jump/collapse precedence design note**：Changed files 的 filter→唯一 row→
+  jump 实测能保留 query、打开并滚动到目标、焦点回 trigger；随后明确执行
+  `Collapse all files` 却仍有该文件展开，菜单继续显示 Collapse。根因是 jump 的
+  `focusPath` 永久高于 fold-all override。用户点击全局 fold 是更新、更明确的意图：
+  `setAll` 先清掉一次性 focus pin，再应用 open/closed override；之后若 thread 再发新的
+  file-focus request，既有逻辑仍会只重开并滚动到新目标。不改 filter 与文件顺序。
+  dirty production `44abac64-dirty-223407` 真验：filter=`Popover.tsx` 后唯一 row，jump 后
+  `open=1/total=1` 且焦点回 `Changed files`；Collapse 后 `open=0`、焦点回
+  `More changes actions`，Expand 后 `open=1`，browser logs 空、双轴 overflow=`0`。
 
 ## Spec delta
 

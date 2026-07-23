@@ -474,6 +474,26 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     expect(container.querySelector(".pop-panel")).toBeNull();
   });
 
+  it("lets an explicit Collapse all supersede the file jump's one-shot open pin", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: listDiff }));
+    const { container } = render(<DiffView sid="l2-collapse" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    const row = [...container.querySelectorAll(".diff-fileitem")].find(
+      (r) => r.getAttribute("title") === "notes.md",
+    )!;
+    fireEvent.click(row);
+    await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Collapse all files"));
+    await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBe(0));
+
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    expect(screen.getByText("Expand all files")).toBeTruthy();
+  });
+
   it("filters the list and the review together, and keeps the query when a file is picked", async () => {
     arMock.diff = () => Promise.resolve(baseDiff({ diff: listDiff }));
     const { container } = render(<DiffView sid="l3" />);

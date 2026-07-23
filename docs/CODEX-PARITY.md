@@ -367,11 +367,11 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | EV-04 | child member navigation/full timeline/back/reload | UNTESTED | — |
 | EV-05 | child approval/recovery attention 与去重 | UNTESTED | — |
 | EV-06 | Environment↔Changes/sidebar/settings overlay 互斥 | UNTESTED | QA-87/86 为我方候选证据，待全组合 |
-| CH-01 | Changes empty/normal + Working tree/Last turn scopes | UNTESTED | — |
+| CH-01 | Changes empty/normal + Working tree/Last turn scopes | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：Codex normal Last Turn、我方 shared normal/非 Git empty 与两 scope 真验；尚缺 Codex empty，不能判 PASS |
 | CH-02 | added/modified/deleted/renamed/untracked/staged | UNTESTED | — |
 | CH-03 | large/generated/binary/unavailable baseline disclosure | UNTESTED | — |
-| CH-04 | file/hunk expand-collapse、scroll、syntax/CJK/wrap | UNTESTED | — |
-| CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | QA-87 为我方候选证据，待 Codex 同状态 |
+| CH-04 | file/hunk expand-collapse、scroll、syntax/CJK/wrap | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：我方 filter→file jump→Collapse/Expand 与 focus return 真验；Codex 同态、hunk/CJK/wrap 尚未齐 |
+| CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | 2026-07-22 `QA88-98.4a-changes-shell`：双侧 1280×800 desktop split 同态；我方 close 精确回 opener，尚缺 Codex focus 与双侧 mobile 同态 |
 | CH-06 | Commit or push menu/validation/progress/error/success | UNTESTED | 不执行真实 push；可用专用 shared QA repo 做 commit |
 | CH-07 | Apply to project/Remove worktree/dirty/conflict guards | UNTESTED | AgentRunner 特有强能力，需验证而非强行克隆 Codex |
 

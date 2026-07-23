@@ -7025,3 +7025,27 @@ dirty production `d68b0766-dirty-220630` 真验：首屏 5 rows、`Show 10 more 
 Suggestions top=`610px`；展开 15、收起 5、search=`INC66-INTERVAL-OK` 返回完整 2 rows、清空回 5，
 browser logs 空。未删除/关闭/清理任何 shared 数据。SC-02 仍 UNTESTED（empty/loading/error 与
 Codex pagination 尚未齐），矩阵状态不变。
+
+---
+
+## 2026-07-22 · INC-98.4a–e Changes/Review compact shell 与交互闭环
+
+在真实 Codex Desktop `1280×800` 当前 thread 点击 `Review`，OCR 二次命中 `Last Turn` 后取证；
+实测 Escape 不关闭 resident Review tab，driver 改为先探测 Escape、再以顶栏 `Review` OCR 锚点
+关闭其 `X` 并断言 panel heading 消失，原 thread 保留。Computer Use runtime 明确拒绝控制
+`com.openai.codex`，未绕安全边界，继续使用已验证的 native AX/CGEvent capture driver。
+
+同 viewport combined review 抓到我方旧 `46vw` 相对整窗计算，Changes 占内容区 61%、conversation
+只余约 371px；现按 `.session-layout` 的 54% 分栏，dirty production 实测 panel=`518.398px`、
+conversation=`441.602px`，与 Codex conversation≈444px 对齐，双轴 overflow=0。
+
+真实交互继续暴露并修复三条键盘/状态缺陷：关闭 Changes 从 `body` 改为恢复 opener（menuitem
+卸载则回 topbar `More session actions`）；通用 Popover item-close 恢复 trigger，scope 切换因
+loading 短暂卸载 trigger 时由 DiffView 在新 payload 后完成 focus handoff；file jump 的一次性
+open pin 不再压过用户随后明确的 Collapse all。shared production 完成 Last Turn↔Working Tree、
+filter=`Popover.tsx`、唯一 row jump、Collapse/Expand、close/focus 全链，browser logs 空。
+
+证据在 `qa/runs/2026-07-22-QA88-98.4a-changes-shell/`；CH-01/04/05 补入部分证据但保持
+UNTESTED（Codex empty、同态 file/hunk/CJK/wrap、Codex focus 与双侧 mobile 尚缺），矩阵计数不变。
+未点击 Commit/Push/Apply/Remove，未关闭、删除或清理任何 shared session/workspace/journal。
+capture contract、frontend 69 files/726 tests、production build 与 `./scripts/check.sh` 全绿。

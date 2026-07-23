@@ -27,6 +27,15 @@ describe("mobile navigation breakpoint", () => {
   });
 });
 
+describe("Changes split layout", () => {
+  it("sizes the desktop review rail from the content track, not the whole viewport", () => {
+    expect(css).toContain(
+      ".session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 54%); }",
+    );
+    expect(css).not.toContain("minmax(320px, 46vw)");
+  });
+});
+
 describe("Environment layout contract", () => {
   it("keeps Environment on one track and implements the rail as one shared floating card rule", () => {
     expect(css).toContain(

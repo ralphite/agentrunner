@@ -181,6 +181,21 @@ describe("Popover follows or lets go when the page moves", () => {
 });
 
 describe("Popover plumbing survives the reposition", () => {
+  it("returns focus to the trigger after an item closes the menu", async () => {
+    renderInScrollingCard({ left: 1196, right: 1420, top: 285, bottom: 313 });
+    const trigger = screen.getByRole("button", { name: "Commit or push" });
+    openMenu();
+    const item = screen.getByRole("menuitem", { name: "Commit" });
+    item.focus();
+    fireEvent.click(item);
+
+    expect(panel()).toBeNull();
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("lets onOpen update its parent without updating during Popover's state updater", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     function Parent() {

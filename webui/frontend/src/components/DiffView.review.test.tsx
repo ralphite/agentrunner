@@ -178,6 +178,20 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
     expect(screen.getByLabelText("Change diff scope").textContent).toContain("Working Tree");
   });
 
+  it("returns focus to the scope trigger after the selected payload replaces the loading skeleton", async () => {
+    arMock.diff = byScope({});
+    render(<DiffView sid="s4-focus" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Change diff scope"));
+    const workingTree = screen.getByText("Working Tree");
+    workingTree.focus();
+    fireEvent.click(workingTree);
+    await waitFor(() => expect(screen.getByLabelText("Change diff scope").textContent).toContain("Working Tree"));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(screen.getByLabelText("Change diff scope"));
+  });
+
   it("shrugs off a storage that refuses to answer", async () => {
     const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("storage disabled");

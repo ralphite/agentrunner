@@ -279,6 +279,25 @@ describe("TH-15 · one rail, one name, one door", () => {
     expect(screen.getByRole("menuitem", { name: "Conversation" })).toBeTruthy();
     expect(screen.queryByRole("menuitem", { name: "Changes" })).toBeNull();
   });
+
+  it("returns focus to the stable menu trigger after closing Changes", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+    const trigger = screen.getByRole("button", { name: "More session actions" });
+    fireEvent.click(trigger);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const changes = screen.getByRole("menuitem", { name: "Changes" });
+    changes.focus();
+    expect(document.activeElement).toBe(changes);
+
+    fireEvent.click(changes);
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Close changes" }));
+    await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(trigger);
+  });
 });
 
 describe("mobile session topbar", () => {
