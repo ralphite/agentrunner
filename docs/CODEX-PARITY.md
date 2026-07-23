@@ -299,9 +299,10 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.4t 盘点**：81 行 = `PASS 28 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 /
+**98.4u 盘点**：81 行 = `PASS 28 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 /
 UNTESTED 37`。98.4l 删除重复登记的 GL-12，并以 NS-13 替换，保持总行数不变；98.4t
-以双产品真实 reload 与 AgentRunner 完整 lifecycle 将 NS-13 升 PASS。PASS 中
+以双产品真实 reload 与 AgentRunner 完整 lifecycle 将 NS-13 升 PASS；98.4u 补齐
+PS-02 除 Remove 外的复杂 lifecycle，因此状态不虚升。PASS 中
 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
@@ -395,8 +396,8 @@ New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 | ST-03 | shortcuts/config/worktrees/archived sessions | GAP | 2026-07-22 `QA88-98.3o-settings-sections/04..22`：双侧四页同 viewport 合并图；我方 22 个真实 shortcuts + search、live health、shared Worktrees、Archived empty/populated/search/Unarchive/re-Archive 均真测。304 workspaces 全渲染已修为 40/Show more/full search；缺 shortcut override G52、worktree registry/GC G53、永久删除 G54 |
 | ST-04 | desktop Done/mobile Back/Escape/outside focus return | UNTESTED | 2026-07-22 `QA88-98.3n-settings/13` 已真测 desktop Done/Escape 从 sidebar menu 回 `More options`，并修复旧 `BODY` 落点；Codex capture cleanup 以 Escape 恢复原 thread。mobile Back/current dual evidence 尚未补齐；全窗 Settings 无 outside dismissal，不提前判 PASS |
 | ST-05 | profile/voice/pets/personalization | INTENTIONAL | 非 AgentRunner runtime journey；若形成工程效益另立产品 delta |
-| PS-01 | deep-link reload/back/forward/current selection | UNTESTED | 2026-07-23 `QA88-98.4t-draft-lifecycle/14`：AgentRunner post-create sid 在 shared production 中 Back→Home、Forward→原 sid/reply/current selection 全真通过；Codex 同批 deep-link history 尚缺，不提前判 PASS |
-| PS-02 | rename/pin/archive/read/remove + persistence | UNTESTED | Archive/Remove 必须用专用 shared QA data，永久保留 journal |
+| PS-01 | deep-link reload/back/forward/current selection | UNTESTED | 2026-07-23 `QA88-98.4t-draft-lifecycle/14`：AgentRunner post-create sid 在 shared production 中 Back→Home、Forward→原 sid/reply/current selection 全真通过；`98.4u-session-lifecycle/19..21` 又钉 archive-current 用 replace 而非 push，Back/Forward/reload 不重开 hidden thread，显式 archived deep-link 仍可达。Codex 同批 deep-link history 尚缺，不提前判 PASS |
+| PS-02 | rename/pin/archive/read/remove + persistence | UNTESTED | 2026-07-23 `QA88-98.4u-session-lifecycle/01..21`：专用 retained data 真测 AgentRunner rename、pin、off-page unread/clear、reload、archive/restore、Settings Archived 与 Codex header Archive→New chat；Remove 尚未同批覆盖，故不提前判 PASS |
 | PS-03 | legacy/missing/corrupt session 与 projectless rows | UNTESTED | 2026-07-23 `QA88-98.4t-draft-lifecycle/15`：不存在 sid 显式 `Session not found` + raw id + `Back to all sessions`，返回 Home 后 `Do anything` 聚焦；legacy/corrupt 仍缺，不提前判 PASS |
 
 ### 7.6 Accessibility、viewport 与 resilience 横切

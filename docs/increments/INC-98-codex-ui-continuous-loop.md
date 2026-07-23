@@ -510,6 +510,11 @@ INC-98 将该方法固化为持续循环：
   refresh 一旦失败就会清空 draft、报错却仍留在 Home，用户重试可重复创建。现以 create
   response 为导航事实，先 `select(sid)`、再刷新 sidebar；无新增 UI/backend/invariant。
   两次立即 Enter 与真实 Send 双击均只创建一次。
+- **98.4u session lifecycle**：专用 retained session 完成 rename、pin、unread、
+  archive/restore、reload、Settings Archived 与 deep-link。真实 Codex archive-current 会
+  立即进入 New chat；我方修前仍停在已隐藏但可继续输入的 thread，修后回 Home 并替换当前
+  history entry，Back/Forward/reload 不会重开它，显式 Archived Open/deep-link 仍可达。
+  driver 只增加已实测的 current-thread menu 与 pin/archive action，不扩张未验证能力。
 
 ## Spec delta
 

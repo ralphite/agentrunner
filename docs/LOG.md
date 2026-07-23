@@ -7337,3 +7337,14 @@ UNTESTED 37`。
 `SessionStarted`/`InputReceived`，Back/Forward 与 missing-sid recovery 也通过。所有
 session/worktree/journal 与截图保留。73 files / 755 frontend tests、production build、
 capture contract、`./scripts/check.sh`、health/versionMatch 与 browser logs 全绿。
+
+---
+
+## 2026-07-23 · INC-98.4u session lifecycle
+
+专用 retained Codex thread 真执行 header Archive 后立即进入 New chat；AgentRunner shared
+session 则覆盖 rename、pin、off-page unread/clear、reload、archive/restore、Settings
+Archived 与 deep-link。修前 archive-current 只隐藏 sidebar row，仍留在可写 thread，且
+Back 会重开；现回 Home 并替换当前 history entry，Back/Forward/reload 均不重开，非当前
+archive/restore 不改 route。证据在 `qa/runs/2026-07-23-QA88-98.4u-session-lifecycle/`；
+Remove 尚未同批覆盖，PS-02 保持 UNTESTED，矩阵分布不变。

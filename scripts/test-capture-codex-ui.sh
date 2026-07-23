@@ -38,6 +38,8 @@ done
 [[ "$help" == *"--scroll-validate"* ]]
 [[ "$help" == *"--scroll-pages"* ]]
 [[ "$help" == *"--thread-disclosure"* ]]
+[[ "$help" == *"--thread-menu"* ]]
+[[ "$help" == *"--thread-action"* ]]
 [[ "$help" == *"--disclosure-validate"* ]]
 [[ "$help" == *"--disclosure-click-offset"* ]]
 [[ "$help" == *"--disclosure-region"* ]]
@@ -63,6 +65,20 @@ if $driver --settle 31 >"$tmpdir/settle.out" 2>"$tmpdir/settle.err"; then
   exit 1
 fi
 grep -Fq 'whole seconds from 0 to 30' "$tmpdir/settle.err"
+
+grep -Fq 'transient_open=1' "$driver"
+
+if $driver --thread-menu >"$tmpdir/thread-menu.out" 2>"$tmpdir/thread-menu.err"; then
+  echo "capture driver accepted thread menu without a title" >&2
+  exit 1
+fi
+grep -Fq -- '--thread-menu requires the visible current thread title' "$tmpdir/thread-menu.err"
+
+if $driver --thread-action QA destructive >"$tmpdir/thread-action.out" 2>"$tmpdir/thread-action.err"; then
+  echo "capture driver accepted an unknown thread action" >&2
+  exit 1
+fi
+grep -Fq -- '--thread-action requires the visible current thread title and pin or archive' "$tmpdir/thread-action.err"
 
 if $driver --viewport 800x600 >"$tmpdir/viewport.out" 2>"$tmpdir/viewport.err"; then
   echo "capture driver accepted an undersized viewport" >&2

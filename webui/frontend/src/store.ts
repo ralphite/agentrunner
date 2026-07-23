@@ -322,13 +322,23 @@ export const useStore = create<AppState>((set, get) => ({
   showArchived: false,
   toggleArchive: (id) => {
     const cur = get().archived;
-    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    const restoring = cur.includes(id);
+    const next = restoring ? cur.filter((x) => x !== id) : [...cur, id];
     try {
       localStorage.setItem(ARCHIVE_KEY, JSON.stringify(next));
     } catch {
       /* ignore quota */
     }
     set({ archived: next });
+    // Replace archive-current history so Back cannot reopen the hidden session.
+    if (!restoring && get().currentSid === id) {
+      set({ currentSid: null, currentRunId: null, currentPage: "home", toasts: [] });
+      if (typeof history !== "undefined" && typeof history.replaceState === "function") {
+        history.replaceState(null, "", `${location.pathname}${location.search}`);
+      } else {
+        location.hash = "";
+      }
+    }
   },
   toggleShowArchived: () => set({ showArchived: !get().showArchived }),
   pinned: loadPinned(),

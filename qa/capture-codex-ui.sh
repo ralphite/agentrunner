@@ -22,6 +22,8 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                                 [--disclosure-click-offset POINTS]
                                 [--disclosure-region main|goal-bar]
                                 --disclosure-validate VISIBLE_TEXT |
+                              --thread-menu VISIBLE_TITLE |
+                              --thread-action VISIBLE_TITLE pin|archive |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu |
                               --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
@@ -58,6 +60,10 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   text marker before accepting the capture, then returns the thread to latest.
 --thread-disclosure opens one visible disclosure in the current thread, validates its body,
   captures it, then restores the collapsed state.
+--thread-menu opens the current thread header's real action menu, captures it,
+  then dismisses it with Escape.
+--thread-action invokes one reversible lifecycle action from that real menu and
+  captures the resulting Codex state.
 --disclosure-nested opens a second visible disclosure inside the first one before validation;
   both levels are OCR-located from fresh frames and restored inner-first after capture.
   Use a validation substring unique to the expanded inner body; cleanup proves it disappears.
@@ -102,6 +108,8 @@ thread_scroll_up=0
 scroll_pages=2
 scroll_validate=""
 context_target=""
+thread_menu_title=""
+thread_action=""
 disclosure_target=""
 disclosure_nested_target=""
 disclosure_nested_prefix=""
@@ -298,6 +306,25 @@ while (($#)); do
       fi
       composer_validate="$2"
       shift 2
+      ;;
+    --thread-menu)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --thread-menu requires the visible current thread title" >&2
+        exit 2
+      fi
+      thread_menu_title="$2"
+      mode="thread-menu"
+      shift 2
+      ;;
+    --thread-action)
+      if (($# < 3)) || [[ -z "$2" ]] || [[ "$3" != "pin" && "$3" != "archive" ]]; then
+        echo "capture-codex-ui: --thread-action requires the visible current thread title and pin or archive" >&2
+        exit 2
+      fi
+      thread_menu_title="$2"
+      thread_action="$3"
+      mode="thread-action"
+      shift 3
       ;;
     --context-menu)
       if (($# < 2)) || [[ -z "$2" ]]; then
@@ -928,6 +955,8 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
         observation.boundingBox.midY > 0.08 && observation.boundingBox.midY < 0.92
     case "thread":
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
+    case "thread-header":
+      inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.90
     case "thread-tail":
       inRegion = observation.boundingBox.midX > 0.30 &&
         observation.boundingBox.midY > 0.06 && observation.boundingBox.midY < 0.30
@@ -1906,6 +1935,43 @@ if [[ "$mode" == "thread-approval" ]]; then
   if ((approval_resolved == 0)); then
     echo "capture-codex-ui: approval card did not resolve" >&2
     exit 1
+  fi
+fi
+
+if [[ "$mode" == "thread-menu" || "$mode" == "thread-action" ]]; then
+  ocr_capture=$(mktemp -t codex-thread-menu)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  thread_title_point=$(window_text_center "$ocr_capture" "$thread_menu_title" "thread-header" right)
+  IFS=$'\t' read -r thread_title_x thread_title_y <<<"$thread_title_point"
+  thread_menu_x=$(awk -v x="$thread_title_x" 'BEGIN { print x + 22 }')
+  send_click "$thread_menu_x" "$thread_title_y"
+  transient_open=1
+  sleep "$settle_seconds"
+  if [[ "$mode" == "thread-action" ]]; then
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-action-menu)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    case "$thread_action" in
+      pin) thread_action_label="Pin chat" ;;
+      archive) thread_action_label="Archive chat" ;;
+    esac
+    thread_action_point=$(window_text_center "$ocr_capture" "$thread_action_label" "main")
+    IFS=$'\t' read -r thread_action_x thread_action_y <<<"$thread_action_point"
+    if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+      echo "capture-codex-ui: thread action '$thread_action_label' at $thread_action_x,$thread_action_y" >&2
+    fi
+    send_click "$thread_action_x" "$thread_action_y"
+    sleep "$settle_seconds"
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-action-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if window_text_center "$ocr_capture" "$thread_action_label" "main" >/dev/null 2>&1; then
+      action_debug="${output%.*}-action-validation-debug.png"
+      cp -- "$ocr_capture" "$action_debug"
+      echo "capture-codex-ui: thread action did not close its menu; frame saved: $action_debug" >&2
+      exit 1
+    fi
+    transient_open=0
   fi
 fi
 

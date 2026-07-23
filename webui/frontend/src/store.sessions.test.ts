@@ -8,8 +8,21 @@ const row = (id: string, turns = 1): Session => ({ id, status: "completed", turn
 describe("progressive session hydration", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.stubGlobal("location", { hash: "" });
-    useStore.setState({ sessions: [], sessionsReady: false, sessionsLoadingOlder: false, unread: [], toasts: [] });
+    vi.stubGlobal("location", { hash: "", pathname: "/", search: "" });
+    vi.stubGlobal("history", {
+      replaceState: vi.fn(() => { location.hash = ""; }),
+    });
+    useStore.setState({
+      sessions: [],
+      sessionsReady: false,
+      sessionsLoadingOlder: false,
+      currentSid: null,
+      currentRunId: null,
+      currentPage: "home",
+      archived: [],
+      unread: [],
+      toasts: [],
+    });
   });
 
   it("loads a recent page first, appends history, and preserves history on later refresh", async () => {
@@ -74,5 +87,31 @@ describe("progressive session hydration", () => {
     useStore.getState().toast("failure from previous page");
     useStore.getState().showPage("scheduled");
     expect(useStore.getState().toasts).toEqual([]);
+  });
+
+  it("returns home when the current session is archived", () => {
+    useStore.getState().select("current-session");
+    expect(location.hash).toBe("current-session");
+
+    useStore.getState().toggleArchive("current-session");
+
+    expect(useStore.getState().archived).toEqual(["current-session"]);
+    expect(useStore.getState().currentSid).toBeNull();
+    expect(useStore.getState().currentPage).toBe("home");
+    expect(location.hash).toBe("");
+    expect(history.replaceState).toHaveBeenCalledWith(null, "", "/");
+  });
+
+  it("preserves the route when another session is archived or one is restored", () => {
+    useStore.getState().select("current-session");
+
+    useStore.getState().toggleArchive("other-session");
+    expect(useStore.getState().currentSid).toBe("current-session");
+    expect(location.hash).toBe("current-session");
+
+    useStore.getState().toggleArchive("other-session");
+    expect(useStore.getState().archived).toEqual([]);
+    expect(useStore.getState().currentSid).toBe("current-session");
+    expect(location.hash).toBe("current-session");
   });
 });

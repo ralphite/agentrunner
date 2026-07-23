@@ -2149,3 +2149,10 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | missing hard state | 不存在 sid 显示 bounded `Session not found`、原始 id 与 `Back to all sessions`；点击后返回 Home 且 composer 聚焦。legacy/corrupt 未测，PS-03 保持 UNTESTED |
 | 数据纪律 | 四个 shared session/worktree/journal、Codex capture 与全部截图保留；未 close/delete/cleanup。`07/07a/07b` 是无效 `fill("")` 校准图，明确拒收，只以真实 keyboard 的 `07c/07d` 裁决 |
 | Gate | dirty production `72ca8189-dirty-035347` health `daemonUp/versionMatch=true`；browser logs=`[]`；73 files / 755 frontend tests、production build、capture contract 与 `./scripts/check.sh` 全绿 |
+
+| 98.4u 动作 | 硬断言 |
+|---|---|
+| Codex archive-current | 专用 retained thread 的 header menu 真执行 Archive，立即进入 New chat；driver capture 后菜单已关闭，不把 OCR 校准图当证据 |
+| AgentRunner lifecycle | 专用 shared session 的 rename、pin、off-page unread/clear、reload persistence、archive/restore、Settings Archived 与显式 archived deep-link 均真测并保留 |
+| history correctness | 修前 archive-current 隐藏 sidebar row 却留在可写 thread，且 Back 可重开；修后以 `replaceState` 回 Home，Back/Forward/reload 均不重开；非当前 archive/restore 不改变现有 route |
+| evidence/gate | `qa/runs/2026-07-23-QA88-98.4u-session-lifecycle/` 保存 1100×700 双侧截图与合并图；PS-02 因 Remove 尚未同批覆盖，保持 UNTESTED |
