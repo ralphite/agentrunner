@@ -487,6 +487,11 @@ INC-98 将该方法固化为持续循环：
   parent 后到的 auto title 时退回完整 opening prompt；stranded 同时提供 Resume 与可能重放
   副作用的 Retry。修复限定为默认 latest、较早点按需展开、durable fork title 继承与
   stranded 单一 Resume；不改 parent、checkpoint cut、worktree 或 resume 语义。
+- **98.4p long-thread continuity**：真实 70 行历史 + 多轮 tool activity 在 1100×700
+  证实运行中追加能守住阅读锚点，但 reload 与 SPA session 切换会把读者送到底部。现按
+  tab/session 保存仅“离底”位置，reload/切换恢复；显式 Send、滚到底或 Jump 清除位置。
+  离底期间已有浮动 Jump 同时显示新增可见 activity 数，不持久化 transcript 或跨设备状态。
+  Codex current thread 同尺寸滚动截图由新增只读 driver mode 获取并在 capture 后恢复到底部。
 
 ## Spec delta
 

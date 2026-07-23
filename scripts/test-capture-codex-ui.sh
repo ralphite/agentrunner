@@ -33,6 +33,9 @@ done
 [[ "$help" == *"--thread-shortcut"* ]]
 [[ "$help" == *"--thread-approval"* ]]
 [[ "$help" == *"--thread-review"* ]]
+[[ "$help" == *"--thread-scroll-up"* ]]
+[[ "$help" == *"--scroll-validate"* ]]
+[[ "$help" == *"--scroll-pages"* ]]
 [[ "$help" == *"--thread-disclosure"* ]]
 [[ "$help" == *"--disclosure-validate"* ]]
 [[ "$help" == *"--composer-validate"* ]]
@@ -135,6 +138,24 @@ if $driver --thread-approval destructive >"$tmpdir/thread-approval.out" 2>"$tmpd
   exit 1
 fi
 grep -Fq -- '--thread-approval requires allow-once or deny' "$tmpdir/thread-approval.err"
+
+if $driver --thread-scroll-up >"$tmpdir/thread-scroll.out" 2>"$tmpdir/thread-scroll.err"; then
+  echo "capture driver accepted thread scrolling without visual validation" >&2
+  exit 1
+fi
+grep -Fq -- '--thread-scroll-up requires --scroll-validate' "$tmpdir/thread-scroll.err"
+
+if $driver --scroll-validate Older >"$tmpdir/thread-scroll-validate.out" 2>"$tmpdir/thread-scroll-validate.err"; then
+  echo "capture driver accepted scroll validation without thread scroll mode" >&2
+  exit 1
+fi
+grep -Fq -- '--scroll-validate requires --thread-scroll-up' "$tmpdir/thread-scroll-validate.err"
+
+if $driver --thread-scroll-up --scroll-validate Older --scroll-pages 10 >"$tmpdir/thread-scroll-pages.out" 2>"$tmpdir/thread-scroll-pages.err"; then
+  echo "capture driver accepted an invalid scroll page count" >&2
+  exit 1
+fi
+grep -Fq -- '--scroll-pages requires 1 through 9' "$tmpdir/thread-scroll-pages.err"
 
 if $driver --thread-disclosure Asked >"$tmpdir/disclosure.out" 2>"$tmpdir/disclosure.err"; then
   echo "capture driver accepted a disclosure without visual validation" >&2
@@ -289,6 +310,12 @@ grep -Fq 'AXIsProcessTrusted()' "$driver"
 grep -Fq 'if ((window_resized))' "$driver"
 grep -Fq 'sips --resampleHeightWidth "$viewport_height" "$viewport_width"' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
+grep -Fq 'if ((thread_scrolled))' "$driver"
+grep -Fq 'send_key 116' "$driver"
+grep -Fq 'send_key 119' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "$scroll_validate" "thread"' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowsInLineVertical,
   ArrowSquareOut,
@@ -1094,6 +1094,7 @@ function baseChipText(text: string): string {
 }
 
 export function TimelineView({
+  sessionKey,
   items,
   pending,
   typing,
@@ -1107,6 +1108,7 @@ export function TimelineView({
   loading = false,
   onContinue,
 }: {
+  sessionKey?: string;
   items: TimelineItem[];
   pending: { id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[];
   typing: string;
@@ -1139,9 +1141,22 @@ export function TimelineView({
     : items.filter((it) => it.kind !== "sys" && it.kind !== "runtime");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
-  // W10: floating jump-to-bottom control once the reader scrolls up (Codex
-  // shows the same affordance on long threads).
   const [showJump, setShowJump] = useState(false);
+  const [unseen, setUnseen] = useState(0);
+  const restored = useRef(!sessionKey);
+  const restoredSessionKey = useRef<string>();
+  const activityReady = useRef(false);
+  const activityCount = visible.length + pending.length;
+  const prevActivityCount = useRef(activityCount);
+  const scrollStorageKey = sessionKey ? `arwebui.timelineScroll.${sessionKey}` : "";
+  const clearSavedPosition = () => {
+    if (!scrollStorageKey) return;
+    try {
+      sessionStorage.removeItem(scrollStorageKey);
+    } catch {
+      // Storage can be unavailable in hardened/private browser contexts.
+    }
+  };
   // A7: fold open state lives here (not inside WorkedFold) keyed by a stable
   // content id, so a poll that reshuffles fold render keys never collapses a
   // fold the reader already opened.
@@ -1187,9 +1202,46 @@ export function TimelineView({
   const settled = !active && !typing && pending.length === 0;
   const deferLastActions = settled && !!lastAssistant;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (restoredSessionKey.current !== sessionKey) {
+      restoredSessionKey.current = sessionKey;
+      restored.current = !sessionKey;
+      stick.current = true;
+      activityReady.current = false;
+      prevActivityCount.current = activityCount;
+      prevPendingCount.current = pendingCount;
+      setShowJump(false);
+      setUnseen(0);
+    }
+    if (!restored.current) {
+      if (loading) return;
+      restored.current = true;
+      let savedTop: number | null = null;
+      try {
+        const raw = sessionStorage.getItem(scrollStorageKey);
+        if (raw !== null) {
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed) && parsed >= 0) savedTop = parsed;
+        }
+      } catch {
+        // Fall through to the normal latest position.
+      }
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (savedTop !== null && maxTop - savedTop >= 80) {
+        stick.current = false;
+        el.scrollTop = Math.min(savedTop, maxTop);
+        setShowJump(true);
+      } else {
+        clearSavedPosition();
+        el.scrollTop = el.scrollHeight;
+      }
+      prevActivityCount.current = activityCount;
+      activityReady.current = true;
+      return;
+    }
+    if (stick.current) el.scrollTop = el.scrollHeight;
   });
 
   // QA-0718: sending re-sticks the feed. Codex jumps to your own new message
@@ -1201,24 +1253,54 @@ export function TimelineView({
     if (pendingCount > prevPendingCount.current) {
       stick.current = true;
       setShowJump(false);
+      setUnseen(0);
+      clearSavedPosition();
       const el = ref.current;
       if (el) el.scrollTop = el.scrollHeight;
     }
     prevPendingCount.current = pendingCount;
   }, [pendingCount]);
 
+  useEffect(() => {
+    if (!restored.current || loading) {
+      prevActivityCount.current = activityCount;
+      return;
+    }
+    if (!activityReady.current) {
+      prevActivityCount.current = activityCount;
+      activityReady.current = true;
+      return;
+    }
+    const added = activityCount - prevActivityCount.current;
+    if (added > 0 && !stick.current) setUnseen((count) => count + added);
+    prevActivityCount.current = activityCount;
+  }, [activityCount, loading]);
+
   const onScroll = () => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !restored.current) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stick.current = nearBottom;
     setShowJump(!nearBottom);
+    if (nearBottom) {
+      setUnseen(0);
+      clearSavedPosition();
+    } else if (scrollStorageKey) {
+      try {
+        sessionStorage.setItem(scrollStorageKey, String(el.scrollTop));
+      } catch {
+        // The in-memory interaction remains correct when storage is unavailable.
+      }
+    }
   };
 
   const jumpToBottom = () => {
     const el = ref.current;
     if (!el) return;
     stick.current = true;
+    setShowJump(false);
+    setUnseen(0);
+    clearSavedPosition();
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   };
 
@@ -1353,7 +1435,14 @@ export function TimelineView({
         )}
       </div>
       {showJump && (
-        <button type="button" className="tl-jump" onClick={jumpToBottom} title="Jump to latest" aria-label="Jump to latest">
+        <button
+          type="button"
+          className={`tl-jump${unseen > 0 ? " has-updates" : ""}`}
+          onClick={jumpToBottom}
+          title={unseen > 0 ? `${unseen} new update${unseen === 1 ? "" : "s"} · Jump to latest` : "Jump to latest"}
+          aria-label={unseen > 0 ? `${unseen} new update${unseen === 1 ? "" : "s"}; jump to latest` : "Jump to latest"}
+        >
+          {unseen > 0 && <span className="tl-jump-count">{unseen > 99 ? "99+" : unseen}</span>}
           <CaretDown size={16} />
         </button>
       )}

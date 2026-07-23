@@ -7253,3 +7253,20 @@ fresh deep link、approval card、command palette、body containment 与空 brow
 未作任何 answer/approval/cleanup。TH-08/TH-09 从 GAP 升 PASS；EV-05 因仍缺 Codex 同态
 复杂 child 场景保持 UNTESTED。矩阵为
 `PASS 26 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 39`。
+
+---
+
+## 2026-07-23 · INC-98.4p long-thread reading continuity
+
+1100×700 真实对标不只看 thread 尾部：Codex driver 新增可逆 PageUp + OCR marker 校验；
+AgentRunner retained shared Gemini fixture 覆盖 70 行历史、运行中多步 tool activity、外部
+新 turn、reload、A→B→A session 切换与 Jump。修前后台追加虽能守住 `scrollTop`，reload
+和 SPA 切换都会跳到 latest。
+
+Timeline 现用 per-tab/per-session `sessionStorage` 只保存离底位置；首次 hydration 与
+session key 变化都先恢复，显式 Send、滚底或 Jump 清除。离底时沿用原 Jump 控件显示新增
+可见 activity 数。真实复验 reload/切换均为 0px 偏差，新增 9/2 updates 时锚点不动，
+Jump 后 reload 仍在底部；health/versionMatch 全真、1100×700 body 零横溢、browser logs
+为空。证据在 `qa/runs/2026-07-23-QA88-98.4p-long-thread/`；共享 session/workspace/journal
+全部保留。TH-12 升 PASS，矩阵为 `PASS 27 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 38`。

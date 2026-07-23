@@ -1006,6 +1006,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 </div>
               )}
               <TimelineView
+                sessionKey={sid}
                 items={threadItems}
                 pending={pending}
                 typing={running ? (typing || "Thinking") : typing}

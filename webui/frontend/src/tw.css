@@ -1405,6 +1405,8 @@
 
   /* 滚底浮钮(Timeline 根为该按钮与滚动区的共同父级) */
   .tl-jump { @apply absolute bottom-5 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full p-0 shadow-md; }
+  .tl-jump.has-updates { @apply w-auto min-w-9 gap-1.5 px-2.5; }
+  .tl-jump-count { @apply text-[11px] font-semibold tabular-nums; }
 
   /* 工具明细展开(read/edit/grep/glob/spawn):mono 路径、dim 元信息 */
   .cx-td-head { @apply flex min-w-0 flex-wrap items-center gap-2 text-ink-2; }

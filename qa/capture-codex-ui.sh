@@ -15,6 +15,8 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                                 [--thread-shortcut enter|cmd-enter] |
                               --thread-approval allow-once|deny |
                               --thread-review |
+                              --thread-scroll-up --scroll-validate VISIBLE_TEXT
+                                [--scroll-pages 1-9] |
                               --thread-disclosure VISIBLE_TEXT
                                 [--disclosure-nested VISIBLE_TEXT]
                                 --disclosure-validate VISIBLE_TEXT |
@@ -49,6 +51,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   exact Allow once or Deny action, then proves that card left the thread tail.
 --thread-review opens the current thread's read-only Review panel, captures it,
   then closes its resident Review tab and proves the panel-only heading disappeared.
+--thread-scroll-up pages upward in the current thread, requires an older visible
+  text marker before accepting the capture, then returns the thread to latest.
 --thread-disclosure opens one visible disclosure in the current thread, validates its body,
   captures it, then restores the collapsed state.
 --disclosure-nested opens a second visible disclosure inside the first one before validation;
@@ -87,6 +91,9 @@ composer_mode="default"
 composer_access="current"
 thread_shortcut="enter"
 thread_approval=""
+thread_scroll_up=0
+scroll_pages=2
+scroll_validate=""
 context_target=""
 disclosure_target=""
 disclosure_nested_target=""
@@ -208,6 +215,27 @@ while (($#)); do
     --thread-review)
       mode="thread-review"
       shift
+      ;;
+    --thread-scroll-up)
+      mode="thread-scroll-up"
+      thread_scroll_up=1
+      shift
+      ;;
+    --scroll-pages)
+      if (($# < 2)) || [[ ! "$2" =~ ^[1-9]$ ]]; then
+        echo "capture-codex-ui: --scroll-pages requires 1 through 9" >&2
+        exit 2
+      fi
+      scroll_pages="$2"
+      shift 2
+      ;;
+    --scroll-validate)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --scroll-validate requires visible text" >&2
+        exit 2
+      fi
+      scroll_validate="$2"
+      shift 2
       ;;
     --thread-disclosure)
       if (($# < 2)) || [[ -z "$2" ]]; then
@@ -405,6 +433,18 @@ if [[ -n "$composer_validate" && "$mode" != "composer-text" && "$mode" != "compo
 fi
 if [[ "$thread_shortcut" != "enter" && "$mode" != "thread-composer-send" ]]; then
   echo "capture-codex-ui: --thread-shortcut requires --thread-composer-send" >&2
+  exit 2
+fi
+if ((thread_scroll_up)) && [[ -z "$scroll_validate" ]]; then
+  echo "capture-codex-ui: --thread-scroll-up requires --scroll-validate" >&2
+  exit 2
+fi
+if [[ -n "$scroll_validate" && "$mode" != "thread-scroll-up" ]]; then
+  echo "capture-codex-ui: --scroll-validate requires --thread-scroll-up" >&2
+  exit 2
+fi
+if [[ "$scroll_pages" != "2" && "$mode" != "thread-scroll-up" ]]; then
+  echo "capture-codex-ui: --scroll-pages requires --thread-scroll-up" >&2
   exit 2
 fi
 if [[ -n "$disclosure_target" && -z "$disclosure_validate" ]]; then
@@ -616,6 +656,7 @@ plan_enabled=0
 disclosure_open=0
 disclosure_nested_open=0
 review_open=0
+thread_scrolled=0
 ocr_capture=""
 send_key() {
   local key_code=$1
@@ -1039,6 +1080,13 @@ close_transient() {
   # An assertion inside cleanup must fail once, not recursively re-enter the
   # EXIT trap forever. The primary interaction error remains the useful one.
   trap - EXIT
+  if ((thread_scrolled)); then
+    # End returns the current thread to its latest content after the evidence
+    # frame has been saved, so the driver never leaves the current thread mid-history.
+    send_key 119 >/dev/null 2>&1 || true
+    sleep 1
+    thread_scrolled=0
+  fi
   if ((review_open)); then
     send_key 53 >/dev/null 2>&1 || true
     sleep 1
@@ -1889,6 +1937,25 @@ if [[ "$mode" == "scheduled-filter" ]]; then
   IFS=$'\t' read -r scheduled_filter_x scheduled_filter_y <<<"$scheduled_filter_point"
   send_click "$scheduled_filter_x" "$scheduled_filter_y"
   sleep "$settle_seconds"
+fi
+
+if [[ "$mode" == "thread-scroll-up" ]]; then
+  for _ in $(seq 1 "$scroll_pages"); do
+    send_key 116
+    sleep 0.2
+  done
+  # Arm cleanup before validation: even a rejected evidence frame must return
+  # the current thread to latest.
+  thread_scrolled=1
+  sleep "$settle_seconds"
+  ocr_capture=$(mktemp -t codex-thread-scroll-up)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if ! window_text_center "$ocr_capture" "$scroll_validate" "thread" >/dev/null 2>&1; then
+    scroll_debug="${output%.*}-validation-debug.png"
+    cp "$ocr_capture" "$scroll_debug"
+    echo "capture-codex-ui: scrolled thread did not reveal validation text; frame saved: $scroll_debug" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$mode" == "scheduled-row" ]]; then
