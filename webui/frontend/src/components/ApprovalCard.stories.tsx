@@ -29,12 +29,38 @@ type Story = StoryObj<typeof meta>;
 
 export const Pending: Story = {};
 
+export const PendingDark: Story = {
+  globals: {
+    theme: "dark",
+  },
+};
+
+export const PendingPhone: Story = {
+  parameters: {
+    viewport: {
+      defaultViewport: "mobile1",
+    },
+  },
+};
+
 export const DetailsOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByText("Details"));
     await expect(canvas.getByText(/npm run build/, { selector: "pre" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Approve once" })).toBeEnabled();
+  },
+};
+
+export const KeyboardApproval: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.tab();
+    await expect(canvas.getByRole("button", { name: "Approve once" })).toHaveFocus();
+    await userEvent.tab();
+    await expect(canvas.getByRole("button", { name: "Always allow" })).toHaveFocus();
+    await userEvent.tab();
+    await expect(canvas.getByRole("button", { name: "Deny" })).toHaveFocus();
   },
 };
 

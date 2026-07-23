@@ -15,7 +15,9 @@
     "build-storybook": "storybook build -o storybook-static",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
     "baseline:storybook": "node ../../scripts/generate-storybook-baseline.mjs",
-    "baseline:storybook:check": "node ../../scripts/generate-storybook-baseline.mjs --check"
+    "baseline:storybook:check": "node ../../scripts/generate-storybook-baseline.mjs --check",
+    "lint:storybook": "node ../../scripts/lint-storybook.mjs",
+    "manifest:storybook:update": "node ../../scripts/lint-storybook.mjs --update-baseline"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

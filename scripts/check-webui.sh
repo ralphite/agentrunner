@@ -29,6 +29,7 @@ npm run baseline:storybook:check
 npm run test
 npm run build
 npm run build-storybook
+npm run lint:storybook
 npm run test:storybook
 
 if rg -q "mockServiceWorker|msw-storybook-addon|ApprovalCard\\.stories|storybook" dist; then
