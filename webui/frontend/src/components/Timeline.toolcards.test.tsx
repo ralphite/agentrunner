@@ -60,6 +60,20 @@ describe("Timeline tool cards on narrow screens", () => {
     expect(getByRole("button", { name: "Copy command and result" })).toBeTruthy();
   });
 
+  it("does not repeat a short single-line command inside its detail", () => {
+    const command = "printf TH10-AR-STDERR >&2; exit 23";
+    const { container, getByRole } = render(
+      <TimelineView items={[bashTool(command, "TH10-AR-STDERR")]} pending={[]} typing="" showSys />,
+    );
+
+    fireEvent.click(container.querySelector("details.step > summary") as HTMLElement);
+    expect(container.querySelector(".step-body")?.textContent).toBe(command);
+    expect(container.querySelector(".shell-cmd")).toBeNull();
+    expect(container.querySelector(".shell-out")?.textContent).toContain("TH10-AR-STDERR");
+    expect(container.querySelector(".shell-footer")?.contains(getByRole("button", { name: "Copy command and result" }))).toBe(true);
+    expect(container.querySelector(".shell")?.textContent).not.toContain("Shell");
+  });
+
   it("copies the complete command and result rather than the collapsed preview", async () => {
     const command = `printf '%s' '${"a".repeat(500)}'`;
     const result = "full-result-" + "b".repeat(500);

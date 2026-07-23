@@ -134,6 +134,12 @@ if $driver --disclosure-validate Alpha >"$tmpdir/disclosure-validate.out" 2>"$tm
 fi
 grep -Fq -- '--disclosure-validate requires --thread-disclosure' "$tmpdir/disclosure-validate.err"
 
+if $driver --disclosure-nested 'Ran a command' >"$tmpdir/disclosure-nested.out" 2>"$tmpdir/disclosure-nested.err"; then
+  echo "capture driver accepted a nested disclosure without an outer target" >&2
+  exit 1
+fi
+grep -Fq -- '--disclosure-nested requires --thread-disclosure' "$tmpdir/disclosure-nested.err"
+
 if $driver --new-chat-control access --control-query QA >"$tmpdir/control-query-kind.out" 2>"$tmpdir/control-query-kind.err"; then
   echo "capture driver accepted a query for a non-searchable New chat control" >&2
   exit 1
@@ -202,6 +208,15 @@ grep -Fq 'if [[ "$mode" == "thread-approval" ]]' "$driver"
 # shellcheck disable=SC2016
 grep -Fq 'approval_target=$([[ "$thread_approval" == "allow-once" ]]' "$driver"
 grep -Fq 'if ((disclosure_open))' "$driver"
+grep -Fq 'if ((disclosure_nested_open))' "$driver"
+# Literal source contracts; expansion would weaken the assertions.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_target" "main"' "$driver"
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_prefix" "main"' "$driver"
+grep -Fq 'codex-thread-disclosure-normalize-outer' "$driver"
+grep -Fq 'nested disclosure did not collapse' "$driver"
+grep -Fq 'disclosure-nested-debug.png' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.

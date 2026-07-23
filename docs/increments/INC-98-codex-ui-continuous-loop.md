@@ -193,6 +193,25 @@ INC-98 将该方法固化为持续循环：
   runtime mode、spec、journal 或 backend。风险说明点名 commands、internet、全盘文件读写删除；
   confirm 使用既有 danger hierarchy。该小增量已有同产品 Dialog pattern，三视角 review 裁掉，
   以 access contract test + shared-browser Ask→Full Gate B 代替。
+- **98.3i nested disclosure driver design note**：TH-10 已拿到 Codex 顶层
+  `Worked for …` 展开证据，但真实 command/stderr/exit detail 还藏在第二层
+  `Ran a command` disclosure。driver 新增 opt-in `--disclosure-nested VISIBLE_TEXT`，
+  仅允许与 `--thread-disclosure` + `--disclosure-validate` 同用：先 OCR 定位并展开
+  顶层，再从新截图 OCR 定位第二层，再用最终截图验证 detail 中的唯一 token；任何一层
+  缺失都 fail-closed，不回退到猜测坐标。因 Codex 展开后会把 generic label（如
+  `Ran a command`）改写成具体 action label（如 `Ran bash …`），driver 从 generic label
+  提取稳定 action prefix，在新截图重定位；若上次异常退出留有展开态，先 inner-first 自愈归一。
+  退出同样从新截图依次重定位并折叠 nested、outer，不复用展开前的陈旧坐标；默认单层行为保持不变。该增量只扩展 QA driver 与证据契约，
+  不改变 AgentRunner product/runtime，不触及 DESIGN 不变量，规模不足以需要三视角 review。
+- **98.3j compact shell detail design note**：同状态合并图 `61` 显示 Codex 的 nested
+  command detail 直接在 disclosure 内给 concrete command + result；AgentRunner 已在外层 summary
+  完整显示短单行 command，却在 detail 内再次画 `Shell` header 和同一 command，信息重复且把短失败
+  拉成重卡片。沿用既有 tool `<details>`、Shell transcript、status 与 Copy pattern：≤160 字符且无换行的
+  command 只在 summary 出现一次，detail 直接显示 stdout/stderr；多行或 >160 字符仍在 detail 保留完整
+  command。移除无新增语义的 `Shell` header，把既有 Copy action 放到 status footer；失败 `Exit N`、
+  Cancelled/Failed、完整 copy payload、长输出 240px 内滚动全部不变。无 destructive/risky state，不丢
+  journal 数据；风险仅是隐藏 summary 已完整承载的重复文本，以短/长 command contract + 真 browser
+  同 session 展开对照兜底。该小修复复用既有 disclosure/detail pattern，按 UI/UX review 裁掉三视角 review。
 
 ## Spec delta
 

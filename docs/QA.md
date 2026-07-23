@@ -1884,6 +1884,8 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | AgentRunner 风险升级 | New session 先从 Full 切到 Ask，写入未发送 draft，再选 Full：必须显示 files/folders、terminal commands、internet access 三组授权范围；Cancel 后仍为 Ask、draft 原样、focus 回 access pill；Confirm 后才为 Full，draft/focus 同样保留；Full→Full 不重复确认 |
 | 同状态比较 | Codex 与 AgentRunner 均换算逻辑 1952×1465，先以简版 `52` 发现风险信息密度不足，再加结构化详情并以 `56` 合并图复验；不能凭单侧截图裁决 |
 | 回归与边界 | `Composer.addMenu.test.tsx` + `Modals.mobile.test.tsx` 8/8、production build、capture contract/shellcheck、`check.sh` 全绿；dirty production cache-bust 核对 `index-4QFWD3a4.js`、health `daemonUp/versionMatch=true`、browser logs=`[]`；未发送/创建 access 测试 session，最终恢复 Full access 与空 draft |
+| nested tool detail | `--thread-disclosure 'Worked for 6s' --disclosure-nested 'Ran a command' --disclosure-validate 'Ran bash -lc'` 从 fresh OCR frame 逐层展开；Codex generic nested label 展开后变 concrete label，driver 以稳定 action prefix inner-first 自愈/恢复，`59` 见 command + exit 23 + stderr，`60` 证明回到双层 collapsed |
+| compact shell detail | 合并图 `61` 发现我方短 command 在 summary/detail 重复且多余 `Shell` header；修后 `62/63` 只在 summary 显示一次 command，detail 保留 stderr/Exit 23，Copy 移至 status footer；多行/>160 字符仍保留 detail 全文，完整 Copy/长输出滚动契约不变；dirty production DOM、browser logs=`[]` 通过 |
 
 | 98.3a 动作 | 硬断言 |
 |---|---|

@@ -14,7 +14,9 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --thread-composer-send TEXT --composer-validate VISIBLE_TEXT
                                 [--thread-shortcut enter|cmd-enter] |
                               --thread-approval allow-once|deny |
-                              --thread-disclosure VISIBLE_TEXT --disclosure-validate VISIBLE_TEXT |
+                              --thread-disclosure VISIBLE_TEXT
+                                [--disclosure-nested VISIBLE_TEXT]
+                                --disclosure-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
@@ -42,6 +44,9 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   exact Allow once or Deny action, then proves that card left the thread tail.
 --thread-disclosure opens one visible disclosure in the current thread, validates its body,
   captures it, then restores the collapsed state.
+--disclosure-nested opens a second visible disclosure inside the first one before validation;
+  both levels are OCR-located from fresh frames and restored inner-first after capture.
+  Use a validation substring unique to the expanded inner body; cleanup proves it disappears.
 --composer-validate is a short visible substring required in the draft/thread capture.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
   then dismisses it with Escape. Matches are restricted to the sidebar.
@@ -67,6 +72,8 @@ thread_shortcut="enter"
 thread_approval=""
 context_target=""
 disclosure_target=""
+disclosure_nested_target=""
+disclosure_nested_prefix=""
 disclosure_validate=""
 restore_query=""
 settle_seconds=1
@@ -191,6 +198,14 @@ while (($#)); do
       disclosure_validate="$2"
       shift 2
       ;;
+    --disclosure-nested)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --disclosure-nested requires visible text" >&2
+        exit 2
+      fi
+      disclosure_nested_target="$2"
+      shift 2
+      ;;
     --composer-validate)
       if (($# < 2)) || [[ -z "$2" ]]; then
         echo "capture-codex-ui: --composer-validate requires visible text" >&2
@@ -308,6 +323,16 @@ if [[ -n "$disclosure_validate" && "$mode" != "thread-disclosure" ]]; then
   echo "capture-codex-ui: --disclosure-validate requires --thread-disclosure" >&2
   exit 2
 fi
+if [[ -n "$disclosure_nested_target" && "$mode" != "thread-disclosure" ]]; then
+  echo "capture-codex-ui: --disclosure-nested requires --thread-disclosure" >&2
+  exit 2
+fi
+if [[ -n "$disclosure_nested_target" ]]; then
+  # Codex replaces generic labels such as “Ran a command” with a concrete
+  # “Ran bash …” label while expanded. The action verb remains stable and is
+  # re-located from a fresh OCR frame for normalization and cleanup.
+  disclosure_nested_prefix=${disclosure_nested_target%% *}
+fi
 if [[ "$composer_mode" != "default" && "$mode" != "composer-send" ]]; then
   echo "capture-codex-ui: --composer-mode plan requires --composer-send" >&2
   exit 2
@@ -393,6 +418,7 @@ thread_composer_seeded=0
 goal_enabled=0
 plan_enabled=0
 disclosure_open=0
+disclosure_nested_open=0
 ocr_capture=""
 send_key() {
   local key_code=$1
@@ -706,8 +732,33 @@ close_transient() {
   # An assertion inside cleanup must fail once, not recursively re-enter the
   # EXIT trap forever. The primary interaction error remains the useful one.
   trap - EXIT
+  if ((disclosure_nested_open)); then
+    rm -f -- "$ocr_capture" 2>/dev/null || true
+    ocr_capture=$(mktemp -t codex-thread-disclosure-nested-restore)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if ! disclosure_nested_restore_point=$(window_text_center "$ocr_capture" "$disclosure_nested_target" "main" 2>/dev/null); then
+      disclosure_nested_restore_point=$(window_text_center "$ocr_capture" "$disclosure_nested_prefix" "main")
+    fi
+    IFS=$'\t' read -r disclosure_nested_restore_x disclosure_nested_restore_y <<<"$disclosure_nested_restore_point"
+    send_click "$disclosure_nested_restore_x" "$disclosure_nested_restore_y"
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-disclosure-nested-restored)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null 2>&1; then
+      echo "capture-codex-ui: nested disclosure did not collapse" >&2
+      exit 1
+    fi
+    disclosure_nested_open=0
+  fi
   if ((disclosure_open)); then
-    send_click "$point_x" "$point_y" >/dev/null 2>&1 || true
+    rm -f -- "$ocr_capture" 2>/dev/null || true
+    ocr_capture=$(mktemp -t codex-thread-disclosure-restore)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    disclosure_restore_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+    IFS=$'\t' read -r disclosure_restore_x disclosure_restore_y <<<"$disclosure_restore_point"
+    send_click "$disclosure_restore_x" "$disclosure_restore_y"
+    sleep 1
     disclosure_open=0
   fi
   if ((plan_enabled)); then
@@ -1209,6 +1260,43 @@ fi
 if [[ "$mode" == "thread-disclosure" ]]; then
   ocr_capture=$(mktemp -t codex-thread-disclosure)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ -n "$disclosure_nested_target" ]]; then
+    # Self-heal an interrupted prior capture. If the generic nested label is
+    # visible, the outer level is open and the nested level is collapsed. If
+    # only its stable action prefix is visible, the nested level is expanded.
+    # Normalize inner-first, then start this capture from both levels closed.
+    if disclosure_normalize_nested_point=$(window_text_center "$ocr_capture" "$disclosure_nested_target" "main" 2>/dev/null); then
+      if window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null 2>&1; then
+        IFS=$'\t' read -r disclosure_normalize_nested_x disclosure_normalize_nested_y <<<"$disclosure_normalize_nested_point"
+        send_click "$disclosure_normalize_nested_x" "$disclosure_normalize_nested_y"
+        sleep 1
+        rm -f -- "$ocr_capture"
+        ocr_capture=$(mktemp -t codex-thread-disclosure-normalize-outer)
+        screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      fi
+      disclosure_normalize_outer_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+      IFS=$'\t' read -r disclosure_normalize_outer_x disclosure_normalize_outer_y <<<"$disclosure_normalize_outer_point"
+      send_click "$disclosure_normalize_outer_x" "$disclosure_normalize_outer_y"
+      sleep 1
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-thread-disclosure-normalized)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    elif disclosure_normalize_nested_point=$(window_text_center "$ocr_capture" "$disclosure_nested_prefix" "main" 2>/dev/null); then
+      IFS=$'\t' read -r disclosure_normalize_nested_x disclosure_normalize_nested_y <<<"$disclosure_normalize_nested_point"
+      send_click "$disclosure_normalize_nested_x" "$disclosure_normalize_nested_y"
+      sleep 1
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-thread-disclosure-normalize-outer)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      disclosure_normalize_outer_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+      IFS=$'\t' read -r disclosure_normalize_outer_x disclosure_normalize_outer_y <<<"$disclosure_normalize_outer_point"
+      send_click "$disclosure_normalize_outer_x" "$disclosure_normalize_outer_y"
+      sleep 1
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-thread-disclosure-normalized)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    fi
+  fi
   disclosure_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
   IFS=$'\t' read -r point_x point_y <<<"$disclosure_point"
   send_click "$point_x" "$point_y"
@@ -1217,6 +1305,26 @@ if [[ "$mode" == "thread-disclosure" ]]; then
   rm -f -- "$ocr_capture"
   ocr_capture=$(mktemp -t codex-thread-disclosure-validate)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ -n "$disclosure_nested_target" ]]; then
+    if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+      disclosure_outer_debug="${output%.*}-disclosure-outer-debug.png"
+      cp -- "$ocr_capture" "$disclosure_outer_debug"
+      echo "capture-codex-ui: outer disclosure saved to $disclosure_outer_debug" >&2
+    fi
+    disclosure_nested_point=$(window_text_center "$ocr_capture" "$disclosure_nested_target" "main")
+    IFS=$'\t' read -r disclosure_nested_x disclosure_nested_y <<<"$disclosure_nested_point"
+    send_click "$disclosure_nested_x" "$disclosure_nested_y"
+    disclosure_nested_open=1
+    sleep "$settle_seconds"
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-disclosure-nested-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+      disclosure_nested_debug="${output%.*}-disclosure-nested-debug.png"
+      cp -- "$ocr_capture" "$disclosure_nested_debug"
+      echo "capture-codex-ui: nested disclosure saved to $disclosure_nested_debug" >&2
+    fi
+  fi
   window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null
 fi
 

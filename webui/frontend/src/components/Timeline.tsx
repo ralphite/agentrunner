@@ -195,8 +195,9 @@ function StepIcon({ status }: { status: ToolItem["status"] }) {
   return <span className="step-ic err shrink-0"><X size={11} /></span>;
 }
 
-// ShellDetail renders a bash activity as a Codex-style Shell block:
-// "$ command" + captured output + a ✓ Success / ✗ Exit N footer.
+// ShellDetail renders a bash activity as a compact Codex-style transcript.
+// The outer summary already carries a short one-line command, so the detail
+// repeats only long/multiline commands, then output + terminal state + Copy.
 function ShellDetail({ t }: { t: ToolItem }) {
   const [copied, setCopied] = useState(false);
   const parse = (raw: any) => {
@@ -213,6 +214,7 @@ function ShellDetail({ t }: { t: ToolItem }) {
   const stdout = r && typeof r === "object" ? r.stdout || "" : typeof r === "string" ? r : "";
   const stderr = r && typeof r === "object" ? r.stderr || "" : "";
   const exit = r && typeof r === "object" && typeof r.exit_code === "number" ? r.exit_code : undefined;
+  const commandAlreadyVisible = !cmd.includes("\n") && cmd.trim().length <= 160;
   const cancelled = t.status === "cancelled";
   const ok = !cancelled && t.status !== "error" && t.status !== "failed" && (exit === undefined || exit === 0);
   const statusText = ok ? "Success" : cancelled ? "Cancelled" : exit !== undefined && exit !== 0 ? `Exit ${exit}` : "Failed";
@@ -230,21 +232,7 @@ function ShellDetail({ t }: { t: ToolItem }) {
   };
   return (
     <div className="shell min-w-0 max-w-full">
-      <div className="shell-hd">
-        <span>Shell</span>
-        {copyBody && (
-          <button
-            type="button"
-            className="msg-copy icon-only"
-            onClick={copy}
-            title="Copy command and result"
-            aria-label="Copy command and result"
-          >
-            {copied ? <Check size={15} /> : <Copy size={15} />}
-          </button>
-        )}
-      </div>
-      {cmd && (
+      {cmd && !commandAlreadyVisible && (
         <pre className="shell-cmd max-h-[240px] min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words p-3">
           $ {cmd}
         </pre>
@@ -264,8 +252,21 @@ function ShellDetail({ t }: { t: ToolItem }) {
           {t.errorMsg}
         </pre>
       )}
-      <div className={"shell-status" + (ok ? "" : " bad")}>
-        {ok ? <><Check size={12} /> {statusText}</> : cancelled ? <><Circle size={9} /> {statusText}</> : <><X size={12} /> {statusText}</>}
+      <div className="shell-footer">
+        <div className={"shell-status" + (ok ? "" : " bad")}>
+          {ok ? <><Check size={12} /> {statusText}</> : cancelled ? <><Circle size={9} /> {statusText}</> : <><X size={12} /> {statusText}</>}
+        </div>
+        {copyBody && (
+          <button
+            type="button"
+            className="msg-copy icon-only"
+            onClick={copy}
+            title="Copy command and result"
+            aria-label="Copy command and result"
+          >
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+          </button>
+        )}
       </div>
     </div>
   );

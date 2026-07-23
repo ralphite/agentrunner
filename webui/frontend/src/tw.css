@@ -736,7 +736,7 @@
   .thumbs, .imgchips { @apply mt-2 flex flex-wrap gap-2; }
   .thumb, .imgchip { @apply h-[84px] w-[120px] overflow-hidden rounded-[10px] border border-line bg-panel-2 object-cover; }
   .shell, .cx-code, .cx-minidiff { @apply overflow-hidden rounded-[12px] border border-line bg-panel-2 font-mono text-[12px]; }
-  .shell-hd, .cx-code-hd { @apply flex items-center justify-between border-b border-line bg-panel px-3 py-2 text-dim; }
+  .cx-code-hd { @apply flex items-center justify-between border-b border-line bg-panel px-3 py-2 text-dim; }
   .shell-out, .cx-code-body {
     @apply overflow-x-auto p-3;
     scrollbar-width: thin;
@@ -1429,7 +1429,8 @@
   .act-cat { @apply shrink-0 text-dim; }
 
   /* shell 块结果徽标 */
-  .shell-status { @apply mt-1 inline-flex items-center gap-1 text-[11.5px] text-dim; }
+  .shell-footer { @apply flex items-center justify-between border-t border-line bg-panel px-3 py-2 first:border-t-0; }
+  .shell-status { @apply inline-flex items-center gap-1 text-[11.5px] text-dim; }
   .shell-status.bad { @apply text-red; }
 
   /* ENVIRONMENT rail:行标签、worktree 路径明细与动作组 */

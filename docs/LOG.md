@@ -6796,3 +6796,20 @@ Confirm 后才写 `arwebui.lastAccess`，两条路径都把 focus 还给 access 
 Confirm；targeted 8 tests、frontend production build、`./scripts/check.sh`、shared production
 cache-bust、Cancel/Confirm/draft/focus 与 browser logs 全绿。shared tool-error session 与全部
 截图/journal 保留；矩阵状态计数不变，INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.3i/j nested tool detail 与 compact Shell transcript
+
+**driver**：新增 opt-in `--disclosure-nested`，从 fresh OCR frame 展开 Worked 与 nested tool；
+Codex 把 `Ran a command` 展开标题改成 concrete `Ran bash …`，首次 capture 的 cleanup 因旧标题
+失效后，driver 改用稳定 action prefix 重定位，并能 inner-first 自愈异常遗留展开态。真实重跑
+`59` 同时见 concrete command、exit 23、stderr，`60` 证明两层恢复 collapsed；失败 debug frame
+保留但不冒充成功证据。
+
+**UI 修订**：同状态合并图 `61` 显示 AgentRunner 短 command 已在 summary 完整出现，却在 detail
+重复 command 并叠加无语义 `Shell` header。修为 ≤160 字符单行 command 只显示一次；detail 直接
+呈 stdout/stderr，status footer 保留 `Exit N/Cancelled/Failed` 与完整 Copy。多行/长 command、
+20k projection、240px 滚动和 copy payload 不变。真 shared TH10 session dirty deployment DOM 与
+`62/63` 合并图通过，browser logs 为空；TH-02 仍因缺 Codex long-output 同态而 UNTESTED，TH-10
+仍因缺 Codex provider/network Retry 而 UNTESTED，矩阵计数不变。
