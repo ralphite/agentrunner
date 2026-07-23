@@ -498,6 +498,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		if _, ok := resp["untrackedReasons"]; !ok {
 			resp["untrackedReasons"] = map[string]string{}
 		}
+		resp["conflicts"] = []string{}
 		// `ar diff --json` carries no repo fields, but every consumer of this
 		// endpoint gates on isRepo/nested (the changes card's turn/workspace
 		// split, qa/consistency). Leaving them absent made every last-turn
@@ -509,6 +510,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 			if top, insideRepo := git(r.Context(), workspace, "rev-parse", "--show-toplevel"); insideRepo {
 				if root := strings.TrimSpace(top); samePath(root, workspace) {
 					resp["isRepo"] = true
+					resp["conflicts"] = unmergedPaths(r.Context(), workspace)
 				} else {
 					resp["nested"] = true
 					resp["repoRoot"] = root
@@ -527,7 +529,8 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		"scope": "working-tree", "workspace": meta.Workspace, "known": meta.Workspace != "",
 		"isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "",
 		"untracked": []string{}, "untrackedReasons": map[string]string{}, "hiddenUntracked": 0,
-		"worktree": false, "mainRepo": "", "branch": "",
+		"conflicts": []string{},
+		"worktree":  false, "mainRepo": "", "branch": "",
 	}
 	if meta.Workspace == "" {
 		writeJSON(w, http.StatusOK, resp)
@@ -545,6 +548,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp["isRepo"] = true
+	resp["conflicts"] = unmergedPaths(r.Context(), meta.Workspace)
 	// A linked worktree is its own toplevel (so isRepo is true), but it belongs
 	// to a main checkout the UI names and offers Apply/Remove against (INC-49).
 	if isWt, mainRepo, branch := worktreeInfo(r.Context(), meta.Workspace); isWt {
@@ -657,6 +661,20 @@ func hiddenUntrackedPath(path string) bool {
 	return false
 }
 
+func unmergedPaths(ctx context.Context, workspace string) []string {
+	out, ok := git(ctx, workspace, "-c", "core.quotePath=false", "diff", "--name-only", "--diff-filter=U", "-z")
+	if !ok || out == "" {
+		return []string{}
+	}
+	paths := []string{}
+	for _, path := range strings.Split(out, "\x00") {
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 // handleCommit stages and commits the workspace changes — Codex's review→commit
 // step, closing the loop after the Diff view. Local commit only (no push); if
 // the repo has no git identity, a cockpit fallback is used for that one commit.
@@ -689,6 +707,14 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 	// commit) the PARENT repository's tree, not this workspace.
 	if root := strings.TrimSpace(top); !samePath(root, ws) {
 		badRequest(w, "workspace is inside another repository ("+root+"), refusing to commit there")
+		return
+	}
+	if conflicts := unmergedPaths(r.Context(), ws); len(conflicts) > 0 {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":     "Resolve merge conflicts before committing.",
+			"kind":      "conflict",
+			"conflicts": conflicts,
+		})
 		return
 	}
 	run := func(args ...string) (string, error) {

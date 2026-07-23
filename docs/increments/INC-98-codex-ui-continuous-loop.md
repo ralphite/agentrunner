@@ -455,6 +455,17 @@ INC-98 将该方法固化为持续循环：
   API 保留 `kind` 并把 rejected/auth/no-upstream 映成可行动首句，raw stderr 仍只进
   Details；导航边界清掉 page-scoped toast。成功、失败、隔离均在同批真实共享数据复验，
   所有 repo/session/journal 保留。
+- **98.4i conflict/multi-session design note**：在 98.4h 的 retained `primary`/`peer`
+  上让同一 `README.md` 两边提交不同内容，fetch + merge 得到真实 `UU`，不合成 marker。
+  修前 Working Tree/Last Turn 都把它显示为普通 `M`，Commit 菜单仍可点；backend 随后的
+  `git add -A` 会把 `<<<<<<<`/`=======`/`>>>>>>>` 直接 stage 并提交，相当于把“未解决”
+  误判为“用户已解决”。现两 scope 都投 `conflicts[path]`，Review 在 toolbar 下给单行
+  blocking note、文件头/file index 给 `conflict` badge；Commit/Commit & push disabled，
+  Push existing commits 保持可用。backend 在 `git add -A` 前独立查 unmerged index 并
+  返回 HTTP 409 `kind=conflict`，即使旧前端调用也不改变 HEAD、index 或 workspace。
+  再在同一 unresolved workspace 新建第二 retained session：老 session Last Turn=918
+  bytes、新 session Last Turn=0，但两者 `conflicts=[README.md]`，Working Tree 都显示
+  同一个真实 conflict，证明 turn scope 不会遮掉 workspace blocking state。
 
 ## Spec delta
 

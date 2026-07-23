@@ -62,6 +62,7 @@ export interface DiffResp {
   untracked: string[];
   untrackedReasons?: Record<string, "binary" | "large" | "unavailable">;
   hiddenUntracked?: number;
+  conflicts?: string[];
 }
 
 export type DiffScope = "working-tree" | "last-turn";

@@ -208,6 +208,24 @@ describe("Commit or push is the review's resident main action (INC-41 DIFF-CP)",
     });
   });
 
+  it("makes unresolved conflicts explicit and prevents committing marker text", async () => {
+    arMock.diff = (_sid: string, scope: DiffScope) =>
+      Promise.resolve(
+        scope === "last-turn"
+          ? lastTurnResp({ conflicts: ["app.ts"] })
+          : baseDiff({ conflicts: ["app.ts"] }),
+      );
+    const { container } = render(<DiffView sid="cp-conflict" />);
+
+    await waitFor(() => expect(screen.getByText(/Resolve 1 merge conflict before committing/)).toBeTruthy());
+    expect(container.querySelector(".fd-badge.conflict")?.textContent).toBe("conflict");
+
+    fireEvent.click(commitBtn());
+    expect((screen.getByText("Commit").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText("Commit & push").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText("Push").closest("button") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("is not duplicated in the … overflow", async () => {
     arMock.diff = (_sid: string, scope: DiffScope) =>
       Promise.resolve(scope === "last-turn" ? lastTurnResp() : baseDiff());

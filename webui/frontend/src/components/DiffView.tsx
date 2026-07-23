@@ -22,6 +22,7 @@ import {
   FileMagnifyingGlass,
   FolderDashed,
   ClockCounterClockwise,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import { AR, isBinaryPath, pushErrorMessage } from "../api";
 import { copyText } from "../clipboard";
@@ -104,6 +105,7 @@ interface ReviewFile {
   add: number | null; // null = not knowable yet (an untracked blob not yet read)
   del: number;
   binary: boolean; // no lines to count, no body to show → sinks, states no counts
+  conflict: boolean;
   file: FileDiffSummary | null;
 }
 
@@ -283,7 +285,7 @@ function FileHead({
       {badges
         .filter((b) => !GLYPH_BADGES.has(b))
         .map((b) => (
-          <span className="fd-badge" key={b}>{b}</span>
+          <span className={"fd-badge" + (b === "conflict" ? " conflict" : "")} key={b}>{b}</span>
         ))}
       <span className="fd-spacer" aria-hidden="true" />
     </summary>
@@ -744,6 +746,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const files = splitDiff(data.diff || "");
   const untracked = data.untracked || [];
   const hiddenUntracked = data.hiddenUntracked || 0;
+  const conflicts = data.conflicts || [];
+  const conflictSet = new Set(conflicts);
   const empty = files.length === 0 && untracked.length === 0 && hiddenUntracked === 0;
 
   // Per-file +/- counts (from the diff itself, so untracked-content blocks count
@@ -770,12 +774,16 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
         add: fact ? fact.add : null,
         del: 0,
         binary: fact ? fact.binary : !!knownReason || isBinaryPath(path),
+        conflict: false,
         file: null,
       };
     }),
     ...stats.map(({ f, add, del }): ReviewFile => {
       const meta = headMeta(f.lines);
-      return { path: f.path, status: meta.status, add, del, binary: meta.binary, file: f };
+      return {
+        path: f.path, status: meta.status, add, del, binary: meta.binary,
+        conflict: conflictSet.has(f.path), file: f,
+      };
     }),
   ].sort(cmpReviewFile);
   // DF-3 · untracked files are files: they go through the same filter, the same
@@ -1076,6 +1084,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
                               {dir && <span className="fd-dir">{dir}</span>}
                               <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
                             </span>
+                            {f.conflict && <span className="fd-badge conflict">conflict</span>}
                             {!f.binary && (
                               <span className="fd-counts">
                                 <span className="add">+{f.add === null ? "…" : f.add}</span>
@@ -1203,6 +1212,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
               title={
                 !data?.isRepo
                   ? "This workspace is not a Git repository"
+                  : conflicts.length > 0
+                    ? "Resolve merge conflicts before committing — Push remains available"
                   : empty
                     ? "No workspace changes to commit — you can still push existing commits"
                   : "Commit or push the workspace changes"
@@ -1222,8 +1233,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
             <PopSection label="Commit or push">
               <PopItem
                 title="Commit"
-                desc="git add -A && git commit locally (no push)"
-                disabled={empty}
+                desc={conflicts.length > 0 ? "Resolve merge conflicts before committing" : "git add -A && git commit locally (no push)"}
+                disabled={empty || conflicts.length > 0}
                 onClick={() => {
                   close();
                   commit();
@@ -1231,8 +1242,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
               />
               <PopItem
                 title="Commit &amp; push"
-                desc="Commit locally, then push to the upstream branch"
-                disabled={empty}
+                desc={conflicts.length > 0 ? "Resolve merge conflicts before committing" : "Commit locally, then push to the upstream branch"}
+                disabled={empty || conflicts.length > 0}
                 onClick={() => {
                   close();
                   commitAndPush();
@@ -1251,6 +1262,15 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
         </Popover>
         {closeBtn}
       </div>
+      {conflicts.length > 0 && (
+        <div className="diff-conflict-note" role="status">
+          <WarningCircle size={16} weight="fill" />
+          <span>
+            Resolve {conflicts.length} merge {conflicts.length === 1 ? "conflict" : "conflicts"} before committing.
+            Push existing commits remains available.
+          </span>
+        </div>
+      )}
       {/* INC-41 L4 · every "nothing to show" in this panel speaks the timeline's
           empty-state language (icon + title + one line of guidance) via the
           shared `.diff-empty` shape — a bare grey sentence was the odd one out. */}
@@ -1334,7 +1354,13 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
                 triangle, so a collapsed file was a lone header with no hint that a
                 body was hiding under it. Header shape now lives in FileHead, which
                 untracked files share (DF-3). */}
-            <FileHead path={f.path} status={parsed.status} add={e.add} del={e.del} badges={parsed.badges} />
+            <FileHead
+              path={f.path}
+              status={parsed.status}
+              add={e.add}
+              del={e.del}
+              badges={e.conflict ? [...parsed.badges, "conflict"] : parsed.badges}
+            />
             <FileBody
               sid={sid}
               path={f.path}

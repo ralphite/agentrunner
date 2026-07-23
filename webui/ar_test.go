@@ -443,6 +443,90 @@ func TestHandleDiffSurfacesStagedChanges(t *testing.T) {
 	}
 }
 
+func TestHandleDiffAndCommitProtectMergeConflicts(t *testing.T) {
+	ws := t.TempDir()
+	runGit := func(args ...string) (string, error) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", ws}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=QA", "GIT_AUTHOR_EMAIL=qa@local",
+			"GIT_COMMITTER_NAME=QA", "GIT_COMMITTER_EMAIL=qa@local")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	mustGit := func(args ...string) {
+		t.Helper()
+		if out, err := runGit(args...); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	write := func(text string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(ws, "README.md"), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mustGit("init", "-q", "-b", "main")
+	write("base\n")
+	mustGit("add", "README.md")
+	mustGit("commit", "-qm", "base")
+	mustGit("checkout", "-qb", "peer")
+	write("peer\n")
+	mustGit("commit", "-qam", "peer")
+	mustGit("checkout", "-q", "main")
+	write("main\n")
+	mustGit("commit", "-qam", "main")
+	if out, err := runGit("merge", "peer"); err == nil {
+		t.Fatalf("merge unexpectedly succeeded: %s", out)
+	}
+
+	id := "20260722-000000-merge-conflict-0001"
+	s := &server{meta: newMetaStore(filepath.Join(t.TempDir(), "meta.json"))}
+	s.meta.set(id, ws, "conflict")
+
+	diffReq := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=working-tree", nil)
+	diffReq.SetPathValue("sid", id)
+	diffRec := httptest.NewRecorder()
+	s.handleDiff(diffRec, diffReq)
+	var diffResp struct {
+		Conflicts []string `json:"conflicts"`
+		Diff      string   `json:"diff"`
+	}
+	if err := json.Unmarshal(diffRec.Body.Bytes(), &diffResp); err != nil {
+		t.Fatalf("bad diff json: %v\n%s", err, diffRec.Body.String())
+	}
+	if len(diffResp.Conflicts) != 1 || diffResp.Conflicts[0] != "README.md" ||
+		!strings.Contains(diffResp.Diff, "<<<<<<< HEAD") {
+		t.Fatalf("conflict must be explicit in metadata and diff: %+v", diffResp)
+	}
+
+	headBefore, _ := runGit("rev-parse", "HEAD")
+	commitReq := httptest.NewRequest("POST", "/api/sessions/x/commit", strings.NewReader(`{"message":"must not commit markers"}`))
+	commitReq.Header.Set("Content-Type", "application/json")
+	commitReq.SetPathValue("sid", id)
+	commitRec := httptest.NewRecorder()
+	s.handleCommit(commitRec, commitReq)
+	if commitRec.Code != http.StatusConflict {
+		t.Fatalf("commit status=%d want 409: %s", commitRec.Code, commitRec.Body.String())
+	}
+	var commitResp struct {
+		Kind      string   `json:"kind"`
+		Conflicts []string `json:"conflicts"`
+	}
+	if err := json.Unmarshal(commitRec.Body.Bytes(), &commitResp); err != nil {
+		t.Fatal(err)
+	}
+	if commitResp.Kind != "conflict" || len(commitResp.Conflicts) != 1 {
+		t.Fatalf("want structured conflict refusal, got %+v", commitResp)
+	}
+	headAfter, _ := runGit("rev-parse", "HEAD")
+	status, _ := runGit("status", "--porcelain")
+	if headAfter != headBefore || !strings.Contains(status, "UU README.md") {
+		t.Fatalf("commit refusal must preserve the unresolved state: head %q -> %q, status=%q", headBefore, headAfter, status)
+	}
+}
+
 func TestHandleDiffLastTurn(t *testing.T) {
 	// A real repo root: the handler enriches the CLI passthrough with
 	// isRepo/nested (the CLI JSON has no repo fields, and the changes card
