@@ -7416,3 +7416,17 @@ G47 仍开放，未用非原子 unqueue+resend 冒充 queued→steer。
 manual/automatic recovery；legacy 与 fresh journal 都重投影正确。fresh shared session
 随后同线程 follow-up 成功，queue/workspace diff/browser logs 为空。Codex provider/network
 Retry 仍无安全可控同态证据，TH-10 保持 UNTESTED。
+
+---
+
+## 2026-07-23 · INC-98.4aa 并发 human actions 不再被优先级隐藏
+
+shared 真 Gemini root session 同时发起 structured ask 与 background child `pwd` approval。
+修前 sidebar / command palette 只显示 `Needs approval` 和单点，用户解决后才发现第二项。
+现将 approvals+answers 聚合为精确 action count：多个动作显示 `N actions needed` 与可见
+amber 数字 badge，单项仍保留具体类型。主 timeline 同步按 root/child 当前 projection 计数。
+
+真实链先 answer、再 approve，child 完成后 root 自动续跑；reload、child deep-link 与
+Back to root 均保持正确。另保留一个双待办 fixture 未解决供持续回归。证据
+`qa/runs/2026-07-23-QA88-98.4aa-combined-attention/01..10`；无 backend/journal 变更，
+无新增 gap，EV-03/04/05 因仍缺 Codex 同态保持 UNTESTED。

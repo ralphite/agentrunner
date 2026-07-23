@@ -535,6 +535,13 @@ INC-98 将该方法固化为持续循环：
   把人工恢复伪装成 runtime 自动恢复。现沿用既有 `retry:<original command id>` 血统标记
   manual recovery；只有没有显式 Retry 血统的同 activity completion 才显示 automatic。
   不改 journal、Retry API、fold header 或 backend；历史与新建 session 均按原事件重投影。
+- **98.4aa concurrent human-action visibility**：真实 root session 同一时刻保留 structured
+  ask 与 child command approval；旧 sidebar / command palette 以 approval 优先级只显示
+  `Needs approval`，把第二个待处理动作藏到第一次提交之后。现统一汇总
+  `attention.approvals + attention.answers`：只有一个动作时保留具体 `Needs approval` /
+  `Needs answer`，多个动作时主状态显示 `N actions needed`，sidebar 与 command palette
+  使用可见 amber 数字 badge。主 timeline 同样按当前 root/child projection 精确计数；
+  Environment 的既有全类 attention 数、backend/journal/answer/approval 路由均不改。
 
 ## Spec delta
 

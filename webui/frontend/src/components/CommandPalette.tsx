@@ -18,6 +18,7 @@ interface Item {
   session?: boolean; // session rows reserve a leading status-dot gutter
   dot?: string; // status-dot class: `unread`, or friendlyStatus().cls — never both
   dotTitle?: string; // what the dot means, spelled out on hover
+  actionCount?: number;
   run: () => void;
 }
 
@@ -28,8 +29,14 @@ interface Item {
 // stuck on an approval or a crash was advertised in ⌘K as "new activity" while
 // the rail next to it showed amber/red. Same source, same colour now.
 const DOTTED = ["run", "appr", "stranded", "crash"];
-function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string } {
+function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string; actionCount?: number } {
   const status = sessionFriendlyStatus(session);
+  const actionCount =
+    (session.attention?.approvals || 0) +
+    (session.attention?.answers || 0);
+  if (actionCount > 1 && status.cls === "appr") {
+    return { dot: "appr", dotTitle: status.text, actionCount };
+  }
   if (isUnread && status.cls !== "appr") return { dot: "unread", dotTitle: "New activity" };
   if (DOTTED.includes(status.cls)) return { dot: status.cls, dotTitle: status.text };
   return {};
@@ -239,12 +246,14 @@ export function CommandPalette({ onClose, onOpenSettings }: {
                     // blue for new activity, otherwise the status' own colour.
                     // Dot-less session rows keep an equal-width gutter so labels
                     // stay aligned.
-                    <span
-                      className={"status-dot" + (it.dot ? " " + it.dot : "")}
-                      style={it.dot ? undefined : { visibility: "hidden" }}
-                      title={it.dotTitle}
-                      aria-hidden="true"
-                    />
+                    it.actionCount
+                      ? <span className="status-count" title={it.dotTitle} aria-hidden="true">{it.actionCount}</span>
+                      : <span
+                          className={"status-dot" + (it.dot ? " " + it.dot : "")}
+                          style={it.dot ? undefined : { visibility: "hidden" }}
+                          title={it.dotTitle}
+                          aria-hidden="true"
+                        />
                   )}
                   <span className="cmdk-label">{it.label}</span>
                   {it.hint && <span className="cmdk-hint">{it.hint}</span>}

@@ -2194,3 +2194,11 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | fresh failure→Retry | shared session `20260723-140300-qa98-4z-fresh-failure-reply-e-a3a2cff81b1e72d8` 真实触发 model-not-found，切 Gemini Flash 后点 Retry，得到 `QA98Z_RECOVERED`；展开 fold 保留 failure、agent change、原输入与 answer |
 | follow-up continuity | 同一 recovered session 再发新 turn，得到 `QA98Z_FOLLOWUP_OK`，status=`waiting:input`、queue empty、workspace diff empty、browser logs=`[]` |
 | 边界 / Gate | Codex provider/network Retry 仍不可安全控制，TH-10 保持 UNTESTED；retained session/worktree/journal 与证据均保留。timeline 74 tests、frontend/build 与 `./scripts/check.sh` 全绿 |
+
+| 98.4aa 动作 | 硬断言 |
+|---|---|
+| 双待办发现 | shared root session `20260723-141432…0398ad8ee9165373` 同时产生 `Deploy channel?` structured ask 与 worker `pwd` approval；CLI/API 为 `attention={approvals:1,answers:1}`，timeline 两张真实卡同屏 |
+| 原子收敛 | 先选 Stable+Submit 后 AskForm 消失而 child approval 保持；再 Approve once 后 child 完成、root 收到 `subagent_completed` 并输出最终 answer。root 最终 `waiting:input`、child `quiescent/completed`、queue empty；reload 不复活已解决动作 |
+| child 导航 | Environment completed child row 直达只读 child 完整 timeline；deep-link reload 保持 child，Back to root 恢复 root 与 Environment，不清理 journal/worktree |
+| 红转绿 | 修前 sidebar/palette 只以 amber dot/`Needs approval` 隐藏第二动作；修后汇总为 `2 actions needed`，sidebar 与 command palette 都显示可见 amber `2`。单 approval/answer 仍保留具体文案 |
+| 保留 fixture / Gate | postfix shared root session `20260723-142251…cd009d3876e84e32` 永久停在双待办供回归；`qa/runs/2026-07-23-QA88-98.4aa-combined-attention/01..10` 保存 1100×700 before/after、palette、child deep-link、raw events 与 workspace 摘要；98 focused frontend tests、production build、full gate、shared health/versionMatch 与 browser warning/error=`[]` |

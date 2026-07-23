@@ -811,17 +811,27 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
   it("shows typed ask/child approval blockers instead of Ready, even when unread", () => {
     const { container } = mount(
       [
+        { id: "20260710-000003-combined", status: "waiting:input", turns: 1, title: "Combined blockers", attention: { approvals: 1, answers: 1 } },
         { id: "20260710-000002-approval", status: "waiting:input", turns: 1, title: "Child approval", attention: { approvals: 2 } },
         { id: "20260710-000001-answer", status: "waiting:input", turns: 1, title: "Structured ask", attention: { answers: 1 } },
+        { id: "20260710-000000-failed", status: "failed", turns: 1, title: "Failed with blockers", attention: { approvals: 1, answers: 1 } },
       ],
       { unread: ["20260710-000002-approval"] },
     );
+    const combined = container.querySelector<HTMLButtonElement>('button[aria-label^="Combined blockers"]')!;
     const approval = container.querySelector<HTMLButtonElement>('button[aria-label^="Child approval"]')!;
     const answer = container.querySelector<HTMLButtonElement>('button[aria-label^="Structured ask"]')!;
-    expect(approval.getAttribute("aria-label")).toContain("Needs approval");
-    expect(approval.querySelector(".status-dot")!.className).toBe("status-dot appr");
+    const failed = container.querySelector<HTMLButtonElement>('button[aria-label^="Failed with blockers"]')!;
+    expect(combined.getAttribute("aria-label")).toContain("2 actions needed");
+    expect(combined.querySelector(".status-count")!.textContent).toBe("2");
+    expect(combined.querySelector(".status-count")!.getAttribute("title")).toBe("2 actions needed");
+    expect(approval.getAttribute("aria-label")).toContain("2 actions needed");
+    expect(approval.querySelector(".status-count")!.textContent).toBe("2");
     expect(answer.getAttribute("aria-label")).toContain("Needs answer");
     expect(answer.querySelector(".status-dot")!.getAttribute("title")).toBe("Needs answer");
+    expect(failed.getAttribute("aria-label")).toContain("Failed");
+    expect(failed.querySelector(".status-dot")!.className).toBe("status-dot crash");
+    expect(failed.querySelector(".status-count")).toBeNull();
   });
 
   it("keeps a pinned workspace-less session in Pinned only — never twice", () => {

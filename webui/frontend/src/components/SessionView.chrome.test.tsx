@@ -765,4 +765,46 @@ describe("INC-98.3g · child approval truth", () => {
     expect(screen.getByRole("button", { name: /Environment/i })).toBeTruthy();
     expect(container.querySelector(".topbar-attention")).not.toBeNull();
   });
+
+  it("counts a root answer and child approval instead of hiding one behind precedence", async () => {
+    const childSid = `${SID}-sub-call_1_0-a1`;
+    arMock.events = async (_sid: string, after: number) => after ? [] : EVENTS.slice(1, 3);
+    arMock.inspect = async () => ({
+      goal: null,
+      progress: [],
+      artifacts: [],
+      waiting: {
+        kind: "input",
+        ask_questions: [{
+          question: "Deploy channel?",
+          options: [{ label: "Stable" }, { label: "Canary" }],
+        }],
+      },
+      children: [{
+        call_id: "call_1_0",
+        agent: "worker",
+        session: childSid,
+        report: {
+          status: "waiting",
+          waiting: { kind: "approval", approval_id: "apr-child", tool: "bash", args: '{"command":"pwd"}' },
+        },
+      }],
+    });
+    useStore.setState({
+      sessions: [{
+        id: SID,
+        title: "combined attention",
+        status: "waiting:input",
+        workspace: "/repo/parent",
+        attention: { approvals: 1, answers: 1 },
+      } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Approval required" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Deploy channel?")).toBeTruthy());
+    expect(container.querySelector(".run-status-line")?.textContent).toContain("2 actions needed");
+    expect(container.querySelector(".topbar-attention")?.textContent).toBe("2");
+  });
 });

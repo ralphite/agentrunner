@@ -404,6 +404,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     const when = relTimeAgo(sessionUpdatedDate(session));
     const isRunning = status.cls === "run";
     const isWorktree = isManagedWorktreeWorkspace(session.workspace);
+    const actionCount =
+      (session.attention?.approvals || 0) +
+      (session.attention?.answers || 0);
     const openContext = (x: number, y: number) => {
       // Opening a context menu instantly dismisses any hover preview so the
       // two floating layers stay mutually exclusive (R3-1).
@@ -439,7 +442,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         >
           <span className="project-session-title">{title}</span>
           {(isUnread || ["appr", "stranded", "crash"].includes(status.cls)) && (
-            <span className={`status-dot ${isUnread && status.cls !== "appr" ? "unread" : status.cls}`} title={isUnread && status.cls !== "appr" ? "New activity" : status.text} />
+            actionCount > 1 && status.cls === "appr"
+              ? <span className="status-count" title={status.text} aria-hidden="true">{actionCount}</span>
+              : <span className={`status-dot ${isUnread && status.cls !== "appr" ? "unread" : status.cls}`} title={isUnread && status.cls !== "appr" ? "New activity" : status.text} />
           )}
         </button>
         {(isWorktree || isRunning) && (

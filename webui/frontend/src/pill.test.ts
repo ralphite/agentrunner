@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { friendlyStatus, terminalNoticeFor } from "./components/pill";
+import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "./components/pill";
 
 describe("abnormal terminal notices", () => {
   it("offers a checkpoint continuation for a normal session that exhausted its budget", () => {
@@ -56,5 +56,26 @@ describe("abnormal terminal notices", () => {
     expect(friendlyStatus("limit_exceeded (budget)")).toMatchObject({
       text: "Budget limit reached",
     });
+  });
+});
+
+describe("typed human attention", () => {
+  it("keeps one blocker specific and counts multiple outstanding decisions", () => {
+    expect(sessionFriendlyStatus({
+      status: "waiting:input",
+      attention: { approvals: 1 },
+    })).toEqual({ text: "Needs approval", cls: "appr" });
+    expect(sessionFriendlyStatus({
+      status: "waiting:input",
+      attention: { answers: 1 },
+    })).toEqual({ text: "Needs answer", cls: "appr" });
+    expect(sessionFriendlyStatus({
+      status: "waiting:input",
+      attention: { approvals: 1, answers: 1 },
+    })).toEqual({ text: "2 actions needed", cls: "appr" });
+    expect(sessionFriendlyStatus({
+      status: "waiting:input",
+      attention: { approvals: 3 },
+    })).toEqual({ text: "3 actions needed", cls: "appr" });
   });
 });

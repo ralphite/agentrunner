@@ -67,8 +67,12 @@ export function sessionFriendlyStatus(
 ): { text: string; cls: string } {
   const base = friendlyStatus(session.status);
   if (base.cls === "crash" || base.cls === "stranded") return base;
-  if ((session.attention?.approvals || 0) > 0) return { text: "Needs approval", cls: "appr" };
-  if ((session.attention?.answers || 0) > 0) return { text: "Needs answer", cls: "appr" };
+  const approvals = session.attention?.approvals || 0;
+  const answers = session.attention?.answers || 0;
+  const actions = approvals + answers;
+  if (actions > 1) return { text: `${actions} actions needed`, cls: "appr" };
+  if (approvals > 0) return { text: "Needs approval", cls: "appr" };
+  if (answers > 0) return { text: "Needs answer", cls: "appr" };
   return base;
 }
 

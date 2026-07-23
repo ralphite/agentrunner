@@ -569,8 +569,14 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const listSession = sessions.find((s) => s.id === sid);
   const listStatus = listSession?.status;
   const live = folded.active || openApprovals.length > 0;
+  const currentActionCount =
+    openApprovals.length +
+    (askQuestions.length > 0 ? 1 : 0) +
+    childAnswers.length;
   const status = live
-    ? openApprovals.length > 0
+    ? currentActionCount > 1
+      ? { text: `${currentActionCount} actions needed`, cls: "appr" }
+      : openApprovals.length > 0
       ? { text: "Needs approval", cls: "appr" }
       : { text: "Working…", cls: "run" }
     : askQuestions.length > 0
@@ -613,9 +619,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     return childStatus.cls === "crash" || childStatus.cls === "stranded";
   }).length;
   const attentionCount =
-    openApprovals.length +
-    (askQuestions.length > 0 ? 1 : 0) +
-    childAnswers.length +
+    currentActionCount +
     (needsRecovery ? 1 : 0) +
     abnormalAgentCount +
     (backgroundWork.length > 0 && !running ? 1 : 0);
