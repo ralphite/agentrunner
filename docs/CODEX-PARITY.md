@@ -299,8 +299,9 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.4k 盘点**：81 行 = `PASS 24 / GAP 14 / INTENTIONAL 4 / BLOCKED 1 /
-UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
+**98.4l 盘点**：81 行 = `PASS 24 / GAP 13 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 39`。98.4l 删除重复登记的 GL-12，并以 NS-13 替换，保持总行数不变。PASS 中
+New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
 ### 7.1 Global shell 与 Codex-only 主入口
@@ -319,7 +320,6 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | GL-10 | Sites empty/list/create/publish | INTENTIONAL | Codex `08`；网站托管不属于 UJ-01..25，除非另立 journey |
 | GL-11 | Scheduled 主 shell/list/search/filter | PASS | 2026-07-22：Codex `05` ↔ AgentRunner `14`（同为逻辑 1952×1465 light）；只判 shell，细态见 SC 组 |
 | GL-12 | Plugins installed/marketplace/search/detail/install/update/remove | GAP | 2026-07-22 Codex `09`；AgentRunner 有 skills/MCP/tools 原语但无统一 package lifecycle 与权限/来源/版本产品面，G43；禁止补静态入口冒充 |
-| GL-12 | Plugins installed/marketplace/search/install/update | GAP | Codex `09`；统一包生命周期缺失，G43 |
 | GL-13 | 全局 loading/offline/reconnect/version mismatch | UNTESTED | 待不破坏 shared daemon 的可控路径；kill 类操作需单独授权 |
 
 ### 7.2 New session 与 composer
@@ -338,6 +338,7 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | NS-10 | Send：validation/submitting/streaming/failure/retry | UNTESTED | 2026-07-22 `QA88-98.2h-send-states/01..33`：双侧真实 Send、running、completed 与同逻辑 1952×1465 合并图；AgentRunner 另有 empty validation、draft-preserving submit、queued/Stop、invalid-model failure→换 model→Retry success，3 个 shared session 永久保留。Codex failure/retry 尚无可控同态证据，故不提前判 PASS |
 | NS-11 | voice/dictation | INTENTIONAL | AgentRunner 核心 journey 不要求语音；Web Speech 既有实验入口不作为 parity 承诺 |
 | NS-12 | desktop 1840/1280、mobile 390、light/dark | PASS | 2026-07-22 `QA88-98.2g-responsive-theme/01..18/21`：1280×720、1840×1000、1952×1465、390×844 的 home/settings/sidebar 均无横溢；`21` 为双侧同逻辑 1952×1465 clean New chat 合并图；mobile composer/controls 全在 viewport |
+| NS-13 | text draft：session/Home 切换、reload、tab isolation、restart、Send/clear | UNTESTED | 2026-07-23 `QA88-98.4l-resilience/01..06`：AgentRunner shared unresolved-conflict session 在 1100×700 deep-link reload、同 tab draft byte-identical 恢复、显式 clear 不复活、第二 tab 隔离、550×350 等效 200% reflow 零横溢均通过；clean deploy restart 与 Codex 同态证据待本批收口，未提前判 PASS |
 
 ### 7.3 Thread、timeline 与运行中协作
 

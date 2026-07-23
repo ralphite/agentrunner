@@ -474,6 +474,14 @@ INC-98 将该方法固化为持续循环：
   也不在每个 streamed event 上额外请求 Working Tree。真实共享 workspace 的两个 session
   分别覆盖 populated Last Turn 与 empty Last Turn，跨 session 导航后主卡均持续显示同一个
   blocker，Review 的 Commit/Commit & push guard 与 Push 可用语义保持不变。
+- **98.4l reload/restart/keyboard/zoom design note**：真实 1100×700 deep-link reload
+  保住了 session route、selected row 与 conflict blocker，却把刚输入且未发送的两行 CJK
+  text draft 清空。现有 `sessionSpecs.ts` 明确把 draft 只放 module `Map`，并把 reload
+  丢失写成 “fine”；这与 UJ-24 的连续操作目标不符。沿用既有 per-session/home key 与
+  `resetInput`，只把 text draft 镜像到当前 tab 的 `sessionStorage`：reload 同 tab 恢复，
+  不同 tab 各自独立；Send、slash clear 与显式清空同步删除；storage 异常时仍保留当前
+  module memory，不阻断输入。附件、fork durable draft、daemon/journal 与跨设备同步均不
+  改，本批不把 text 修复扩大为附件持久化。UI 无新增控件/文案，默认态保持安静。
 
 ## Spec delta
 

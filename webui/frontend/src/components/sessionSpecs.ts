@@ -43,15 +43,45 @@ export const rememberAccess = (sid: string, a: string) => {
 };
 export const recallAccess = (sid: string): string | undefined => access[sid];
 
-// Per-session composer drafts: switching sessions keeps what you were typing and
-// restores it when you come back (send/clear wipes it). Keyed by sid; the
-// landing composer uses its own sentinel key. Drafts stay in-memory: losing
-// one on reload is fine, syncing half-typed text across tabs is not.
+// Per-session composer text drafts: switching sessions and reloading this tab
+// keeps what you were typing (send/clear wipes it). sessionStorage is exactly
+// the intended lifetime: reload-safe but tab-local, so two tabs editing the same
+// session never overwrite each other's half-typed text. The in-memory map keeps
+// input working when storage is unavailable or full.
+const DRAFT_PREFIX = "arwebui.draft.";
 const drafts = new Map<string, string>();
+
+function draftStorageKey(key: string): string {
+  return `${DRAFT_PREFIX}${encodeURIComponent(key)}`;
+}
 
 export const rememberDraft = (key: string, text: string) => {
   if (!key) return;
-  if (text) drafts.set(key, text);
-  else drafts.delete(key);
+  if (text) {
+    drafts.set(key, text);
+    try {
+      sessionStorage.setItem(draftStorageKey(key), text);
+    } catch {
+      /* quota/privacy mode — the current tab still has the in-memory copy */
+    }
+    return;
+  }
+  drafts.delete(key);
+  try {
+    sessionStorage.removeItem(draftStorageKey(key));
+  } catch {
+    /* unavailable storage */
+  }
 };
-export const recallDraft = (key: string): string => drafts.get(key) || "";
+export const recallDraft = (key: string): string => {
+  if (!key) return "";
+  const current = drafts.get(key);
+  if (current !== undefined) return current;
+  try {
+    const stored = sessionStorage.getItem(draftStorageKey(key)) || "";
+    if (stored) drafts.set(key, stored);
+    return stored;
+  } catch {
+    return "";
+  }
+};

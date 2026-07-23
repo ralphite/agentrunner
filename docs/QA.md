@@ -2092,3 +2092,12 @@ health/logs/gate。Codex 新 `Daily brief` automation 与所有 AgentRunner shar
 **98.3r 证据**：`qa/runs/2026-07-22-QA88-98.3r-scheduled-detail/` 保存 Codex split detail、
 AgentRunner history/raw-before/structured-after、同 viewport comparison、deep-link/reload/back、DOM contract、
 health/logs/gate。未触发 Run now/Edit/Delete/Pause/Retry/Cancel，未创建、关闭、删除或清理任何数据。
+
+| 98.4l 动作 | 硬断言 |
+|---|---|
+| deep-link reload | shared session `20260723-064535-inc98-4i-shared-conflict-d758ef47097b3d07` 在 1100×700 reload 后 hash、selected sidebar row、`1 merge conflict` 与零横溢保持；loading/Connecting frame 拒收，只收 Connected 稳定图 |
+| text draft reload | session composer 输入两行 CJK marker，不 Send；reload 后 value byte-identical；显式清空后第二次 reload 仍为空，不复活旧 draft |
+| tab isolation | 同一 sid 的另一个新 tab 不读取当前 tab 未发送 draft；不从 localStorage/cookie 或跨 tab channel 猜同步 |
+| restart | 保留 text draft 后普通 daemon/webui restart；同 tab reload 仍恢复 route/draft/blocker，shared store session/workspace/journal 不变 |
+| keyboard/zoom | session main path、Review open/close、command palette 与 composer 在 keyboard-only 路径保持 focus；200% zoom/reflow 下无 body 横溢，主要动作仍可见可达 |
+| 边界 | attachment persistence、跨设备 draft 与 browser crash durable draft 不在本增量；未 Send/Commit/Push/Undo/resolve/abort/close/delete/cleanup |

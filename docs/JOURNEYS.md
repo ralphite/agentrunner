@@ -392,7 +392,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    Commit，子 agent 不提供 Commit。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
    driver 和本地 pin/archive/theme、project pin/remove、sidebar width/section fold
-   设置仍在；theme 的 light/dark/system 在 body 首次 paint 前恢复，浏览器 chrome
+   设置仍在；当前 tab 中未发送的 session/home **text draft** 在 reload 后原样恢复，
+   Send/显式清空后不复活，不跨 tab 同步；附件持久化仍按独立输入边界处理。theme 的
+   light/dark/system 在 body 首次 paint 前恢复，浏览器 chrome
    theme-color 与实际主题同步，不在 reload 时闪出错误配色；desktop sidebar 默认
    320px（既有持久值不迁移），可在 220–480px
    拖拽或键盘调整，mobile 仍为固定

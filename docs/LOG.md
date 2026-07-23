@@ -7181,3 +7181,25 @@ Plugins lifecycle 行（G43），并新增 context window/compaction projection 
 保持 `INTENTIONAL`，Pull Requests 继续归 G13；context 不能用 session cumulative billed
 tokens 或 output `max_tokens` 冒充。矩阵现为 81 行：
 `PASS 24 / GAP 14 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 38`。
+
+---
+
+## 2026-07-23 · INC-98.4l resilience：复杂 QA 转向状态连续性
+
+不再以 clean/default screenshot 代表主界面质量。沿用真实 unresolved-conflict shared
+session `20260723-064535-inc98-4i-shared-conflict-d758ef47097b3d07`，在 1100×700 同时保留
+deep link、selected sidebar row、`1 merge conflict` 与未发送两行 CJK draft。修前 reload
+保住 route/blocker，却把 draft 清空；根因是 `sessionSpecs.ts` 明确只存 module `Map`。
+
+text draft 现镜像到 per-tab `sessionStorage`：同 tab reload/restart 恢复，不跨 tab；Send、
+slash clear 与显式清空同步删除；storage 不可用时退回 memory。未把附件、跨设备或 crash
+durability 偷渡进本增量。真实浏览器断言覆盖修前丢失、修后 byte-identical 恢复、clear 后
+reload 不复活、第二 tab 为空、command palette `Cmd+K`/Escape focus return、Review
+open/close focus return，以及 550×350（1100×700 的 200% 等效 reflow）body 零横溢。
+普通 clean deploy restart 后还要用同一 tab 再收一次 route/draft/blocker，shared
+session/workspace/journal 全保留，未 Send/Commit/Push/Undo/resolve/abort/close/delete。
+
+新增 `sessionSpecs.test.ts` 三项 reload/clear/session-vs-Home 隔离回归；frontend
+`70 files / 737 tests`、`./scripts/check.sh` 全绿。矩阵同时纠正重复的 GL-12：删掉重复
+Plugins 行、补 NS-13 resilience 行，总数仍为 81，真实分布为
+`PASS 24 / GAP 13 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 39`。

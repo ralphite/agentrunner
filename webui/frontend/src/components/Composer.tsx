@@ -615,6 +615,10 @@ export function Composer(props: ComposerProps) {
   };
 
   const resetInput = () => {
+    // Clear synchronously before Home navigation can unmount this Composer;
+    // relying only on the state effect can leave the just-sent draft in
+    // sessionStorage and resurrect it on reload.
+    rememberDraft(draftKey, "");
     setText("");
     setAtts([]);
     setUndoDraft(null);
