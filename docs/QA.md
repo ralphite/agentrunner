@@ -2211,3 +2211,11 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | Resume re-anchor | `SeriesResumed.Base=runner clock.Now`；interval/cron 下一 tick 从 Base 计算，暂停期间 slot 不补跑；self-paced 立即下一轮；坏 control transport 不伪装成功 |
 | user surfaces | CLI status 明示 paused；sessions JSON status=`paused`、无 `next_run_at`、仅 canonical series 带 `schedule_control`；Web API 只收 pause/resume；Scheduled 为 All/Active/Paused，paused row 仅 Resume，active canonical 才 Pause，legacy/terminal 无假 action |
 | Gate | A 闸：driver/daemon/CLI/Web API targeted Go tests、Scheduled 40 focused tests、frontend 73 files/767 tests、production build、Go full gate 与 relevant race suites 已绿。B 闸必须在不影响现有 live work 的获准 restart 窗口执行 shared-store retained series + 1100×700 light/dark/reload/deep-link/browser logs；完成前 G55/SC-05 保持未关闭 |
+
+| 98.5b 动作 | 硬断言 |
+|---|---|
+| typed detail | `ar schedule <sid> status --json` 与 Web API 只投影 full prompt、workspace、agent/model/reasoning、cadence/overlap、iterations/status/next run；system prompt、tools、permissions、verifiers 与 raw spec 不下发 browser |
+| desktop / mobile | retained active series 在 1100×700 为 list/detail split，在 390×844 为 full-surface；deep-link reload、Back→list→reopen、Open history 与 browser Back 全通过 |
+| 红转绿 | 1100×700 action bar 从 scroll body 移为独立 flex sibling，scroll/action 边界 `631/631`；390×844 移除覆盖 detail Back 的全局 sidebar trigger，返回 list 后 trigger 恢复 |
+| 诚实边界 | 未点击 shared series 的 Pause；500 条 shared session 中没有 paused canonical detail，不用 mock 冒充 B 闸。paused/loading/error 真浏览器与 dark theme 待后续；G56 的 edit/notification 继续开放 |
+| Gate / retain | `qa/runs/2026-07-23-QA88-98.5b-scheduled-detail/01..10`；browser logs=`[]`，health/versionMatch=true，75 files/777 frontend tests、production build、`./scripts/check.sh` 全绿；session/journal/workspace/screenshots 全保留 |

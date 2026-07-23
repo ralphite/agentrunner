@@ -579,9 +579,12 @@ INC-98 将该方法固化为持续循环：
 - **A 闸结果（2026-07-23）**：已通过 canonical paused/terminal、legacy in-session、
   not-found、secret exclusion、malformed API、snake→camel capability、deep-link、
   Pause→Resume→history、Escape/focus return、error/retry、archive-current 与
-  `760px` container split/full-surface contract；production build 与
-  `./scripts/check.sh` 全绿。B 闸仍待 shared daemon 的安全重启窗口，不用组件测试冒充
-  1100×700/390×844 真浏览器证据。
+  `760px` container split/full-surface contract。**B 闸部分结果**：shared-store retained
+  active series 已在 1100×700 与 390×844 真浏览器通过 split/full-surface、deep-link
+  reload、Back、Open history 与空 console；并修复 footer overlay 和 mobile
+  sidebar/Back 重叠。500 条 shared session 中没有 paused canonical detail，且不为取证
+  改动真实 series，故 paused/loading/error 真浏览器状态与 dark theme 仍待后续批次；
+  `qa/runs/2026-07-23-QA88-98.5b-scheduled-detail/` 保留全部证据。
 
 ## Spec delta
 

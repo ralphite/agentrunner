@@ -275,34 +275,35 @@ function ScheduleDetailPanel({
           <button onClick={onRetry}>Try again</button>
         </div>
       ) : detail ? (
-        <div className="schedule-detail-scroll">
-          <div className="schedule-detail-title">
-            <span className={`status ${status.cls}`}>{status.text}</span>
-            <h2>{title}</h2>
+        <>
+          <div className="schedule-detail-scroll">
+            <div className="schedule-detail-title">
+              <span className={`status ${status.cls}`}>{status.text}</span>
+              <h2>{title}</h2>
+            </div>
+
+            <div className="schedule-detail-prompt">{detail.prompt || "No standing prompt recorded."}</div>
+
+            <section className="schedule-detail-section" aria-labelledby="schedule-detail-general">
+              <h3 id="schedule-detail-general">Details</h3>
+              <dl>
+                <div><dt>Project</dt><dd title={detail.workspace}>{project}</dd></div>
+                <div><dt>Agent</dt><dd>{detail.agent || "Default agent"}</dd></div>
+                <div><dt>Model</dt><dd>{model}</dd></div>
+                <div><dt>Reasoning</dt><dd>{reasoningText(detail)}</dd></div>
+              </dl>
+            </section>
+
+            <section className="schedule-detail-section" aria-labelledby="schedule-detail-frequency">
+              <h3 id="schedule-detail-frequency">Schedule</h3>
+              <dl>
+                <div><dt>Cadence</dt><dd>{detail.cadence || scheduleLabel(detail.schedule)}</dd></div>
+                <div><dt>Next run</dt><dd>{paused ? "Paused" : detailTime(detail.nextRunAt)}</dd></div>
+                <div><dt>Overlap</dt><dd>{overlap}</dd></div>
+                <div><dt>Iterations</dt><dd>{progress}</dd></div>
+              </dl>
+            </section>
           </div>
-
-          <div className="schedule-detail-prompt">{detail.prompt || "No standing prompt recorded."}</div>
-
-          <section className="schedule-detail-section" aria-labelledby="schedule-detail-general">
-            <h3 id="schedule-detail-general">Details</h3>
-            <dl>
-              <div><dt>Project</dt><dd title={detail.workspace}>{project}</dd></div>
-              <div><dt>Agent</dt><dd>{detail.agent || "Default agent"}</dd></div>
-              <div><dt>Model</dt><dd>{model}</dd></div>
-              <div><dt>Reasoning</dt><dd>{reasoningText(detail)}</dd></div>
-            </dl>
-          </section>
-
-          <section className="schedule-detail-section" aria-labelledby="schedule-detail-frequency">
-            <h3 id="schedule-detail-frequency">Schedule</h3>
-            <dl>
-              <div><dt>Cadence</dt><dd>{detail.cadence || scheduleLabel(detail.schedule)}</dd></div>
-              <div><dt>Next run</dt><dd>{paused ? "Paused" : detailTime(detail.nextRunAt)}</dd></div>
-              <div><dt>Overlap</dt><dd>{overlap}</dd></div>
-              <div><dt>Iterations</dt><dd>{progress}</dd></div>
-            </dl>
-          </section>
-
           <div className="schedule-detail-actions">
             {detail.scheduleControl && (
               <button
@@ -315,7 +316,7 @@ function ScheduleDetailPanel({
             )}
             <button onClick={onHistory}>Open history</button>
           </div>
-        </div>
+        </>
       ) : null}
     </aside>
   );

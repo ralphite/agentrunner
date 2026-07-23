@@ -1,3 +1,4 @@
+// @ts-ignore -- no @types/node in the browser production tsconfig
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -26,7 +27,10 @@ describe("Scheduled detail responsive geometry (G56)", () => {
 
   it("gives long prompt/config content its own vertical scroll surface", () => {
     const scroll = css.match(/\.schedule-detail-scroll\s*\{[^}]*\}/)?.[0];
+    const actions = css.match(/\.schedule-detail-actions\s*\{[^}]*\}/)?.[0];
     expect(scroll).toContain("overflow-y-auto");
     expect(scroll).toContain("min-h-0");
+    expect(actions).toContain("shrink-0");
+    expect(actions).not.toContain("sticky");
   });
 });

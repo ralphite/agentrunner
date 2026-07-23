@@ -1137,7 +1137,7 @@
   .schedule-detail-section dt { @apply text-dim; }
   .schedule-detail-section dd { @apply min-w-0 break-words text-right text-ink; }
   .schedule-detail-actions {
-    @apply sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2 border-t border-line bg-panel px-6 py-4;
+    @apply flex shrink-0 items-center justify-end gap-2 border-t border-line bg-panel px-6 py-4;
   }
   .schedule-detail-actions button { @apply min-h-9; }
   .schedule-detail-loading,
@@ -1151,7 +1151,7 @@
     .schedule-detail-back span { @apply inline; }
     .schedule-detail-close { @apply hidden; }
     .schedule-detail-scroll { @apply px-4 pb-4; }
-    .schedule-detail-actions { @apply -mx-4 px-4; }
+    .schedule-detail-actions { @apply px-4; }
   }
   .page-heading { @apply mb-4 flex items-start justify-between gap-3; }
   /* R80 SCHED-TITLE-SIZE: the Scheduled page title is our own big-heading

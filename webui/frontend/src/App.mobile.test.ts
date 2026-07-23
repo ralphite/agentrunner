@@ -25,6 +25,12 @@ describe("mobile navigation breakpoint", () => {
       ".main:has(.session-layout.changes) > .sidebar-show { display: none; }",
     );
   });
+
+  it("leaves one unambiguous top-left control on a mobile scheduled detail", () => {
+    expect(src).toContain(
+      'effectiveCollapsed && !(isMobile && currentPage === "scheduled" && scheduledDetailSid)',
+    );
+  });
 });
 
 describe("Changes split layout", () => {

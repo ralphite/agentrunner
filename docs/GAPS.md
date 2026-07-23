@@ -771,16 +771,17 @@ scheduled work 的获准窗口完成 shared-store `pause in-flight → daemon re
 SC-05 继续 GAP。
 → UJ-14/UJ-24
 
-**G56 Scheduled series detail/edit/notification projection 缺失 — ❌ 开放（INC-98.3r 实窗取证，中）**
+**G56 Scheduled series detail/edit/notification projection 缺失 — 🟡 detail 第一纵切已交付（INC-98.5b，中）**
 Codex 对真实 `Daily brief` row 单击后在同页 split panel 显示完整 prompt、Runs in/Project、Model、
 Reasoning、Repeat/At、Notifications 与 pause/close；AgentRunner row 单击进入的是 driver iteration history，
 该 history 的 hash deep-link/reload/back 与审计细节更强，但没有 series-level configuration surface。
-当前 sessions projection 只有 title/workspace/status/cadence/nextRunAt，无法忠实重建 standing prompt、
-agent/model/reasoning、notification policy 与可编辑 frequency；不能从子 iteration 或 runtime inspect 猜。
-关闭前需要 daemon typed series detail/read-update API、版本/并发冲突、cadence validation/rebase、notification
-policy、edit/pause 与在飞 iteration 边界、durable receipt；Web UI 应保留现有 Open history，同时提供真实
-detail/edit surface。INC-98.3r 已先把 terminal `Run details` 的全量 JSON wall 改为 structured
-Overview/Usage/Activity，raw 数据仍在 disclosure，此 UI 修复不冒充 G56 已关闭。
+INC-98.5b 已新增 safe typed series detail projection/API 与 responsive same-page detail：完整 standing
+prompt、workspace、agent/model/reasoning、cadence/overlap、iterations/status/next run 均来自 canonical
+journal fold；保留 Open history，并复用 G55 lifecycle capability。1100×700 与 390×844 shared-store
+active series 真验 deep-link/reload/Back/history/零 console；500 条 shared session 中无 paused canonical
+fixture，未为取证改动真实 series。G56 仍开放：需要 typed edit/update API、版本冲突、cadence
+validation/rebase、notification policy 与 durable receipt；paused/loading/error 真浏览器与 dark theme
+也未冒充已测。
 → UJ-14/UJ-24
 
 **G57 当前 context window/compaction 状态的 backend projection 缺失 — ❌ 开放（INC-98.4k 主界面对照，中）**

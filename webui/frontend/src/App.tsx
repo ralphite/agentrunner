@@ -19,7 +19,7 @@ import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
 
 export function App() {
-  const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage, showScheduledDetail } =
+  const { currentSid, currentRunId, currentPage, scheduledDetailSid, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage, showScheduledDetail } =
     useStore();
   const helpOpen = useStore((s) => s.helpOpen);
   const openHelp = useStore((s) => s.openHelp);
@@ -260,7 +260,7 @@ export function App() {
       {/* tabIndex -1 so the skip link can land focus here (not just scroll):
           the next Tab then continues into the conversation / composer. */}
       <div className="main" id="main" tabIndex={-1}>
-        {effectiveCollapsed && (
+        {effectiveCollapsed && !(isMobile && currentPage === "scheduled" && scheduledDetailSid) && (
           <button
             className="sidebar-show"
             onClick={showSidebar}

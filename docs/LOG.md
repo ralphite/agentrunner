@@ -7447,3 +7447,19 @@ relevant race suites、Scheduled 40 focused、frontend 73 files/767 tests 与 pr
 已绿。因共享 daemon
 仍承载 retained live scheduled work，本批未擅自 restart；shared-store 真 series 与
 1100×700 双侧 B 闸待不影响现有 work 的获准窗口，故 G55/SC-05 仍为未关闭。
+
+---
+
+## 2026-07-23 · INC-98.5b typed Scheduled detail
+
+G56 第一纵切新增 safe typed series detail CLI/API 与 responsive same-page panel，canonical
+journal fold 提供 standing prompt、workspace、agent/model/reasoning、cadence/overlap、
+iteration/status/next run；保留 durable Open history，且不向 browser 暴露 raw spec。
+
+shared-store retained active series 在 1100×700 与 390×844 真验时发现并修复两项可见缺陷：
+footer 覆盖 scroll body，及 mobile sidebar trigger 与 Back 同坐标重叠。deep-link reload、
+Back→list→reopen、Open history/browser Back、无横溢与空 console 均通过。没有点击真实
+Pause；500 条 shared session 中无 paused canonical fixture，因此 paused/loading/error
+真浏览器与 dark theme 继续待测。证据在
+`qa/runs/2026-07-23-QA88-98.5b-scheduled-detail/`；75 files/777 frontend tests、
+production build 与 `./scripts/check.sh` 全绿。G56 的 edit/notification 仍开放。
