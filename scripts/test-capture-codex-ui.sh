@@ -22,6 +22,7 @@ done
 [[ "$help" == *"--scheduled-search"* ]]
 [[ "$help" == *"--scheduled-filter"* ]]
 [[ "$help" == *"--scheduled-row"* ]]
+[[ "$help" == *"--scheduled-create"* ]]
 [[ "$help" == *"--viewport"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
@@ -229,7 +230,7 @@ grep -Fq 'window_text_center "$ocr_capture" "Turn plan mode off" "popover-low"' 
 grep -Fq 'window_text_center "$ocr_capture" "What should we build" "main"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
-grep -Fq 'window_text_center "$ocr_capture" "Explore and" "starter"' "$driver"
+grep -Fq 'window_text_center "$ocr_capture" "$composer_cleanup_validate" "starter"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$composer_validate" "main"' "$driver"
@@ -268,6 +269,7 @@ grep -Fq 'codex-scheduled-search-validate' "$driver"
 grep -Fq 'codex-scheduled-filter' "$driver"
 grep -Fq 'codex-scheduled-row' "$driver"
 grep -Fq 'codex-scheduled-row-validate' "$driver"
+grep -Fq 'codex-scheduled-create-validate' "$driver"
 grep -Fq 'AXIsProcessTrusted()' "$driver"
 grep -Fq 'if ((window_resized))' "$driver"
 grep -Fq 'sips --resampleHeightWidth "$viewport_height" "$viewport_width"' "$driver"

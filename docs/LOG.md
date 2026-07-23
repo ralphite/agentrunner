@@ -6995,3 +6995,19 @@ timeline fold 现保留 `series_started.kind`：仅 `best_of_n/parallel` 使用 
 使用 selected；按钮对应为 `Apply selected iteration`，底层 clean-or-nothing promote 不变。
 targeted 94 tests、frontend 69 files/718 tests、production build、full gate 全绿；clean production
 `6ccd4bf5-214730` 在原 durable route 复拍通过，数据继续保留。矩阵状态不变。
+
+---
+
+## 2026-07-22 · INC-98.3u Scheduled compact Create 首步
+
+Codex 在真实 `1280×800` 点击 Scheduled/Create 后不是打开 menu，而是导航 New chat 并预填
+assisted scheduling prompt；未发送、未创建 automation。capture
+driver 新增 `--scheduled-create`，OCR 命中 prompt 后截图，所有失败/成功出口都清空 synthetic draft，
+以 New chat starter 恢复和原 task restore 双断言收口。
+
+同 viewport 合并图证明 AgentRunner 四 preset 的显式 runtime 分流应保留，但首次真图抓到 rich
+menu option 的 `<b>`/`<small>` 横排成连续句。现只把四项 option body 改为两行层级，通用 MenuItem
+不变；dirty production `ec37fa90-dirty-215906` 实测四项 `flex-direction:column`、title/desc
+纵向差 `18px`，Escape 焦点回 `Create scheduled work`，browser logs 空。双方均零新建，shared
+session/workspace/journal 未关闭、删除或清理。SC-03 仍 UNTESTED（尚缺 repeating validation/success
+全链），矩阵保持 `PASS 24 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 38`。

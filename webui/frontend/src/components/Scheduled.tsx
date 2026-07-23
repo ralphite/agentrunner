@@ -526,16 +526,16 @@ export function Scheduled() {
           >
             <MenuLabel>Create</MenuLabel>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "one-time" })}>
-              <Play size={15} /><span><b>One-time run</b><small>Run once in the background</small></span>
+              <Play size={15} /><span className="scheduled-create-option flex min-w-0 flex-1 flex-col gap-0.5"><b>One-time run</b><small>Run once in the background</small></span>
             </MenuItem>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "goal" })}>
-              <Crosshair size={15} /><span><b>Goal</b><small>Keep working until verified</small></span>
+              <Crosshair size={15} /><span className="scheduled-create-option flex min-w-0 flex-1 flex-col gap-0.5"><b>Goal</b><small>Keep working until verified</small></span>
             </MenuItem>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "repeating" })}>
-              <ArrowsClockwise size={15} /><span><b>Repeating</b><small>Run on an interval or cron schedule</small></span>
+              <ArrowsClockwise size={15} /><span className="scheduled-create-option flex min-w-0 flex-1 flex-col gap-0.5"><b>Repeating</b><small>Run on an interval or cron schedule</small></span>
             </MenuItem>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "best-of-n" })}>
-              <Stack size={15} /><span><b>Best of N</b><small>Run isolated attempts and select the best</small></span>
+              <Stack size={15} /><span className="scheduled-create-option flex min-w-0 flex-1 flex-col gap-0.5"><b>Best of N</b><small>Run isolated attempts and select the best</small></span>
             </MenuItem>
           </Menu>
         </div>

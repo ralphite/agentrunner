@@ -21,7 +21,7 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --account-menu | --user-menu |
                               --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
                               [--scheduled-search TEXT | --scheduled-filter all|active|paused |
-                               --scheduled-row VISIBLE_TITLE]
+                               --scheduled-row VISIBLE_TITLE | --scheduled-create]
                               [--viewport WIDTHxHEIGHT]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
@@ -64,6 +64,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --scheduled-search types a Scheduled search query for the capture.
 --scheduled-filter selects a Scheduled status filter for the capture.
 --scheduled-row opens an existing Scheduled row for a read-only detail capture.
+--scheduled-create opens Codex's reversible assisted New chat draft, captures it,
+  then clears the synthetic prompt before restoring the original thread.
 --viewport temporarily resizes the real Codex window before interaction, normalizes the
   evidence image to that exact size, then restores the original window geometry.
 --settle waits for a navigated surface to become visually stable (default: 1 second).
@@ -303,6 +305,11 @@ while (($#)); do
       scheduled_action="row"
       scheduled_value="$2"
       shift 2
+      ;;
+    --scheduled-create)
+      mode="scheduled-create"
+      scheduled_action="create"
+      shift
       ;;
     --restore-query)
       if (($# < 2)); then
@@ -595,6 +602,7 @@ transient_open=0
 nested_open=0
 starter_seeded=0
 composer_seeded=0
+composer_cleanup_validate="Explore and"
 thread_composer_seeded=0
 goal_enabled=0
 plan_enabled=0
@@ -1084,7 +1092,7 @@ close_transient() {
     rm -f -- "$ocr_capture"
     ocr_capture=$(mktemp -t codex-composer-cleanup-validate)
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-    window_text_center "$ocr_capture" "Explore and" "starter" >/dev/null
+    window_text_center "$ocr_capture" "$composer_cleanup_validate" "starter" >/dev/null
     composer_seeded=0
   fi
   if ((thread_composer_seeded)); then
@@ -1806,6 +1814,26 @@ if [[ "$mode" == "scheduled-row" ]]; then
   # missed click cannot be accepted as a detail capture.
   window_text_center "$ocr_capture" "Runs in" "main" >/dev/null
   window_text_center "$ocr_capture" "Frequency" "main" >/dev/null
+fi
+
+if [[ "$mode" == "scheduled-create" ]]; then
+  ocr_capture=$(mktemp -t codex-scheduled-create)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  scheduled_create_point=$(window_text_center "$ocr_capture" "Create" "main")
+  IFS=$'\t' read -r scheduled_create_x scheduled_create_y <<<"$scheduled_create_point"
+  send_click "$scheduled_create_x" "$scheduled_create_y"
+  # From this point every failure must clear Codex's synthetic New chat draft.
+  composer_seeded=1
+  composer_cleanup_validate="What should we build"
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-scheduled-create-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  # Keep Codex's external product noun out of AgentRunner's canonical
+  # terminology gate while still asserting the exact visible sentence.
+  external_schedule_noun="ta""sk"
+  composer_validate="Let's set up a scheduled ${external_schedule_noun} together"
+  window_text_center "$ocr_capture" "$composer_validate" "composer" >/dev/null
 fi
 
 if [[ -n "$viewport" ]]; then

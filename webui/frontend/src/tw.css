@@ -1057,6 +1057,11 @@
      outside its own border. Two-class selector wins over both the desktop
      (w-8) and mobile (w-11) .menu-trigger widths regardless of order. */
   .menu-trigger.page-action { @apply w-auto; }
+  /* INC-98.3u compact capture: the Scheduled Create choices are title +
+     explanation, not one run-on inline sentence. Keep the generic MenuItem
+     horizontal for ordinary menus; only this richer option body stacks. */
+  .scheduled-create-option b { @apply leading-4; }
+  .scheduled-create-option small { @apply text-[12px] leading-4 text-dim; }
   .empty-state { @apply grid justify-items-center gap-1.5 rounded-[12px] border border-line bg-panel px-4 py-8 text-center text-[13px] text-dim; }
   .empty-state b { @apply text-[14px] text-ink; }
   /* R48 SCHED-SUGGEST-LABEL: Codex's Scheduled "Suggestions" heading is a calm

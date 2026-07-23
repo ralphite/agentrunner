@@ -347,6 +347,20 @@ INC-98 将该方法固化为持续循环：
   clean production `6ccd4bf5-214730` 复拍通过：interval 页面同时出现 `selected #1`、
   `Selected iteration: #1`、`Apply selected iteration`，不再包含 `Best-of-N winner`，durable hash 与
   reload history 继续保真。第二个 single-iteration fixture/workspace/journal 同样永久保留。
+- **98.3u Scheduled compact Create flow design note**：继续 SC-03，在双方真实 `1280×800`
+  baseline 触发 Create 并验证可逆返回。实测 Codex `Create` 不是 menu：单击会导航 New chat，并预填
+  Codex 的 assisted-conversation scheduling prompt，但尚未发送/创建 automation。
+  capture driver 必须 OCR 定位右上 `Create`，对新 prompt 做二次断言，截图后清空草稿并确认 starter
+  cards 恢复，再回原 thread；禁止把它继续命名为 create-menu，也禁止遗留 synthetic draft。之后与
+  AgentRunner 四 preset menu + explicit form 同 state combined comparison；任何后续 one-click side
+  effect 立即停止并保留数据。`combined-create-first-step-2560x800.png` 的首次后验审计保留我方显式
+  One-time/Goal/Repeating/Best of N 分流——它比对方先写一段泛化 prompt 更早暴露 runtime 语义；
+  但也抓到四个选项把 `<b>` 与 `<small>` 横排成 `One-time runRun once…`。仅给这组 rich option
+  增加 title/description 两行层级，通用 MenuItem 不变；dirty production
+  `ec37fa90-dirty-215906` 的 computed style 为 `flex-direction:column`，四项 title/desc 纵向差
+  `18px`，Escape 焦点精确回 `Create scheduled work`。修后同 viewport 证据为
+  `combined-create-first-step-fixed-2560x800.png`，browser logs 空；Codex synthetic draft 已清空，
+  原 Codex thread 已恢复，双方均未创建新 run/automation。
 
 ## Spec delta
 

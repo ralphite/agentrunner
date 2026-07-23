@@ -64,6 +64,22 @@ const manyScheduled: Session[] = [
 }));
 
 describe("SC-18 · clicking a suggestion builds the cadence it advertises", () => {
+  it("stacks every Create choice title above its explanation", () => {
+    const { container } = mount();
+    fireEvent.click(screen.getByLabelText("Create scheduled work"));
+
+    const options = [...container.querySelectorAll(".scheduled-create-option")];
+    expect(options).toHaveLength(4);
+    for (const option of options) {
+      expect(option.classList).toContain("flex-col");
+      expect(option.classList).toContain("gap-0.5");
+      expect(option.children).toHaveLength(2);
+      expect(option.children[0].tagName).toBe("B");
+      expect(option.children[1].tagName).toBe("SMALL");
+    }
+    expect(options[0].textContent).toBe("One-time runRun once in the background");
+  });
+
   it("renders Suggestions as the terminal block after the full list", () => {
     useStore.setState({
       runs: [],

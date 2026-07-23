@@ -381,7 +381,7 @@ UNTESTED 38`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 |---|---|---|---|
 | SC-01 | Scheduled list/search/filter 主 shell | PASS | 2026-07-22 Codex `05` ↔ AgentRunner `14` |
 | SC-02 | empty/large list/loading/error/pagination/scroll | UNTESTED | 2026-07-22 `QA88-98.3p-scheduled/02/09` 覆盖双侧真实 populated list 与我方长列表滚动；empty/loading/error/Codex pagination 未齐，不提前判绿 |
-| SC-03 | Create：one-shot/repeating/validation/cancel/success | UNTESTED | 2026-07-22 `QA88-98.3p-scheduled/12/19`：我方真实 Create 四 preset、One-time blank disabled/filled enabled/Cancel 零创建；Codex Create menu 四次可逆校准均未验证，`03..06` 拒收，故不提前判绿 |
+| SC-03 | Create：one-shot/repeating/validation/cancel/success | UNTESTED | 2026-07-22 `QA88-98.3u-scheduled-create/`：Codex Create 已证实为 New chat assisted prompt，截图后 synthetic draft 清空并恢复原 task；我方四 preset 显式分流保留，compact menu 的 title/description 连写已修为两行且 Escape focus return 通过。双方尚未完成 repeating validation/success 全链，不提前判绿 |
 | SC-04 | suggestions：launch/prefill/dismiss | PASS | 2026-07-22 `QA88-98.3q-suggestions/01..07`：Codex `Daily brief` 真点击后无确认直接创建并移入 All；我方三张 card 均真开确认 modal，prompt+cron 精确预填、逐一 Close 零创建。显式确认是安全优势；pointer dismiss 修复后 focus 回原 card，logs=`[]` |
 | SC-05 | active/paused/finished/failed/overlap/retry | GAP | 2026-07-22 `QA88-98.3p-scheduled/08/11/13/16`：Codex Paused 真显示 `cloc`；我方 Active/Finished 真筛选，但无全局 series pause/resume lifecycle/paused projection，见 G55；不得把 Finished 改名 Paused |
 | SC-06 | run detail/deep link/edit/next run/history | GAP | 2026-07-22 `QA88-98.3r-scheduled-detail/01..10`：Codex row click 真开 split series detail；我方 row click 真开完整 iteration history，hash reload/back 均保真，raw inspect wall 已修为 structured Run details。缺 series config/detail/edit/notification projection，见 G56 |
