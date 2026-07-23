@@ -19,6 +19,8 @@ done
 [[ "$help" == *"--user-menu"* ]]
 [[ "$help" == *"--settings"* ]]
 [[ "$help" == *"--settings-tab"* ]]
+[[ "$help" == *"--scheduled-search"* ]]
+[[ "$help" == *"--scheduled-filter"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-send"* ]]
@@ -160,6 +162,12 @@ if $driver --settings-tab appearance >"$tmpdir/settings-tab.out" 2>"$tmpdir/sett
 fi
 grep -Fq -- '--settings-tab requires --settings' "$tmpdir/settings-tab.err"
 
+if $driver --scheduled-filter paused >"$tmpdir/scheduled.out" 2>"$tmpdir/scheduled.err"; then
+  echo "capture driver accepted a Scheduled action without Scheduled surface" >&2
+  exit 1
+fi
+grep -Fq -- 'Scheduled actions require --surface scheduled' "$tmpdir/scheduled.err"
+
 # Query entry must be reversible: the driver may borrow the clipboard to paste
 # into Electron, but it has to preserve every original pasteboard item/type.
 grep -Fq 'pasteboard.pasteboardItems' "$driver"
@@ -248,6 +256,8 @@ grep -Fq 'codex-settings-validate' "$driver"
 grep -Fq 'settings tab validation frame saved' "$driver"
 grep -Fq 'keyboard-shortcuts) settings_label="Keyboard shortcuts"; settings_validation_label="Keyboard shortcuts"' "$driver"
 grep -Fq 'archived) settings_label="Archived chats"; settings_validation_label="Archived chats"' "$driver"
+grep -Fq 'codex-scheduled-search-validate' "$driver"
+grep -Fq 'codex-scheduled-filter' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.

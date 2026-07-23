@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54（均不阻断主 journey） |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume lifecycle 缺 G55（均不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -764,6 +764,17 @@ Codex Archived chats 提供 row trash 与 Delete all；AgentRunner archive/unarc
 workspace/worktree、blob、artifact、fork/child 引用、审计/恢复窗与批量 partial-failure 语义，并要求
 显式确认和可验证 receipt；设计完成前不提供假 delete control。
 → UJ-09/UJ-17/UJ-24
+
+**G55 Scheduled 全局 series pause/resume lifecycle 与 paused projection 缺失 — ❌ 开放（INC-98.3p 实窗取证，中）**
+Codex Scheduled 的真实 Paused filter 显示 `cloc`，说明 pause 是计划 series 的持久 lifecycle；
+AgentRunner 当前 Scheduled 只能从 driver session 的 `nextRunAt`/terminal status 推导 Active/Finished，
+源码明确没有 suspends-driver 的 paused flag，row actions 也没有 Pause/Resume。已有 INC-74
+`ar schedule <sid> pause|resume` 只控制挂在普通 session 内的 schedule，不能冒充全局 driver series
+的统一状态与操作。补齐需先裁决 daemon typed verb/API、journal 持久事件、重启恢复、pause 时在飞
+iteration 的处理、漏 slot/catch-up、resume cadence base/next-run 重锚与可审计 receipt，再将真实
+paused projection 暴露给 Web UI。此前保持 `Finished` 诚实文案，禁止只改 label 或从“没有 next run”猜
+Paused。
+→ UJ-14/UJ-24
 
 **G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue

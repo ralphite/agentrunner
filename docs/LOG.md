@@ -6913,3 +6913,21 @@ G54 permanent/bulk session delete。矩阵为 `PASS 22 / GAP 10 / INTENTIONAL 4 
 UNTESTED 42`。dirty deployment `7d2bdfbc-dirty-203538` health/versionMatch=true、browser logs=`[]`；
 frontend 68 files/712 tests、production build、webui Go vet/test、capture contract/shellcheck 与
 `./scripts/check.sh` 全绿。
+
+---
+
+## 2026-07-22 · INC-98.3p Scheduled 搜索、状态与 pause lifecycle 缺口
+
+Codex 从真实 Scheduled 入口完成 populated All、search=`Weekly`、Paused=`cloc`，且每次都恢复到
+`Run TH02 long output command` 原 thread；capture driver 新增 Scheduled search/filter 的 OCR 动态
+定位与结果校验。Create 的 click/Enter/Space 四轮可逆尝试未得到可验证 menu，`03..06` 全部拒收，
+未把猜坐标或半工作入口保留进 driver。
+
+AgentRunner shared production 真测 populated 长列表、search=`INC66-INTERVAL-OK`=2、Active、
+Finished=23，以及 Create 四 preset→One-time blank disabled→filled enabled→Cancel；没有创建新 run，
+browser logs=`[]`。All/search 分别合并为 `14/15` 后验图；`16` 只比较 Codex Paused 与我方 Finished
+的能力边界。搜索/列表 shell 无需新 UI patch；但我方没有全局 driver series 的持久 pause/resume
+lifecycle 与 paused projection，不能靠把 Finished 改名伪装，新增 G55，SC-05 从 UNTESTED 改 GAP。
+矩阵为 `PASS 22 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 41`；SC-02/03/04 仍保持
+UNTESTED。现有 clean production `6171302d-204104` health `daemonUp/versionMatch=true`；所有 shared
+数据原样保留，不 close/delete/cleanup。

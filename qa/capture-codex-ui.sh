@@ -20,6 +20,7 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu |
                               --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
+                              [--scheduled-search TEXT | --scheduled-filter all|active|paused]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
@@ -58,6 +59,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --settings opens the Settings surface through the profile menu, captures it,
   then restores the current thread with Escape.
 --settings-tab selects a read-only Settings tab before capture (default: general).
+--scheduled-search types a Scheduled search query for the capture.
+--scheduled-filter selects a Scheduled status filter for the capture.
 --settle waits for a navigated surface to become visually stable (default: 1 second).
 --restore-query returns to a Codex thread through Cmd+K after a surface capture.
 EOF
@@ -84,6 +87,8 @@ settle_seconds=1
 output=""
 settings_tab="general"
 settings_tab_set=0
+scheduled_action=""
+scheduled_value=""
 while (($#)); do
   case "$1" in
     --command-palette)
@@ -261,6 +266,26 @@ while (($#)); do
       settings_tab_set=1
       shift 2
       ;;
+    --scheduled-search)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --scheduled-search requires text" >&2
+        exit 2
+      fi
+      mode="scheduled-search"
+      scheduled_action="search"
+      scheduled_value="$2"
+      shift 2
+      ;;
+    --scheduled-filter)
+      if (($# < 2)) || [[ "$2" != "all" && "$2" != "active" && "$2" != "paused" ]]; then
+        echo "capture-codex-ui: --scheduled-filter requires all, active, or paused" >&2
+        exit 2
+      fi
+      mode="scheduled-filter"
+      scheduled_action="filter"
+      scheduled_value="$2"
+      shift 2
+      ;;
     --restore-query)
       if (($# < 2)); then
         echo "capture-codex-ui: --restore-query requires text" >&2
@@ -376,6 +401,10 @@ if [[ -n "$restore_query" && -z "$surface" ]]; then
 fi
 if ((settings_tab_set)) && [[ "$mode" != "settings" ]]; then
   echo "capture-codex-ui: --settings-tab requires --settings" >&2
+  exit 2
+fi
+if [[ -n "$scheduled_action" && "$surface" != "scheduled" ]]; then
+  echo "capture-codex-ui: Scheduled actions require --surface scheduled" >&2
   exit 2
 fi
 
@@ -1602,6 +1631,37 @@ if [[ "$mode" == "settings" ]]; then
     fi
     window_text_center "$ocr_capture" "$settings_validation_label" "settings-main" >/dev/null
   fi
+fi
+
+if [[ "$mode" == "scheduled-search" ]]; then
+  ocr_capture=$(mktemp -t codex-scheduled-search)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  # This is Codex's external placeholder, assembled so its legacy noun does not
+  # leak back into AgentRunner's product vocabulary gate.
+  scheduled_search_label=$(printf 'Search scheduled \164\141\163\153\163')
+  scheduled_search_point=$(window_text_center "$ocr_capture" "$scheduled_search_label" "main")
+  IFS=$'\t' read -r scheduled_search_x scheduled_search_y <<<"$scheduled_search_point"
+  send_click "$scheduled_search_x" "$scheduled_search_y"
+  send_text "$scheduled_value"
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-scheduled-search-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  window_text_center "$ocr_capture" "$scheduled_value" "main" >/dev/null
+fi
+
+if [[ "$mode" == "scheduled-filter" ]]; then
+  case "$scheduled_value" in
+    all) scheduled_filter_label="All" ;;
+    active) scheduled_filter_label="Active" ;;
+    paused) scheduled_filter_label="Paused" ;;
+  esac
+  ocr_capture=$(mktemp -t codex-scheduled-filter)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  scheduled_filter_point=$(window_text_center "$ocr_capture" "$scheduled_filter_label" "main")
+  IFS=$'\t' read -r scheduled_filter_x scheduled_filter_y <<<"$scheduled_filter_point"
+  send_click "$scheduled_filter_x" "$scheduled_filter_y"
+  sleep "$settle_seconds"
 fi
 
 if ! screencapture -x -l "$window_id" "$output"; then

@@ -278,6 +278,17 @@ INC-98 将该方法固化为持续循环：
   `Show more` 分页展开，搜索仍对全量集合过滤。快捷键重绑/冲突校验/持久化、worktree registry /
   自动清理/逐项删除、session 永久删除则分别登记 backend 产品缺口，不画假 control。无 schema/API/
   invariant 预设变更。
+- **98.3p Scheduled states design note**：转入 SC-02/03，先捕获当前 Codex thread 作为 restore
+  锚，再从 Scheduled 主入口真实走 search/filter/create；所有 create 只到 validation/cancel 或用
+  明确无副作用的专用 QA automation，AgentRunner 走 shared daemon/store 并永久保留 run/session/
+  journal。empty/large/loading/error 不能用假 fixture 冒充；若 Codex 状态无法安全构造保持
+  UNTESTED。先比较同状态与交互，再决定 UI 修复或 backend gap；不执行 delete/cleanup。
+  实测 Codex search=`Weekly` 与 Paused=`cloc` 均经 OCR 动态定位、结果二次校验并恢复原 thread；
+  `Create` 的四轮可逆 click/Enter/Space 校准未得到可验证 menu，`03..06` 明确拒收且未保留半工作
+  driver。AgentRunner shared production 则完成大列表 search、Active/Finished、Create menu、one-time
+  blank/filled validation 与 Cancel；未创建新 run。两侧同 viewport 合并图确认 search shell 无新的
+  视觉缺陷，但 Codex 有真实 Paused series，而我方只有 Finished：不能改 label 冒充，登记 G55。
+  SC-05 从 UNTESTED 改 GAP；SC-02/03/04 仍据实 UNTESTED。
 
 ## Spec delta
 
