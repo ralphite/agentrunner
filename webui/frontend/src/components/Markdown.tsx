@@ -5,7 +5,7 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
-import { AR } from "../api";
+import { productionAppServices, useAppServices } from "../app/appServices";
 import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { Lightbox } from "./Lightbox";
@@ -29,12 +29,13 @@ import { rehypeHighlight } from "./highlight";
 // already-highlighted <span> nodes from rehypeHighlight. The Wrap toggle flips
 // the body between horizontal scroll (default) and soft-wrapping long lines.
 function CodeBlock({ raw, lang, className, children }: { raw: string; lang?: string; className?: string; children: ReactNode }) {
+  const { clock } = useAppServices();
   const [copied, setCopied] = useState(false);
   const [wrap, setWrap] = useState(false);
   const copy = async () => {
     await copyText(raw);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+    clock.setTimeout(() => setCopied(false), 1200);
   };
   return (
     <div className="my-[2px] border border-line rounded-[12px] overflow-hidden bg-panel-2 max-w-full">
@@ -132,11 +133,15 @@ function isExternalSrc(src: string): boolean {
 // A leading "./" or "/" is stripped so both `![a](./x.png)` and `![a](/x.png)`
 // mean the same workspace-relative file (the file endpoint rejects absolute host
 // paths outright, so a bare leading slash could only ever have been a 400).
-export function resolveSrc(sid: string, src: string): string {
+export function resolveSrc(
+  sid: string,
+  src: string,
+  fileURL = productionAppServices.api.fileURL,
+): string {
   if (isExternalSrc(src)) return src;
   const rel = src.replace(/^\.?\/+/, "");
   if (!sid || !rel) return src;
-  return AR.fileURL(sid, rel);
+  return fileURL(sid, rel);
 }
 
 const basename = (p: string) => (p.split(/[?#]/)[0].split("/").pop() || p);
@@ -216,8 +221,9 @@ export function inlinedImagePaths(sid: string): Set<string> {
 // the agent may have referenced a path it never actually wrote, or the file may
 // have been moved since the turn ended, and the reader deserves to see which.
 function MdImage({ sid, src, alt, onOpen }: { sid: string; src: string; alt: string; onOpen: (src: string) => void }) {
+  const { api } = useAppServices();
   const [failed, setFailed] = useState(false);
-  const url = resolveSrc(sid, src);
+  const url = resolveSrc(sid, src, api.fileURL);
   // While this image is mounted, the turn's artifact row must not repeat it
   // (TH-9). A failed load still counts: the fallback link below names the file,
   // so a thumbnail card of the same broken file would add nothing but noise.
@@ -286,6 +292,7 @@ const baseComponents: Components = {
 // session) so callers keep the original <Markdown text={…} /> surface; it stays
 // overridable for tests and for any future off-thread render.
 export function Markdown({ text, sid }: { text: string; sid?: string }) {
+  const { api } = useAppServices();
   const currentSid = useStore((s) => s.currentSid);
   const ctxSid = sid ?? currentSid ?? "";
   const root = useRef<HTMLDivElement>(null);
@@ -320,7 +327,7 @@ export function Markdown({ text, sid }: { text: string; sid?: string }) {
         <Lightbox
           images={group.srcs}
           index={group.index}
-          resolve={(s) => resolveSrc(ctxSid, s)}
+          resolve={(s) => resolveSrc(ctxSid, s, api.fileURL)}
           onIndex={(i) => setGroup((g) => (g ? { ...g, index: i } : g))}
           onClose={() => setGroup(null)}
         />

@@ -9,7 +9,6 @@ const frontendRoot = path.join(repoRoot, "webui/frontend");
 const require = createRequire(path.join(frontendRoot, "package.json"));
 const ts = require("typescript");
 const srcRoot = path.join(frontendRoot, "src");
-const componentsRoot = path.join(srcRoot, "components");
 const outputPath = path.join(frontendRoot, "storybook-baseline.json");
 
 function walk(dir) {
@@ -29,7 +28,8 @@ function relative(file) {
 function isProductionComponent(file) {
   return (
     file.endsWith(".tsx") &&
-    !/\.(?:test|spec|stories)\.tsx$/.test(file)
+    !/\.(?:test|spec|stories)\.tsx$/.test(file) &&
+    !file.includes(`${path.sep}storybook${path.sep}`)
   );
 }
 
@@ -173,16 +173,22 @@ const parsed = new Map(
   ]),
 );
 
-const productionComponents = walk(componentsRoot)
+// Inventory the whole production source tree, not only the legacy
+// src/components folder. INC-99 deliberately moves shells/pages/features into
+// new directories; a component that escapes the denominator during that move
+// would make the coverage number improve while actual coverage regressed.
+const productionComponents = walk(srcRoot)
   .filter(isProductionComponent)
   .map((file) => {
     const text = fs.readFileSync(file, "utf8");
+    const names = componentNames(parsed.get(file));
     return {
       source: relative(file),
       lines: text === "" ? 0 : text.split(/\r?\n/).length - (text.endsWith("\n") ? 1 : 0),
-      ...componentNames(parsed.get(file)),
+      ...names,
     };
-  });
+  })
+  .filter((file) => file.exports.length > 0 || file.privateVisibleCandidates.length > 0);
 
 const tests = sourceFiles.filter((file) => /\.(?:test|spec)\.(?:ts|tsx)$/.test(file));
 const productionSources = sourceFiles.filter(

@@ -25,6 +25,7 @@ import {
   Wrench,
   X,
 } from "@phosphor-icons/react";
+import { useAppServices } from "../app/appServices";
 import {
   askUserDetail,
   completedTurnDurations,
@@ -159,6 +160,7 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 // it is visible where — no branchy JSX, and the tier ladder (shortTime) keeps
 // producing a real label on the rows that do show one (the hover-revealed ones).
 function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onContinue?: () => Promise<void> }) {
+  const { clock } = useAppServices();
   const [copied, setCopied] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const [continueError, setContinueError] = useState("");
@@ -166,7 +168,7 @@ function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onCon
   const copy = async () => {
     await copyText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+    clock.setTimeout(() => setCopied(false), 1200);
   };
   const time = shortTime(ts);
   return (
@@ -199,6 +201,7 @@ function StepIcon({ status }: { status: ToolItem["status"] }) {
 // The outer summary already carries a short one-line command, so the detail
 // repeats only long/multiline commands, then output + terminal state + Copy.
 function ShellDetail({ t }: { t: ToolItem }) {
+  const { clock } = useAppServices();
   const [copied, setCopied] = useState(false);
   const parse = (raw: any) => {
     if (typeof raw !== "string") return raw;
@@ -228,7 +231,7 @@ function ShellDetail({ t }: { t: ToolItem }) {
   const copy = async () => {
     await copyText(copyBody);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+    clock.setTimeout(() => setCopied(false), 1200);
   };
   return (
     <div className="shell min-w-0 max-w-full">
@@ -1126,6 +1129,7 @@ export function TimelineView({
   loading?: boolean;
   onContinue?: (item: BubbleItem) => Promise<void>;
 }) {
+  const { storage } = useAppServices();
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
   const visible = showSys
@@ -1152,7 +1156,7 @@ export function TimelineView({
   const clearSavedPosition = () => {
     if (!scrollStorageKey) return;
     try {
-      sessionStorage.removeItem(scrollStorageKey);
+      storage.session.removeItem(scrollStorageKey);
     } catch {
       // Storage can be unavailable in hardened/private browser contexts.
     }
@@ -1220,7 +1224,7 @@ export function TimelineView({
       restored.current = true;
       let savedTop: number | null = null;
       try {
-        const raw = sessionStorage.getItem(scrollStorageKey);
+        const raw = storage.session.getItem(scrollStorageKey);
         if (raw !== null) {
           const parsed = Number(raw);
           if (Number.isFinite(parsed) && parsed >= 0) savedTop = parsed;
@@ -1287,7 +1291,7 @@ export function TimelineView({
       clearSavedPosition();
     } else if (scrollStorageKey) {
       try {
-        sessionStorage.setItem(scrollStorageKey, String(el.scrollTop));
+        storage.session.setItem(scrollStorageKey, String(el.scrollTop));
       } catch {
         // The in-memory interaction remains correct when storage is unavailable.
       }

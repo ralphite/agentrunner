@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AR } from "../api";
+import { useAppServices } from "../app/appServices";
 
 // useDictation is server-side dictation (INC-56, HANDA-PARITY #18): record with
 // MediaRecorder, upload the clip through the existing /api/upload, then hand its
@@ -12,6 +12,7 @@ export function useDictation(
   context: () => string,
   onError: (msg: string) => void,
 ) {
+  const { api } = useAppServices();
   const supported =
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices?.getUserMedia &&
@@ -41,8 +42,8 @@ export function useDictation(
     setBusy(true);
     try {
       const file = new File([blob], "dictation." + extForMime(mimeType), { type: blob.type || mimeType });
-      const up = await AR.upload(file);
-      const { text } = await AR.dictate(up.path, contextRef.current());
+      const up = await api.upload(file);
+      const { text } = await api.dictate(up.path, contextRef.current());
       const t = (text || "").trim();
       if (t) onTextRef.current(t);
     } catch (e: any) {

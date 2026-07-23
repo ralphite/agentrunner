@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useStore } from "../store";
 import { resetAll } from "../theme";
 import { matchesQuery } from "./SettingsSearch";
+import { useAppServices } from "../app/appServices";
 
 // SettingsGeneral is the Settings landing (Codex's Settings → General). Kept to
 // things this slice can honestly own: an at-a-glance status line and a real
 // "reset all settings" that clears the appearance + git prefs it persists.
 export function SettingsGeneral({ query, onReset }: { query: string; onReset: () => void }) {
+  const { storage } = useAppServices();
   const health = useStore((s) => s.health);
   const sessions = useStore((s) => s.sessions);
   const [confirming, setConfirming] = useState(false);
@@ -15,7 +17,7 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
   const any = show("status daemon connection sessions") || show("reset settings defaults appearance");
 
   const doReset = () => {
-    resetAll();
+    resetAll(storage.local);
     setConfirming(false);
     onReset();
   };

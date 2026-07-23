@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useStore } from "../store";
+import { useAppStoreApi, useStore } from "../store";
 import { matchesQuery } from "./SettingsSearch";
 
 const PAGE_SIZE = 40;
@@ -10,6 +10,7 @@ const PAGE_SIZE = 40;
 // sessions that live in it. Deleting/pruning worktrees needs a backend contract
 // that doesn't exist yet, so it's called out rather than faked.
 export function SettingsWorktrees({ query }: { query: string }) {
+  const store = useAppStoreApi();
   const sessions = useStore((s) => s.sessions);
   const renames = useStore((s) => s.renames);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -50,7 +51,7 @@ export function SettingsWorktrees({ query }: { query: string }) {
               <button
                 key={t.id}
                 className="rs-wt-session min-w-0 max-w-full w-full whitespace-normal break-words [overflow-wrap:anywhere] text-left"
-                onClick={() => useStore.getState().select(t.id)}
+                onClick={() => store.getState().select(t.id)}
                 title="Open this session"
               >
                 {t.title}

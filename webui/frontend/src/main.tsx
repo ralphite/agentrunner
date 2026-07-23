@@ -1,13 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./tw.css";
-import { App } from "./App";
+import { AppRuntime } from "./app/AppRuntime";
 import { applyTheme, loadTheme } from "./theme";
 
 applyTheme(loadTheme());
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <AppRuntime />
   </React.StrictMode>,
 );

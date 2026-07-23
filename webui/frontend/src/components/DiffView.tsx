@@ -24,7 +24,8 @@ import {
   ClockCounterClockwise,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { AR, isBinaryPath, pushErrorMessage } from "../api";
+import { isBinaryPath, pushErrorMessage } from "../api";
+import { useAppServices } from "../app/appServices";
 import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
@@ -145,17 +146,17 @@ const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
 // "0" — the user reaching for the toolbar / `…` switch to turn wrap off — turns
 // it off; that choice still persists exactly as before. Absent key → wrap on.
 const WRAP_KEY = "ar.diff.wrap";
-const loadWrap = (): boolean => {
+const loadWrap = (storage: Storage): boolean => {
   try {
-    const v = localStorage.getItem(WRAP_KEY);
+    const v = storage.getItem(WRAP_KEY);
     return v === null ? true : v === "1"; // unset → default on; explicit "0" → off
   } catch {
     return true; // private mode / storage disabled: keep the default "nothing clipped" stance
   }
 };
-const saveWrap = (on: boolean) => {
+const saveWrap = (storage: Storage, on: boolean) => {
   try {
-    localStorage.setItem(WRAP_KEY, on ? "1" : "0");
+    storage.setItem(WRAP_KEY, on ? "1" : "0");
   } catch {
     /* ignore */
   }
@@ -171,17 +172,17 @@ const saveWrap = (on: boolean) => {
 // state). Unparsable/absent value → the default, never a crash.
 const SCOPE_KEY = "ar.diff.scope";
 const isScope = (v: unknown): v is DiffScope => v === "working-tree" || v === "last-turn";
-const loadScope = (): DiffScope => {
+const loadScope = (storage: Storage): DiffScope => {
   try {
-    const v = localStorage.getItem(SCOPE_KEY);
+    const v = storage.getItem(SCOPE_KEY);
     return isScope(v) ? v : "last-turn";
   } catch {
     return "last-turn"; // private mode / storage disabled / test stub
   }
 };
-const saveScope = (s: DiffScope) => {
+const saveScope = (storage: Storage, s: DiffScope) => {
   try {
-    localStorage.setItem(SCOPE_KEY, s);
+    storage.setItem(SCOPE_KEY, s);
   } catch {
     /* ignore */
   }
@@ -299,6 +300,7 @@ function FileHead({
 // "+1", panel says "No changes this turn"). It is a hint, not a preference:
 // it never persists, and entries that make no claim pass nothing.
 export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?: () => void; initialScope?: DiffScope | null }) {
+  const { api, storage } = useAppServices();
   const { toast, openPrompt } = useStore();
   const bumpWorkspaceEpoch = useStore((s) => s.bumpWorkspaceEpoch);
   // INC-41 TH-5 · a file the thread's change card asked us to open. It is a
@@ -313,7 +315,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [scope, setScope] = useState<DiffScope>(() => initialScope ?? loadScope());
+  const [scope, setScope] = useState<DiffScope>(() => initialScope ?? loadScope(storage.local));
   const scopeTriggerRef = useRef<HTMLButtonElement>(null);
   const scopeFocusPending = useRef(false);
   // The panel stays mounted while the timeline's changes card is still
@@ -330,7 +332,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const pickScope = (s: DiffScope) => {
     picked.current = true;
     scopeFocusPending.current = true;
-    saveScope(s);
+    saveScope(storage.local, s);
     setScope(s);
   };
   const requestID = useRef(0);
@@ -355,10 +357,10 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const [view, setView] = useState<"inline" | "split">("inline");
   // DF-4 · soft-wrap long diff lines (see WRAP_KEY above). Off = Codex's default
   // (one horizontal scroll for the whole rail); on = nothing is clipped.
-  const [wrap, setWrap] = useState(loadWrap);
+  const [wrap, setWrap] = useState(() => loadWrap(storage.local));
   const toggleWrap = () =>
     setWrap((w) => {
-      saveWrap(!w);
+      saveWrap(storage.local, !w);
       return !w;
     });
   // INC-41 RVW-BINCOUNT · what the untracked cards found out, kept where the file
@@ -427,7 +429,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
     const currentRequest = ++requestID.current;
     setData(null);
     setErr("");
-    AR.diff(sid, scope)
+    api.diff(sid, scope)
       .then((d) => {
         if (currentRequest !== requestID.current) return;
         // RVW-4 · the silent fallback. `data` stays null, so the skeleton simply
@@ -504,7 +506,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       title: thenPush ? "Commit & push" : "Commit changes",
       label: "commit message",
       // Seed from the Settings › Git commit-message template (INC-41 H4).
-      initial: loadGitPrefs().commitTemplate,
+      initial: loadGitPrefs(storage.local).commitTemplate,
       submitLabel: thenPush ? "Commit & push" : "Commit",
       onSubmit: (message) => void doCommit(message, thenPush),
     });
@@ -512,9 +514,9 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const doCommit = async (message: string, thenPush = false) => {
     setBusy(true);
     try {
-      await AR.commit(sid, message);
+      await api.commit(sid, message);
       if (thenPush) {
-        const r = await AR.push(sid);
+        const r = await api.push(sid);
         toast(r.branch ? `committed & pushed ${r.branch}` : "committed & pushed", "info");
       } else {
         toast("committed", "info");
@@ -533,7 +535,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const doPush = async () => {
     setBusy(true);
     try {
-      const r = await AR.push(sid);
+      const r = await api.push(sid);
       toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
       load();
       bumpWorkspaceEpoch();
@@ -564,7 +566,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const gitInit = async () => {
     setBusy(true);
     try {
-      await AR.gitInit(sid);
+      await api.gitInit(sid);
       toast("workspace is now a git repository — future changes will show here", "info");
       load();
       bumpWorkspaceEpoch();
@@ -1187,7 +1189,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
             panel's primary action did not exist: not in the bar, and not in `…`
             either (Apply/Remove are working-tree-gated too, so the overflow held
             nothing but Refresh). The commit itself was never scope-dependent —
-            AR.commit stages the workspace, which is the same workspace whichever
+            api.commit stages the workspace, which is the same workspace whichever
             diff you happen to be reading — so the gate was protecting nothing.
             It is resident now, in every scope, and states its own unavailability
             (disabled) instead of vanishing, exactly as the golden's greyed-out
@@ -1428,7 +1430,7 @@ function DiffSkeleton() {
 // remainder: binary blobs, files over 256KB, and anything past the inline
 // budget. Those used to render as bare paths in a text strip. Here they are the
 // same `details.filediff` card as any other file — A glyph, path, `+N −0`, a
-// disclosure — with their body read from the workspace on demand (AR.blob, the
+// disclosure — with their body read from the workspace on demand (api.blob, the
 // endpoint the "N unmodified lines" bands already use) and rendered as what it
 // is: a file made entirely of added lines.
 function UntrackedFile({
@@ -1452,6 +1454,7 @@ function UntrackedFile({
   onFact?: (path: string, fact: UntrackedFact) => void;
   edgeToEdge: boolean;
 }) {
+  const { api } = useAppServices();
   const [open, setOpen] = useState(defaultOpen);
   const [lines, setLines] = useState<string[] | null>(null);
   // INC-41 DF-D7 · `untracked` is, by construction, the files git would not
@@ -1477,7 +1480,7 @@ function UntrackedFile({
   useEffect(() => {
     if (failed || (!open && !prefetch) || lines) return;
     let alive = true;
-    AR.blob(sid, path)
+    api.blob(sid, path)
       .then((r) => alive && setLines(r.lines))
       // Silent: an oversized file is an expected failure here, not an error the
       // user has to act on. The card says so in place of its rows.
@@ -1543,7 +1546,7 @@ function UntrackedFile({
 // clickable "N unmodified lines" collapser bands Codex shows before the first
 // hunk, between hunks, and (INC-41 RD-2) after the last hunk, so every file can
 // be walked all the way to EOF. Clicking a band fetches the file's current text
-// once (AR.blob) and reveals the hidden unmodified region in place; clicking the
+// once (api.blob) and reveals the hidden unmodified region in place; clicking the
 // revealed region's header collapses it again. The split view keeps the plain
 // hunk-separator rendering (its paired-column model has no per-row anchor to
 // hang a band on), so context expansion lives in the default inline layout.
@@ -1564,6 +1567,7 @@ function FileBody({
   hunkCount: number;
   prefetch: boolean;
 }) {
+  const { api } = useAppServices();
   const toast = useStore((s) => s.toast);
   // A trailing gap only exists where there's a new side that the diff might stop
   // short of: an added file's diff *is* the whole file, and a deleted one has no
@@ -1597,7 +1601,7 @@ function FileBody({
   useEffect(() => {
     if (unreadable || !prefetch || !needsBlob || blob || blobFailed) return;
     let alive = true;
-    AR.blob(sid, path)
+    api.blob(sid, path)
       .then((r) => alive && setBlob(r.lines))
       .catch(() => alive && setBlobFailed(true)); // silent: the diff itself still renders
     return () => {
@@ -1618,7 +1622,7 @@ function FileBody({
     if (!blob) {
       setLoadingIdx(idx);
       try {
-        const r = await AR.blob(sid, path);
+        const r = await api.blob(sid, path);
         setBlob(r.lines);
       } catch (e: any) {
         toast(e.message, "error", e.details);

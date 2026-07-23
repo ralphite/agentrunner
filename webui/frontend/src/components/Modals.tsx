@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Folder, Globe, Terminal, X } from "@phosphor-icons/react";
-import { AR } from "../api";
+import { useAppServices } from "../app/appServices";
 import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
 import { scheduleFieldError } from "../scheduleValidate";
@@ -270,11 +270,12 @@ function PromptModal({
 }
 
 function useWorkspace() {
+  const { api } = useAppServices();
   const { toast, openPrompt } = useStore();
   const [ws, setWs] = useState("");
   const mk = async () => {
     try {
-      setWs((await AR.makeWorkspace()).path);
+      setWs((await api.makeWorkspace()).path);
     } catch (e: any) {
       toast(e.message);
     }
@@ -291,7 +292,7 @@ function useWorkspace() {
       }
       return v;
     }
-    const path = (await AR.makeWorkspace()).path;
+    const path = (await api.makeWorkspace()).path;
     setWs(path);
     return path;
   };
@@ -314,7 +315,7 @@ function useWorkspace() {
       placeholder: "/path/to/repo",
       onSubmit: async (repo) => {
         try {
-          setWs((await AR.makeWorktree(repo, "")).path);
+          setWs((await api.makeWorktree(repo, "")).path);
           toast("created worktree", "info");
         } catch (e: any) {
           toast(e.message);
@@ -382,6 +383,7 @@ function NewSessionModal({
   initialModel?: string;
   initialEffort?: string;
 }) {
+  const { api, storage } = useAppServices();
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose, mkWorktree } = useWorkspace();
   const [msg, setMsg] = useState(initialMessage || "");
@@ -398,7 +400,7 @@ function NewSessionModal({
 
   useEffect(() => {
     if (spec.trim()) return;
-    AR.agents()
+    api.agents()
       .then((catalog) => setSpec((current) => current.trim() ? current : (catalog.find((entry) => entry.name === "dev") || catalog[0])?.yaml || ""))
       .catch((error: Error) => toast(error.message));
   }, []);
@@ -409,9 +411,18 @@ function NewSessionModal({
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
       const workspace = await ensure();
-      const r = await AR.newSession({ provider, model, effort, spec, extraSpecs, workspace, message: msg.trim(), mode });
-      rememberSpec(r.sid, spec);
-      rememberModel(r.sid, { provider, model, effort });
+      const r = await api.newSession({
+        provider,
+        model,
+        effort,
+        spec,
+        extraSpecs,
+        workspace,
+        message: msg.trim(),
+        mode,
+      });
+      rememberSpec(r.sid, spec, storage.local);
+      rememberModel(r.sid, { provider, model, effort }, storage.local);
       close();
       await refreshSessions();
       select(r.sid);
@@ -495,6 +506,7 @@ function RunModal({
   cadence?: CadenceSpec;
   returnFocus?: HTMLElement;
 }) {
+  const { api, clock } = useAppServices();
   const { openModal, select, selectRun, refreshRuns, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose } = useWorkspace();
   // SC-18 — the form OPENS on the cadence the caller already showed the user (a
@@ -520,7 +532,7 @@ function RunModal({
   const close = () => openModal(null);
 
   useEffect(() => {
-    AR.agents()
+    api.agents()
       .then((catalog) => setSpec((current) => current.trim() ? current : (catalog.find((entry) => entry.name === "dev") || catalog[0])?.yaml || ""))
       .catch((error: Error) => toast(error.message));
   }, []);
@@ -530,7 +542,7 @@ function RunModal({
     try {
       const workspace = await ensure();
       const driverSpec = withSchedule(withDriverPrompt(driver, prompt), schedule, interval, cron, nAttempts);
-      const r = await AR.startRun({
+      const r = await api.startRun({
         provider,
         model,
         effort,
@@ -551,7 +563,7 @@ function RunModal({
       if (kind === "drive") {
         for (let i = 0; i < 10; i++) {
           try {
-            const sid = (await AR.runs()).find((run) => run.id === r.runId)?.sessionId;
+            const sid = (await api.runs()).find((run) => run.id === r.runId)?.sessionId;
             if (sid) {
               await refreshSessions();
               select(sid);
@@ -560,7 +572,7 @@ function RunModal({
           } catch {
             /* transient — keep polling */
           }
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise<void>((resolve) => clock.setTimeout(() => resolve(), 300));
         }
       }
       selectRun(r.runId);
@@ -724,6 +736,7 @@ function forkRank(b: string): number {
 }
 
 function ForkModal({ sid }: { sid: string }) {
+  const { api, clock, storage } = useAppServices();
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs } = useWorkspace();
   const [barriers, setBarriers] = useState<string[]>([]);
@@ -733,7 +746,7 @@ function ForkModal({ sid }: { sid: string }) {
   const close = () => openModal(null);
 
   const loadBarriers = () => {
-    AR.barriers(sid)
+    api.barriers(sid)
       .then((b) => {
         const sorted = [...b].sort((x, y) => forkRank(x) - forkRank(y));
         setBarriers(sorted);
@@ -745,15 +758,15 @@ function ForkModal({ sid }: { sid: string }) {
   // one-shot fetch went stale and forced a full page reload) — poll gently.
   useEffect(() => {
     loadBarriers();
-    const t = setInterval(loadBarriers, 3000);
-    return () => clearInterval(t);
+    const t = clock.setInterval(loadBarriers, 3000);
+    return () => clock.clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid]);
 
   const createCheckpoint = async () => {
     setBusy(true);
     try {
-      await AR.barrier(sid);
+      await api.barrier(sid);
       toast("checkpoint created", "info");
       loadBarriers();
     } catch (error: any) {
@@ -767,17 +780,17 @@ function ForkModal({ sid }: { sid: string }) {
     if (!barrier) return;
     setBusy(true);
     try {
-      const r = await AR.fork(sid, barrier, ws.trim());
+      const r = await api.fork(sid, barrier, ws.trim());
       close();
       await refreshSessions();
       if (r.sid) {
         // The fork runs under the SOURCE session's spec: carry the
         // remembered approval posture over so its composer pill reports
         // the truth (QA Round1 F-C3).
-        const acc = recallAccess(sid);
-        if (acc) rememberAccess(r.sid, acc);
-        const spec = recallSpec(sid);
-        if (spec) rememberSpec(r.sid, spec);
+        const acc = recallAccess(sid, storage.local);
+        if (acc) rememberAccess(r.sid, acc, storage.local);
+        const spec = recallSpec(sid, storage.local);
+        if (spec) rememberSpec(r.sid, spec, storage.local);
         select(r.sid);
       }
     } catch (e: any) {
@@ -855,9 +868,12 @@ function AgentModal({
   model?: string;
   effort?: string;
 }) {
+  const { api, storage } = useAppServices();
   const { openModal, toast } = useStore();
-  const rawRememberedSpec = recallSpec(sid) || "";
-  const remembered = recallModel(sid) || legacyModelFromSpec(rawRememberedSpec);
+  const rawRememberedSpec = recallSpec(sid, storage.local) || "";
+  const remembered =
+    recallModel(sid, storage.local) ||
+    legacyModelFromSpec(rawRememberedSpec);
   const [spec, setSpec] = useState(() => stripLegacyModel(rawRememberedSpec));
   const [worker, setWorker] = useState("");
   const [provider, setProvider] = useState(initialProvider || remembered?.provider || DEFAULT_MODEL.provider);
@@ -872,7 +888,7 @@ function AgentModal({
 
   useEffect(() => {
     if (spec.trim()) return;
-    AR.agents()
+    api.agents()
       .then((catalog) => setSpec((current) => current.trim() ? current : (catalog.find((entry) => entry.name === "dev") || catalog[0])?.yaml || ""))
       .catch((error: Error) => toast(error.message));
   }, []);
@@ -882,9 +898,13 @@ function AgentModal({
     try {
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
-      await AR.switchAgent(sid, spec, extraSpecs, { provider, model, effort });
-      rememberSpec(sid, spec);
-      rememberModel(sid, { provider, model, effort });
+      await api.switchAgent(sid, spec, extraSpecs, {
+        provider,
+        model,
+        effort,
+      });
+      rememberSpec(sid, spec, storage.local);
+      rememberModel(sid, { provider, model, effort }, storage.local);
       close();
       toast("agent spec switched", "info");
     } catch (e: any) {
@@ -921,6 +941,7 @@ function AgentModal({
 }
 
 function TrustModal() {
+  const { api } = useAppServices();
   const { openModal, toast } = useStore();
   const [dir, setDir] = useState("");
   const [busy, setBusy] = useState(false);
@@ -928,7 +949,7 @@ function TrustModal() {
   const go = async () => {
     setBusy(true);
     try {
-      await AR.trust(dir.trim());
+      await api.trust(dir.trim());
       close();
       toast("trusted: " + dir, "info");
     } catch (e: any) {

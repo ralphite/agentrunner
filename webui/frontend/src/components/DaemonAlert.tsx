@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react";
-import { AR } from "../api";
+import { useAppServices } from "../app/appServices";
 import { useStore } from "../store";
 
 // Shared J5 notification strip. It is intentionally driven by the same health
 // record as the sidebar footer, so Home and an open session never disagree about
 // whether actions are currently available.
 export function DaemonAlert() {
+  const { api, clock } = useAppServices();
   const health = useStore((state) => state.health);
   const refreshHealth = useStore((state) => state.refreshHealth);
   const toast = useStore((state) => state.toast);
@@ -17,12 +18,12 @@ export function DaemonAlert() {
   const retry = async () => {
     setRetrying(true);
     try {
-      await AR.daemonStart();
+      await api.daemonStart();
       toast("daemon start requested", "info");
     } catch (error: any) {
       toast(error.message);
     }
-    window.setTimeout(() => {
+    clock.setTimeout(() => {
       void refreshHealth();
       setRetrying(false);
     }, 800);

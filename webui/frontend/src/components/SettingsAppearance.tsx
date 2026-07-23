@@ -10,20 +10,23 @@ import {
   CODE_FONT_RANGE,
 } from "../theme";
 import { matchesQuery } from "./SettingsSearch";
-import { useStore } from "../store";
+import { useAppStoreApi } from "../store";
+import { useAppServices } from "../app/appServices";
 
 // SettingsAppearance is Codex's Settings → Appearance panel (INC-41 H2). Every
 // control writes through saveAppearance, which persists to localStorage and
 // re-applies the live CSS variables synchronously — so the whole app (this
 // panel included) reflects the change on the next paint, no reload.
 export function SettingsAppearance({ query }: { query: string }) {
-  const [a, setA] = useState<Appearance>(loadAppearance);
+  const { storage } = useAppServices();
+  const store = useAppStoreApi();
+  const [a, setA] = useState<Appearance>(() => loadAppearance(storage.local));
   const patch = (p: Partial<Appearance>) => {
     const next = { ...a, ...p };
     setA(next);
-    saveAppearance(next);
+    saveAppearance(next, storage.local);
     // keep the sidebar's theme glyph in sync when the theme changes here
-    if (p.theme && p.theme !== a.theme) useStore.setState({ theme: p.theme });
+    if (p.theme && p.theme !== a.theme) store.setState({ theme: p.theme });
   };
 
   const show = (label: string, kw = "") => matchesQuery(query, label + " " + kw);

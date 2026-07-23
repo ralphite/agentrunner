@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Stop as StopIcon } from "@phosphor-icons/react";
-import { AR } from "../api";
+import { useAppServices } from "../app/appServices";
 import { useStore } from "../store";
 
 interface Line {
@@ -81,6 +81,7 @@ function summarize(raw: string): Line {
 }
 
 export function RunView({ runId }: { runId: string }) {
+  const { api, clock, streams } = useAppServices();
   const { runs, toast, refreshRuns } = useStore();
   const run = runs.find((r) => r.id === runId);
   const [lines, setLines] = useState<string[]>([]);
@@ -89,7 +90,7 @@ export function RunView({ runId }: { runId: string }) {
 
   useEffect(() => {
     setLines([]);
-    const es = new EventSource(`/api/runs/${runId}/stream`);
+    const es = streams.open(`/api/runs/${runId}/stream`);
     es.onmessage = (m) => setLines((p) => [...p, m.data]);
     // Close on the server's end event; otherwise EventSource auto-reconnects
     // and re-replays the whole backlog, duplicating the log without bound.
@@ -115,9 +116,9 @@ export function RunView({ runId }: { runId: string }) {
 
   const stop = async () => {
     try {
-      await AR.stopRun(runId);
+      await api.stopRun(runId);
       toast("stop requested", "info");
-      setTimeout(refreshRuns, 800);
+      clock.setTimeout(refreshRuns, 800);
     } catch (e: any) {
       toast(e.message);
     }

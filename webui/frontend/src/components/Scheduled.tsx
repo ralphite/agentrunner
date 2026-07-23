@@ -2,7 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { Icon } from "@phosphor-icons/react";
 import { ArrowLeft, CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin, X } from "@phosphor-icons/react";
 import { useStore } from "../store";
-import { AR, ApiError } from "../api";
+import { ApiError } from "../api";
+import { useAppServices } from "../app/appServices";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
 import { scheduledTitle } from "../scheduledTitle";
@@ -163,11 +164,11 @@ interface SchedRow {
 // nextRunPhrase renders the backend's nextRunAt (RFC3339) as Codex's
 // "Next run in 12m". A tick already due (an iteration is running, or the driver
 // is catching up) says so instead of counting backwards.
-function nextRunPhrase(iso?: string): string {
+function nextRunPhrase(iso: string | undefined, now: number): string {
   if (!iso) return "";
   const t = Date.parse(iso);
   if (isNaN(t)) return "";
-  const sec = (t - Date.now()) / 1000;
+  const sec = (t - now) / 1000;
   if (sec <= 30) return "Next run due now";
   const min = sec / 60;
   if (min < 60) return `Next run in ${Math.max(1, Math.round(min))}m`;
@@ -338,6 +339,7 @@ function ScheduleEditDialog({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const { api } = useAppServices();
   const [prompt, setPrompt] = useState(detail.prompt || "");
   const [schedule, setSchedule] = useState<"interval" | "cron">(
     detail.schedule === "cron" ? "cron" : "interval",
@@ -359,7 +361,7 @@ function ScheduleEditDialog({
     setBusy(true);
     setError("");
     try {
-      await AR.scheduleUpdate(detail.sessionId, {
+      await api.scheduleUpdate(detail.sessionId, {
         expectedRevision: revision,
         prompt: prompt.trim(),
         schedule,
@@ -370,7 +372,7 @@ function ScheduleEditDialog({
     } catch (e: any) {
       if (e instanceof ApiError && e.code === "schedule_conflict") {
         try {
-          const latest = await AR.scheduleDetail(detail.sessionId);
+          const latest = await api.scheduleDetail(detail.sessionId);
           setRevision(latest.revision);
         } catch {
           // Keep the draft and the old revision; a later Save will surface the
@@ -445,6 +447,7 @@ function ScheduleEditDialog({
 // there is no future tick to name the row falls back to the honest last-run
 // time. Search + All / Active / Paused use the backend's durable lifecycle.
 export function Scheduled() {
+  const { api, clock } = useAppServices();
   const {
     runs,
     sessions,
@@ -483,7 +486,7 @@ export function Scheduled() {
     setDetailLoading(true);
     setDetailError("");
     try {
-      const next = await AR.scheduleDetail(sid);
+      const next = await api.scheduleDetail(sid);
       if (request === detailRequest.current) setDetail(next);
     } catch (e: any) {
       if (request === detailRequest.current) {
@@ -543,7 +546,7 @@ export function Scheduled() {
       nextRunAt: string | undefined,
       lastRan: Date | null,
     ): SchedRow => {
-      const next = nextRunPhrase(nextRunAt);
+      const next = nextRunPhrase(nextRunAt, clock.now());
       const ago = relTimeAgo(lastRan);
       const paused = base.raw.toLowerCase() === "paused";
       const when = paused ? "Paused" : next || (ago ? `Ran ${ago}` : "");
@@ -699,13 +702,13 @@ export function Scheduled() {
   const menuRow = ctx ? rows.find((r) => r.key === ctx.key) : undefined;
 
   // SC-12 — Stop is the same call RunView.tsx already makes for the same run
-  // (AR.stopRun + a refresh); the hub for long-running work was the one screen
+  // (api.stopRun + a refresh); the hub for long-running work was the one screen
   // that could not reach it.
   const stopRun = async (rid: string) => {
     try {
-      await AR.stopRun(rid);
+      await api.stopRun(rid);
       toast("stop requested", "info");
-      setTimeout(refreshRuns, 800);
+      clock.setTimeout(refreshRuns, 800);
     } catch (e: any) {
       toast(e.message);
     }
@@ -715,7 +718,7 @@ export function Scheduled() {
   // schedule ("Needs recovery", in amber, since SC-10) and then do nothing about
   // it: every item in the row menu was housekeeping (pin / rename / archive /
   // copy). The daemon calls that fix a series already exist and SessionView
-  // already makes them (AR.resume / retry / stopSession); they
+  // already makes them (api.resume / retry / stopSession); they
   // were simply unreachable from the one screen that names the problem. Same call
   // shapes as SessionView.tsx's `act`, plus a list refresh so the row's state
   // catches up with what you just did to it.
@@ -723,18 +726,18 @@ export function Scheduled() {
   const act = {
     resume: async (sid: string) => {
       try {
-        await AR.resume(sid);
+        await api.resume(sid);
         toast("resume sent", "info");
-        setTimeout(refreshSessions, 800);
+        clock.setTimeout(refreshSessions, 800);
       } catch (e: any) {
         toast(e.message);
       }
     },
     retry: async (sid: string) => {
       try {
-        await AR.retry(sid);
+        await api.retry(sid);
         toast("starting a new scheduled series", "info");
-        setTimeout(refreshSessions, 800);
+        clock.setTimeout(refreshSessions, 800);
       } catch (e: any) {
         toast(e.message);
       }
@@ -742,7 +745,7 @@ export function Scheduled() {
     cadence: async (sid: string, action: "pause" | "resume") => {
       if (scheduledDetailSid === sid) setDetailActing(true);
       try {
-        await AR.schedule(sid, action);
+        await api.schedule(sid, action);
         toast(action === "pause" ? "pause recorded" : "resuming schedule", "info");
         await refreshSessions();
         if (scheduledDetailSid === sid) await loadDetail(sid);
@@ -760,9 +763,9 @@ export function Scheduled() {
         confirmLabel: "Cancel series",
         danger: true,
         onConfirm: async () => {
-          await AR.stopSession(sid);
+          await api.stopSession(sid);
           toast("cancelling the series", "info");
-          setTimeout(refreshSessions, 800);
+          clock.setTimeout(refreshSessions, 800);
         },
       });
     },

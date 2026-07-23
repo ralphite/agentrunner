@@ -29,9 +29,10 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { AR, sessionImageURL, uploadURL, type ForkDraft } from "../api";
+import { sessionImageURL, uploadURL, type ForkDraft } from "../api";
+import { useAppServices } from "../app/appServices";
 import { scheduleFieldError } from "../scheduleValidate";
-import { useStore, type NewSessionProject } from "../store";
+import { useAppStoreApi, useStore, type NewSessionProject } from "../store";
 import {
   ACCESS_LEVELS,
   accessById,
@@ -107,21 +108,26 @@ interface Attachment {
   draftOrdinal?: number;
 }
 
-function forkSendRequestID(sid: string, draftID: string): string {
+function forkSendRequestID(
+  storage: Storage,
+  createID: () => string,
+  sid: string,
+  draftID: string,
+): string {
   const key = `arwebui.fork-send.${sid}.${draftID}`;
   try {
-    const prior = sessionStorage.getItem(key);
+    const prior = storage.getItem(key);
     if (prior) return prior;
-    const id = `send_${crypto.randomUUID().replaceAll("-", "_")}`;
-    sessionStorage.setItem(key, id);
+    const id = createID();
+    storage.setItem(key, id);
     return id;
   } catch {
-    return `send_${crypto.randomUUID().replaceAll("-", "_")}`;
+    return createID();
   }
 }
 
-function forgetForkSendRequest(sid: string, draftID: string) {
-  try { sessionStorage.removeItem(`arwebui.fork-send.${sid}.${draftID}`); } catch { /* ignore */ }
+function forgetForkSendRequest(storage: Storage, sid: string, draftID: string) {
+  try { storage.removeItem(`arwebui.fork-send.${sid}.${draftID}`); } catch { /* ignore */ }
 }
 
 // Last project used from the landing composer (RH-1). Codex opens New session with
@@ -136,16 +142,16 @@ const PROJECT_KEY = "arwebui.lastProject";
 // How many projects the picker lists before you type (HM-9). Only the *view* is
 // capped; the search runs over every workspace in history.
 const RECENT_PROJECTS = 5;
-function recallProject(): string | null {
+function recallProject(storage: Storage): string | null {
   try {
-    return localStorage.getItem(PROJECT_KEY);
+    return storage.getItem(PROJECT_KEY);
   } catch {
     return null;
   }
 }
-function rememberProject(workspace: string) {
+function rememberProject(storage: Storage, workspace: string) {
   try {
-    localStorage.setItem(PROJECT_KEY, workspace);
+    storage.setItem(PROJECT_KEY, workspace);
   } catch {
     /* ignore quota */
   }
@@ -158,6 +164,8 @@ const riskGlyph = (risk: string) =>
   risk === "high" ? <WarningCircle size={15} weight="regular" className="shrink-0" style={{ color: "var(--amber)" }} /> : riskDot(risk);
 
 export function Composer(props: ComposerProps) {
+  const { api, clock, ids, storage } = useAppServices();
+  const store = useAppStoreApi();
   const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
   const allSessions = useStore((s) => s.sessions);
   // EVERY workspace the history knows, newest first, deduped — picking an
@@ -186,8 +194,8 @@ export function Composer(props: ComposerProps) {
   // Per-session draft: initialize from what was typed here last time (the
   // component remounts on session switch), keep it saved as you type.
   const draftKey = isSession ? ((props as any).sid as string) : "~home";
-  const [text, setText] = useState(() => recallDraft(draftKey));
-  useEffect(() => rememberDraft(draftKey, text), [draftKey, text]);
+  const [text, setText] = useState(() => recallDraft(draftKey, storage.session));
+  useEffect(() => rememberDraft(draftKey, text, storage.session), [draftKey, text, storage.session]);
   const onHomeDraftChange = !isSession
     ? (props as Extract<ComposerProps, { variant: "home" }>).onDraftChange
     : undefined;
@@ -221,7 +229,7 @@ export function Composer(props: ComposerProps) {
   // composers show the session's fixed posture instead and never read this.
   const [access, setAccessState] = useState<AccessId>(() => {
     try {
-      const saved = localStorage.getItem("arwebui.lastAccess") as AccessId | null;
+      const saved = storage.local.getItem("arwebui.lastAccess") as AccessId | null;
       if (saved && ACCESS_LEVELS.some((a) => a.id === saved)) return saved;
     } catch {
       /* ignore */
@@ -233,7 +241,7 @@ export function Composer(props: ComposerProps) {
     if (a !== "plan") lastNonPlanAccess.current = a;
     setAccessState(a);
     try {
-      localStorage.setItem("arwebui.lastAccess", a);
+      storage.local.setItem("arwebui.lastAccess", a);
     } catch {
       /* ignore quota */
     }
@@ -267,7 +275,7 @@ export function Composer(props: ComposerProps) {
   const selectedAgentLabel = agentLabel(selectedAgent?.name || persona);
   const requireSelectedAgent = async (): Promise<AgentCatalogEntry> => {
     if (selectedAgent) return selectedAgent;
-    const catalog = await AR.agents();
+    const catalog = await api.agents();
     setAgents(catalog);
     const entry = agentById(catalog, persona);
     if (!entry) throw new Error("No Agents are configured");
@@ -276,7 +284,7 @@ export function Composer(props: ComposerProps) {
 
   useEffect(() => {
     let live = true;
-    AR.agents()
+    api.agents()
       .then((catalog) => {
         if (!live) return;
         setAgents(catalog);
@@ -303,7 +311,7 @@ export function Composer(props: ComposerProps) {
   // run" — the chip renders it, the send path uses it, and Home's headline
   // mirrors it through onProjectChange (RH-1). It opens on the last project the
   // user chose here.
-  const [ws, setWs] = useState(() => recallProject() || "");
+  const [ws, setWs] = useState(() => recallProject(storage.local) || "");
   const [kind, setKind] = useState<"chat" | "background">("chat");
   const [runLocation, setRunLocation] = useState<"worktree" | "local">("worktree");
   const [startingBranch, setStartingBranch] = useState("");
@@ -344,7 +352,7 @@ export function Composer(props: ComposerProps) {
 	if (forkSeed && forkSeedReleasedAt && handledSeedRelease.current !== forkSeedReleasedAt) {
 		handledSeedRelease.current = forkSeedReleasedAt;
 		forkSeeded.current = "";
-		forgetForkSendRequest((props as Extract<ComposerProps, { variant: "session" }>).sid, forkSeed.draft_id);
+		forgetForkSendRequest(storage.session, (props as Extract<ComposerProps, { variant: "session" }>).sid, forkSeed.draft_id);
 	}
     if (!isSession || !forkSeed || forkSeeded.current === forkSeed.draft_id) return;
     forkSeeded.current = forkSeed.draft_id;
@@ -368,7 +376,7 @@ export function Composer(props: ComposerProps) {
   }, [isSession, forkSeed, forkSeedReleasedAt, props]);
   useEffect(() => {
 	if (!isSession || forkSeed || !forkSeeded.current) return;
-	forgetForkSendRequest((props as Extract<ComposerProps, { variant: "session" }>).sid, forkSeeded.current);
+	forgetForkSendRequest(storage.session, (props as Extract<ComposerProps, { variant: "session" }>).sid, forkSeeded.current);
 	forkSeeded.current = "";
   }, [isSession, forkSeed, props]);
 
@@ -402,7 +410,7 @@ export function Composer(props: ComposerProps) {
     try {
       await runOptimize(
         {
-          optimize: (d, c) => AR.optimize(d, c),
+          optimize: (d, c) => api.optimize(d, c),
           setText: (t) => {
             setText(t);
             requestAnimationFrame(() => {
@@ -435,8 +443,10 @@ export function Composer(props: ComposerProps) {
   useEffect(() => {
     if (!isSession) return;
     const sessionID = (props as any).sid as string;
-    const sp = recallSpec(sessionID);
-    const m = recallModel(sessionID) || (sp ? legacyModelFromSpec(sp) : null);
+    const sp = recallSpec(sessionID, storage.local);
+    const m =
+      recallModel(sessionID, storage.local) ||
+      (sp ? legacyModelFromSpec(sp) : null);
     if (m) {
       setProvider(m.provider);
       setModel(m.model);
@@ -463,15 +473,15 @@ export function Composer(props: ComposerProps) {
     if (isSession || !workspace || requestId === undefined) return;
     seeded.current = true;
     setWs(workspace);
-    rememberProject(workspace);
+    rememberProject(storage.local, workspace);
     setProjectQuery("");
     setProjectMenuPage("projects");
     requestAnimationFrame(() => taRef.current?.focus());
-    useStore.getState().consumeNewSessionProject(requestId);
+    store.getState().consumeNewSessionProject(requestId);
   }, [isSession, projectSeed?.requestId]);
 
   useEffect(() => {
-    if (isSession || seeded.current || recallProject() !== null) return;
+    if (isSession || seeded.current || recallProject(storage.local) !== null) return;
     const candidate = allWorkspaces.find((w) => {
       const label = projectLabel(w);
       // Scratch dirs never seed the composer (their label is per-workspace
@@ -492,7 +502,7 @@ export function Composer(props: ComposerProps) {
       return;
     }
     let alive = true;
-    AR.gitBranches(dir)
+    api.gitBranches(dir)
       .then((b) => {
         if (!alive) return;
         setBranchInfo(b);
@@ -546,7 +556,7 @@ export function Composer(props: ComposerProps) {
   const modelLabel = modelById(provider, model)?.label || model;
   const effortLevel = effortById(effort);
   const accessLevel = isSession ? undefined : accessById(access);
-  const remembered = isSession ? recallAccess((props as any).sid) : undefined;
+  const remembered = isSession ? recallAccess((props as any).sid, storage.local) : undefined;
   // Pill truth order (INC-42): a LIVE fold mode that names an access level
   // (acceptEdits/plan) always wins — /mode can change it mid-session. Live
   // "default" can't tell Full from Ask, so the remembered launch choice fills
@@ -591,8 +601,8 @@ export function Composer(props: ComposerProps) {
     if (q === null) return;
     setAtIdx(0);
     const seq = ++atSeq.current; // drop out-of-order responses (stale query)
-    const t = setTimeout(() => {
-      AR.files((props as any).sid, q)
+    const t = clock.setTimeout(() => {
+      api.files((props as any).sid, q)
         .then((r) => {
           if (seq !== atSeq.current) return;
           setAtKnown(r.known);
@@ -600,7 +610,7 @@ export function Composer(props: ComposerProps) {
         })
         .catch(() => seq === atSeq.current && setAtFiles([]));
     }, 120);
-    return () => clearTimeout(t);
+    return () => clock.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, isSession]);
 
@@ -623,7 +633,7 @@ export function Composer(props: ComposerProps) {
 
   const ensureWs = async (): Promise<string> => {
     if (ws.trim()) return ws.trim();
-    const p = (await AR.makeWorkspace()).path;
+    const p = (await api.makeWorkspace()).path;
     setWs(p);
     return p;
   };
@@ -633,14 +643,14 @@ export function Composer(props: ComposerProps) {
     // No worktree when it's not a repo, or the repo has no commits (unborn
     // branch): git worktree needs a real starting commit. Run local instead.
     if (runLocation !== "worktree" || !branchInfo?.isRepo || branchInfo.hasCommits === false) return source;
-    return (await AR.makeWorktree(source, "", startingBranch || branchInfo.current)).path;
+    return (await api.makeWorktree(source, "", startingBranch || branchInfo.current)).path;
   };
 
   const resetInput = () => {
     // Clear synchronously before Home navigation can unmount this Composer;
     // relying only on the state effect can leave the just-sent draft in
     // sessionStorage and resurrect it on reload.
-    rememberDraft(draftKey, "");
+    rememberDraft(draftKey, "", storage.session);
     setText("");
     setAtts([]);
     setUndoDraft(null);
@@ -656,7 +666,7 @@ export function Composer(props: ComposerProps) {
       return;
     }
     try {
-      const r = await AR.upload(file);
+      const r = await api.upload(file);
       setAtts((p) => [...p, { path: r.path, name: r.name, isImage }]);
     } catch (e: any) {
       props.onError(e.message);
@@ -764,7 +774,12 @@ export function Composer(props: ComposerProps) {
             part.ordinal === legacyOriginal[i].ordinal);
         const draftSend = forkSeed ? {
           draftId: forkSeed.draft_id,
-          sendRequestId: forkSendRequestID(sessionID, forkSeed.draft_id),
+          sendRequestId: forkSendRequestID(
+            storage.session,
+            () => ids.uuid("send"),
+            sessionID,
+            forkSeed.draft_id,
+          ),
           parts: draftParts,
           replayOriginal,
         } : undefined;
@@ -782,7 +797,7 @@ export function Composer(props: ComposerProps) {
         const spec = buildSpec({ agent: activeAgent, access });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
-        const r = await AR.newSession({
+        const r = await api.newSession({
           provider,
           model,
           effort,
@@ -792,9 +807,9 @@ export function Composer(props: ComposerProps) {
           message: t,
           mode: accessById(access).mode,
         });
-        rememberSpec(r.sid, spec);
-        rememberModel(r.sid, { provider, model, effort });
-        rememberAccess(r.sid, access);
+        rememberSpec(r.sid, spec, storage.local);
+        rememberModel(r.sid, { provider, model, effort }, storage.local);
+        rememberAccess(r.sid, access, storage.local);
         resetInput();
         // The create response is already the durable navigation fact. Route to
         // it before refreshing the sidebar so a transient list failure cannot
@@ -807,7 +822,7 @@ export function Composer(props: ComposerProps) {
         if (imgs.length || files.length) {
           const n = imgs.length + files.length;
           try {
-            await AR.send(r.sid, `(see attached file${n > 1 ? "s" : ""})`, imgs, files);
+            await api.send(r.sid, `(see attached file${n > 1 ? "s" : ""})`, imgs, files);
           } catch (e: any) {
             props.onError(e.message);
           }
@@ -816,7 +831,7 @@ export function Composer(props: ComposerProps) {
         const activeAgent = await requireSelectedAgent();
         const workspace = await resolveHomeWorkspace();
         const spec = buildSpec({ agent: activeAgent, access });
-        const r = await AR.startRun({
+        const r = await api.startRun({
           provider, model, effort,
           kind: "submit", spec, extraSpecs: [], prompt: t, workspace,
           mode: accessById(access).mode, idem: "",
@@ -839,10 +854,23 @@ export function Composer(props: ComposerProps) {
     if (!isSession) return;
     const sid = (props as any).sid as string;
     try {
-      const base = recallSpec(sid) || buildSpec({ agent: await requireSelectedAgent(), access: "full" });
-      await AR.switchAgent(sid, base, [], { provider: p, model: id, effort: eff });
-      rememberSpec(sid, base);
-      rememberModel(sid, { provider: p, model: id, effort: eff });
+      const base =
+        recallSpec(sid, storage.local) ||
+        buildSpec({
+          agent: await requireSelectedAgent(),
+          access: "full",
+        });
+      await api.switchAgent(sid, base, [], {
+        provider: p,
+        model: id,
+        effort: eff,
+      });
+      rememberSpec(sid, base, storage.local);
+      rememberModel(
+        sid,
+        { provider: p, model: id, effort: eff },
+        storage.local,
+      );
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -869,13 +897,13 @@ export function Composer(props: ComposerProps) {
     if (!isSession) return;
     const sid = (props as any).sid as string;
     try {
-      const acc = (recallAccess(sid) as AccessId) || "full";
+      const acc = (recallAccess(sid, storage.local) as AccessId) || "full";
       const next = agentById(agents, id);
       if (!next) throw new Error(`Unknown Agent ${id}`);
       const spec = buildSpec({ agent: next, access: acc });
-      await AR.switchAgent(sid, spec, [], { provider, model, effort });
-      rememberSpec(sid, spec);
-      rememberModel(sid, { provider, model, effort });
+      await api.switchAgent(sid, spec, [], { provider, model, effort });
+      rememberSpec(sid, spec, storage.local);
+      rememberModel(sid, { provider, model, effort }, storage.local);
       toast(`Agent → ${agentLabel(id)} (from your next message)`, "info");
     } catch (e: any) {
       props.onError(e.message);
@@ -899,7 +927,7 @@ export function Composer(props: ComposerProps) {
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
         const spec = buildSpec({ agent: activeAgent, access });
-        const r = await AR.newSession({
+        const r = await api.newSession({
           provider,
           model,
           effort,
@@ -909,13 +937,13 @@ export function Composer(props: ComposerProps) {
           message: goalText,
           mode: accessById(access).mode,
         });
-        rememberSpec(r.sid, spec);
-        rememberModel(r.sid, { provider, model, effort });
-        rememberAccess(r.sid, access);
+        rememberSpec(r.sid, spec, storage.local);
+        rememberModel(r.sid, { provider, model, effort }, storage.local);
+        rememberAccess(r.sid, access, storage.local);
         sid = r.sid;
       }
       try {
-        await AR.goal(sid, { action: "attach", goal: goalText, verifier, maxChecks: iterations });
+        await api.goal(sid, { action: "attach", goal: goalText, verifier, maxChecks: iterations });
         toast(
           verifier
             ? "Goal attached — a verifier checks at each pause"
@@ -946,7 +974,7 @@ export function Composer(props: ComposerProps) {
   const landInSeries = async (runId: string) => {
     for (let i = 0; i < 10; i++) {
       try {
-        const rs = await AR.runs();
+        const rs = await api.runs();
         const sid = rs.find((x) => x.id === runId)?.sessionId;
         if (sid) {
           await refreshSessions();
@@ -956,7 +984,7 @@ export function Composer(props: ComposerProps) {
       } catch {
         /* transient — keep polling */
       }
-      await new Promise((res) => setTimeout(res, 300));
+      await new Promise<void>((resolve) => clock.setTimeout(() => resolve(), 300));
     }
     selectRun(runId);
   };
@@ -966,7 +994,7 @@ export function Composer(props: ComposerProps) {
     if (!workspace) return props.onError("a workspace is required to start a loop");
     setBusy(true);
     try {
-      const r = await AR.startRun({
+      const r = await api.startRun({
         provider,
         model,
         effort,
@@ -996,7 +1024,7 @@ export function Composer(props: ComposerProps) {
     if (!workspace) return props.onError("a workspace is required to start a best-of-N run");
     setBusy(true);
     try {
-      const r = await AR.startRun({
+      const r = await api.startRun({
         provider,
         model,
         effort,
@@ -1028,7 +1056,7 @@ export function Composer(props: ComposerProps) {
   const switchMode = async (target: "default" | "acceptEdits") => {
     const sid = (props as any).sid as string;
     try {
-      await AR.mode(sid, target);
+      await api.mode(sid, target);
       toast("Mode change requested — the timeline shows the outcome", "info");
     } catch (e: any) {
       props.onError(e.message);
@@ -1088,7 +1116,7 @@ export function Composer(props: ComposerProps) {
       case "compact":
         setText("");
         try {
-          await AR.compact(sid, rest);
+          await api.compact(sid, rest);
           // Delivery ack, not an outcome: a busy session applies it at the
           // next boundary and an empty prefix is a no-op (QA Round1 F-C6).
           toast("Compact requested — the timeline shows the outcome", "info");
@@ -1099,7 +1127,7 @@ export function Composer(props: ComposerProps) {
       case "clear":
         setText("");
         try {
-          await AR.clear(sid);
+          await api.clear(sid);
           toast("Clear requested — the timeline shows the outcome", "info");
         } catch (e: any) {
           props.onError(e.message);
@@ -1287,11 +1315,11 @@ export function Composer(props: ComposerProps) {
 
   const chooseProject = (workspace: string) => {
     setWs(workspace);
-    rememberProject(workspace);
+    rememberProject(storage.local, workspace);
     seeded.current = true;
     setProjectQuery("");
     setProjectMenuPage("projects");
-    AR.gitBranches(workspace)
+    api.gitBranches(workspace)
       .then((info) => {
         setBranchInfo(info);
         setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
@@ -1374,7 +1402,7 @@ export function Composer(props: ComposerProps) {
                     </div>
                     <PopSection>
                       <PopItem icon={<PlusIcon />} title="New project" right={<span aria-hidden>›</span>} onClick={() => setProjectMenuPage("new")} />
-                      <PopItem icon={<X size={15} />} title="Don't work in a project" active={!ws} onClick={() => { setWs(""); rememberProject(""); seeded.current = true; setBranchInfo(null); setStartingBranch(""); setRunLocation("local"); close(); }} />
+                      <PopItem icon={<X size={15} />} title="Don't work in a project" active={!ws} onClick={() => { setWs(""); rememberProject(storage.local, ""); seeded.current = true; setBranchInfo(null); setStartingBranch(""); setRunLocation("local"); close(); }} />
                     </PopSection>
                   </>
                 ) : (
@@ -1384,7 +1412,7 @@ export function Composer(props: ComposerProps) {
                       <b>New project</b>
                     </div>
                     <PopItem icon={<Sparkle size={15} />} title="Start from scratch" desc="Create a fresh local workspace" onClick={async () => {
-                      try { chooseProject((await AR.makeWorkspace()).path); } catch (error: any) { props.onError(error.message); }
+                      try { chooseProject((await api.makeWorkspace()).path); } catch (error: any) { props.onError(error.message); }
                       close();
                     }} />
                     <PopItem icon={<FolderIcon />} title="Use an existing folder" desc="Choose an absolute local path" onClick={() => {
@@ -1435,7 +1463,7 @@ export function Composer(props: ComposerProps) {
             panelClass="cx-branch-popover"
             onOpen={() => {
               setBranchQuery("");
-              if (ws.trim()) AR.gitBranches(ws.trim()).then((info) => {
+              if (ws.trim()) api.gitBranches(ws.trim()).then((info) => {
                 setBranchInfo(info);
                 if (!startingBranch) setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
               }).catch(() => {});
@@ -1468,7 +1496,7 @@ export function Composer(props: ComposerProps) {
                         return;
                       }
                       try {
-                        await AR.gitCheckout(ws.trim(), branch, false);
+                        await api.gitCheckout(ws.trim(), branch, false);
                         setBranchInfo((current) => current ? { ...current, current: branch } : current);
                         setStartingBranch(branch);
                         toast(`Switched to ${branch}`, "info");

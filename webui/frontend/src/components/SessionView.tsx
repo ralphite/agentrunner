@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowClockwise, ArrowLeft, CaretRight, ChatCircle, CheckCircle, CircleNotch, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
-import { AR, type ForkDraft } from "../api";
-import { useStore } from "../store";
+import { type ForkDraft } from "../api";
+import { useAppServices, type AppEventStream } from "../app/appServices";
+import { useAppStoreApi, useStore } from "../store";
 import type { BackgroundWork, Envelope } from "../types";
 import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type BubbleItem, type GoalDerived } from "../timeline";
 import { TimelineView } from "./Timeline";
@@ -44,16 +45,21 @@ export function isValidSessionId(sid: string): boolean {
 // Persist the idempotency key across a response-loss reload. Keeping the key
 // after success is harmless and guarantees that a later retry of the same row
 // resolves the already-published child instead of creating a sibling.
-function continuationRequestID(sid: string, itemID: string): string {
+function continuationRequestID(
+  storage: Storage,
+  createID: () => string,
+  sid: string,
+  itemID: string,
+): string {
   const key = `arwebui.continue.${sid}.${itemID}`;
   try {
-    const prior = sessionStorage.getItem(key);
+    const prior = storage.getItem(key);
     if (prior) return prior;
-    const id = `continue_${crypto.randomUUID().replaceAll("-", "_")}`;
-    sessionStorage.setItem(key, id);
+    const id = createID();
+    storage.setItem(key, id);
     return id;
   } catch {
-    return `continue_${crypto.randomUUID().replaceAll("-", "_")}`;
+    return createID();
   }
 }
 
@@ -86,6 +92,8 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string; mobileNavigationOpen?: boolean }) {
+  const { api, clock, ids, storage, streams } = useAppServices();
+  const store = useAppStoreApi();
   const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
@@ -198,12 +206,14 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // Codex shows the right context panel by default on a wide screen (R1-3);
   // open it unless the user has explicitly closed it before ("0"). Narrow
   // screens stay collapsed so the conversation isn't squeezed.
-  const [supervisionOpen, setSupervisionOpen] = useState(() => (bp.desktop || bp.wide) && localStorage.getItem("arwebui.supervision") !== "0");
+  const [supervisionOpen, setSupervisionOpen] = useState(
+    () => (bp.desktop || bp.wide) && storage.local.getItem("arwebui.supervision") !== "0",
+  );
   const supervisionOpenerRef = useRef<HTMLElement | null>(null);
   const setSupervision = (open: boolean) => {
     setSupervisionOpen(open);
     try {
-      localStorage.setItem("arwebui.supervision", open ? "1" : "0");
+      storage.local.setItem("arwebui.supervision", open ? "1" : "0");
     } catch {
       /* ignore quota */
     }
@@ -260,7 +270,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     if (pollBusy.current || gone.current) return;
     pollBusy.current = true;
     try {
-      const evs = await AR.events(sid, cursor.current);
+      const evs = await api.events(sid, cursor.current);
       if (evs.length) {
         setPending((prev) => {
           let next = prev;
@@ -304,12 +314,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const pollInspect = useCallback(async () => {
     if (gone.current) return;
     try {
-      setBackgroundWork(await AR.ps(sid));
+      setBackgroundWork(await api.ps(sid));
     } catch {
       /* ignore */
     }
     try {
-      const ins = await AR.inspect(sid);
+      const ins = await api.inspect(sid);
       const u = ins?.usage;
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
@@ -346,7 +356,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     if (gone.current) return;
     // Queued messages (INC-47.2): withdrawable until consumed. Best-effort.
     try {
-      const q = await AR.queue(sid);
+      const q = await api.queue(sid);
       setQueued(Array.isArray(q) ? q : []);
     } catch {
       setQueued([]);
@@ -355,7 +365,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
 
   const answerAsk = async (specs: string[]) => {
     try {
-      await AR.answer(sid, specs);
+      await api.answer(sid, specs);
       setAskQuestions([]);
       poll();
     } catch (e: any) {
@@ -364,7 +374,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   };
   const skipAsk = async () => {
     try {
-      await AR.skipAnswer(sid);
+      await api.skipAnswer(sid);
       setAskQuestions([]);
       poll();
     } catch (e: any) {
@@ -373,7 +383,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   };
   const withdrawQueued = async (commandId: string) => {
     try {
-      await AR.unqueue(sid, commandId);
+      await api.unqueue(sid, commandId);
       setQueued((prev) => prev.map((m) => (m.command_id === commandId ? { ...m, revoked: true } : m)));
     } catch (e: any) {
       toast(e.message);
@@ -383,7 +393,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const saveGoalEdit = () => {
     const g = (goalEdit || "").trim();
     if (!g) return;
-    AR.goal(sid, { action: "update", goal: g })
+    api.goal(sid, { action: "update", goal: g })
       .then(() => {
         setGoalPendingUpdate(g);
         setGoalEdit(null);
@@ -429,14 +439,14 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       return;
     }
     poll();
-    const e = setInterval(poll, 1000);
-    const t = setInterval(pollInspect, 2500);
+    const e = clock.setInterval(poll, 1000);
+    const t = clock.setInterval(pollInspect, 2500);
     pollInspect();
-    let es: EventSource | null = null;
+    let es: AppEventStream | null = null;
     {
       // Child sessions stream too (INC-12.6): the daemon routes a -sub- id
       // through the tree root's hub filtered to the member.
-      es = new EventSource(`/api/sessions/${sid}/stream`);
+      es = streams.open(`/api/sessions/${sid}/stream`);
       es.onmessage = (m) => {
         let ev: any;
         try {
@@ -473,8 +483,8 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       };
     }
     return () => {
-      clearInterval(e);
-      clearInterval(t);
+      clock.clearInterval(e);
+      clock.clearInterval(t);
       es?.close();
     };
   }, [sid, isSub, poll, pollInspect]);
@@ -495,7 +505,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     !isSub && goalState && goalState.phase === "achieved" && goalState.elapsedMs !== undefined
       ? { elapsed: formatElapsed(goalState.elapsedMs) }
       : null;
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => clock.now());
   const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
   useEffect(() => {
     if (!goalPendingUpdate) return;
@@ -505,12 +515,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   }, [goal?.goal, goalPendingUpdate, goalState?.goal, goalTerminal]);
   useEffect(() => {
     if (!goalState || goalTerminal) return;
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    setNow(clock.now());
+    const t = clock.setInterval(() => setNow(clock.now()), 1000);
+    return () => clock.clearInterval(t);
   }, [goalState?.phase, goalState?.attachedAt, goalTerminal]);
   const goalAction = (action: "pause" | "resume" | "cancel") =>
-    AR.goal(sid, { action }).then(() => pollInspect()).catch((e) => toast(e.message));
+    api.goal(sid, { action }).then(() => pollInspect()).catch((e) => toast(e.message));
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
   const openApprovals: (ApprovalRef & {
@@ -631,7 +641,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     const id = ++pendSeq.current;
     setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
     try {
-      const result = await AR.send(sid, text, images, files, delivery, draft);
+      const result = await api.send(sid, text, images, files, delivery, draft);
       if (result?.status === "answered" || askQuestions.length > 0) {
         // A successful send while the durable structured ask form is visible
         // is a compatibility answer, even though today's CLI receipt says the
@@ -647,7 +657,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         // forever because a revoked command never emits input_received.
         setPending((p) => p.filter((x) => x.id !== id));
         try {
-          const q = await AR.queue(sid);
+          const q = await api.queue(sid);
           setQueued(Array.isArray(q) ? q : []);
         } catch {
           // The regular poll will recover the durable queue card. Do not put
@@ -665,11 +675,16 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     if (!item.itemId) return;
     let requestID = continueRequests.current.get(item.itemId);
     if (!requestID) {
-      requestID = continuationRequestID(sid, item.itemId);
+      requestID = continuationRequestID(
+        storage.session,
+        () => ids.uuid("continue"),
+        sid,
+        item.itemId,
+      );
       continueRequests.current.set(item.itemId, requestID);
     }
-    const result = await AR.continueFromMessage(sid, item.itemId, requestID);
-    await useStore.getState().refreshSessions();
+    const result = await api.continueFromMessage(sid, item.itemId, requestID);
+    await store.getState().refreshSessions();
     select(result.session_id);
   };
 
@@ -704,7 +719,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   }, [events]);
 
   const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid, always = false) => {
-    await AR.approve(target, id, decision, reason, always);
+    await api.approve(target, id, decision, reason, always);
     setResolvedLocal((s) => new Set(s).add(id));
     // Honest wording (G35/INC-62): the loop is the authority on what was
     // remembered — it emits a "remembered:" message only when the rule
@@ -740,7 +755,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const act = {
     interrupt: async () => {
       try {
-        await AR.interrupt(sid);
+        await api.interrupt(sid);
         toast("interrupt sent", "info");
       } catch (e: any) {
         toast(e.message);
@@ -748,7 +763,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     resume: async () => {
       try {
-        await AR.resume(sid);
+        await api.resume(sid);
         toast("resume sent", "info");
       } catch (e: any) {
         toast(e.message);
@@ -756,7 +771,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     retry: async () => {
       try {
-        await AR.retry(sid);
+        await api.retry(sid);
         toast("retrying your last message as a new turn", "info");
       } catch (e: any) {
         toast(e.message);
@@ -764,7 +779,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     barrier: async () => {
       try {
-        const r = await AR.barrier(sid);
+        const r = await api.barrier(sid);
         toast(`checkpoint ${r.barrier || "created"} — fork from it anytime`, "info");
       } catch (e: any) {
         toast(e.message);
@@ -772,7 +787,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     inspect: async () => {
       try {
-        const data = await AR.inspect(sid);
+        const data = await api.inspect(sid);
         // Reuse the product Run details projection already used elsewhere.
         // The terminal banner previously dumped the entire inspect JSON as the
         // modal body, making a two-iteration schedule several screens of debug
@@ -790,7 +805,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const failure = !live && !isSub && !isDriver ? folded.failure : undefined;
   const runFailureRetry = () => {
     setFailureRetrying(true);
-    AR.retry(sid)
+    api.retry(sid)
       .then(() => {
         toast("retrying your last message as a new turn", "info");
         return poll();
@@ -1217,7 +1232,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                     className="ghost"
                     onClick={async () => {
                       try {
-                        const r = await AR.promote(sid);
+                        const r = await api.promote(sid);
                         toast(r.status || "winner applied", "info");
                       } catch (e: any) {
                         toast(String(e?.message || e), "error");
@@ -1328,12 +1343,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}
             onOpenArtifact={(stream, version) =>
-              AR.artifact(sid, stream, version)
+              api.artifact(sid, stream, version)
                 .then((text) => openModal({ kind: "viewer", title: `${stream} · v${version}`, body: text }))
                 .catch((error) => toast(error.message))}
-            onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollInspect()).catch((error) => toast(error.message))}
+            onGoalAction={(action) => api.goal(sid, { action }).then(() => pollInspect()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
-            onInspect={() => AR.inspect(sid).then((data) => openModal({
+            onInspect={() => api.inspect(sid).then((data) => openModal({
               kind: "inspect",
               data,
               status: sessions.find((session) => session.id === sid)?.status,

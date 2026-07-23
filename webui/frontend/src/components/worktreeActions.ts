@@ -1,4 +1,4 @@
-import { AR } from "../api";
+import { useAppServices } from "../app/appServices";
 import { useStore } from "../store";
 
 // INC-41 RD-C · the worktree's lifecycle actions (INC-49), in one place.
@@ -35,6 +35,7 @@ export interface WorktreeActions {
 }
 
 export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts): WorktreeActions {
+  const { api, clock } = useAppServices();
   const toast = useStore((s) => s.toast);
   const openModal = useStore((s) => s.openModal);
 
@@ -53,7 +54,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
       onConfirm: async () => {
         busy(true);
         try {
-          const r = await AR.applyWorktree(sid);
+          const r = await api.applyWorktree(sid);
           toast(r.applied ? "applied to project — review the changes there" : "no changes to apply", "info");
           done();
         } catch (e: any) {
@@ -71,7 +72,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
   const forceRemove = async () => {
     busy(true);
     try {
-      await AR.removeWorktree(sid, true);
+      await api.removeWorktree(sid, true);
       toast("worktree removed", "info");
       done();
     } catch (e: any) {
@@ -90,7 +91,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
       onConfirm: async () => {
         busy(true);
         try {
-          await AR.removeWorktree(sid, false);
+          await api.removeWorktree(sid, false);
           toast("worktree removed", "info");
           done();
         } catch (e: any) {
@@ -98,7 +99,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
             // The confirm modal auto-closes itself right after this handler
             // resolves, which would clobber a modal opened synchronously here —
             // so defer the force prompt to the next tick.
-            setTimeout(
+            clock.setTimeout(
               () =>
                 openModal({
                   kind: "confirm",

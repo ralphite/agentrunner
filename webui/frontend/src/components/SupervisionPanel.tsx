@@ -19,7 +19,8 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { AR, pushErrorMessage } from "../api";
+import { pushErrorMessage } from "../api";
+import { useAppServices } from "../app/appServices";
 import { useStore } from "../store";
 import { copyText } from "../clipboard";
 import { loadGitPrefs } from "../theme";
@@ -100,6 +101,7 @@ function artifactType(stream: string): string {
 // EnvironmentSection sources the current session's diff — so SessionView's props
 // stay untouched. One fetch, triggered when the active goal clears.
 function useSettledGoal(active: boolean, loading: boolean): GoalDerived | null {
+  const { api } = useAppServices();
   const sid = useStore((s) => s.currentSid);
   const [settled, setSettled] = useState<GoalDerived | null>(null);
   useEffect(() => {
@@ -108,7 +110,7 @@ function useSettledGoal(active: boolean, loading: boolean): GoalDerived | null {
       return;
     }
     let alive = true;
-    AR.rawEvents(sid)
+    api.rawEvents(sid)
       .then((evs) => {
         if (!alive) return;
         const g = deriveGoalState(evs);
@@ -531,7 +533,7 @@ export function SupervisionPanel({
   );
 }
 
-// INC-41 RD-A · floor between two Environment refreshes. `AR.diff` runs git in
+// INC-41 RD-A · floor between two Environment refreshes. `api.diff` runs git in
 // the daemon; a live turn streams tens of events per second, and one `ar diff`
 // per event would be a self-inflicted DoS. 2s is well under the time it takes a
 // human to look from the thread to the rail, and well over the cost of a diff.
@@ -582,6 +584,7 @@ function EnvironmentSection({
   onOpenChanges?: () => void;
   refreshKey?: number;
 }) {
+  const { api, clock, storage } = useAppServices();
   const sid = useStore((s) => s.currentSid);
   const openPrompt = useStore((s) => s.openPrompt);
   const toast = useStore((s) => s.toast);
@@ -612,7 +615,7 @@ function EnvironmentSection({
   }, []);
 
   const load = useCallback(() => {
-    lastLoadAt.current = Date.now();
+    lastLoadAt.current = clock.now();
     const id = ++reqId.current;
     const fresh = () => mounted.current && id === reqId.current;
     if (!sid) {
@@ -620,7 +623,7 @@ function EnvironmentSection({
       setBranch(null);
       return;
     }
-    AR.diff(sid)
+    api.diff(sid)
       .then((d) => {
         if (!fresh()) return;
         // The rail states the same "what changed" fact as the changes card —
@@ -640,7 +643,7 @@ function EnvironmentSection({
           mainRepo: d.mainRepo || "",
         });
         if (d.known && d.isRepo && !d.nested && d.workspace) {
-          AR.gitBranches(d.workspace)
+          api.gitBranches(d.workspace)
             .then((b) => fresh() && setBranch(b.isRepo ? (b.current === "HEAD" ? "" : b.current) : null))
             .catch(() => fresh() && setBranch(null));
         } else {
@@ -671,13 +674,13 @@ function EnvironmentSection({
   // one more fetch, ENV_REFRESH_MS after the last one, so the panel always ends
   // up on the final state instead of a stale one.
   useEffect(() => {
-    const since = Date.now() - lastLoadAt.current;
+    const since = clock.now() - lastLoadAt.current;
     if (since >= ENV_REFRESH_MS) {
       load();
       return;
     }
-    const timer = setTimeout(() => load(), ENV_REFRESH_MS - since);
-    return () => clearTimeout(timer);
+    const timer = clock.setTimeout(() => load(), ENV_REFRESH_MS - since);
+    return () => clock.clearTimeout(timer);
   }, [load, refreshKey]);
 
   // TH-15 · Jump to the Changes view. This used to synthesise a click on the
@@ -692,9 +695,9 @@ function EnvironmentSection({
     if (!sid) return;
     setBusy(true);
     try {
-      await AR.commit(sid, message);
+      await api.commit(sid, message);
       if (thenPush) {
-        const r = await AR.push(sid);
+        const r = await api.push(sid);
         toast(r.branch ? `committed & pushed ${r.branch}` : "committed & pushed", "info");
       } else {
         toast("committed", "info");
@@ -712,7 +715,7 @@ function EnvironmentSection({
     openPrompt({
       title: thenPush ? "Commit & push" : "Commit changes",
       label: "commit message",
-      initial: loadGitPrefs().commitTemplate,
+      initial: loadGitPrefs(storage.local).commitTemplate,
       submitLabel: thenPush ? "Commit & push" : "Commit",
       onSubmit: (message) => void doCommit(message, thenPush),
     });
@@ -721,7 +724,7 @@ function EnvironmentSection({
     if (!sid) return;
     setBusy(true);
     try {
-      const r = await AR.push(sid);
+      const r = await api.push(sid);
       toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
       load();
       bumpWorkspaceEpoch();
@@ -739,7 +742,7 @@ function EnvironmentSection({
   const doCreateBranch = async (dir: string, name: string) => {
     setBusy(true);
     try {
-      const r = await AR.gitCheckout(dir, name, true);
+      const r = await api.gitCheckout(dir, name, true);
       toast(`switched to ${r.branch || name}`, "info");
       load();
     } catch (e: any) {

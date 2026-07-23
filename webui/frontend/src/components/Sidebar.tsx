@@ -30,10 +30,11 @@ import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
+  useAppStoreApi,
   useStore,
   type Page,
 } from "../store";
-import { AR } from "../api";
+import { useAppServices } from "../app/appServices";
 import { sessionFriendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
@@ -62,18 +63,18 @@ const COLLAPSED_KEY = "ar.sidebar.collapsedProjects";
 const SECTION_FOLDS_KEY = "ar.sidebar.foldedSections";
 type FoldableSection = "pinned" | "projects";
 
-function loadCollapsedProjects(): Set<string> {
+function loadCollapsedProjects(storage: Storage): Set<string> {
   try {
-    const raw = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]");
+    const raw = JSON.parse(storage.getItem(COLLAPSED_KEY) || "[]");
     return new Set(Array.isArray(raw) ? raw.filter((key): key is string => typeof key === "string") : []);
   } catch {
     return new Set();
   }
 }
 
-function loadFoldedSections(): Set<FoldableSection> {
+function loadFoldedSections(storage: Storage): Set<FoldableSection> {
   try {
-    const raw = JSON.parse(localStorage.getItem(SECTION_FOLDS_KEY) || "[]");
+    const raw = JSON.parse(storage.getItem(SECTION_FOLDS_KEY) || "[]");
     return new Set(
       Array.isArray(raw)
         ? raw.filter((section): section is FoldableSection => section === "pinned" || section === "projects")
@@ -102,6 +103,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   onOpenPalette?: () => void;
   onOpenSettings?: () => void;
 }) {
+  const { api, clock, storage } = useAppServices();
+  const store = useAppStoreApi();
   const {
     health,
     sessions,
@@ -143,10 +146,12 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // SB-4: locally-collapsed groups (localStorage-backed) + the section-level
   // "show every project" escape hatch.
-  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedProjects);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedProjects(storage.local));
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [showRemovedProjects, setShowRemovedProjects] = useState(false);
-  const [foldedSections, setFoldedSections] = useState<Set<FoldableSection>>(loadFoldedSections);
+  const [foldedSections, setFoldedSections] = useState<Set<FoldableSection>>(
+    () => loadFoldedSections(storage.local),
+  );
   // The flat Sessions section has its own show-all toggle.
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
@@ -159,7 +164,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       if (next.has(section)) next.delete(section);
       else next.add(section);
       try {
-        localStorage.setItem(SECTION_FOLDS_KEY, JSON.stringify([...next]));
+        storage.local.setItem(SECTION_FOLDS_KEY, JSON.stringify([...next]));
       } catch {
         /* private mode / quota */
       }
@@ -275,7 +280,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       if (next) updated.add(key);
       else updated.delete(key);
       try {
-        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...updated]));
+        storage.local.setItem(COLLAPSED_KEY, JSON.stringify([...updated]));
       } catch {
         /* private mode / quota — the overlay still carries the fold */
       }
@@ -286,9 +291,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
   const restartDaemon = async () => {
     try {
-      await AR.daemonStart();
+      await api.daemonStart();
       toast("daemon start requested", "info");
-      setTimeout(refreshHealth, 800);
+      clock.setTimeout(refreshHealth, 800);
     } catch (error: any) {
       toast(error.message);
     }
@@ -303,7 +308,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     const workspace = session.workspace;
     if (!workspace || Object.prototype.hasOwnProperty.call(branchByWorkspace, workspace)) return;
     setBranchByWorkspace((current) => ({ ...current, [workspace]: "" }));
-    AR.gitBranches(workspace)
+    api.gitBranches(workspace)
       .then((info) => setBranchByWorkspace((current) => ({
         ...current,
         [workspace]: info.isRepo && info.current ? info.current : "Local workspace",
@@ -317,7 +322,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       <MenuItem onClick={() => togglePin(sid)}>
         <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} /> {pinned.includes(sid) ? "Unpin" : "Pin"}
       </MenuItem>
-      <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid })}>
+      <MenuItem onClick={() => store.getState().openModal({ kind: "rename", sid })}>
         <PencilSimple size={16} /> Rename…
       </MenuItem>
       <MenuItem onClick={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}>
@@ -352,7 +357,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             placeholder: "feature/my-work",
             submitLabel: "Create",
             onSubmit: (branch) => {
-              void AR.makeWorktree(workspace, branch.trim())
+              void api.makeWorktree(workspace, branch.trim())
                 .then((result) => toast(`worktree created · ${result.path}`, "info"))
                 .catch((error: any) => toast(error.message, "error", error.details));
             },

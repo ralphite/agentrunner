@@ -1,9 +1,27 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 36,
-    "lines": 14780,
+    "count": 37,
+    "lines": 15216,
     "files": [
+      {
+        "source": "src/App.tsx",
+        "lines": 255,
+        "exports": [
+          "AppShell"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/app/AppRuntime.tsx",
+        "lines": 117,
+        "exports": [
+          "AppRuntime"
+        ],
+        "privateVisibleCandidates": [
+          "RuntimeController"
+        ]
+      },
       {
         "source": "src/components/ApprovalCard.tsx",
         "lines": 151,
@@ -22,7 +40,7 @@
       },
       {
         "source": "src/components/ChangesOutcome.tsx",
-        "lines": 588,
+        "lines": 592,
         "exports": [
           "ChangesOutcome"
         ],
@@ -45,7 +63,7 @@
       },
       {
         "source": "src/components/Composer.tsx",
-        "lines": 2101,
+        "lines": 2114,
         "exports": [
           "Composer"
         ],
@@ -76,7 +94,7 @@
       },
       {
         "source": "src/components/DaemonAlert.tsx",
-        "lines": 50,
+        "lines": 51,
         "exports": [
           "DaemonAlert"
         ],
@@ -84,7 +102,7 @@
       },
       {
         "source": "src/components/DiffView.tsx",
-        "lines": 1800,
+        "lines": 1804,
         "exports": [
           "DiffView"
         ],
@@ -132,7 +150,7 @@
       },
       {
         "source": "src/components/Markdown.tsx",
-        "lines": 330,
+        "lines": 337,
         "exports": [
           "Markdown"
         ],
@@ -161,7 +179,7 @@
       },
       {
         "source": "src/components/Modals.tsx",
-        "lines": 964,
+        "lines": 970,
         "exports": [
           "Modal",
           "Modals"
@@ -200,7 +218,7 @@
       },
       {
         "source": "src/components/RunView.tsx",
-        "lines": 179,
+        "lines": 180,
         "exports": [
           "RunView"
         ],
@@ -208,7 +226,7 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 1163,
+        "lines": 1166,
         "exports": [
           "Scheduled"
         ],
@@ -219,7 +237,7 @@
       },
       {
         "source": "src/components/SessionView.tsx",
-        "lines": 1489,
+        "lines": 1504,
         "exports": [
           "SessionView"
         ],
@@ -238,7 +256,7 @@
       },
       {
         "source": "src/components/SettingsAppearance.tsx",
-        "lines": 240,
+        "lines": 243,
         "exports": [
           "SettingsAppearance"
         ],
@@ -266,7 +284,7 @@
       },
       {
         "source": "src/components/SettingsGeneral.tsx",
-        "lines": 80,
+        "lines": 82,
         "exports": [
           "SettingsGeneral"
         ],
@@ -274,16 +292,10 @@
       },
       {
         "source": "src/components/SettingsGit.tsx",
-        "lines": 47,
+        "lines": 49,
         "exports": [
           "SettingsGit"
         ],
-        "privateVisibleCandidates": []
-      },
-      {
-        "source": "src/components/SettingsSearch.tsx",
-        "lines": 10,
-        "exports": [],
         "privateVisibleCandidates": []
       },
       {
@@ -296,7 +308,7 @@
       },
       {
         "source": "src/components/SettingsWorktrees.tsx",
-        "lines": 72,
+        "lines": 73,
         "exports": [
           "SettingsWorktrees"
         ],
@@ -312,7 +324,7 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 889,
+        "lines": 894,
         "exports": [
           "Sidebar"
         ],
@@ -328,7 +340,7 @@
       },
       {
         "source": "src/components/SupervisionPanel.tsx",
-        "lines": 994,
+        "lines": 997,
         "exports": [
           "SupervisionPanel"
         ],
@@ -338,7 +350,7 @@
       },
       {
         "source": "src/components/Timeline.tsx",
-        "lines": 1451,
+        "lines": 1455,
         "exports": [
           "TimelineView"
         ],
@@ -378,387 +390,49 @@
     ]
   },
   "tests": {
-    "files": 72,
-    "declarations": 744
+    "files": 74,
+    "declarations": 749
   },
   "storage": [
     {
-      "source": "src/components/Composer.tsx",
-      "storage": "sessionStorage",
-      "operation": "getItem",
-      "key": "key",
-      "line": 116
-    },
-    {
-      "source": "src/components/Composer.tsx",
-      "storage": "sessionStorage",
-      "operation": "setItem",
-      "key": "key",
-      "line": 119
-    },
-    {
-      "source": "src/components/Composer.tsx",
-      "storage": "sessionStorage",
-      "operation": "removeItem",
-      "key": "`arwebui.fork-send.${sid}.${draftID}`",
-      "line": 127
-    },
-    {
-      "source": "src/components/Composer.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.lastProject",
-      "line": 144
-    },
-    {
-      "source": "src/components/Composer.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.lastProject",
-      "line": 151
-    },
-    {
-      "source": "src/components/Composer.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.lastAccess",
-      "line": 229
-    },
-    {
-      "source": "src/components/Composer.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.lastAccess",
-      "line": 241
-    },
-    {
-      "source": "src/components/DiffView.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "ar.diff.wrap",
-      "line": 150
-    },
-    {
-      "source": "src/components/DiffView.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "ar.diff.wrap",
-      "line": 158
-    },
-    {
-      "source": "src/components/DiffView.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "ar.diff.scope",
-      "line": 176
-    },
-    {
-      "source": "src/components/DiffView.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "ar.diff.scope",
-      "line": 184
-    },
-    {
-      "source": "src/components/sessionSpecs.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "key",
-      "line": 14
-    },
-    {
-      "source": "src/components/sessionSpecs.ts",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "key",
-      "line": 23
-    },
-    {
-      "source": "src/components/sessionSpecs.ts",
-      "storage": "sessionStorage",
-      "operation": "setItem",
-      "key": "draftStorageKey(key)",
-      "line": 63
-    },
-    {
-      "source": "src/components/sessionSpecs.ts",
-      "storage": "sessionStorage",
-      "operation": "removeItem",
-      "key": "draftStorageKey(key)",
-      "line": 71
-    },
-    {
-      "source": "src/components/sessionSpecs.ts",
-      "storage": "sessionStorage",
-      "operation": "getItem",
-      "key": "draftStorageKey(key)",
-      "line": 81
-    },
-    {
-      "source": "src/components/SessionView.tsx",
-      "storage": "sessionStorage",
-      "operation": "getItem",
-      "key": "key",
-      "line": 50
-    },
-    {
-      "source": "src/components/SessionView.tsx",
-      "storage": "sessionStorage",
-      "operation": "setItem",
-      "key": "key",
-      "line": 53
-    },
-    {
-      "source": "src/components/SessionView.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.supervision",
-      "line": 201
-    },
-    {
-      "source": "src/components/SessionView.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.supervision",
-      "line": 206
-    },
-    {
-      "source": "src/components/Sidebar.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "ar.sidebar.collapsedProjects",
-      "line": 67
-    },
-    {
-      "source": "src/components/Sidebar.tsx",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "ar.sidebar.foldedSections",
-      "line": 76
-    },
-    {
-      "source": "src/components/Sidebar.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "ar.sidebar.foldedSections",
-      "line": 162
-    },
-    {
-      "source": "src/components/Sidebar.tsx",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "ar.sidebar.collapsedProjects",
-      "line": 278
-    },
-    {
-      "source": "src/components/Timeline.tsx",
-      "storage": "sessionStorage",
-      "operation": "removeItem",
-      "key": "scrollStorageKey",
-      "line": 1155
-    },
-    {
-      "source": "src/components/Timeline.tsx",
-      "storage": "sessionStorage",
-      "operation": "getItem",
-      "key": "scrollStorageKey",
-      "line": 1223
-    },
-    {
-      "source": "src/components/Timeline.tsx",
-      "storage": "sessionStorage",
-      "operation": "setItem",
-      "key": "scrollStorageKey",
-      "line": 1290
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.archived",
-      "line": 174
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.pinned",
-      "line": 183
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.renames",
-      "line": 198
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "removeItem",
-      "key": "arwebui.renames",
-      "line": 206
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "removeItem",
-      "key": "arwebui.renames",
-      "line": 215
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.sidebar",
-      "line": 226
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.sidebarWidth",
-      "line": 244
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.unread",
-      "line": 254
-    },
-    {
-      "source": "src/store.ts",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.unread",
-      "line": 261
-    },
-    {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.archived",
-      "line": 332
+      "line": 348
     },
     {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.pinned",
-      "line": 372
+      "line": 380
     },
     {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.sidebar",
-      "line": 397
+      "line": 406
     },
     {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.sidebarWidth",
-      "line": 407
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.theme",
-      "line": 10
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.theme",
-      "line": 29
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.appearance",
-      "line": 78
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.appearance",
-      "line": 90
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "getItem",
-      "key": "arwebui.git",
-      "line": 171
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "setItem",
-      "key": "arwebui.git",
-      "line": 181
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "removeItem",
-      "key": "arwebui.appearance",
-      "line": 190
-    },
-    {
-      "source": "src/theme.ts",
-      "storage": "localStorage",
-      "operation": "removeItem",
-      "key": "arwebui.git",
-      "line": 191
+      "line": 416
     }
   ],
   "routes": [
     {
-      "source": "src/store.ts",
-      "line": 306,
-      "expression": "\"\""
+      "source": "src/app/appServices.ts",
+      "line": 92,
+      "expression": "hash"
     },
     {
-      "source": "src/store.ts",
-      "line": 352,
-      "expression": "\"scheduled\""
-    },
-    {
-      "source": "src/store.ts",
-      "line": 362,
-      "expression": "\"\""
-    },
-    {
-      "source": "src/store.ts",
-      "line": 587,
-      "expression": "sid"
-    },
-    {
-      "source": "src/store.ts",
-      "line": 590,
-      "expression": "\"\""
-    },
-    {
-      "source": "src/store.ts",
-      "line": 595,
-      "expression": "rid ? \"run:\" + rid : \"\""
-    },
-    {
-      "source": "src/store.ts",
-      "line": 601,
-      "expression": "page === \"home\" ? \"\" : page"
-    },
-    {
-      "source": "src/store.ts",
-      "line": 611,
-      "expression": "sid ? `scheduled:${sid}` : \"scheduled\""
+      "source": "src/app/appServices.ts",
+      "line": 99,
+      "expression": "hash"
     }
   ]
 }

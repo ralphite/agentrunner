@@ -1,3 +1,5 @@
+import { productionAppServices } from "../app/appServices";
+
 // A localStorage-backed record of what this UI configured each session with,
 // so a mid-session model switch can edit *that* spec (keeping its
 // system_prompt / tools / permissions) and the session composer can show the
@@ -10,40 +12,58 @@ const SPECS_KEY = "arwebui.sessSpecs";
 const ACCESS_KEY = "arwebui.sessAccess";
 const MODELS_KEY = "arwebui.sessModels";
 
-function loadMap(key: string): Record<string, string> {
+function loadMap(storage: Storage, key: string): Record<string, string> {
   try {
-    const v = JSON.parse(localStorage.getItem(key) || "{}");
+    const v = JSON.parse(storage.getItem(key) || "{}");
     return v && typeof v === "object" ? v : {};
   } catch {
     return {};
   }
 }
 
-function saveMap(key: string, m: Record<string, string>) {
+function saveMap(storage: Storage, key: string, m: Record<string, string>) {
   try {
-    localStorage.setItem(key, JSON.stringify(m));
+    storage.setItem(key, JSON.stringify(m));
   } catch {
     /* quota — stay best-effort */
   }
 }
 
-const specs = loadMap(SPECS_KEY);
-const access = loadMap(ACCESS_KEY);
-const models = loadMap(MODELS_KEY);
+const specMaps = new WeakMap<Storage, Record<string, string>>();
+const accessMaps = new WeakMap<Storage, Record<string, string>>();
+const modelMaps = new WeakMap<Storage, Record<string, string>>();
+const localDefault = () => productionAppServices.storage.local;
+const sessionDefault = () => productionAppServices.storage.session;
 
-export const rememberSpec = (sid: string, spec: string) => {
+function cachedMap(
+  cache: WeakMap<Storage, Record<string, string>>,
+  storage: Storage,
+  key: string,
+): Record<string, string> {
+  const current = cache.get(storage);
+  if (current) return current;
+  const loaded = loadMap(storage, key);
+  cache.set(storage, loaded);
+  return loaded;
+}
+
+export const rememberSpec = (sid: string, spec: string, storage = localDefault()) => {
   if (!sid || !spec) return;
+  const specs = cachedMap(specMaps, storage, SPECS_KEY);
   specs[sid] = spec;
-  saveMap(SPECS_KEY, specs);
+  saveMap(storage, SPECS_KEY, specs);
 };
-export const recallSpec = (sid: string): string | undefined => specs[sid];
+export const recallSpec = (sid: string, storage = localDefault()): string | undefined =>
+  cachedMap(specMaps, storage, SPECS_KEY)[sid];
 
-export const rememberAccess = (sid: string, a: string) => {
+export const rememberAccess = (sid: string, a: string, storage = localDefault()) => {
   if (!sid || !a) return;
+  const access = cachedMap(accessMaps, storage, ACCESS_KEY);
   access[sid] = a;
-  saveMap(ACCESS_KEY, access);
+  saveMap(storage, ACCESS_KEY, access);
 };
-export const recallAccess = (sid: string): string | undefined => access[sid];
+export const recallAccess = (sid: string, storage = localDefault()): string | undefined =>
+  cachedMap(accessMaps, storage, ACCESS_KEY)[sid];
 
 export interface RememberedModel {
   provider: string;
@@ -51,14 +71,23 @@ export interface RememberedModel {
   effort: string;
 }
 
-export const rememberModel = (sid: string, model: RememberedModel) => {
+export const rememberModel = (
+  sid: string,
+  model: RememberedModel,
+  storage = localDefault(),
+) => {
   if (!sid || !model.provider || !model.model || !model.effort) return;
+  const models = cachedMap(modelMaps, storage, MODELS_KEY);
   models[sid] = JSON.stringify(model);
-  saveMap(MODELS_KEY, models);
+  saveMap(storage, MODELS_KEY, models);
 };
 
-export const recallModel = (sid: string): RememberedModel | undefined => {
+export const recallModel = (
+  sid: string,
+  storage = localDefault(),
+): RememberedModel | undefined => {
   try {
+    const models = cachedMap(modelMaps, storage, MODELS_KEY);
     const value = JSON.parse(models[sid] || "");
     if (value?.provider && value?.model && value?.effort) return value;
   } catch {
@@ -73,18 +102,27 @@ export const recallModel = (sid: string): RememberedModel | undefined => {
 // session never overwrite each other's half-typed text. The in-memory map keeps
 // input working when storage is unavailable or full.
 const DRAFT_PREFIX = "arwebui.draft.";
-const drafts = new Map<string, string>();
+const draftMaps = new WeakMap<Storage, Map<string, string>>();
+
+function draftsFor(storage: Storage): Map<string, string> {
+  const current = draftMaps.get(storage);
+  if (current) return current;
+  const created = new Map<string, string>();
+  draftMaps.set(storage, created);
+  return created;
+}
 
 function draftStorageKey(key: string): string {
   return `${DRAFT_PREFIX}${encodeURIComponent(key)}`;
 }
 
-export const rememberDraft = (key: string, text: string) => {
+export const rememberDraft = (key: string, text: string, storage = sessionDefault()) => {
   if (!key) return;
+  const drafts = draftsFor(storage);
   if (text) {
     drafts.set(key, text);
     try {
-      sessionStorage.setItem(draftStorageKey(key), text);
+      storage.setItem(draftStorageKey(key), text);
     } catch {
       /* quota/privacy mode — the current tab still has the in-memory copy */
     }
@@ -92,17 +130,18 @@ export const rememberDraft = (key: string, text: string) => {
   }
   drafts.delete(key);
   try {
-    sessionStorage.removeItem(draftStorageKey(key));
+    storage.removeItem(draftStorageKey(key));
   } catch {
     /* unavailable storage */
   }
 };
-export const recallDraft = (key: string): string => {
+export const recallDraft = (key: string, storage = sessionDefault()): string => {
   if (!key) return "";
+  const drafts = draftsFor(storage);
   const current = drafts.get(key);
   if (current !== undefined) return current;
   try {
-    const stored = sessionStorage.getItem(draftStorageKey(key)) || "";
+    const stored = storage.getItem(draftStorageKey(key)) || "";
     if (stored) drafts.set(key, stored);
     return stored;
   } catch {

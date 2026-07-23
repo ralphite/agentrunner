@@ -99,6 +99,57 @@ const availableExports = new Set(
 const coveredStoryIds = new Set();
 const missing = [];
 
+// Story/Page harnesses are only safe when production components cannot bypass
+// the injected AppServices boundary. Keep this structural rule in the same
+// gate as Story coverage so a later "quick" AR/EventSource/storage call cannot
+// silently reconnect an isolated canvas to ambient browser state.
+for (const file of sourceBaseline.productionComponents.files) {
+  const absolute = path.join(frontendRoot, file.source);
+  const source = fs.readFileSync(absolute, "utf8");
+  const sourceFile = ts.createSourceFile(
+    absolute,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const violations = [];
+  const visit = (node) => {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "AR"
+    ) {
+      violations.push(`direct AR.${node.name.text}`);
+    }
+    if (
+      ts.isNewExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "EventSource"
+    ) {
+      violations.push("direct EventSource");
+    }
+    if (
+      ts.isIdentifier(node) &&
+      (node.text === "localStorage" || node.text === "sessionStorage")
+    ) {
+      violations.push(`ambient ${node.text}`);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "fetch"
+    ) {
+      violations.push("direct fetch");
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  for (const violation of new Set(violations)) {
+    fail(`${file.source}: bypasses AppServices (${violation})`);
+  }
+}
+
 for (const target of storyManifest) {
   if (!target || typeof target !== "object") {
     fail("manifest target must be an object");

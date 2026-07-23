@@ -1,9 +1,14 @@
-import { create } from "zustand";
-import { AR } from "./api";
+import { createContext, createElement, useContext, type ReactNode } from "react";
+import { useStore as useZustandStore, type UseBoundStore } from "zustand";
+import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Health, LauncherApp, ProjectMeta, Run, Session } from "./types";
-import { notifyRunChanges, notifySessionChanges } from "./notify";
-import { loadTheme, nextTheme, saveTheme, type Theme } from "./theme";
+import { nextTheme, type Theme } from "./theme";
 import type { CadenceSpec, RunPreset } from "./runPreset";
+import {
+  createProductionAppServices,
+  productionAppServices,
+  type AppServices,
+} from "./app/appServices";
 
 export type ModalKind =
   | { kind: "new"; message?: string; spec?: string; worker?: string; provider?: string; model?: string; effort?: string }
@@ -72,7 +77,7 @@ export interface NewSessionProject {
   requestId: number;
 }
 
-interface AppState {
+export interface AppState {
   health: Health | null;
   sessions: Session[];
   // False until the first successful session-list response. An empty array
@@ -165,22 +170,19 @@ interface AppState {
   dismissToast: (id: number) => void;
 }
 
-let toastSeq = 0;
-let newSessionProjectSeq = 0;
-
 const ARCHIVE_KEY = "arwebui.archived";
-function loadArchived(): string[] {
+function loadArchived(storage: Storage): string[] {
   try {
-    return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || "[]");
+    return JSON.parse(storage.getItem(ARCHIVE_KEY) || "[]");
   } catch {
     return [];
   }
 }
 
 const PIN_KEY = "arwebui.pinned";
-function loadPinned(): string[] {
+function loadPinned(storage: Storage): string[] {
   try {
-    return JSON.parse(localStorage.getItem(PIN_KEY) || "[]");
+    return JSON.parse(storage.getItem(PIN_KEY) || "[]");
   } catch {
     return [];
   }
@@ -192,10 +194,10 @@ function loadPinned(): string[] {
 // retired localStorage layer — migrateRenames pushes any leftover entries
 // to the server once, then removes the key.
 const RENAME_KEY = "arwebui.renames";
-function migrateRenames(rename: (id: string, title: string) => Promise<unknown>) {
+function migrateRenames(storage: Storage, rename: (id: string, title: string) => Promise<unknown>) {
   let stale: Record<string, string> = {};
   try {
-    const v = JSON.parse(localStorage.getItem(RENAME_KEY) || "{}");
+    const v = JSON.parse(storage.getItem(RENAME_KEY) || "{}");
     if (v && typeof v === "object") stale = v;
   } catch {
     /* corrupt: drop below */
@@ -203,7 +205,7 @@ function migrateRenames(rename: (id: string, title: string) => Promise<unknown>)
   const entries = Object.entries(stale).filter(([, t]) => typeof t === "string" && t.trim());
   if (!entries.length) {
     try {
-      localStorage.removeItem(RENAME_KEY);
+      storage.removeItem(RENAME_KEY);
     } catch {
       /* ignore */
     }
@@ -212,7 +214,7 @@ function migrateRenames(rename: (id: string, title: string) => Promise<unknown>)
   Promise.allSettled(entries.map(([id, t]) => rename(id, t.trim()))).then((results) => {
     if (results.every((r) => r.status === "fulfilled")) {
       try {
-        localStorage.removeItem(RENAME_KEY);
+        storage.removeItem(RENAME_KEY);
       } catch {
         /* ignore */
       }
@@ -221,9 +223,9 @@ function migrateRenames(rename: (id: string, title: string) => Promise<unknown>)
 }
 
 const SIDEBAR_KEY = "arwebui.sidebar";
-function loadSidebarCollapsed(): boolean {
+function loadSidebarCollapsed(storage: Storage): boolean {
   try {
-    return localStorage.getItem(SIDEBAR_KEY) === "1";
+    return storage.getItem(SIDEBAR_KEY) === "1";
   } catch {
     return false;
   }
@@ -239,9 +241,9 @@ export function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
 }
 
-function loadSidebarWidth(): number {
+function loadSidebarWidth(storage: Storage): number {
   try {
-    const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    const raw = Number(storage.getItem(SIDEBAR_WIDTH_KEY));
     return raw ? clampSidebarWidth(raw) : SIDEBAR_DEFAULT_WIDTH;
   } catch {
     return SIDEBAR_DEFAULT_WIDTH;
@@ -249,16 +251,16 @@ function loadSidebarWidth(): number {
 }
 
 const UNREAD_KEY = "arwebui.unread";
-function loadUnread(): string[] {
+function loadUnread(storage: Storage): string[] {
   try {
-    return JSON.parse(localStorage.getItem(UNREAD_KEY) || "[]");
+    return JSON.parse(storage.getItem(UNREAD_KEY) || "[]");
   } catch {
     return [];
   }
 }
-function saveUnread(ids: string[]) {
+function saveUnread(storage: Storage, ids: string[]) {
   try {
-    localStorage.setItem(UNREAD_KEY, JSON.stringify(ids));
+    storage.setItem(UNREAD_KEY, JSON.stringify(ids));
   } catch {
     /* ignore quota */
   }
@@ -268,11 +270,8 @@ function saveUnread(ids: string[]) {
 // increase (while you're not viewing it) can flag the session unread. It's
 // in-memory: rebuilt from the first fetch each load, so a reload never
 // retroactively marks history unread — only the persisted unread set restores.
-const seenTurns: Record<string, number> = {};
-
 const firstSessionPageSize = 40;
 const olderSessionPageSize = 80;
-let sessionsRefreshInFlight: Promise<void> | null = null;
 
 // Put `head` first and append only unseen rows from `tail`. Periodic refreshes
 // replace the recent page while retaining already hydrated history; history
@@ -282,7 +281,21 @@ export function mergeSessionRows(head: Session[], tail: Session[]): Session[] {
   return [...head, ...tail.filter((session) => !seen.has(session.id))];
 }
 
-export const useStore = create<AppState>((set, get) => ({
+export type AppStore = StoreApi<AppState>;
+
+export interface CreateAppStoreOptions {
+  migrateLegacyRenames?: boolean;
+}
+
+export function createAppStore(
+  services: AppServices = createProductionAppServices(),
+  options: CreateAppStoreOptions = {},
+): AppStore {
+  const localStorage = services.storage.local;
+  const seenTurns: Record<string, number> = {};
+  let sessionsRefreshInFlight: Promise<void> | null = null;
+
+  const store = createStore<AppState>()((set, get) => ({
   health: null,
   sessions: [],
   sessionsReady: false,
@@ -301,9 +314,12 @@ export const useStore = create<AppState>((set, get) => ({
       currentRunId: null,
       currentPage: "home",
       scheduledDetailSid: null,
-      newSessionProject: { workspace: normalized, requestId: ++newSessionProjectSeq },
+      newSessionProject: {
+        workspace: normalized,
+        requestId: services.ids.next("new-session-project"),
+      },
     });
-    location.hash = "";
+    services.navigation.setHash("");
   },
   consumeNewSessionProject: (requestId) => {
     if (get().newSessionProject?.requestId === requestId) set({ newSessionProject: null });
@@ -313,16 +329,16 @@ export const useStore = create<AppState>((set, get) => ({
   toasts: [],
   showSys: false,
   toggleSys: () => set({ showSys: !get().showSys }),
-  theme: loadTheme(),
+  theme: services.theme.load(),
   cycleTheme: () => {
     const t = nextTheme(get().theme);
-    saveTheme(t);
+    services.theme.save(t);
     set({ theme: t });
   },
   helpOpen: false,
   openHelp: () => set({ helpOpen: true }),
   closeHelp: () => set({ helpOpen: false }),
-  archived: loadArchived(),
+  archived: loadArchived(localStorage),
   showArchived: false,
   toggleArchive: (id) => {
     const cur = get().archived;
@@ -346,25 +362,17 @@ export const useStore = create<AppState>((set, get) => ({
         scheduledDetailSid: null,
         toasts: [],
       });
-      if (typeof history !== "undefined" && typeof history.replaceState === "function") {
-        history.replaceState(null, "", `${location.pathname}${location.search}#scheduled`);
-      } else {
-        location.hash = "scheduled";
-      }
+      services.navigation.replaceHash("scheduled");
       return;
     }
     // Replace archive-current history so Back cannot reopen the hidden session.
     if (!restoring && get().currentSid === id) {
       set({ currentSid: null, currentRunId: null, currentPage: "home", toasts: [] });
-      if (typeof history !== "undefined" && typeof history.replaceState === "function") {
-        history.replaceState(null, "", `${location.pathname}${location.search}`);
-      } else {
-        location.hash = "";
-      }
+      services.navigation.replaceHash("");
     }
   },
   toggleShowArchived: () => set({ showArchived: !get().showArchived }),
-  pinned: loadPinned(),
+  pinned: loadPinned(localStorage),
   togglePin: (id) => {
     const cur = get().pinned;
     const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
@@ -382,7 +390,8 @@ export const useStore = create<AppState>((set, get) => ({
     // Optimistic overlay now; the journal fact arrives with the next
     // sessions refresh (s.title), at which point the overlay is redundant.
     set({ renames: { ...get().renames, [id]: t } });
-    AR.rename(id, t)
+    services.api
+      .rename(id, t)
       .then(() => get().refreshSessions())
       .catch(() => {
         const next = { ...get().renames };
@@ -390,7 +399,7 @@ export const useStore = create<AppState>((set, get) => ({
         set({ renames: next });
       });
   },
-  sidebarCollapsed: loadSidebarCollapsed(),
+  sidebarCollapsed: loadSidebarCollapsed(localStorage),
   toggleSidebar: () => {
     const next = !get().sidebarCollapsed;
     try {
@@ -400,7 +409,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ sidebarCollapsed: next });
   },
-  sidebarWidth: loadSidebarWidth(),
+  sidebarWidth: loadSidebarWidth(localStorage),
   setSidebarWidth: (width) => {
     const next = clampSidebarWidth(width);
     try {
@@ -410,11 +419,11 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ sidebarWidth: next });
   },
-  unread: loadUnread(),
+  unread: loadUnread(localStorage),
   markUnread: (id) => {
     if (get().unread.includes(id)) return;
     const next = [...get().unread, id];
-    saveUnread(next);
+    saveUnread(localStorage, next);
     set({ unread: next });
   },
   markRead: (id) => {
@@ -423,21 +432,21 @@ export const useStore = create<AppState>((set, get) => ({
     if (s) seenTurns[id] = s.turns;
     if (!get().unread.includes(id)) return;
     const next = get().unread.filter((x) => x !== id);
-    saveUnread(next);
+    saveUnread(localStorage, next);
     set({ unread: next });
   },
 
   projects: {},
   refreshProjects: async () => {
     try {
-      set({ projects: await AR.projects() });
+      set({ projects: await services.api.projects() });
     } catch {
       /* overlay is cosmetic; a failed fetch leaves the last-known map */
     }
   },
   setProjectName: async (key, name) => {
     try {
-      set({ projects: await AR.updateProject(key, { displayName: name }) });
+      set({ projects: await services.api.updateProject(key, { displayName: name }) });
     } catch (error: any) {
       get().toast(error.message, "error", error.details);
     }
@@ -448,7 +457,7 @@ export const useStore = create<AppState>((set, get) => ({
     const prev = get().projects;
     set({ projects: { ...prev, [key]: { ...prev[key], folded } } });
     try {
-      set({ projects: await AR.updateProject(key, { folded }) });
+      set({ projects: await services.api.updateProject(key, { folded }) });
     } catch {
       get().refreshProjects();
     }
@@ -457,7 +466,7 @@ export const useStore = create<AppState>((set, get) => ({
     const prev = get().projects;
     set({ projects: { ...prev, [key]: { ...prev[key], pinned } } });
     try {
-      set({ projects: await AR.updateProject(key, { pinned }) });
+      set({ projects: await services.api.updateProject(key, { pinned }) });
     } catch (error: any) {
       set({ projects: prev });
       get().toast(error.message, "error", error.details);
@@ -467,7 +476,7 @@ export const useStore = create<AppState>((set, get) => ({
     const prev = get().projects;
     set({ projects: { ...prev, [key]: { ...prev[key], removed } } });
     try {
-      set({ projects: await AR.updateProject(key, { removed }) });
+      set({ projects: await services.api.updateProject(key, { removed }) });
     } catch (error: any) {
       set({ projects: prev });
       get().toast(error.message, "error", error.details);
@@ -475,7 +484,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
   openProjectIn: async (workspace, app) => {
     try {
-      await AR.openIn(workspace, app);
+      await services.api.openIn(workspace, app);
       get().refreshProjects(); // pick up the new last_opened
     } catch (error: any) {
       get().toast(error.message, "error", error.details);
@@ -493,7 +502,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   refreshHealth: async () => {
     try {
-      set({ health: await AR.health() });
+      set({ health: await services.api.health() });
     } catch {
       set({ health: null });
     }
@@ -504,7 +513,7 @@ export const useStore = create<AppState>((set, get) => ({
     const applyPage = (page: Session[], append: boolean) => {
       const prev = get().sessions;
       const next = append ? mergeSessionRows(prev, page) : mergeSessionRows(page, prev);
-      if (prev.length) notifySessionChanges(prev, next, get().currentSid);
+      if (prev.length) services.notifications.sessions(prev, next, get().currentSid);
       // Flag sessions that gained turns since we last saw them (and aren't the
       // one you're viewing). First sighting only records a baseline.
       const cur = get().currentSid;
@@ -522,21 +531,21 @@ export const useStore = create<AppState>((set, get) => ({
       }
       if (changed) {
         const arr = [...unreadSet];
-        saveUnread(arr);
+        saveUnread(localStorage, arr);
         set({ unread: arr });
       }
       set({ sessions: next, sessionsReady: true });
     };
     const session = (async () => {
       try {
-        const recent = await AR.sessions(firstSessionPageSize, 0);
+        const recent = await services.api.sessions(firstSessionPageSize, 0);
         applyPage(recent, false);
         if (!initialHydration || recent.length < firstSessionPageSize) return;
 
         set({ sessionsLoadingOlder: true });
         let offset = recent.length;
         for (;;) {
-          const page = await AR.sessions(olderSessionPageSize, offset);
+          const page = await services.api.sessions(olderSessionPageSize, offset);
           if (page.length === 0) break;
           applyPage(page, true);
           offset += page.length;
@@ -555,9 +564,9 @@ export const useStore = create<AppState>((set, get) => ({
   },
   refreshRuns: async () => {
     try {
-      const next = await AR.runs();
+      const next = await services.api.runs();
       const prev = get().runs;
-      if (prev.length) notifyRunChanges(prev, next);
+      if (prev.length) services.notifications.runs(prev, next);
       set({ runs: next });
     } catch {
       /* ignore */
@@ -584,21 +593,21 @@ export const useStore = create<AppState>((set, get) => ({
   select: (sid) => {
     set({ currentSid: sid, currentRunId: null, currentPage: "home", scheduledDetailSid: null, toasts: [] });
     if (sid) {
-      location.hash = sid;
+      services.navigation.setHash(sid);
       get().markRead(sid); // opening a session clears its unread flag
     } else {
-      location.hash = "";
+      services.navigation.setHash("");
     }
   },
   selectRun: (rid) => {
     set({ currentRunId: rid, currentSid: null, currentPage: "scheduled", scheduledDetailSid: null, toasts: [] });
-    location.hash = rid ? "run:" + rid : "";
+    services.navigation.setHash(rid ? "run:" + rid : "");
   },
   showPage: (page) => {
     set({ currentSid: null, currentRunId: null, currentPage: page, scheduledDetailSid: null, toasts: [] });
     // "home" is the bare route (no hash); Scheduled routes to a hash that
     // matches its key so deep links + back/forward work (#scheduled).
-    location.hash = page === "home" ? "" : page;
+    services.navigation.setHash(page === "home" ? "" : page);
   },
   showScheduledDetail: (sid) => {
     set({
@@ -608,19 +617,61 @@ export const useStore = create<AppState>((set, get) => ({
       scheduledDetailSid: sid,
       toasts: [],
     });
-    location.hash = sid ? `scheduled:${sid}` : "scheduled";
+    services.navigation.setHash(sid ? `scheduled:${sid}` : "scheduled");
   },
   openModal: (m) => set({ modal: m }),
   openPrompt: (p) => set({ prompt: p }),
   toast: (text, kind = "error", details) => {
-    const id = ++toastSeq;
+    const id = services.ids.next("toast");
     set({ toasts: [...get().toasts, { id, text, kind, details }] });
     // Errors persist until tapped — a long message on a phone must not vanish
     // before it can be read (phone report). Info toasts still auto-dismiss.
-    if (kind !== "error") setTimeout(() => get().dismissToast(id), 5000);
+    if (kind !== "error") services.clock.setTimeout(() => get().dismissToast(id), 5000);
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
-}));
+  }));
+
+  if (options.migrateLegacyRenames) {
+    migrateRenames(localStorage, (id, title) => services.api.rename(id, title));
+  }
+
+  return store;
+}
 
 // One-shot migration of the retired localStorage rename layer (PLAN 5.6).
-migrateRenames((id, t) => AR.rename(id, t));
+export const appStore = createAppStore(productionAppServices, {
+  migrateLegacyRenames: true,
+});
+
+const AppStoreContext = createContext<AppStore | null>(null);
+
+export interface AppStoreProviderProps {
+  store: AppStore;
+  children: ReactNode;
+}
+
+export function AppStoreProvider({ store, children }: AppStoreProviderProps) {
+  return createElement(AppStoreContext.Provider, { value: store }, children);
+}
+
+export function useAppStoreApi(): AppStore {
+  return useContext(AppStoreContext) ?? appStore;
+}
+
+function useStoreFromContext(): AppState;
+function useStoreFromContext<T>(selector: (state: AppState) => T): T;
+function useStoreFromContext<T>(selector?: (state: AppState) => T): T | AppState {
+  const store = useAppStoreApi();
+  if (selector) return useZustandStore(store, selector);
+  return useZustandStore(store);
+}
+
+// Keep the existing production/test surface (`useStore(...)`,
+// `useStore.getState()`, `useStore.setState()`) while allowing Storybook and
+// Demo harnesses to provide fully isolated stores through AppStoreProvider.
+export const useStore = Object.assign(useStoreFromContext, {
+  setState: appStore.setState,
+  getState: appStore.getState,
+  getInitialState: appStore.getInitialState,
+  subscribe: appStore.subscribe,
+}) as UseBoundStore<AppStore>;

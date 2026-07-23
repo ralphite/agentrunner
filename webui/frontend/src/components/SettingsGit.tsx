@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type GitPrefs, loadGitPrefs, saveGitPrefs } from "../theme";
 import { matchesQuery } from "./SettingsSearch";
+import { useAppServices } from "../app/appServices";
 
 // SettingsGit is Codex's Settings → Git (INC-41 H4). Only settings with a
 // wired effect live here: the commit-message template seeds the DiffView
@@ -8,11 +9,12 @@ import { matchesQuery } from "./SettingsSearch";
 // but-unconsumed placeholders and were removed — add a setting back only
 // together with the flow that reads it.)
 export function SettingsGit({ query }: { query: string }) {
-  const [g, setG] = useState<GitPrefs>(loadGitPrefs);
+  const { storage } = useAppServices();
+  const [g, setG] = useState<GitPrefs>(() => loadGitPrefs(storage.local));
   const patch = (p: Partial<GitPrefs>) => {
     const next = { ...g, ...p };
     setG(next);
-    saveGitPrefs(next);
+    saveGitPrefs(next, storage.local);
   };
 
   const show = (s: string) => matchesQuery(query, s);

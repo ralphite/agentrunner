@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, ImageBroken, WarningCircle } from "@phosphor-icons/react";
-import { AR } from "../api";
 import { useStore } from "../store";
+import { useAppServices } from "../app/appServices";
 import { dropGeneratedFiles, splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
 import { Lightbox } from "./Lightbox";
 import { inlinedImagePaths, inlinedImagesVersion, subscribeInlinedImages } from "./Markdown";
@@ -54,9 +54,10 @@ function docKind(path: string): { ext: string; label: string } | null {
 // decoded (a corrupt write, or an .svg the browser refuses) degrades to a
 // broken-image placeholder card that still names + links the file.
 function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: () => void }) {
+  const { api } = useAppServices();
   const [failed, setFailed] = useState(false);
   const { base } = splitPath(path);
-  const url = AR.fileURL(sid, path);
+  const url = api.fileURL(sid, path);
   return (
     <button
       type="button"
@@ -91,6 +92,7 @@ function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: (
 // an image the prose never mentioned still earns a card; when every produced
 // image is already inline the whole row renders nothing (no empty shell).
 function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
+  const { api } = useAppServices();
   const [expanded, setExpanded] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
   useSyncExternalStore(subscribeInlinedImages, inlinedImagesVersion, inlinedImagesVersion);
@@ -122,7 +124,7 @@ function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] 
         <Lightbox
           images={shown}
           index={lightbox}
-          resolve={(p) => AR.fileURL(sid, p)}
+          resolve={(p) => api.fileURL(sid, p)}
           onIndex={setLightbox}
           onClose={() => setLightbox(null)}
         />
@@ -135,6 +137,7 @@ function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] 
 // controls (Open in a new tab + Download) fold behind a single "Open in ⌄"
 // caret menu (Codex parity), so the row keeps a single trailing control.
 function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: FileDiffSummary; ext: string; label: string; divider: boolean }) {
+  const { api } = useAppServices();
   const [open, setOpen] = useState(false);
   // INC-41 ART-SCRIM — the menu is anchored to the VIEWPORT, not to the row.
   // As a plain `absolute` child it was clipped to a 9px sliver of its own 74px
@@ -149,7 +152,7 @@ function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: Fi
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const { base } = splitPath(file.path);
-  const url = AR.fileURL(sid, file.path);
+  const url = api.fileURL(sid, file.path);
 
   // A viewport-anchored menu would drift away from its trigger if the thread
   // scrolled underneath it, so scrolling (the timeline is its own scroll box,
@@ -326,6 +329,7 @@ type Phase = "loading" | "ready" | "error";
 // into a panel that answers "No changes this turn" (QA-0719: the workspace
 // fallback broke RVW-4's card-scope/panel-scope pairing).
 export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: (scope: "turn" | "workspace") => void }) {
+  const { api } = useAppServices();
   const openModal = useStore((s) => s.openModal);
   const toast = useStore((s) => s.toast);
   const focusDiffFile = useStore((s) => s.focusDiffFile);
@@ -375,7 +379,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     //    现状(可 Review/commit)不失踪。
     // Both backend scopes project the workspace-wide conflict set. Trust that
     // contract here instead of doubling /diff traffic on every streamed event.
-    AR.diff(sid, "last-turn")
+    api.diff(sid, "last-turn")
       .then(async (data) => {
         if (!alive) return;
         setConflicts(data.conflicts || []);
@@ -386,7 +390,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
           setPhase("ready");
           return;
         }
-        const wt = await AR.diff(sid, "working-tree");
+        const wt = await api.diff(sid, "working-tree");
         if (!alive) return;
         setConflicts(wt.conflicts || data.conflicts || []);
         const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : dropGeneratedFiles(summarizeChanges(wt));
@@ -414,7 +418,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     const cardN = summary?.files.length ?? 0;
     let n = cardN;
     try {
-      const wt = await AR.diff(sid, "working-tree");
+      const wt = await api.diff(sid, "working-tree");
       if (wt.known && wt.isRepo && !wt.nested) n = summarizeChanges(wt).files.length;
     } catch {
       /* fall back to the card count */
@@ -428,7 +432,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       danger: true,
       onConfirm: async () => {
         try {
-          await AR.revert(sid);
+          await api.revert(sid);
           toast("changes reverted", "info");
           setBump((b) => b + 1);
           bumpWorkspaceEpoch(); // the rail's git rows state the same facts

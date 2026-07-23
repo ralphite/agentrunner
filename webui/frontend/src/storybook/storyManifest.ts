@@ -46,6 +46,52 @@ function target(
 
 export const storyManifest = [
   {
+    componentId: "AppShell",
+    source: "src/App.tsx",
+    exportName: "AppShell",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "pages-appshell--default",
+      },
+      "theme:dark": {
+        status: "covered",
+        storyId: "pages-appshell--dark",
+      },
+      "viewport:phone": {
+        status: "covered",
+        storyId: "pages-appshell--phone",
+      },
+      "a11y:keyboard": {
+        status: "covered",
+        storyId: "pages-appshell--keyboard-navigation",
+      },
+    },
+  },
+  {
+    componentId: "AppRuntime",
+    source: "src/app/AppRuntime.tsx",
+    exportName: "AppRuntime",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "pages-appruntime--default",
+      },
+      "theme:dark": {
+        status: "covered",
+        storyId: "pages-appruntime--dark",
+      },
+      "viewport:phone": {
+        status: "covered",
+        storyId: "pages-appruntime--phone",
+      },
+      "a11y:keyboard": {
+        status: "covered",
+        storyId: "pages-appruntime--keyboard-navigation",
+      },
+    },
+  },
+  {
     componentId: "ApprovalCard",
     source: "src/components/ApprovalCard.tsx",
     exportName: "ApprovalCard",

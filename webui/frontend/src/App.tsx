@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { useStore } from "./store";
+import { useAppStoreApi, useStore } from "./store";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 import { Sidebar } from "./components/Sidebar";
 import { SessionView } from "./components/SessionView";
@@ -12,15 +12,15 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CommandPalette } from "./components/CommandPalette";
 import { Shortcuts } from "./components/Shortcuts";
 import { Settings } from "./components/Settings";
-import { requestNotifyPermission } from "./notify";
 import { quickSwitchSessions } from "./viewModels";
 import { applyAppearance, loadAppearance } from "./theme";
-import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
+import { useAppServices } from "./app/appServices";
 
-export function App() {
-  const { currentSid, currentRunId, currentPage, scheduledDetailSid, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage, showScheduledDetail } =
-    useStore();
+export function AppShell() {
+  const { storage } = useAppServices();
+  const store = useAppStoreApi();
+  const { currentSid, currentRunId, currentPage, scheduledDetailSid } = useStore();
   const helpOpen = useStore((s) => s.helpOpen);
   const openHelp = useStore((s) => s.openHelp);
   const closeHelp = useStore((s) => s.closeHelp);
@@ -75,7 +75,7 @@ export function App() {
   // syntax) once styles are mounted — main.tsx only restores the theme, so this
   // completes the picture with a minimal, one-frame settle.
   useLayoutEffect(() => {
-    applyAppearance(loadAppearance());
+    applyAppearance(loadAppearance(storage.local));
   }, []);
 
   useEffect(() => {
@@ -109,14 +109,14 @@ export function App() {
       // ⌥⌘↑ / ⌥⌘↓ moves to the previous / next session in the sidebar order.
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
-        useStore.getState().selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
+        store.getState().selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
         return;
       }
       // ⌘1..⌘9 (Ctrl elsewhere) jump straight to a recent session — the same list
       // and order as the command palette's ⌘-digit badges (INC-41 W8). Works
       // globally and while the palette is open; closes the palette on jump.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key >= "1" && e.key <= "9") {
-        const state = useStore.getState();
+        const state = store.getState();
         const target = quickSwitchSessions(state.sessions, { archived: state.archived })[Number(e.key) - 1];
         if (target) {
           e.preventDefault();
@@ -140,7 +140,7 @@ export function App() {
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
         e.preventDefault();
         setPalette(false);
-        useStore.getState().showPage("home");
+        store.getState().showPage("home");
         // …and land ready to type (INC-41 HM-1). A fresh mount focuses itself
         // (Composer's home effect), but when we were ALREADY on home nothing
         // remounts, so the caret would stay wherever it was. Focus the live node
@@ -155,7 +155,7 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         if (isMobile) setMobileSidebarOpen((open) => !open);
-        else useStore.getState().toggleSidebar();
+        else store.getState().toggleSidebar();
         return;
       }
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -168,52 +168,9 @@ export function App() {
       }
     };
     window.addEventListener("keydown", onKey);
-    // Notification permission needs a user gesture — ask on the first click.
-    const askOnce = () => requestNotifyPermission();
-    window.addEventListener("pointerdown", askOnce, { once: true });
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointerdown", askOnce);
     };
-  }, []);
-
-  useEffect(() => {
-    refreshHealth();
-    refreshSessions();
-    refreshRuns();
-    refreshProjects();
-    const h = setInterval(refreshHealth, 5000);
-    const s = setInterval(refreshSessions, 4000);
-    const r = setInterval(refreshRuns, 4000);
-    const p = setInterval(refreshProjects, 8000);
-    // hash routing: "run:<id>" → a background run; anything else → a session.
-    const route = (raw0: string) => {
-      const raw = normalizeRoute(raw0);
-      if (raw === "scheduled") {
-        showPage(raw);
-      } else if (raw.startsWith("scheduled:")) {
-        const sid = raw.slice("scheduled:".length);
-        if (sid) showScheduledDetail(sid);
-      } else if (raw.startsWith("run:")) {
-        const rid = raw.slice(4);
-        if (rid && rid !== useStore.getState().currentRunId) selectRun(rid);
-      } else if (raw && raw !== useStore.getState().currentSid) {
-        select(raw);
-      } else if (!raw && (useStore.getState().currentSid || useStore.getState().currentRunId || useStore.getState().currentPage !== "home")) {
-        showPage("home");
-      }
-    };
-    if (location.hash.length > 1) route(location.hash.slice(1));
-    const onHash = () => route(location.hash.slice(1));
-    window.addEventListener("hashchange", onHash);
-    return () => {
-      clearInterval(h);
-      clearInterval(s);
-      clearInterval(r);
-      clearInterval(p);
-      window.removeEventListener("hashchange", onHash);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;

@@ -5,9 +5,9 @@ export type Theme = "system" | "light" | "dark";
 
 const KEY = "arwebui.theme";
 
-export function loadTheme(): Theme {
+export function loadTheme(storage: Storage | undefined = globalThis.localStorage): Theme {
   try {
-    const t = localStorage.getItem(KEY);
+    const t = storage?.getItem(KEY);
     if (t === "light" || t === "dark" || t === "system") return t;
   } catch {
     /* ignore */
@@ -24,9 +24,9 @@ export function applyTheme(t: Theme) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0f0f11" : "#ffffff");
 }
 
-export function saveTheme(t: Theme) {
+export function saveTheme(t: Theme, storage: Storage | undefined = globalThis.localStorage) {
   try {
-    localStorage.setItem(KEY, t);
+    storage?.setItem(KEY, t);
   } catch {
     /* ignore */
   }
@@ -72,26 +72,26 @@ export const CODE_FONT_RANGE = { min: 10, max: 16 } as const;
 
 const APPEARANCE_KEY = "arwebui.appearance";
 
-export function loadAppearance(): Appearance {
+export function loadAppearance(storage: Storage | undefined = globalThis.localStorage): Appearance {
   let stored: Partial<Appearance> = {};
   try {
-    const raw = JSON.parse(localStorage.getItem(APPEARANCE_KEY) || "{}");
+    const raw = JSON.parse(storage?.getItem(APPEARANCE_KEY) || "{}");
     if (raw && typeof raw === "object") stored = raw;
   } catch {
     /* ignore */
   }
   // The sidebar theme toggle writes the legacy theme key directly, so treat it
   // as canonical for `theme` — saveAppearance keeps it in sync from this side.
-  return { ...APPEARANCE_DEFAULTS, ...stored, theme: loadTheme() };
+  return { ...APPEARANCE_DEFAULTS, ...stored, theme: loadTheme(storage) };
 }
 
-export function saveAppearance(a: Appearance) {
+export function saveAppearance(a: Appearance, storage: Storage | undefined = globalThis.localStorage) {
   try {
-    localStorage.setItem(APPEARANCE_KEY, JSON.stringify(a));
+    storage?.setItem(APPEARANCE_KEY, JSON.stringify(a));
   } catch {
     /* ignore quota */
   }
-  saveTheme(a.theme); // keep the legacy theme key + boot path in agreement
+  saveTheme(a.theme, storage); // keep the legacy theme key + boot path in agreement
   applyAppearance(a);
 }
 
@@ -166,9 +166,9 @@ export const GIT_DEFAULTS: GitPrefs = {
 
 const GIT_KEY = "arwebui.git";
 
-export function loadGitPrefs(): GitPrefs {
+export function loadGitPrefs(storage: Storage | undefined = globalThis.localStorage): GitPrefs {
   try {
-    const raw = JSON.parse(localStorage.getItem(GIT_KEY) || "{}");
+    const raw = JSON.parse(storage?.getItem(GIT_KEY) || "{}");
     if (raw && typeof raw === "object") return { ...GIT_DEFAULTS, ...raw };
   } catch {
     /* ignore */
@@ -176,21 +176,21 @@ export function loadGitPrefs(): GitPrefs {
   return { ...GIT_DEFAULTS };
 }
 
-export function saveGitPrefs(g: GitPrefs) {
+export function saveGitPrefs(g: GitPrefs, storage: Storage | undefined = globalThis.localStorage) {
   try {
-    localStorage.setItem(GIT_KEY, JSON.stringify(g));
+    storage?.setItem(GIT_KEY, JSON.stringify(g));
   } catch {
     /* ignore quota */
   }
 }
 
 // resetAll restores factory appearance + git prefs (Settings › General).
-export function resetAll() {
+export function resetAll(storage: Storage | undefined = globalThis.localStorage) {
   try {
-    localStorage.removeItem(APPEARANCE_KEY);
-    localStorage.removeItem(GIT_KEY);
+    storage?.removeItem(APPEARANCE_KEY);
+    storage?.removeItem(GIT_KEY);
   } catch {
     /* ignore */
   }
-  saveAppearance({ ...APPEARANCE_DEFAULTS });
+  saveAppearance({ ...APPEARANCE_DEFAULTS }, storage);
 }
