@@ -7488,3 +7488,26 @@ graceful daemon restart、同 hash deep-link reload，prompt/cadence/overlap/rev
 `300ms/999999999ns` 拒绝、`1000ms/0.5s500ms` 接受。证据：
 `qa/runs/2026-07-23-QA88-98.5c-scheduled-edit/`。G56 只剩 Notifications
 policy/durable receipt 及 paused/loading/error/dark 真验。
+
+---
+
+## 2026-07-23 · INC-96 共享 Agent catalog 与独立模型选择
+
+Agent 配置不再由 Web frontend 拥有：八个 shipped definition 收敛到
+`internal/agent/builtin/*.yaml` 并随 runtime embed，user 层固定为
+`~/.config/agentrunner/agents/*.yaml`，同名显式覆盖、name/path resolution 与
+`ar agents [--json]` 成为 CLI/Web/TUI 共用 contract。Web backend 只投影 CLI
+catalog，frontend 删除全部 Agent YAML import。
+
+模型从 Agent schema 删除，成为独立 session input `{provider,id,effort}`。CLI precedence
+为显式 flags > user `settings.yaml:default_model` > compiled default；Web UI 每次
+launch/switch/run 必传 model/effort。thinking 与 output cap 只由
+light/medium/high/xhigh 推导，自动 compaction 阈值保留为 Agent 顶层 context policy。
+新 launch 对旧 `model:` fail-fast 并给迁移提示；已冻结 session resume 与 legacy sibling
+只继承冻结模型，不重读 live default。
+
+QA-89 在共享 production 与真 Gemini 完成：CLI default/explicit、Web 真浏览器 catalog →
+Chat/Light → create/reply/reload、session 内 Agent/model 分别切换、旧 parent/child reload
+均通过，浏览器 warning/error 为空。guarded deploy 后版本一致；第二次 daemon restart
+因两个 shared running session 被安全门拒绝，未 force，改做无中断的 Web UI restart
+验证。证据 `qa/runs/2026-07-23-INC96-agent-catalog/`；A 闸全绿，无新增 GAPS。

@@ -1,6 +1,7 @@
 # INC-96 共享 Agent catalog 与独立模型选择
 
-> 状态：设计已重新裁决，待实施。
+> 状态：✅ 2026-07-23 完成。共享 Agent catalog、独立 model input、
+> CLI/Web UI 接线、旧 session 兼容、A/B 双闸均已验证。
 
 ## 动机与 journey 锚
 
@@ -107,6 +108,29 @@ session input：
 5. restart 后既有旧 session 与新 session 都可 reload/续聊；
 6. browser URL/content/console/interaction/reload 均通过；测试 session、
    workspace、journal 与 `ar events`/workspace diff 全部保留并归档。
+
+## 完成实证
+
+- shipped catalog 已收敛为 runtime embed 的八项；CLI `ar agents --json` 与
+  production `/api/agents` 返回同序、同 source、零 Agent `model` 字段。
+- 真 Gemini shared-store session：
+  - CLI 缺省选择冻结 `gemini/gemini-flash-latest + medium`
+    （thinking 6144 / max 10240）；
+  - CLI 显式 `light` 冻结 thinking 2048 / max 6144；
+  - Web UI 真浏览器选择 Chat + Light，捕获到实际 POST 的独立
+    `{provider,model,effort}`，Agent YAML 无 `model`。
+- 同一 session 只换 Agent 时保留 Light effective model；随后只换 effort
+  为 High 时 Agent 仍是 reviewer，effective model 更新为 thinking 12288 /
+  max 16384。
+- production 部署执行 guarded daemon/Web UI restart，既有 legacy session
+  仍可由 CLI 与 Web API 读取；随后 Web UI 单独 restart 与新 session
+  deep-link reload 均恢复。第二次 daemon restart 因共享环境存在两个
+  running session 被安全门拒绝，未 force、未中断用户工作。
+- 真浏览器 1100×700 的 catalog、model/effort、create、reply、reload 全链路
+  PASS，warning/error 为空；证据保留于
+  `qa/runs/2026-07-23-INC96-agent-catalog/`。
+- A 闸：Go targeted/full tests、Web UI Go tests、frontend 75 files /
+  776 tests、production build、`./scripts/check.sh` 全绿。
 
 ## 实施步骤
 

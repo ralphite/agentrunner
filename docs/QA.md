@@ -2218,3 +2218,20 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | 红转绿 | 1100×700 action bar 从 scroll body 移为独立 flex sibling，scroll/action 边界 `631/631`；390×844 移除覆盖 detail Back 的全局 sidebar trigger，返回 list 后 trigger 恢复 |
 | 诚实边界 | 未点击 shared series 的 Pause；500 条 shared session 中没有 paused canonical detail，不用 mock 冒充 B 闸。paused/loading/error 真浏览器与 dark theme 待后续；G56 的 edit/notification 继续开放 |
 | Gate / retain | `qa/runs/2026-07-23-QA88-98.5b-scheduled-detail/01..10`；browser logs=`[]`，health/versionMatch=true，75 files/777 frontend tests、production build、`./scripts/check.sh` 全绿；session/journal/workspace/screenshots 全保留 |
+
+## QA-89 共享 Agent catalog 与独立模型选择（INC-96，UJ-01/11/18/24）
+
+**环境**：production `http://127.0.0.1:8809/`、真实 Gemini、共享
+`~/.local/share/agentrunner/`（671+ 个既有 session，不隔离、不清理）；
+版本 `1a746443-154257`。证据
+`qa/runs/2026-07-23-INC96-agent-catalog/`。
+
+| 动作 | 硬断言 |
+|---|---|
+| catalog source | `ar agents --json` 与 `/api/agents` 同序返回 dev/lead/auditor/reviewer/chat/worker/explore/plan；source 均为 shipped；Agent YAML 均无 `model` |
+| CLI default / explicit | `ar run chat` 缺省冻结 Gemini Flash + Medium（thinking 6144/max 10240）；显式 `--effort light` 冻结 thinking 2048/max 6144；两条真 Gemini 回复精确成功 |
+| Web UI 真 browser | 1100×700 Agent picker 显示八项与 shipped source；选择 Chat + Light 后实际 POST 显式 `{provider,model,effort}`，提交的 Agent YAML 无 model；新 session 返回 `INC96-BROWSER-OK` |
+| session switch | 同一 Light session 只换 Agent 为 reviewer 后 effective model 不变；只换 effort 为 High 后 Agent 不变，thinking 12288/max 16384 |
+| restart / legacy | guarded production deploy 重启 daemon/Web UI 后，既有 parent/child session 仍由 CLI/API 恢复；随后 Web UI restart 后 catalog、新 session、deep-link reload 均恢复；browser warning/error=`[]` |
+| 安全边界 | 第二次 daemon restart 因两个 shared running session 被 guard 拒绝，未 force、未中断用户工作；测试 session/workspace/journal/screenshots 全保留 |
+| Gate | Go targeted/full、Web UI Go、frontend 75 files/776 tests、production build、`./scripts/check.sh` 全绿 |
