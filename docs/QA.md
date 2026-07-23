@@ -2137,3 +2137,5 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | 复杂状态链 | shared 真模型 goal 保留四步 progress，执行 active→pause→resume→5-check budget stop→扩预算；Environment 始终显示 objective/checks/progress，未完成项不伪造 done |
 | keyboard/mobile | 390×844 打开 compact bar 详情再关闭，焦点返回 `Open goal details`；`body/documentElement.scrollWidth=390` |
 | evidence/gate | `qa/runs/2026-07-23-QA88-98.4r-goal-progress/` 保存 Codex、AgentRunner active/paused/budget/mobile 与合并图；72 files / 752 frontend tests、production build、`check.sh` 与 browser error/warning=`[]`；retained session/workspace/journal 不清理 |
+| 98.4s current step | driver 从 goal-bar 专区可逆展开/收起 native goal，并捕获 Codex `Step 5/7`；shared AgentRunner 显示 `Step 2/4 · Implement… · 1/4`，点击复用完整 Environment；1100×700 合并图 `23` |
+| 98.4s narrow/keyboard | 390×844 current title 截断但 step/count/actions 可见，详情四步完整、零横溢；关闭后焦点回 `Open progress details`，browser error/warning=`[]`；72 files / 753 frontend tests、build、capture-driver test 与 `check.sh` 全绿 |

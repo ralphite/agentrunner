@@ -259,6 +259,25 @@ describe("TH-13/14 · compact live goal controls", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Discard" })).toBeTruthy();
   });
+
+  it("keeps the current progress step visible and opens the full checklist", async () => {
+    render(<SessionView sid={SID} />);
+    const summary = await screen.findByRole("button", { name: "Open progress details" });
+    expect(summary.textContent).toContain("Step 2 / 2");
+    expect(summary.textContent).toContain("Implement release");
+    expect(summary.textContent).toContain("1/2");
+
+    summary.focus();
+    fireEvent.click(summary);
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Environment" })).toBeTruthy());
+    expect(screen.getByRole("complementary", { name: "Environment" }).textContent).toContain("Inspect requirements");
+    expect(screen.getByRole("complementary", { name: "Environment" }).textContent).toContain("Implement release");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Environment" }));
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Environment" })).toBeNull());
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(summary);
+  });
 });
 
 describe("scheduled selected-iteration semantics", () => {

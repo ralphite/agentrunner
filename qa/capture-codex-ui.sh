@@ -19,6 +19,8 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                                 [--scroll-pages 1-9] |
                               --thread-disclosure VISIBLE_TEXT
                                 [--disclosure-nested VISIBLE_TEXT]
+                                [--disclosure-click-offset POINTS]
+                                [--disclosure-region main|goal-bar]
                                 --disclosure-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu |
@@ -58,6 +60,9 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --disclosure-nested opens a second visible disclosure inside the first one before validation;
   both levels are OCR-located from fresh frames and restored inner-first after capture.
   Use a validation substring unique to the expanded inner body; cleanup proves it disappears.
+--disclosure-click-offset shifts the outer disclosure click right by POINTS from its OCR label.
+  This covers compact controls whose chevron is separate from the visible label.
+--disclosure-region restricts the outer target lookup; goal-bar excludes matching source/diff text.
 --composer-validate is a short visible substring required in the draft/thread capture.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
   then dismisses it with Escape. Matches are restricted to the sidebar.
@@ -99,6 +104,8 @@ disclosure_target=""
 disclosure_nested_target=""
 disclosure_nested_prefix=""
 disclosure_validate=""
+disclosure_click_offset=0
+disclosure_region="main"
 restore_query=""
 settle_seconds=1
 output=""
@@ -260,6 +267,22 @@ while (($#)); do
         exit 2
       fi
       disclosure_nested_target="$2"
+      shift 2
+      ;;
+    --disclosure-click-offset)
+      if (($# < 2)) || [[ ! "$2" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
+        echo "capture-codex-ui: --disclosure-click-offset requires numeric points" >&2
+        exit 2
+      fi
+      disclosure_click_offset="$2"
+      shift 2
+      ;;
+    --disclosure-region)
+      if (($# < 2)) || [[ "$2" != "main" && "$2" != "goal-bar" ]]; then
+        echo "capture-codex-ui: --disclosure-region requires main or goal-bar" >&2
+        exit 2
+      fi
+      disclosure_region="$2"
       shift 2
       ;;
     --composer-validate)
@@ -457,6 +480,14 @@ if [[ -n "$disclosure_validate" && "$mode" != "thread-disclosure" ]]; then
 fi
 if [[ -n "$disclosure_nested_target" && "$mode" != "thread-disclosure" ]]; then
   echo "capture-codex-ui: --disclosure-nested requires --thread-disclosure" >&2
+  exit 2
+fi
+if [[ "$disclosure_click_offset" != "0" && "$mode" != "thread-disclosure" ]]; then
+  echo "capture-codex-ui: --disclosure-click-offset requires --thread-disclosure" >&2
+  exit 2
+fi
+if [[ "$disclosure_region" != "main" && "$mode" != "thread-disclosure" ]]; then
+  echo "capture-codex-ui: --disclosure-region requires --thread-disclosure" >&2
   exit 2
 fi
 if [[ -n "$disclosure_nested_target" ]]; then
@@ -874,6 +905,9 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
         observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
     case "main":
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
+    case "goal-bar":
+      inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midX < 0.68 &&
+        observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.45
     case "review-tab":
       inRegion = observation.boundingBox.midX > 0.60 && observation.boundingBox.midY > 0.90
     case "review-panel":
@@ -993,6 +1027,15 @@ let pointX = windowX + Double(normalizedX) * windowWidth * coordinateWidthFactor
 let pointY = windowY + (1.0 - Double(match.2.midY)) * windowHeight
 print("\(pointX)\t\(pointY)")
 SWIFT
+}
+
+offset_outer_disclosure_x() {
+  awk -v x="$1" -v offset="$disclosure_click_offset" 'BEGIN { print x + offset }'
+}
+
+goal_bar_is_expanded_y() {
+  awk -v y="$1" -v top="$window_y" -v height="$window_height" \
+    'BEGIN { exit !(y < top + height * 0.70) }'
 }
 
 send_text() {
@@ -1140,10 +1183,22 @@ close_transient() {
     rm -f -- "$ocr_capture" 2>/dev/null || true
     ocr_capture=$(mktemp -t codex-thread-disclosure-restore)
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-    disclosure_restore_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+    disclosure_restore_point=$(window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region")
     IFS=$'\t' read -r disclosure_restore_x disclosure_restore_y <<<"$disclosure_restore_point"
+    disclosure_restore_x=$(offset_outer_disclosure_x "$disclosure_restore_x")
     send_click "$disclosure_restore_x" "$disclosure_restore_y"
     sleep 1
+    if [[ "$disclosure_region" == "goal-bar" ]]; then
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-thread-disclosure-restored)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      disclosure_collapsed_point=$(window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region")
+      IFS=$'\t' read -r _ disclosure_collapsed_y <<<"$disclosure_collapsed_point"
+      if goal_bar_is_expanded_y "$disclosure_collapsed_y"; then
+        echo "capture-codex-ui: goal disclosure did not collapse" >&2
+        exit 1
+      fi
+    fi
     disclosure_open=0
   fi
   if ((plan_enabled)); then
@@ -1689,6 +1744,18 @@ if [[ "$mode" == "thread-disclosure" ]]; then
     cp -- "$ocr_capture" "$disclosure_initial_debug"
     echo "capture-codex-ui: initial disclosure frame saved to $disclosure_initial_debug" >&2
   fi
+  if [[ "$disclosure_region" == "goal-bar" ]]; then
+    disclosure_goal_initial_point=$(window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region")
+    IFS=$'\t' read -r disclosure_goal_initial_x disclosure_goal_initial_y <<<"$disclosure_goal_initial_point"
+    if goal_bar_is_expanded_y "$disclosure_goal_initial_y"; then
+      disclosure_goal_initial_x=$(offset_outer_disclosure_x "$disclosure_goal_initial_x")
+      send_click "$disclosure_goal_initial_x" "$disclosure_goal_initial_y"
+      sleep 1
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-thread-goal-disclosure-normalized)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    fi
+  fi
   if [[ -n "$disclosure_nested_target" ]]; then
     # Self-heal an interrupted prior capture. If the generic nested label is
     # visible, the outer level is open and the nested level is collapsed. If
@@ -1703,8 +1770,9 @@ if [[ "$mode" == "thread-disclosure" ]]; then
         ocr_capture=$(mktemp -t codex-thread-disclosure-normalize-outer)
         screencapture -x -o -t png -l "$window_id" "$ocr_capture"
       fi
-      disclosure_normalize_outer_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+      disclosure_normalize_outer_point=$(window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region")
       IFS=$'\t' read -r disclosure_normalize_outer_x disclosure_normalize_outer_y <<<"$disclosure_normalize_outer_point"
+      disclosure_normalize_outer_x=$(offset_outer_disclosure_x "$disclosure_normalize_outer_x")
       send_click "$disclosure_normalize_outer_x" "$disclosure_normalize_outer_y"
       sleep 1
       rm -f -- "$ocr_capture"
@@ -1717,8 +1785,9 @@ if [[ "$mode" == "thread-disclosure" ]]; then
       rm -f -- "$ocr_capture"
       ocr_capture=$(mktemp -t codex-thread-disclosure-normalize-outer)
       screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-      disclosure_normalize_outer_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+      disclosure_normalize_outer_point=$(window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region")
       IFS=$'\t' read -r disclosure_normalize_outer_x disclosure_normalize_outer_y <<<"$disclosure_normalize_outer_point"
+      disclosure_normalize_outer_x=$(offset_outer_disclosure_x "$disclosure_normalize_outer_x")
       send_click "$disclosure_normalize_outer_x" "$disclosure_normalize_outer_y"
       sleep 1
       rm -f -- "$ocr_capture"
@@ -1726,8 +1795,9 @@ if [[ "$mode" == "thread-disclosure" ]]; then
       screencapture -x -o -t png -l "$window_id" "$ocr_capture"
     fi
   fi
-  disclosure_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+  disclosure_point=$(window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region")
   IFS=$'\t' read -r point_x point_y <<<"$disclosure_point"
+  point_x=$(offset_outer_disclosure_x "$point_x")
   send_click "$point_x" "$point_y"
   disclosure_open=1
   sleep "$settle_seconds"

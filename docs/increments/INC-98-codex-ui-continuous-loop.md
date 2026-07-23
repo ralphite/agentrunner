@@ -498,6 +498,11 @@ INC-98 将该方法固化为持续循环：
   表面，active/paused 横条只显示状态、elapsed、pause/resume、cancel 与进入 Environment；
   终态、journal、backend 和 shared 数据不变。验证覆盖 running→pause→resume、reload、窄屏及
   两条入口焦点，不以 active 一张截图外推 blocked/budget/complete。
+- **98.4s current-step visibility**：可逆展开 goal 后，Codex active thread 还显示独立
+  `Step 5 / 7` 摘要；我方关闭 Environment 后完全看不到 durable progress。新增同层紧凑
+  current-step pill（running 优先，其次 failed/pending），只显示 step index、当前 title 与
+  done/total；点击复用 Environment 完整 checklist，terminal goal 不显示，不新增 projection。
+  capture driver 增加 goal-bar region/offset/self-heal，避免 source diff 同文误点击。
 
 ## Spec delta
 

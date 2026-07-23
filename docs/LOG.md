@@ -7301,3 +7301,18 @@ shared 真模型 fixture 覆盖 active→pause→resume→budget stop、四步 p
 error/warning logs 全绿。证据在 `qa/runs/2026-07-23-QA88-98.4r-goal-progress/`，Codex 的
 paused/edit/blocked/budget/complete 与 update_plan/replan 仍待同态捕获，TH-13/14 保持
 UNTESTED。
+
+---
+
+## 2026-07-23 · INC-98.4s current-step visibility
+
+真实展开 Codex native goal 后捕获到独立 `Step 5/7` 摘要；我方关闭 Environment 时却
+完全隐藏 durable progress。现从同一 inspect projection 选 running→failed→pending 的
+current step，在 composer 上方显示紧凑摘要；完整 checklist 仍只在 Environment，点击与
+关闭焦点走同一 opener contract，terminal goal 不显示。
+
+shared 4-step fixture 在 1100×700/390×844 显示 `Step 2/4 · Implement… · 1/4`，完整
+详情、零横溢与空 browser logs 通过；72 files / 753 frontend tests、build、driver test 与
+full gate 全绿。Codex capture driver 同批加入 goal-bar 专区、click offset 与中断自愈，
+修掉 diff 同文误点击并保证展开后恢复。证据 `18..23`；replan 与 failed/complete progress
+仍待同态捕获。

@@ -38,6 +38,8 @@ done
 [[ "$help" == *"--scroll-pages"* ]]
 [[ "$help" == *"--thread-disclosure"* ]]
 [[ "$help" == *"--disclosure-validate"* ]]
+[[ "$help" == *"--disclosure-click-offset"* ]]
+[[ "$help" == *"--disclosure-region"* ]]
 [[ "$help" == *"--composer-validate"* ]]
 for control in project worktree environment branch add goal plan access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
   [[ "$help" == *"$control"* ]] || {
@@ -175,6 +177,30 @@ if $driver --disclosure-nested 'Ran a command' >"$tmpdir/disclosure-nested.out" 
 fi
 grep -Fq -- '--disclosure-nested requires --thread-disclosure' "$tmpdir/disclosure-nested.err"
 
+if $driver --disclosure-click-offset nope >"$tmpdir/disclosure-offset.out" 2>"$tmpdir/disclosure-offset.err"; then
+  echo "capture driver accepted a non-numeric disclosure click offset" >&2
+  exit 1
+fi
+grep -Fq -- '--disclosure-click-offset requires numeric points' "$tmpdir/disclosure-offset.err"
+
+if $driver --disclosure-click-offset 12 >"$tmpdir/disclosure-offset-mode.out" 2>"$tmpdir/disclosure-offset-mode.err"; then
+  echo "capture driver accepted a disclosure click offset without an outer target" >&2
+  exit 1
+fi
+grep -Fq -- '--disclosure-click-offset requires --thread-disclosure' "$tmpdir/disclosure-offset-mode.err"
+
+if $driver --disclosure-region sidebar >"$tmpdir/disclosure-region.out" 2>"$tmpdir/disclosure-region.err"; then
+  echo "capture driver accepted an unsupported disclosure region" >&2
+  exit 1
+fi
+grep -Fq -- '--disclosure-region requires main or goal-bar' "$tmpdir/disclosure-region.err"
+
+if $driver --disclosure-region goal-bar >"$tmpdir/disclosure-region-mode.out" 2>"$tmpdir/disclosure-region-mode.err"; then
+  echo "capture driver accepted a disclosure region without an outer target" >&2
+  exit 1
+fi
+grep -Fq -- '--disclosure-region requires --thread-disclosure' "$tmpdir/disclosure-region-mode.err"
+
 if $driver --new-chat-control access --control-query QA >"$tmpdir/control-query-kind.out" 2>"$tmpdir/control-query-kind.err"; then
   echo "capture driver accepted a query for a non-searchable New chat control" >&2
   exit 1
@@ -275,6 +301,12 @@ grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_target" "main"' 
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$disclosure_nested_prefix" "main"' "$driver"
 grep -Fq 'codex-thread-disclosure-normalize-outer' "$driver"
+grep -Fq 'offset_outer_disclosure_x "$point_x"' "$driver"
+grep -Fq 'offset_outer_disclosure_x "$disclosure_restore_x"' "$driver"
+grep -Fq 'case "goal-bar":' "$driver"
+grep -Fq 'window_text_center "$ocr_capture" "$disclosure_target" "$disclosure_region"' "$driver"
+grep -Fq 'goal_bar_is_expanded_y "$disclosure_goal_initial_y"' "$driver"
+grep -Fq 'goal disclosure did not collapse' "$driver"
 grep -Fq 'codex-thread-review-validate' "$driver"
 grep -Fq 'codex-thread-review-restored' "$driver"
 grep -Fq 'codex-thread-review-close-validate' "$driver"

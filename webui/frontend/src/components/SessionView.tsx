@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, CaretRight, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, CaretRight, ChatCircle, CheckCircle, CircleNotch, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import { AR, type ForkDraft } from "../api";
 import { useStore } from "../store";
 import type { BackgroundWork, Envelope } from "../types";
@@ -1172,6 +1172,9 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   </button>
                 </div>
               )}
+              {goalBannerShown && goalState && !goalTerminal && progress.length > 0 && (
+                <ProgressSummary progress={progress} onOpenDetails={openSupervision} />
+              )}
               {goalBannerShown && goalState && (
                 <GoalBanner
                   state={goalPendingUpdate ? { ...goalState, goal: goalPendingUpdate } : goalState}
@@ -1333,6 +1336,47 @@ const GOAL_TERMINAL_META: Record<string, { cls: string; label: string; sub?: str
   stopped: { cls: "stopped", label: "Goal stopped", sub: "check budget exhausted" },
   cancelled: { cls: "cancelled", label: "Goal cancelled" },
 };
+
+function ProgressSummary({
+  progress,
+  onOpenDetails,
+}: {
+  progress: import("./SupervisionPanel").ProgressItem[];
+  onOpenDetails: (opener: HTMLButtonElement) => void;
+}) {
+  const currentIndex = (() => {
+    for (const status of ["running", "failed", "pending"] as const) {
+      const index = progress.findIndex((item) => item.status === status);
+      if (index >= 0) return index;
+    }
+    return Math.max(0, progress.length - 1);
+  })();
+  const current = progress[currentIndex];
+  const done = progress.filter((item) => item.status === "done").length;
+
+  return (
+    <button
+      type="button"
+      className={`progress-summary ${current.status}`}
+      title={`${done}/${progress.length} complete · ${current.title}`}
+      aria-label="Open progress details"
+      onClick={(event) => onOpenDetails(event.currentTarget)}
+    >
+      {current.status === "running" ? (
+        <CircleNotch size={15} className="spin" />
+      ) : current.status === "failed" ? (
+        <WarningCircle size={15} weight="fill" />
+      ) : current.status === "done" ? (
+        <CheckCircle size={15} weight="fill" />
+      ) : (
+        <CaretRight size={15} />
+      )}
+      <span className="progress-summary-step">Step {currentIndex + 1} / {progress.length}</span>
+      <span className="progress-summary-title">· {current.title}</span>
+      <span className="progress-summary-count">{done}/{progress.length}</span>
+    </button>
+  );
+}
 
 function GoalBanner({
   state,
