@@ -357,6 +357,8 @@ GAPS.md，本文件只回答"产品要做什么"。
    或 attach；Plan mode 从 Add 原路可逆，关闭时恢复进入前的 access posture，并用专用
    placeholder 说明下一条输入会生成 plan。
    Access/model picker 只显示会改变 session spec/runtime 的真实选择；模型与 effort 可切换，
+   从任一受限 access posture 升级到 Full access 时先列明 files/terminal/internet 权限范围并
+   显式确认；Cancel/Escape 保留原 posture、draft 与 access-pill focus，确认后才持久化选择。
    exact thinking budget 住 Advanced。provider service tier 与 model-specific Ultra preset
    在 G45 完成前不画只有 `Standard` 或无 runtime 语义的假选项。长 draft 在 desktop
    可增长到 `min(320px, 38dvh)` 以保留校对上下文，窄屏仍封顶 `180px`，输入区滚动时

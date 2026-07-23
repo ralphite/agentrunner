@@ -1024,6 +1024,26 @@ if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
   rm -f -- "$ocr_capture"
   ocr_capture=$(mktemp -t codex-composer-access-validate)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "$composer_access" == "full" ]] &&
+     window_text_center "$ocr_capture" "Turn on Full Access" "main" >/dev/null 2>&1; then
+    # Current Codex builds add a fail-closed confirmation before escalating to
+    # Full Access. Prove that exact modal is present, then confirm it by OCR;
+    # never fall back to a guessed screen coordinate.
+    transient_open=1
+    if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+      access_confirm_debug="${output%.*}-access-confirm-debug.png"
+      cp -- "$ocr_capture" "$access_confirm_debug"
+      echo "capture-codex-ui: access confirmation saved to $access_confirm_debug" >&2
+    fi
+    access_confirm_point=$(window_text_center "$ocr_capture" "Confirm" "main")
+    IFS=$'\t' read -r access_confirm_x access_confirm_y <<<"$access_confirm_point"
+    send_click "$access_confirm_x" "$access_confirm_y"
+    transient_open=0
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-composer-access-confirmed)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  fi
   if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
     access_debug="${output%.*}-access-debug.png"
     cp -- "$ocr_capture" "$access_debug"

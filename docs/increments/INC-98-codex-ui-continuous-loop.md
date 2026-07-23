@@ -181,6 +181,18 @@ INC-98 将该方法固化为持续循环：
   修后 production `b3ed334d-dirty-175653` 经 cache-bust 在既有 pending child session 复拍：
   fresh load、Environment open/close、Subagents status、真实 path/title、空 console logs 均通过；
   Codex reference 与无遮挡 AgentRunner 同状态合并图为 `QA88-98.3f-approval/38`。
+- **98.3h error/access escalation design note**：两侧对同一个 harmless `bash exit 23`
+  真执行后，均把 command failure 保留为可展开的 Worked/tool detail，并允许 agent 在正文解释；
+  AgentRunner 额外保留 `stderr` 与 `Exit 23`，不把模型可处理的 tool error 错升级成 provider
+  failure。另一个当前 Codex 差异更关键：New chat 从受限 posture 选择 `Full access` 会先展示
+  `Turn on Full Access?` 风险确认，而 AgentRunner 的 `Ask to approve → Full access` 立即落本地
+  state。最小修订复用现有 app-styled ConfirmModal，以同一 modal scroll region 分组列出 files、
+  terminal、internet 三类授权范围，只拦截**从非 Full 升级到 Full**这条边；
+  Cancel/Escape/outside 均保持原 posture 与 draft，Confirm 才持久化 `arwebui.lastAccess`，关闭后
+  focus 回 access pill。Full→Full 不重复确认，Full→受限与受限↔受限仍保持单击可逆；不改
+  runtime mode、spec、journal 或 backend。风险说明点名 commands、internet、全盘文件读写删除；
+  confirm 使用既有 danger hierarchy。该小增量已有同产品 Dialog pattern，三视角 review 裁掉，
+  以 access contract test + shared-browser Ask→Full Gate B 代替。
 
 ## Spec delta
 

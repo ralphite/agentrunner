@@ -1877,6 +1877,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | failure→Retry | shared session `20260722-222339-qa-88-failure-retry-test-repl-451f5d8cb2d79f4b` 以 `qa-nonexistent-model-98h` 得到真实 `provider_invalid/model not found`；UI 换 Gemini Flash 后 Retry 成功，旧块折为 `Failed attempt · retried`，answer=`QA88_RETRY_COMPLETE` |
 | 文案修复与边界 | model-not-found 专用提示换模型后 Retry，不再误导缩短 prompt；Codex failure/retry 未获同态证据，NS-10 保持 UNTESTED。3 个 AgentRunner shared session/worktree/journal 与 3 个 Codex test thread 均保留，不 close/delete/cleanup |
 
+| 98.3h 动作 | 硬断言 |
+|---|---|
+| 双侧真实 tool error | Codex 与 AgentRunner 都真实运行同一 harmless `bash -lc 'printf … >&2; exit 23'`，均保留 Worked/disclosure 与 final explanation；AgentRunner detail 明示 stderr 与 `Exit 23`，shared session `20260723-011356-th10-ar-tool-error-use-bash-t-2b76fa0ee933db79` 永久保留 |
+| Codex access confirmation driver | `--composer-access full` 识别真实 `Turn on Full Access` modal 后才 OCR 定位 Confirm；未知 modal/button fail-closed；debug frame `40-…-access-confirm-debug` 作为当前 reference，不把 prompt 未发送的旧失败尝试算成功 |
+| AgentRunner 风险升级 | New session 先从 Full 切到 Ask，写入未发送 draft，再选 Full：必须显示 files/folders、terminal commands、internet access 三组授权范围；Cancel 后仍为 Ask、draft 原样、focus 回 access pill；Confirm 后才为 Full，draft/focus 同样保留；Full→Full 不重复确认 |
+| 同状态比较 | Codex 与 AgentRunner 均换算逻辑 1952×1465，先以简版 `52` 发现风险信息密度不足，再加结构化详情并以 `56` 合并图复验；不能凭单侧截图裁决 |
+| 回归与边界 | `Composer.addMenu.test.tsx` + `Modals.mobile.test.tsx` 8/8、production build、capture contract/shellcheck、`check.sh` 全绿；dirty production cache-bust 核对 `index-4QFWD3a4.js`、health `daemonUp/versionMatch=true`、browser logs=`[]`；未发送/创建 access 测试 session，最终恢复 Full access 与空 draft |
+
 | 98.3a 动作 | 硬断言 |
 |---|---|
 | Thread 层级与 disclosure | shared session `20260722-223026-codexverify-reply-exactly-veri-19413427829bd032` 默认只见 user / Worked / final answer；Worked 展开后见 `$ sleep 8`，tool 再展开后见完整 Shell command/result/Success；折叠/展开截图与 DOM 均在案 |

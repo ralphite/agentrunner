@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   gitBranches: vi.fn(async () => ({ isRepo: false, current: "", branches: [], dirty: 0 })),
@@ -51,6 +51,49 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Composer add and advanced menu", () => {
+  it("confirms only a restricted-to-Full access escalation and preserves the draft on cancel", async () => {
+    localStorage.setItem("arwebui.lastAccess", "ask");
+    mount();
+    const draft = screen.getByPlaceholderText("Do anything") as HTMLTextAreaElement;
+    fireEvent.change(draft, { target: { value: "keep this draft" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask to approve" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Full access Nothing is gated/ }));
+
+    const openModal = useStore.getState().openModal as ReturnType<typeof vi.fn>;
+    expect(openModal).toHaveBeenCalledOnce();
+    const cancelled = openModal.mock.calls[0][0];
+    expect(cancelled).toMatchObject({
+      kind: "confirm",
+      title: "Turn on Full Access?",
+      confirmLabel: "Turn on Full Access",
+      danger: true,
+    });
+    expect(cancelled.details.map((detail: { title: string }) => detail.title)).toEqual(["Files and folders", "Terminal commands", "Internet access"]);
+    expect(cancelled.details[0].body).toContain("delete files anywhere on this computer");
+    expect(cancelled.note).toContain("prompt injection");
+    expect(screen.getByRole("button", { name: "Ask to approve" })).toBeTruthy();
+    expect(localStorage.getItem("arwebui.lastAccess")).toBe("ask");
+    expect(draft.value).toBe("keep this draft");
+
+    cancelled.onClose();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Ask to approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask to approve" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Full access Nothing is gated/ }));
+    const confirmed = openModal.mock.calls[1][0];
+    await act(async () => { await confirmed.onConfirm(); });
+    confirmed.onClose();
+
+    expect(screen.getByRole("button", { name: "Full access" })).toBeTruthy();
+    expect(localStorage.getItem("arwebui.lastAccess")).toBe("full");
+    expect(draft.value).toBe("keep this draft");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Full access" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Full access" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Full access Nothing is gated/ }));
+    expect(openModal).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps every root action in the compact Codex-style grouped menu", () => {
     mount();
     openAddMenu();

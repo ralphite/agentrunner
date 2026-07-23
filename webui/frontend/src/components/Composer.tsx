@@ -243,6 +243,30 @@ export function Composer(props: ComposerProps) {
       /* ignore quota */
     }
   };
+  const homeAccessTriggerRef = useRef<HTMLButtonElement>(null);
+  const chooseHomeAccess = (next: AccessId, close: () => void) => {
+    if (next === "full" && access !== "full") {
+      close();
+      openModal({
+        kind: "confirm",
+        title: "Turn on Full Access?",
+        body: "The agent can act without asking, including:",
+        details: [
+          { icon: "files", title: "Files and folders", body: "Read, create, modify, upload, or delete files anywhere on this computer" },
+          { icon: "terminal", title: "Terminal commands", body: "Run commands, install software, and change system settings" },
+          { icon: "internet", title: "Internet access", body: "Access websites and send data to enabled services" },
+        ],
+        note: "This increases the risk of sensitive-data exposure and prompt injection. You can turn Full Access off at any time.",
+        confirmLabel: "Turn on Full Access",
+        danger: true,
+        onConfirm: () => setAccess("full"),
+        onClose: () => homeAccessTriggerRef.current?.focus(),
+      });
+      return;
+    }
+    setAccess(next);
+    close();
+  };
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
 
   // Narrow phones (≤480px) can't fit the full "…, or type / for commands"
@@ -1632,6 +1656,7 @@ export function Composer(props: ComposerProps) {
               panelClass="cx-pop-codex"
               trigger={(open, toggle) => (
                 <button
+                  type="button"
                   className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown") + (open ? " active" : "")}
                   onClick={toggle}
                   aria-haspopup="menu"
@@ -1680,7 +1705,7 @@ export function Composer(props: ComposerProps) {
               align="left"
               panelClass="cx-pop-codex"
               trigger={(open, toggle) => (
-                <button className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved" aria-haspopup="menu" aria-expanded={open}>
+                <button type="button" ref={homeAccessTriggerRef} className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved" aria-haspopup="menu" aria-expanded={open}>
                   {riskGlyph(accessLevel?.risk || "low")}
                   {accessLevel?.label}
                 </button>
@@ -1696,7 +1721,7 @@ export function Composer(props: ComposerProps) {
                         title={a.label}
                         desc={a.desc}
                         active={access === a.id}
-                        onClick={() => { setAccess(a.id); close(); }}
+                        onClick={() => chooseHomeAccess(a.id, close)}
                       />
                     ))}
                   </PopSection>

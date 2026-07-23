@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X } from "@phosphor-icons/react";
+import { Folder, Globe, Terminal, X } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
@@ -155,7 +155,10 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
 function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind: "confirm" }> }) {
   const { openModal, toast } = useStore();
   const [busy, setBusy] = useState(false);
-  const close = () => openModal(null);
+  const close = () => {
+    openModal(null);
+    modal.onClose?.();
+  };
   const confirm = async () => {
     setBusy(true);
     try {
@@ -180,6 +183,22 @@ function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind
       }
     >
       <p className="confirm-copy">{modal.body}</p>
+      {modal.details && modal.details.length > 0 && (
+        <div className="confirm-details">
+          {modal.details.map((detail) => (
+            <div className="confirm-detail" key={detail.title}>
+              <span className="confirm-detail-icon" aria-hidden>
+                {detail.icon === "files" ? <Folder size={18} /> : detail.icon === "terminal" ? <Terminal size={18} /> : <Globe size={18} />}
+              </span>
+              <span className="min-w-0">
+                <b>{detail.title}</b>
+                <small>{detail.body}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal.note && <p className="confirm-note">{modal.note}</p>}
     </Modal>
   );
 }

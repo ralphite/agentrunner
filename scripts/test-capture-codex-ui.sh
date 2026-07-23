@@ -177,6 +177,10 @@ grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_mode" == "plan" ]]' "$d
 # shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]' "$driver"
 grep -Fq 'for ask_ocr in "Ask for approval" "Askfor approval"' "$driver"
+# Literal source contracts; expansion would weaken the assertions.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "Turn on Full Access" "main"' "$driver"
+grep -Fq 'access-confirm-debug.png' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "Turn plan mode off" "popover-low"' "$driver"

@@ -1461,6 +1461,12 @@
 @layer components {
   /* Modals 内部排版 */
   .confirm-copy { @apply m-0 text-[13.5px] leading-6 text-ink-2 [overflow-wrap:anywhere]; }
+  .confirm-details { @apply mt-3 overflow-hidden rounded-[12px] border border-line bg-panel-2; }
+  .confirm-detail { @apply flex items-start gap-3 border-b border-line px-3 py-2.5 last:border-b-0; }
+  .confirm-detail-icon { @apply mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-panel text-ink-2; }
+  .confirm-detail b { @apply block text-[13px] font-medium text-ink; }
+  .confirm-detail small { @apply mt-0.5 block text-[12px] leading-[1.45] text-dim [overflow-wrap:anywhere]; }
+  .confirm-note { @apply mb-0 mt-3 text-[12px] leading-[1.55] text-dim [overflow-wrap:anywhere]; }
   .row-flex { @apply flex flex-wrap items-center gap-2; }
   .row-flex > input, .row-flex > select { @apply min-w-0 flex-1; }
   textarea.code { @apply w-full font-mono text-[12px] leading-[1.55]; }

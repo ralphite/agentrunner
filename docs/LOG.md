@@ -6775,3 +6775,24 @@ targeted tests、frontend build、`./scripts/check.sh`、shared production cache
 Environment open/close 与 browser logs 全绿；同态图 `QA88-98.3f-approval/38`。parent sidebar
 仍因 session-list 不含 tree typed wait 而标 Ready，独立登记 backend G49；INC-98/G42/QA-88
 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.3h tool error 同态与 Full Access 升级确认
+
+**双侧实证**：Codex 与 AgentRunner 都真实运行同一 harmless `bash exit 23`；两侧均以
+Worked/disclosure 保留工具失败并由 final prose 解释，AgentRunner detail 额外明确 stderr 与
+`Exit 23`。Codex provider/network Retry 仍无同态可控证据，TH-10 据实继续 UNTESTED；已有我方
+model-not-found→换模型→Retry 原位折叠证据不冒充双侧齐平。
+
+**发现与修复**：当前 Codex 从受限 posture 选 Full Access 会先显示风险确认；AgentRunner 旧版
+立即持久化选择。现仅拦截非 Full→Full 这条高风险边，复用 app-styled ConfirmModal，分组列出
+Files and folders / Terminal commands / Internet access。Cancel/Escape/outside 不改 posture/draft，
+Confirm 后才写 `arwebui.lastAccess`，两条路径都把 focus 还给 access pill；Full→Full 与降权路径
+不增加摩擦。对比初版简短 prose 后，合并图显示信息层级仍明显不足，按同一视觉输入补结构化
+详情再复拍，最终同态图为 `QA88-98.3g-errors/56`。
+
+**验证**：capture driver 已适配 Codex 新 Full Access modal，Vision OCR fail-closed 后点击
+Confirm；targeted 8 tests、frontend production build、`./scripts/check.sh`、shared production
+cache-bust、Cancel/Confirm/draft/focus 与 browser logs 全绿。shared tool-error session 与全部
+截图/journal 保留；矩阵状态计数不变，INC-98/G42/QA-88 继续开放。
