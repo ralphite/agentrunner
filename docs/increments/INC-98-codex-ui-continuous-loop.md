@@ -159,6 +159,13 @@ INC-98 将该方法固化为持续循环：
   capture driver 新增 Plan composer send 与 current-thread disclosure；动作均 OCR fail-closed，
   disclosure 取证后恢复 collapsed；当前 Codex 在 Plan request accepted 后已把 composer 恢复
   Full access，driver 不在等待卡上再做不安全的固定坐标 cleanup。
+- **98.3f approval driver note**：Codex access menu 当前真实枚举为 Ask for approval /
+  Approve for me / Full access / Custom。capture driver 新增 `--composer-access`，只在 New chat
+  prompt 提交前选择并以 composer chip 复核；Ask 首行对 Vision 的 `Ask for` / `Askfor` 两种
+  OCR 均 fail-closed。新增 `--thread-approval allow-once|deny`，先确认 thread-tail approval card
+  的 exact action，再点击并确认 Allow/Deny 两个 action 一并离场；不触碰 dropdown 的 session/
+  persistent 选项。approval card 可贴至窗口最底 1.5%，单独 `approval-tail` OCR region 避免把
+  普通 thread 文本误当按钮。
 
 ## Spec delta
 

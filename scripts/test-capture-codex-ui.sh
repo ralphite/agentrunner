@@ -21,8 +21,10 @@ done
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-send"* ]]
 [[ "$help" == *"--composer-mode"* ]]
+[[ "$help" == *"--composer-access"* ]]
 [[ "$help" == *"--thread-composer-send"* ]]
 [[ "$help" == *"--thread-shortcut"* ]]
+[[ "$help" == *"--thread-approval"* ]]
 [[ "$help" == *"--thread-disclosure"* ]]
 [[ "$help" == *"--disclosure-validate"* ]]
 [[ "$help" == *"--composer-validate"* ]]
@@ -84,6 +86,24 @@ if $driver --composer-send QA --composer-validate QA --composer-mode destructive
 fi
 grep -Fq -- '--composer-mode requires default or plan' "$tmpdir/composer-mode-kind.err"
 
+if $driver --composer-access ask >"$tmpdir/composer-access.out" 2>"$tmpdir/composer-access.err"; then
+  echo "capture driver accepted access without composer send" >&2
+  exit 1
+fi
+grep -Fq -- '--composer-access requires --composer-send' "$tmpdir/composer-access.err"
+
+if $driver --composer-send QA --composer-validate QA --composer-access destructive >"$tmpdir/composer-access-kind.out" 2>"$tmpdir/composer-access-kind.err"; then
+  echo "capture driver accepted an unknown composer access" >&2
+  exit 1
+fi
+grep -Fq -- '--composer-access requires current, ask, approve, or full' "$tmpdir/composer-access-kind.err"
+
+if $driver --composer-send QA --composer-validate QA --composer-mode plan --composer-access ask >"$tmpdir/composer-access-plan.out" 2>"$tmpdir/composer-access-plan.err"; then
+  echo "capture driver combined access with Plan mode" >&2
+  exit 1
+fi
+grep -Fq -- '--composer-access cannot be combined with Plan mode' "$tmpdir/composer-access-plan.err"
+
 if $driver --thread-composer-send QA >"$tmpdir/thread-send.out" 2>"$tmpdir/thread-send.err"; then
   echo "capture driver accepted a thread send without visual validation" >&2
   exit 1
@@ -95,6 +115,12 @@ if $driver --thread-shortcut cmd-enter >"$tmpdir/thread-shortcut.out" 2>"$tmpdir
   exit 1
 fi
 grep -Fq -- '--thread-shortcut requires --thread-composer-send' "$tmpdir/thread-shortcut.err"
+
+if $driver --thread-approval destructive >"$tmpdir/thread-approval.out" 2>"$tmpdir/thread-approval.err"; then
+  echo "capture driver accepted an unknown approval action" >&2
+  exit 1
+fi
+grep -Fq -- '--thread-approval requires allow-once or deny' "$tmpdir/thread-approval.err"
 
 if $driver --thread-disclosure Asked >"$tmpdir/disclosure.out" 2>"$tmpdir/disclosure.err"; then
   echo "capture driver accepted a disclosure without visual validation" >&2
@@ -135,6 +161,7 @@ grep -Fq 'case "popover"' "$driver"
 grep -Fq 'case "popover-low"' "$driver"
 grep -Fq 'case "thread"' "$driver"
 grep -Fq 'case "thread-tail"' "$driver"
+grep -Fq 'case "approval-tail"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
@@ -148,16 +175,28 @@ grep -Fq 'if [[ "$mode" == "composer-send" ]]' "$driver"
 grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_mode" == "plan" ]]' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
+grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]' "$driver"
+grep -Fq 'for ask_ocr in "Ask for approval" "Askfor approval"' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "Turn plan mode off" "popover-low"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "What should we build" "main"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "$composer_validate" "main"' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "thread-composer-send" ]]' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "thread-disclosure" ]]' "$driver"
+# Literal source contracts; expansion would weaken the assertions.
+# shellcheck disable=SC2016
+grep -Fq 'if [[ "$mode" == "thread-approval" ]]' "$driver"
+# shellcheck disable=SC2016
+grep -Fq 'approval_target=$([[ "$thread_approval" == "allow-once" ]]' "$driver"
 grep -Fq 'if ((disclosure_open))' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"

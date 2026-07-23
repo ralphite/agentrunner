@@ -6746,3 +6746,15 @@ Gemini session 用普通 composer 回答 Beta，assistant 返回 `CACHEBUST_CLEA
 与 Codex disclosure 合成同一 comparison input 后才做视觉裁决。以后 QA-88 每次 deployment
 复拍都必须以 health version cache-bust 并核对当前 bundle，禁止仅凭 health 新版本推断已打开
 tab 运行新前端。13 个 shared session 与全部 journal/截图永久保留；TH-08 仍因 G48 为 GAP。
+
+---
+
+## 2026-07-22 · INC-98.3f Codex approval 真交互 driver
+
+Computer Use runtime 明确拒绝控制 `com.openai.codex`；继续使用项目已有、窗口级 OCR
+fail-closed driver。Codex access menu 文案已变化，修复只认旧验证词的问题，并新增
+`--composer-access current|ask|approve|full` 与 `--thread-approval allow-once|deny`。Ask 行兼容
+Vision 的 `Ask for approval` / `Askfor approval` 两种读法；card 贴底时使用专属
+`approval-tail` 区域。真实 Codex 以 Ask for approval + sandbox DNS failure 生成
+Awaiting approval card，随后 Allow once 与独立 thread 的 Deny 都由 driver 点击并确认 card
+离场。debug/rejected frame 保留但不冒充 accepted evidence；contract test + shellcheck 全绿。

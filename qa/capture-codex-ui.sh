@@ -9,9 +9,11 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --new-chat-control NAME [--control-query TEXT] |
                               --composer-text TEXT --composer-validate VISIBLE_TEXT |
                               --composer-send TEXT --composer-validate VISIBLE_TEXT
-                                [--composer-mode default|plan] |
+                                [--composer-mode default|plan]
+                                [--composer-access current|ask|approve|full] |
                               --thread-composer-send TEXT --composer-validate VISIBLE_TEXT
                                 [--thread-shortcut enter|cmd-enter] |
+                              --thread-approval allow-once|deny |
                               --thread-disclosure VISIBLE_TEXT --disclosure-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu]
@@ -32,8 +34,12 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --composer-mode plan enables sticky Plan mode before --composer-send. It intentionally
   hands that mode to the created interactive thread; Codex currently restores the
   composer to Full access after the Plan request is accepted.
+--composer-access selects the real New chat access posture before --composer-send:
+  ask = Ask for approval, approve = Approve for me, full = Full access.
 --thread-composer-send submits a follow-up in the currently open thread without navigating away.
 --thread-shortcut chooses Enter or Cmd+Enter for that follow-up (default: enter).
+--thread-approval resolves the currently visible Codex approval card with the
+  exact Allow once or Deny action, then proves that card left the thread tail.
 --thread-disclosure opens one visible disclosure in the current thread, validates its body,
   captures it, then restores the collapsed state.
 --composer-validate is a short visible substring required in the draft/thread capture.
@@ -56,7 +62,9 @@ control_query=""
 composer_text=""
 composer_validate=""
 composer_mode="default"
+composer_access="current"
 thread_shortcut="enter"
+thread_approval=""
 context_target=""
 disclosure_target=""
 disclosure_validate=""
@@ -132,6 +140,14 @@ while (($#)); do
       composer_mode="$2"
       shift 2
       ;;
+    --composer-access)
+      if (($# < 2)) || [[ "$2" != "current" && "$2" != "ask" && "$2" != "approve" && "$2" != "full" ]]; then
+        echo "capture-codex-ui: --composer-access requires current, ask, approve, or full" >&2
+        exit 2
+      fi
+      composer_access="$2"
+      shift 2
+      ;;
     --thread-composer-send)
       if (($# < 2)) || [[ -z "$2" ]]; then
         echo "capture-codex-ui: --thread-composer-send requires text" >&2
@@ -147,6 +163,15 @@ while (($#)); do
         exit 2
       fi
       thread_shortcut="$2"
+      shift 2
+      ;;
+    --thread-approval)
+      if (($# < 2)) || [[ "$2" != "allow-once" && "$2" != "deny" ]]; then
+        echo "capture-codex-ui: --thread-approval requires allow-once or deny" >&2
+        exit 2
+      fi
+      thread_approval="$2"
+      mode="thread-approval"
       shift 2
       ;;
     --thread-disclosure)
@@ -285,6 +310,14 @@ if [[ -n "$disclosure_validate" && "$mode" != "thread-disclosure" ]]; then
 fi
 if [[ "$composer_mode" != "default" && "$mode" != "composer-send" ]]; then
   echo "capture-codex-ui: --composer-mode plan requires --composer-send" >&2
+  exit 2
+fi
+if [[ "$composer_access" != "current" && "$mode" != "composer-send" ]]; then
+  echo "capture-codex-ui: --composer-access requires --composer-send" >&2
+  exit 2
+fi
+if [[ "$composer_access" != "current" && "$composer_mode" == "plan" ]]; then
+  echo "capture-codex-ui: --composer-access cannot be combined with Plan mode" >&2
   exit 2
 fi
 if [[ -n "$control_query" && "$new_chat_control" != "project" && "$new_chat_control" != "branch" ]]; then
@@ -564,6 +597,9 @@ let matches = (request.results ?? []).compactMap { observation -> (Bool, Float, 
   case "thread-tail":
     inRegion = observation.boundingBox.midX > 0.30 &&
       observation.boundingBox.midY > 0.06 && observation.boundingBox.midY < 0.30
+  case "approval-tail":
+    inRegion = observation.boundingBox.midX > 0.30 &&
+      observation.boundingBox.midY > 0.015 && observation.boundingBox.midY < 0.15
   default:
     inRegion = false
   }
@@ -915,7 +951,7 @@ if [[ "$mode" == "new-chat-control" ]]; then
       add) validation_text="Files and folders"; validation_region="popover-low" ;;
       goal) validation_text="Goal"; validation_region="composer" ;;
       plan) validation_text="Full access"; validation_region="composer" ;;
-      access) validation_text="Ask for approval"; validation_region="popover-low" ;;
+      access) validation_text="Approve for me"; validation_region="popover-low" ;;
       model) validation_text="Advanced"; validation_region="popover-low" ;;
       model-list) validation_text="Model"; validation_region="popover-low" ;;
       effort) validation_text="Extra High"; validation_region="popover-low" ;;
@@ -932,6 +968,76 @@ if [[ "$mode" == "new-chat-control" ]]; then
     echo "capture-codex-ui: validation frame saved to $validation_debug" >&2
   fi
   window_text_center "$ocr_capture" "$validation_text" "$validation_region" >/dev/null
+fi
+
+if [[ "$mode" == "composer-send" && "$composer_access" != "current" ]]; then
+  # Select an actual access posture instead of assuming the current chip. The
+  # three labels are mutually exclusive in the composer but all appear in the
+  # menu, so the target can be validated before the prompt is submitted.
+  ocr_capture=$(mktemp -t codex-composer-access-root)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  access_root_point=""
+  for access_root_text in "Full access" "Ask for approval" "Approve for me" "Custom"; do
+    if access_root_point=$(window_text_center "$ocr_capture" "$access_root_text" "composer" 2>/dev/null); then
+      break
+    fi
+  done
+  if [[ -z "$access_root_point" ]]; then
+    echo "capture-codex-ui: current access chip not found" >&2
+    exit 1
+  fi
+  IFS=$'\t' read -r access_root_x access_root_y <<<"$access_root_point"
+  send_click "$access_root_x" "$access_root_y"
+  transient_open=1
+  sleep 1
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-composer-access-menu)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    access_menu_debug="${output%.*}-access-menu-debug.png"
+    cp -- "$ocr_capture" "$access_menu_debug"
+    echo "capture-codex-ui: access menu saved to $access_menu_debug" >&2
+  fi
+  case "$composer_access" in
+    ask) access_target="Ask for approval"; access_validate="" ;;
+    approve) access_target="Approve for me"; access_validate="$access_target" ;;
+    full) access_target="Full access"; access_validate="$access_target" ;;
+  esac
+  if [[ "$composer_access" == "ask" ]]; then
+    access_point=""
+    for ask_ocr in "Ask for approval" "Askfor approval"; do
+      if access_point=$(window_text_center "$ocr_capture" "$ask_ocr" "popover-low" 2>/dev/null); then
+        break
+      fi
+    done
+    if [[ -z "$access_point" ]]; then
+      echo "capture-codex-ui: Ask for approval row not found" >&2
+      exit 1
+    fi
+  else
+    access_point=$(window_text_center "$ocr_capture" "$access_target" "popover-low")
+  fi
+  IFS=$'\t' read -r access_x access_y <<<"$access_point"
+  send_click "$access_x" "$access_y"
+  transient_open=0
+  sleep 1
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-composer-access-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    access_debug="${output%.*}-access-debug.png"
+    cp -- "$ocr_capture" "$access_debug"
+    echo "capture-codex-ui: access frame saved to $access_debug" >&2
+  fi
+  if [[ "$composer_access" == "ask" ]]; then
+    if ! window_text_center "$ocr_capture" "Ask for" "composer" >/dev/null 2>&1 &&
+       ! window_text_center "$ocr_capture" "Custom" "composer" >/dev/null 2>&1; then
+      echo "capture-codex-ui: Ask for approval selection did not settle" >&2
+      exit 1
+    fi
+  else
+    window_text_center "$ocr_capture" "$access_validate" "composer" >/dev/null
+  fi
 fi
 
 if [[ "$mode" == "composer-send" && "$composer_mode" == "plan" ]]; then
@@ -1002,7 +1108,10 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
     cp -- "$ocr_capture" "$draft_debug"
     echo "capture-codex-ui: composer draft frame saved to $draft_debug" >&2
   fi
-  window_text_center "$ocr_capture" "$composer_validate" "composer" >/dev/null
+  # Draft text can grow above the bottom 20% once the prompt wraps. Keep the
+  # horizontal main-pane guard, but do not reject a valid draft merely because
+  # its OCR box crossed the composer's narrow vertical band.
+  window_text_center "$ocr_capture" "$composer_validate" "main" >/dev/null
   if [[ "$mode" == "composer-send" ]]; then
     send_key 36
     composer_seeded=0
@@ -1089,6 +1198,37 @@ if [[ "$mode" == "thread-disclosure" ]]; then
   ocr_capture=$(mktemp -t codex-thread-disclosure-validate)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
   window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null
+fi
+
+if [[ "$mode" == "thread-approval" ]]; then
+  ocr_capture=$(mktemp -t codex-thread-approval)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    approval_debug="${output%.*}-approval-debug.png"
+    cp -- "$ocr_capture" "$approval_debug"
+    echo "capture-codex-ui: approval frame saved to $approval_debug" >&2
+  fi
+  approval_target=$([[ "$thread_approval" == "allow-once" ]] && echo "Allow once" || echo "Deny")
+  approval_point=$(window_text_center "$ocr_capture" "$approval_target" "approval-tail")
+  IFS=$'\t' read -r approval_x approval_y <<<"$approval_point"
+  send_click "$approval_x" "$approval_y"
+  sleep "$settle_seconds"
+  approval_resolved=0
+  for _ in {1..15}; do
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-approval-resolved)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if ! window_text_center "$ocr_capture" "Allow once" "approval-tail" >/dev/null 2>&1 &&
+       ! window_text_center "$ocr_capture" "Deny" "approval-tail" >/dev/null 2>&1; then
+      approval_resolved=1
+      break
+    fi
+    sleep 1
+  done
+  if ((approval_resolved == 0)); then
+    echo "capture-codex-ui: approval card did not resolve" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$mode" == "context-menu" ]]; then
