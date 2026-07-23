@@ -10,7 +10,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build && touch dist/.gitkeep",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "storybook": "storybook dev -p 6009 --host 127.0.0.1",
+    "build-storybook": "storybook build -o storybook-static",
+    "test:storybook": "vitest run --config vitest.storybook.config.ts",
+    "baseline:storybook": "node ../../scripts/generate-storybook-baseline.mjs",
+    "baseline:storybook:check": "node ../../scripts/generate-storybook-baseline.mjs --check"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -30,13 +35,27 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@storybook/addon-a11y": "10.5.3",
+    "@storybook/addon-vitest": "10.5.3",
+    "@storybook/react-vite": "10.5.3",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/browser-playwright": "4.1.10",
     "jsdom": "^25.0.1",
+    "msw": "2.15.0",
+    "msw-storybook-addon": "2.0.7",
+    "playwright": "1.61.1",
+    "storybook": "10.5.3",
     "typescript": "^5.6.3",
     "vite": "^7.3.6",
-    "vitest": "^3.2.6"
+    "vitest": "4.1.10"
+  },
+  "msw": {
+    "workerDirectory": [
+      ".storybook/public"
+    ]
   }
 }

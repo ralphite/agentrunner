@@ -30,9 +30,9 @@ function mount({
   select = vi.fn(),
   onError = vi.fn(),
 }: {
-  refreshSessions?: ReturnType<typeof vi.fn>;
-  select?: ReturnType<typeof vi.fn>;
-  onError?: ReturnType<typeof vi.fn>;
+  refreshSessions?: () => Promise<void>;
+  select?: (sid: string) => void;
+  onError?: (message: string) => void;
 } = {}) {
   useStore.setState({
     sessions: [],

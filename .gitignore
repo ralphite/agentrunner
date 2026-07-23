@@ -15,6 +15,9 @@ acceptance-report.json
 # Vite build output — embedded into the Go binary at build time; never committed.
 webui/frontend/dist/*
 !webui/frontend/dist/.gitkeep
+webui/frontend/storybook-static/
+webui/frontend/playwright-report/
+webui/frontend/test-results/
 
 # Codex golden reference screenshots are intentionally TRACKED (parity ground truth;
 # the ephemeral qa/runs/ and qa/blackbox-out/ captures are the ignored ones).

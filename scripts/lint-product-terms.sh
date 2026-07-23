@@ -23,6 +23,9 @@ paths=(
 common_globs=(
   --glob '!**/frontend/package-lock.json'
   --glob '!**/frontend/dist/**'
+  --glob '!**/frontend/storybook-static/**'
+  --glob '!**/frontend/playwright-report/**'
+  --glob '!**/frontend/test-results/**'
   --glob '!**/runs/**'
   --glob '!**/codex-reference/**'
 )

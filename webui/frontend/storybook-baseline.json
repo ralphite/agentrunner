@@ -1,0 +1,764 @@
+{
+  "schemaVersion": 1,
+  "productionComponents": {
+    "count": 36,
+    "lines": 14780,
+    "files": [
+      {
+        "source": "src/components/ApprovalCard.tsx",
+        "lines": 151,
+        "exports": [
+          "ApprovalCard"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/AskForm.tsx",
+        "lines": 157,
+        "exports": [
+          "AskForm"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/ChangesOutcome.tsx",
+        "lines": 588,
+        "exports": [
+          "ChangesOutcome"
+        ],
+        "privateVisibleCandidates": [
+          "ArtifactChips",
+          "ArtifactRow",
+          "ChangesShell",
+          "ImageArtifacts",
+          "ImageCard",
+          "PlusMinusSquare"
+        ]
+      },
+      {
+        "source": "src/components/CommandPalette.tsx",
+        "lines": 271,
+        "exports": [
+          "CommandPalette"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Composer.tsx",
+        "lines": 2101,
+        "exports": [
+          "Composer"
+        ],
+        "privateVisibleCandidates": [
+          "AccessIcon",
+          "BestIcon",
+          "BranchIcon",
+          "Caret",
+          "FolderIcon",
+          "GoalIcon",
+          "GoalLoopLauncher",
+          "LoopIcon",
+          "MicIcon",
+          "ModelIcon",
+          "PersonaIcon",
+          "PlanIcon",
+          "PlusIcon",
+          "UndoIcon"
+        ]
+      },
+      {
+        "source": "src/components/ContextMenu.tsx",
+        "lines": 104,
+        "exports": [
+          "ContextMenu"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/DaemonAlert.tsx",
+        "lines": 50,
+        "exports": [
+          "DaemonAlert"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/DiffView.tsx",
+        "lines": 1800,
+        "exports": [
+          "DiffView"
+        ],
+        "privateVisibleCandidates": [
+          "DiffSkeleton",
+          "FileBody",
+          "FileHead",
+          "UntrackedFile"
+        ]
+      },
+      {
+        "source": "src/components/ErrorBoundary.tsx",
+        "lines": 44,
+        "exports": [
+          "ErrorBoundary"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/FindBar.tsx",
+        "lines": 180,
+        "exports": [
+          "FindBar"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Home.tsx",
+        "lines": 240,
+        "exports": [
+          "Home"
+        ],
+        "privateVisibleCandidates": [
+          "CloudMark",
+          "Telescope"
+        ]
+      },
+      {
+        "source": "src/components/Lightbox.tsx",
+        "lines": 148,
+        "exports": [
+          "Lightbox"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Markdown.tsx",
+        "lines": 330,
+        "exports": [
+          "Markdown"
+        ],
+        "privateVisibleCandidates": [
+          "CodeBlock",
+          "MdImage"
+        ]
+      },
+      {
+        "source": "src/components/Menu.tsx",
+        "lines": 55,
+        "exports": [
+          "Menu",
+          "MenuItem",
+          "MenuLabel"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Mermaid.tsx",
+        "lines": 62,
+        "exports": [
+          "MermaidBlock"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Modals.tsx",
+        "lines": 964,
+        "exports": [
+          "Modal",
+          "Modals"
+        ],
+        "privateVisibleCandidates": [
+          "AgentModal",
+          "ConfirmModal",
+          "ForkModal",
+          "MainModal",
+          "NewSessionModal",
+          "PromptModal",
+          "RenameModal",
+          "RunDetailsModal",
+          "RunModal",
+          "TrustModal",
+          "ViewerModal"
+        ]
+      },
+      {
+        "source": "src/components/NotFound.tsx",
+        "lines": 22,
+        "exports": [
+          "SessionNotFound"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Popover.tsx",
+        "lines": 305,
+        "exports": [
+          "PopItem",
+          "PopSection",
+          "Popover"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/RunView.tsx",
+        "lines": 179,
+        "exports": [
+          "RunView"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Scheduled.tsx",
+        "lines": 1163,
+        "exports": [
+          "Scheduled"
+        ],
+        "privateVisibleCandidates": [
+          "ScheduleDetailPanel",
+          "ScheduleEditDialog"
+        ]
+      },
+      {
+        "source": "src/components/SessionView.tsx",
+        "lines": 1489,
+        "exports": [
+          "SessionView"
+        ],
+        "privateVisibleCandidates": [
+          "GoalBanner",
+          "ProgressSummary"
+        ]
+      },
+      {
+        "source": "src/components/Settings.tsx",
+        "lines": 151,
+        "exports": [
+          "Settings"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsAppearance.tsx",
+        "lines": 240,
+        "exports": [
+          "SettingsAppearance"
+        ],
+        "privateVisibleCandidates": [
+          "FontRow",
+          "ThemePreview",
+          "ToggleRow"
+        ]
+      },
+      {
+        "source": "src/components/SettingsArchived.tsx",
+        "lines": 63,
+        "exports": [
+          "SettingsArchived"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsConfiguration.tsx",
+        "lines": 73,
+        "exports": [
+          "SettingsConfiguration"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsGeneral.tsx",
+        "lines": 80,
+        "exports": [
+          "SettingsGeneral"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsGit.tsx",
+        "lines": 47,
+        "exports": [
+          "SettingsGit"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsSearch.tsx",
+        "lines": 10,
+        "exports": [],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsShortcuts.tsx",
+        "lines": 43,
+        "exports": [
+          "SettingsShortcuts"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsWorktrees.tsx",
+        "lines": 72,
+        "exports": [
+          "SettingsWorktrees"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Shortcuts.tsx",
+        "lines": 68,
+        "exports": [
+          "Shortcuts"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Sidebar.tsx",
+        "lines": 889,
+        "exports": [
+          "Sidebar"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Subagents.tsx",
+        "lines": 149,
+        "exports": [
+          "Subagents"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SupervisionPanel.tsx",
+        "lines": 994,
+        "exports": [
+          "SupervisionPanel"
+        ],
+        "privateVisibleCandidates": [
+          "EnvironmentSection"
+        ]
+      },
+      {
+        "source": "src/components/Timeline.tsx",
+        "lines": 1451,
+        "exports": [
+          "TimelineView"
+        ],
+        "privateVisibleCandidates": [
+          "ActivityGroup",
+          "AskDetailView",
+          "CategoryIcon",
+          "CollapsibleUserText",
+          "EditDetailView",
+          "GlobDetailView",
+          "GrepDetailView",
+          "Item",
+          "JSONDetail",
+          "MiniDiff",
+          "MsgActions",
+          "ReadDetailView",
+          "RetriedFold",
+          "SemanticDetailView",
+          "ShellDetail",
+          "SpawnDetailView",
+          "StepIcon",
+          "Thumbs",
+          "ToolCard",
+          "ToolDetail",
+          "WebDetailView",
+          "WorkedFold"
+        ]
+      },
+      {
+        "source": "src/components/Toasts.tsx",
+        "lines": 47,
+        "exports": [
+          "Toasts"
+        ],
+        "privateVisibleCandidates": []
+      }
+    ]
+  },
+  "tests": {
+    "files": 72,
+    "declarations": 744
+  },
+  "storage": [
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "sessionStorage",
+      "operation": "getItem",
+      "key": "key",
+      "line": 116
+    },
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "sessionStorage",
+      "operation": "setItem",
+      "key": "key",
+      "line": 119
+    },
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "sessionStorage",
+      "operation": "removeItem",
+      "key": "`arwebui.fork-send.${sid}.${draftID}`",
+      "line": 127
+    },
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.lastProject",
+      "line": 144
+    },
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.lastProject",
+      "line": 151
+    },
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.lastAccess",
+      "line": 229
+    },
+    {
+      "source": "src/components/Composer.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.lastAccess",
+      "line": 241
+    },
+    {
+      "source": "src/components/DiffView.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "ar.diff.wrap",
+      "line": 150
+    },
+    {
+      "source": "src/components/DiffView.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "ar.diff.wrap",
+      "line": 158
+    },
+    {
+      "source": "src/components/DiffView.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "ar.diff.scope",
+      "line": 176
+    },
+    {
+      "source": "src/components/DiffView.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "ar.diff.scope",
+      "line": 184
+    },
+    {
+      "source": "src/components/sessionSpecs.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "key",
+      "line": 14
+    },
+    {
+      "source": "src/components/sessionSpecs.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "key",
+      "line": 23
+    },
+    {
+      "source": "src/components/sessionSpecs.ts",
+      "storage": "sessionStorage",
+      "operation": "setItem",
+      "key": "draftStorageKey(key)",
+      "line": 63
+    },
+    {
+      "source": "src/components/sessionSpecs.ts",
+      "storage": "sessionStorage",
+      "operation": "removeItem",
+      "key": "draftStorageKey(key)",
+      "line": 71
+    },
+    {
+      "source": "src/components/sessionSpecs.ts",
+      "storage": "sessionStorage",
+      "operation": "getItem",
+      "key": "draftStorageKey(key)",
+      "line": 81
+    },
+    {
+      "source": "src/components/SessionView.tsx",
+      "storage": "sessionStorage",
+      "operation": "getItem",
+      "key": "key",
+      "line": 50
+    },
+    {
+      "source": "src/components/SessionView.tsx",
+      "storage": "sessionStorage",
+      "operation": "setItem",
+      "key": "key",
+      "line": 53
+    },
+    {
+      "source": "src/components/SessionView.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.supervision",
+      "line": 201
+    },
+    {
+      "source": "src/components/SessionView.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.supervision",
+      "line": 206
+    },
+    {
+      "source": "src/components/Sidebar.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "ar.sidebar.collapsedProjects",
+      "line": 67
+    },
+    {
+      "source": "src/components/Sidebar.tsx",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "ar.sidebar.foldedSections",
+      "line": 76
+    },
+    {
+      "source": "src/components/Sidebar.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "ar.sidebar.foldedSections",
+      "line": 162
+    },
+    {
+      "source": "src/components/Sidebar.tsx",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "ar.sidebar.collapsedProjects",
+      "line": 278
+    },
+    {
+      "source": "src/components/Timeline.tsx",
+      "storage": "sessionStorage",
+      "operation": "removeItem",
+      "key": "scrollStorageKey",
+      "line": 1155
+    },
+    {
+      "source": "src/components/Timeline.tsx",
+      "storage": "sessionStorage",
+      "operation": "getItem",
+      "key": "scrollStorageKey",
+      "line": 1223
+    },
+    {
+      "source": "src/components/Timeline.tsx",
+      "storage": "sessionStorage",
+      "operation": "setItem",
+      "key": "scrollStorageKey",
+      "line": 1290
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.archived",
+      "line": 174
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.pinned",
+      "line": 183
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.renames",
+      "line": 198
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "removeItem",
+      "key": "arwebui.renames",
+      "line": 206
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "removeItem",
+      "key": "arwebui.renames",
+      "line": 215
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.sidebar",
+      "line": 226
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.sidebarWidth",
+      "line": 244
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.unread",
+      "line": 254
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.unread",
+      "line": 261
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.archived",
+      "line": 332
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.pinned",
+      "line": 372
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.sidebar",
+      "line": 397
+    },
+    {
+      "source": "src/store.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.sidebarWidth",
+      "line": 407
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.theme",
+      "line": 10
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.theme",
+      "line": 29
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.appearance",
+      "line": 78
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.appearance",
+      "line": 90
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "getItem",
+      "key": "arwebui.git",
+      "line": 171
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "setItem",
+      "key": "arwebui.git",
+      "line": 181
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "removeItem",
+      "key": "arwebui.appearance",
+      "line": 190
+    },
+    {
+      "source": "src/theme.ts",
+      "storage": "localStorage",
+      "operation": "removeItem",
+      "key": "arwebui.git",
+      "line": 191
+    }
+  ],
+  "routes": [
+    {
+      "source": "src/store.ts",
+      "line": 306,
+      "expression": "\"\""
+    },
+    {
+      "source": "src/store.ts",
+      "line": 352,
+      "expression": "\"scheduled\""
+    },
+    {
+      "source": "src/store.ts",
+      "line": 362,
+      "expression": "\"\""
+    },
+    {
+      "source": "src/store.ts",
+      "line": 587,
+      "expression": "sid"
+    },
+    {
+      "source": "src/store.ts",
+      "line": 590,
+      "expression": "\"\""
+    },
+    {
+      "source": "src/store.ts",
+      "line": 595,
+      "expression": "rid ? \"run:\" + rid : \"\""
+    },
+    {
+      "source": "src/store.ts",
+      "line": 601,
+      "expression": "page === \"home\" ? \"\" : page"
+    },
+    {
+      "source": "src/store.ts",
+      "line": 611,
+      "expression": "sid ? `scheduled:${sid}` : \"scheduled\""
+    }
+  ]
+}

@@ -174,7 +174,6 @@ webui/frontend/
   .storybook/
     main.ts
     preview.tsx
-    vitest.setup.ts
     public/
       mockServiceWorker.js  # 仅由 Storybook staticDirs 服务，不进 Vite public/dist
   src/
@@ -605,8 +604,9 @@ daemon restart 会影响真实 live work：默认只重启 Web UI。只有 `ar s
    - 只落最小 smoke，不改 production。
 
 2. **99.2 Storybook + MSW + blocking CI foundation**
-   - **99.2a**：接 `main/preview/vitest.setup`、真实 CSS/theme/portal/viewport，
-     smoke Story 证明 clean `npm ci` 与 browser render；
+   - **99.2a**：接 `main/preview`（Storybook 10.3+ 的 Vitest addon 自动加载
+     project annotations，不保留重复 `setProjectAnnotations` setup）、真实
+     CSS/theme/portal/viewport，smoke Story 证明 clean `npm ci` 与 browser render；
    - **99.2b**：完成 Storybook-only worker/staticDirs/initialize/mswLoader/
      unhandled policy，并证明 `/api/**` 不漏到真实 origin；
    - **99.2c**：增加 `check-webui.sh`、blocking CI、shard/budget 与 failure
