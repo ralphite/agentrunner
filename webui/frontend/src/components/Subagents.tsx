@@ -25,6 +25,15 @@ export interface InspectNode {
     args?: string;
     answer_with?: string;
   };
+  delegations?: InspectDelegation[];
+}
+
+export interface InspectDelegation {
+  assigned_to?: string;
+  workspace?: {
+    mode?: string;
+    path?: string;
+  };
 }
 
 function tokens(n?: number): string {
@@ -50,7 +59,10 @@ export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; 
       )}
       {uniqueNodes.map((c, i) => {
         const rep = c.report || c;
-        const raw = c.reason || rep.reason || rep.status || "";
+        // A parked wait is more precise than the report's broad `waiting`
+        // status. G39 made the approval discoverable, but the row still said
+        // Ready because friendlyStatus("waiting") describes ordinary idle.
+        const raw = rep.waiting?.kind ? `waiting:${rep.waiting.kind}` : c.reason || rep.reason || rep.status || "";
         const st = friendlyStatus(raw);
         const tok = rep.usage?.billed ?? ((rep.usage?.input_tokens || 0) + (rep.usage?.output_tokens || 0));
         const kids = dedupeInspectNodes(rep.children || []);

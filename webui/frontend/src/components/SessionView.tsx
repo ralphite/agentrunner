@@ -10,7 +10,7 @@ import { Composer } from "./Composer";
 import { AskForm } from "./AskForm";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import type { InspectNode } from "./Subagents";
+import type { InspectDelegation, InspectNode } from "./Subagents";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
 import { friendlyStatus, terminalNoticeFor } from "./pill";
@@ -110,6 +110,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const [backgroundWork, setBackgroundWork] = useState<BackgroundWork[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
+  const [delegations, setDelegations] = useState<InspectDelegation[]>([]);
   // Child journals deliberately inherit the parent's durable title. Inspect
   // carries the actual agent spec, which is the label a person needs when
   // moving between three otherwise indistinguishable worker sessions.
@@ -189,7 +190,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // journal seq → local upload paths, so a confirmed user bubble keeps its
   // image thumbnails (the journal itself only records a CAS ref).
   const sentImages = useRef(new Map<number, string[]>());
-  const approvalAutoOpenedSupervision = useRef(false);
+  const approvalAdjustedSupervision = useRef<"opened" | "closed" | null>(null);
 
   // Mobile navigation and Environment are both full-height overlays. Opening
   // the navigation drawer must make it the sole active layer, otherwise its
@@ -274,6 +275,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       const u = ins?.usage;
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
+      setDelegations(Array.isArray(ins?.delegations) ? ins.delegations : []);
       if (isSub && typeof ins?.spec === "string" && ins.spec.trim()) setSubAgentName(ins.spec.trim());
       setGoal(ins?.goal || null);
       setProgress(Array.isArray(ins?.progress) ? ins.progress : []);
@@ -363,6 +365,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     setResolvedLocal(new Set());
     setUsage(null);
     setChildren([]);
+    setDelegations([]);
     setSubAgentName(undefined);
     setGoal(null);
     setGoalPendingUpdate(null);
@@ -472,7 +475,13 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     AR.goal(sid, { action }).then(() => pollInspect()).catch((e) => toast(e.message));
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
-  const openApprovals: (ApprovalRef & { agent?: string; viaSSE?: boolean; session?: string })[] = [];
+  const openApprovals: (ApprovalRef & {
+    agent?: string;
+    viaSSE?: boolean;
+    session?: string;
+    workspace?: string;
+    workspaceMode?: string;
+  })[] = [];
   for (const a of folded.approvals.values()) {
     if (!a.resolved && !resolvedLocal.has(a.id)) openApprovals.push(a);
   }
@@ -485,21 +494,32 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // now carries each child's waiting:approval durably; promote those into the
   // approval stack (decide targets the child session — routing already works).
   {
-    const walk = (nodes: InspectNode[]) => {
+    const walk = (nodes: InspectNode[], ownerDelegations: InspectDelegation[]) => {
       for (const node of dedupeInspectNodes(nodes)) {
         const w = node.report?.waiting;
+        const delegation = ownerDelegations.find((d) => d.assigned_to === node.session);
         if (w?.kind === "approval" && w.approval_id &&
-            !folded.approvals.has(w.approval_id) && !resolvedLocal.has(w.approval_id) &&
-            !openApprovals.some((a) => a.id === w.approval_id)) {
-          openApprovals.push({
-            id: w.approval_id, tool: w.tool || "", args: w.args || "", gates: [],
-            agent: node.agent, session: node.session,
-          });
+            !folded.approvals.has(w.approval_id) && !resolvedLocal.has(w.approval_id)) {
+          const existingIndex = openApprovals.findIndex((a) => a.id === w.approval_id);
+          const childContext = {
+            agent: node.agent,
+            session: node.session,
+            workspace: delegation?.workspace?.path,
+            workspaceMode: delegation?.workspace?.mode,
+          };
+          if (existingIndex >= 0) {
+            openApprovals[existingIndex] = { ...openApprovals[existingIndex], ...childContext };
+          } else {
+            openApprovals.push({
+              id: w.approval_id, tool: w.tool || "", args: w.args || "", gates: [],
+              ...childContext,
+            });
+          }
         }
-        if (node.report?.children) walk(node.report.children);
+        if (node.report?.children) walk(node.report.children, node.report.delegations || []);
       }
     };
-    walk(children);
+    walk(children, delegations);
   }
 
   // Status precedence: a live turn (tool running / step in flight / a pending
@@ -780,20 +800,28 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
 
   // The inline approval card is the primary action. On roomy desktop layouts
   // Supervision may reinforce it, but narrow screens must not be covered by an
-  // auto-open overlay. If we opened the panel, close it when attention clears.
+  // auto-open overlay. At 900–1400px the 340px floating card overlaps the
+  // primary approval decision, so temporarily close it and restore it after
+  // the decision. A >1400px viewport has room for both and may reinforce the
+  // inline card by auto-opening Environment.
   const hasApprovals = openApprovals.length > 0;
   useEffect(() => {
-    if (hasApprovals && view === "chat" && (bp.desktop || bp.wide)) {
-      if (!supervisionOpen) {
-        approvalAutoOpenedSupervision.current = true;
+    if (hasApprovals && view === "chat") {
+      if (bp.desktop && supervisionOpen) {
+        approvalAdjustedSupervision.current ||= "closed";
+        setSupervisionOpen(false);
+      } else if (bp.wide && !supervisionOpen) {
+        approvalAdjustedSupervision.current ||= "opened";
         setSupervisionOpen(true);
       }
       return;
     }
-    if (approvalAutoOpenedSupervision.current) {
-      approvalAutoOpenedSupervision.current = false;
+    if (approvalAdjustedSupervision.current === "opened") {
       setSupervisionOpen(false);
+    } else if (approvalAdjustedSupervision.current === "closed") {
+      setSupervisionOpen(true);
     }
+    approvalAdjustedSupervision.current = null;
   }, [hasApprovals, view, bp.desktop, bp.wide]);
 
   const showSupervision = supervisionOpen && view === "chat";
@@ -981,7 +1009,8 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                         key={approval.id}
                         approval={approval}
                         readonly={isSub}
-                        workspace={sessions.find((s) => s.id === sid)?.workspace}
+                        workspace={approval.workspace || sessions.find((s) => s.id === sid)?.workspace}
+                        workspaceMode={approval.workspaceMode}
                         onDecide={(id, decision, reason, always) => decideApproval(id, decision, reason, approval.session || sid, always)}
                         onError={(message) => toast(message)}
                       />

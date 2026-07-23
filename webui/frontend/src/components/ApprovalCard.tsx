@@ -17,6 +17,7 @@ export function ApprovalCard({
   approval,
   readonly,
   workspace,
+  workspaceMode,
   onDecide,
   onError,
 }: {
@@ -25,6 +26,9 @@ export function ApprovalCard({
   // The session's workspace path — represented compactly so you know WHERE
   // the command will run before approving it (W25).
   workspace?: string;
+  // Child approvals can target an isolated worktree rather than the parent
+  // session's workspace. Keep that distinction in the decision surface.
+  workspaceMode?: string;
   onDecide: (id: string, decision: "approve" | "deny", reason: string, always?: boolean) => Promise<void>;
   onError: (msg: string) => void;
 }) {
@@ -33,6 +37,12 @@ export function ApprovalCard({
   const [busy, setBusy] = useState(false);
   const presentation = useMemo(() => describeApproval(approval.tool, approval.args), [approval.tool, approval.args]);
   const workspaceName = useMemo(() => compactWorkspaceName(workspace), [workspace]);
+  const isolatedChild = !!approval.agent && workspaceMode === "isolated";
+  const description = isolatedChild
+    ? "The child agent wants to run this command in its isolated worktree."
+    : presentation.description;
+  const scope = isolatedChild ? "Child worktree" : presentation.scope;
+  const workspaceLabel = isolatedChild ? `${approval.agent} · isolated` : workspaceName;
 
   const decide = async (decision: "approve" | "deny", always = false) => {
     setBusy(true);
@@ -59,7 +69,7 @@ export function ApprovalCard({
         )}
       </div>
 
-      <p className="approval-description my-2 leading-[1.4]">{presentation.description}</p>
+      <p className="approval-description my-2 leading-[1.4]">{description}</p>
       <div className="approval-subject flex min-w-0 items-start gap-2 overflow-hidden">
         <TerminalWindow className="mt-px shrink-0" size={15} />
         <code className="min-w-0 flex-1 whitespace-pre-wrap leading-[1.4] [overflow-wrap:anywhere]">
@@ -71,10 +81,10 @@ export function ApprovalCard({
         title={workspace || undefined}
       >
         <WarningCircle className="mt-px shrink-0" size={14} />
-        <span>{presentation.scope}</span>
-        {workspaceName && presentation.scope === "Current workspace" && (
+        <span>{scope}</span>
+        {workspaceLabel && (scope === "Current workspace" || scope === "Child worktree") && (
           <code className="approval-ws m-0 min-w-0 max-w-full basis-full whitespace-normal p-1.5 leading-[1.35] [overflow-wrap:anywhere] sm:basis-auto sm:flex-1">
-            {workspaceName}
+            {workspaceLabel}
           </code>
         )}
       </div>

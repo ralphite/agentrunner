@@ -484,3 +484,41 @@ describe("RD-B · opening the rail does not re-lay-out the thread", () => {
     expect(layout.classList.contains("single")).toBe(false);
   });
 });
+
+describe("INC-98.3g · child approval truth", () => {
+  it("uses the delegation worktree and protects the decision card at 1280px", async () => {
+    const childSid = `${SID}-sub-call_1_0-a1`;
+    const childPath = `/tmp/agentrunner/sessions/${SID}/sub/call_1_0-a1/worktree`;
+    (window as any).innerWidth = 1280;
+    arMock.events = async (_sid: string, after: number) => after ? [] : EVENTS.slice(1, 3);
+    arMock.inspect = async () => ({
+      goal: null,
+      progress: [],
+      artifacts: [],
+      delegations: [{ assigned_to: childSid, workspace: { mode: "isolated", path: childPath } }],
+      children: [{
+        call_id: "call_1_0",
+        agent: "worker",
+        session: childSid,
+        report: {
+          status: "waiting",
+          waiting: { kind: "approval", approval_id: "apr-child", tool: "bash", args: '{"command":"pwd"}' },
+        },
+      }],
+    });
+    useStore.setState({
+      sessions: [{ id: SID, title: "child approval", status: "waiting:input", workspace: "/repo/parent" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Approval required" })).toBeTruthy());
+    expect(screen.getByText("Requested by worker")).toBeTruthy();
+    expect(screen.getByText("Child worktree")).toBeTruthy();
+    expect(screen.getByText("worker · isolated")).toBeTruthy();
+    expect(container.querySelector(".approval-scope")?.getAttribute("title")).toBe(childPath);
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).toBeNull());
+    expect(screen.getByRole("button", { name: /Environment/i })).toBeTruthy();
+    expect(container.querySelector(".topbar-attention")).not.toBeNull();
+  });
+});

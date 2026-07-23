@@ -299,8 +299,8 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.3e 盘点**：79 行 = `PASS 19 / GAP 9 / INTENTIONAL 4 / BLOCKED 1 /
-UNTESTED 46`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
+**98.3g 盘点**：79 行 = `PASS 19 / GAP 10 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 45`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
 ### 7.1 Global shell 与 Codex-only 主入口
@@ -350,7 +350,7 @@ UNTESTED 46`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | TH-06 | queue/steer toggle、queued bubbles、⌘⏎、reorder 边界 | GAP | 2026-07-22 `QA88-98.3c-queue-steer/01..08/17..19`：双侧真实 long tool + running follow-up；我方 Queue/Steer toggle、Cmd+Enter opposite mode、durable order/Withdraw 通过，并修 queue optimistic+durable 双影及 Withdraw 幽灵；Codex queued row 可原子 `Steer`，我方 backend 只有 unqueue/send 两条非原子命令，缺 G47，禁止竞态拼接 |
 | TH-07 | running Stop/interrupt、partial output、recovery | PASS | 2026-07-22 `QA88-98.3d-stop-recovery/01..12`：双侧真实长 shell 在运行中 Stop，均保留已产出的 PARTIAL-1..N 与明确 stopped 终态；我方事件精确为 activity cancelled→interrupted→final barrier→waiting，进程组未打印 SHOULD-NOT-PRINT。修复 durable `interrupted` 被宽泛 matcher 误报 `Session needs recovery / Resume` 的回归；修后只显示 Stopped+Retry、普通 composer 可直接恢复并成功回复 `TH07-RECOVERED`。Codex 截图仍列 background process 属其自身行为，我方保留更强的取消不变量 |
 | TH-08 | ask_user waiting、answer、reload、cancel 边界 | GAP | 2026-07-22 `QA88-98.3e-ask-user/01..36`：Codex Default 明示 request_user_input 不可用；Plan 生成 `Asked 1 question` disclosure，但 app bridge 当批记录 `No answer provided`，Alpha 走普通 follow-up。AgentRunner shared 真 Gemini 逐项通过 structured single/multi/free-text/two-question/Skip、reload persistence 与普通 composer answer；真浏览器反证只靠 AskResolved poll 仍有 receipt race，并确认实际 send receipt 是 `delivered`；以 AskForm 可见 context + 成功 receipt 修到无需 reload 即零 `queued…` 幽灵。修后以 health version cache-bust 并核对当前 bundle hash 后复拍通过。仍缺 G48：session list 把 active structured ask 与 ordinary idle 都投为 `waiting:input`，sidebar/command palette 误标 Ready、不能抬 attention |
-| TH-09 | approval：details/approve/deny/child approval/reload | UNTESTED | 不替用户决定真实高风险审批；使用 QA spec |
+| TH-09 | approval：details/approve/deny/child approval/reload | GAP | 2026-07-22 `QA88-98.3f-approval/02..38`：Codex Ask access 下真实 sandbox DNS approval 的 Allow once/Deny；AgentRunner shared 真 Gemini root approve/deny/details/reload 与 child fresh-load/approve/recovery 全通过。修复 child row `Ready`、parent workspace 误标及 1280 Environment 遮卡；修后同态合并图 `38`、browser logs 为空。parent sidebar 仍因 session-list 缺 typed child wait 而标 `Ready`，G49 |
 | TH-10 | provider/network/tool error、Retry 原位替换 | UNTESTED | — |
 | TH-11 | completed/failed/recovery/continue terminal chrome | UNTESTED | — |
 | TH-12 | long thread hydration/scroll anchor/new message badge | UNTESTED | — |

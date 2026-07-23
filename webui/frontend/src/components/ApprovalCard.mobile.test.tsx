@@ -42,6 +42,26 @@ describe("ApprovalCard mobile decision flow", () => {
     expect(workspace?.classList.contains("[overflow-wrap:anywhere]")).toBe(true);
   });
 
+  it("names an isolated child worktree instead of claiming the parent workspace", () => {
+    const childPath = "/Users/test/.local/share/agentrunner/sessions/parent/sub/call_1_0-a1/worktree";
+    const { container } = render(
+      <ApprovalCard
+        approval={{ ...approval, agent: "worker" }}
+        readonly={false}
+        workspace={childPath}
+        workspaceMode="isolated"
+        onDecide={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("The child agent wants to run this command in its isolated worktree.")).toBeTruthy();
+    expect(screen.getByText("Child worktree")).toBeTruthy();
+    expect(screen.getByText("worker · isolated")).toBeTruthy();
+    expect(container.querySelector(".approval-scope")?.getAttribute("title")).toBe(childPath);
+    expect(screen.queryByText("The agent wants to run this command in the current workspace.")).toBeNull();
+  });
+
   it("puts the primary approval first and gives it the full mobile row", () => {
     const { container } = render(
       <ApprovalCard approval={approval} readonly={false} onDecide={vi.fn()} onError={vi.fn()} />,

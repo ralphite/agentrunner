@@ -178,6 +178,9 @@ INC-98 将该方法固化为持续循环：
   `Child worktree`；Environment 仅在 >1400px wide 自动强化，1280px 保留 header attention badge
   与完整 inline card。parent 在 sidebar 仍显示 Ready 属 session-list backend 缺失，单列 G49，
   不用 selected-thread local state 冒充全局修复。
+  修后 production `b3ed334d-dirty-175653` 经 cache-bust 在既有 pending child session 复拍：
+  fresh load、Environment open/close、Subagents status、真实 path/title、空 console logs 均通过；
+  Codex reference 与无遮挡 AgentRunner 同状态合并图为 `QA88-98.3f-approval/38`。
 
 ## Spec delta
 

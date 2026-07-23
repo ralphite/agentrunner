@@ -6,8 +6,9 @@
 // (webui diff API——UI 卡与 rail 的数据源)与**真相侧**(git),断言
 // 一致。任何 mismatch = 语义 bug,正是 QA-0718 用户实机三连撞的级别:
 // 幽灵 diff(S2)、重启后失踪(S3)、清零不同步(S4)。
-// S5/S5b(子 agent 终态与不可见审批,G39 红锚)在 QA.md 登记,待
-// G39 INC 落地后接入。
+// S5/S5b(子 agent 终态与 child approval 可见性)在 QA.md 登记；机制侧
+// 有 INC-81/98.3g 孪生，shared-store 闸门 B 由 QA-88 TH-09 常设复验。
+// 本脚本仍只负责 diff/status 声明对账，不重复启动多-agent 场景。
 //
 // 用法(qa-consistency.yml 驱动,两阶段夹一次 daemon 重启):
 //   node check.mjs <webui-base> <ar-bin> <workspace-dir> fresh      # S1+S2,输出 SID_B=

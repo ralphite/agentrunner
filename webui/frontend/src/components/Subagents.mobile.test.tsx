@@ -27,4 +27,24 @@ describe("Subagents mobile layout", () => {
     fireEvent.click(button);
     expect(onOpen).toHaveBeenCalledWith("leaf-session");
   });
+
+  it("lets a typed approval wait outrank the broad waiting status", () => {
+    render(
+      <Subagents
+        nodes={[{
+          agent: "worker",
+          session: "parent-sub-call_1_0-a1",
+          report: {
+            status: "waiting",
+            waiting: { kind: "approval", approval_id: "apr-1", tool: "bash" },
+          },
+        }]}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByRole("button", { name: /worker Needs approval/i });
+    expect(row.querySelector(".sa-status")?.textContent).toBe("Needs approval");
+    expect(row.querySelector(".sa-dot")?.classList.contains("appr")).toBe(true);
+  });
 });
