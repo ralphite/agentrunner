@@ -379,6 +379,23 @@ describe("TH-15 · one rail, one name, one door", () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(document.activeElement).toBe(trigger);
   });
+
+  it("returns an Environment-row launch to the stable Environment trigger", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".supervision-env")).not.toBeNull());
+    const trigger = screen.getByRole("button", { name: "Environment" });
+    const changes = container.querySelector<HTMLButtonElement>(".supervision-env .env-row")!;
+    changes.focus();
+    expect(document.activeElement).toBe(changes);
+
+    fireEvent.click(changes);
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Close changes" }));
+    await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(trigger);
+  });
 });
 
 describe("mobile session topbar", () => {

@@ -1666,6 +1666,7 @@ export function Composer(props: ComposerProps) {
                   type="button"
                   className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown") + (open ? " active" : "")}
                   onClick={toggle}
+                  aria-label={sessionAccess?.label || "Access: set by agent spec"}
                   aria-haspopup="menu"
                   aria-expanded={open}
                   title={
@@ -1675,7 +1676,7 @@ export function Composer(props: ComposerProps) {
                   }
                 >
                   {riskGlyph(sessionAccess?.risk || "unknown")}
-                  {sessionAccess?.label || "Access: set by agent spec"}
+                  <span className="cx-mode-label">{sessionAccess?.label || "Access: set by agent spec"}</span>
                 </button>
               )}
             >

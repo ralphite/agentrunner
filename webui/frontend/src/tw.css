@@ -670,18 +670,40 @@
   .topbar-tool.stop, .stop { @apply text-red; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
-  /* INC-98.4b: size the review rail from the content area, not the whole
-     window. At 1280px with a 320px sidebar, 46vw consumed 61% of the remaining
-     track and squeezed conversation to 371px. 54% mirrors Codex's compact
-     Review split while preserving the existing 320px minimum. */
-  .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 54%); }
+  /* INC-98.4b/98.4w: size the review rail from the content area, not the whole
+     window. The rail keeps Codex's 54% wide-screen proportion, but yields first
+     at compact desktop widths so the conversation retains 390px whenever the
+     two 320px-minimum tracks can fit. */
+  .session-layout.changes {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, clamp(320px, calc(100% - 390px), 54%));
+  }
   /* INC-97: Environment is an inspection overlay, not a review workspace.
      Keep the conversation on the same track while the card is open; Changes
      remains the only state that earns a second layout column. */
   .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
-  .session-primary { @apply flex min-h-0 min-w-0 flex-col; }
+  .session-primary {
+    @apply flex min-h-0 min-w-0 flex-col;
+    container-name: session-primary;
+    container-type: inline-size;
+  }
   .timeline { @apply min-h-0 flex-1 overflow-y-auto; }
   .tl-inner { @apply mx-auto flex w-full max-w-[720px] flex-col px-[30px] py-6; }
+  /* INC-98.4w: Review can make the conversation track narrow even on a wide
+     desktop viewport. Respond to the track, not the window: retain useful
+     message/card width and compact the composer's secondary labels before its
+     controls overflow behind the Changes rail. */
+  @container session-primary (max-width: 500px) {
+    .tl-inner { @apply px-[14px]; }
+    .cx-session { @apply px-[14px] pb-3; }
+    .cx-session .cx-bar { @apply gap-1 px-2; }
+    .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
+    .cx-session .cx-mode-label { @apply hidden; }
+    .cx-session .cx-model { @apply max-w-[116px] overflow-hidden px-2 text-[11px]; }
+    .cx-session .cx-optimize { @apply hidden; }
+    .cx-session .cx-delivery { @apply gap-[2px]; }
+    .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
+    .cx-session .cx-deliv-label { @apply hidden; }
+  }
   .turn-sep { @apply my-[22px] h-px bg-line; }
   .msg { @apply relative flex gap-3 py-2; }
   .msg.user { @apply flex-col items-end gap-1; }

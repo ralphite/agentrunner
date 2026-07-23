@@ -2162,3 +2162,12 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | 首屏层级 | 1100×700 双侧 fresh New chat/Home 同态；修前/修后合并图与 DOM geometry 同时证明 icon、headline、cards、composer 垂直位置收敛，不用截图观感代替数值 |
 | hard states | shared production 真点 starter、真实 keyboard 清空、16 行 draft 上长；另测 1100×640 与 390×844，body 无横溢、hero/composer 无重叠、空态恢复原 geometry |
 | Gate | `qa/runs/2026-07-23-QA88-98.4v-home-hierarchy/`；73 files / 757 frontend tests、production build、Web UI Go 与 `check.sh` 全绿 |
+
+| 98.4w 动作 | 硬断言 |
+|---|---|
+| Codex compact Review | 真实 Codex Desktop 当前 retained thread 在 1100×700 打开 populated Review；driver 从 compact conversation 区命中 Review，并在 capture 后关闭 resident tab、恢复原 thread |
+| parent/child approval | shared parent `20260723-004908-th09-ar-child-pending-4f8f0740d46d1a02` 同时保留 child approval card/worktree、Background process、Subagents `Needs approval`、Attention、真实 diff 与 composer；未 approve/deny |
+| structured ask | shared `20260723-001526-th08-visual-stable-d382033ab4bf30cb` 在 `Needs answer` + AskForm 时从 Environment 打开真实 Changes；Alpha 只令本地 Submit enabled，未提交即 reload 后仍 `answers:1`、Submit disabled |
+| split 红转绿 | 修前 1100×700 conversation=358.8px、Review=421.2px，composer `scrollWidth=477 > clientWidth=359`；修后两轨约 390/390px，approval/AskForm、diff scope 与 composer 控件同屏，无裁切 |
+| close/focus | Environment→Changes 互斥；关闭后从错误的 `More session actions` 回到稳定 `Environment` trigger，approval/answer attention 仍为 1 |
+| Gate | `qa/runs/2026-07-23-QA88-98.4w-thread-review-attention/03/08..12`；shared health `daemonUp/versionMatch=true`、browser logs=`[]`；73 files / 759 frontend tests、production build、capture-driver contract 与 `./scripts/check.sh` 全绿 |

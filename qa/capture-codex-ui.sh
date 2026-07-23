@@ -951,7 +951,7 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
       inRegion = observation.boundingBox.midX > 0.64 &&
         observation.boundingBox.midY > 0.08 && observation.boundingBox.midY < 0.92
     case "thread-review-entry":
-      inRegion = observation.boundingBox.midX > 0.28 && observation.boundingBox.midX < 0.65 &&
+      inRegion = observation.boundingBox.midX > 0.28 && observation.boundingBox.midX < 0.98 &&
         observation.boundingBox.midY > 0.08 && observation.boundingBox.midY < 0.92
     case "thread":
       inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
@@ -1191,6 +1191,22 @@ close_transient() {
       rm -f -- "$ocr_capture"
       ocr_capture=$(mktemp -t codex-thread-review-close-validate)
       screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      if window_text_center "$ocr_capture" "Last Turn" "review-panel" >/dev/null 2>&1; then
+        if ! review_tab_point=$(window_text_center "$ocr_capture" "Review" "review-tab" right exact 2>/dev/null); then
+          review_tab_point=$(window_text_center "$ocr_capture" "Revi" "review-tab" right)
+        fi
+        IFS=$'\t' read -r review_tab_x review_tab_y <<<"$review_tab_point"
+        review_close_x=$(awk -v x="$review_tab_x" 'BEGIN { print x + 66 }')
+        review_close_y=$(awk -v y="$review_tab_y" 'BEGIN { print y + 2 }')
+        if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+          echo "capture-codex-ui: Review compact close=$review_close_x,$review_close_y" >&2
+        fi
+        send_click "$review_close_x" "$review_close_y"
+        sleep 1
+        rm -f -- "$ocr_capture"
+        ocr_capture=$(mktemp -t codex-thread-review-close-fallback-validate)
+        screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      fi
       if window_text_center "$ocr_capture" "Last Turn" "review-panel" >/dev/null 2>&1 ||
         window_text_center "$ocr_capture" "Revi" "review-tab" >/dev/null 2>&1; then
         echo "capture-codex-ui: Review panel did not close from its tab" >&2

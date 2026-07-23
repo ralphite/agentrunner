@@ -7357,3 +7357,22 @@ Remove 尚未同批覆盖，PS-02 保持 UNTESTED，矩阵分布不变。
 空白重新分配到 icon/headline/cards 间并收紧空 composer；四个关键 y 坐标与 Codex
 基本重合。1100×640、390×844、starter 展开/键盘清空、16 行 draft 与全量门禁通过；
 无新控件、文案、状态或 backend 语义。
+
+---
+
+## 2026-07-23 · INC-98.4w complex attention × Review
+
+把真实 Codex retained thread 的 populated Review 与 shared AgentRunner 的 parent→child
+approval、pending structured ask 拉到同一 1100×700 viewport。修前我方把 421px 给
+Changes、只留 359px conversation，composer 实际需要 477px，导致 access/model/mic/send
+被 rail 截断。Review track 现优先让 conversation 保持 390px；session-primary container
+query 同步收紧 timeline padding 与 composer 次级标签，宽屏 54% 比例和 mobile overlay
+保持不变。
+
+复杂交互验证没有代用户作答或审批：child approval card、Subagents/Attention、AskForm、
+diff scope 与 composer 均可达；AskForm 本地选择后未 Submit，reload 仍 `answers:1`。
+另修 Environment 内 Changes row 的 close 回焦：临时 row 卸载后回稳定 Environment trigger，
+不再跳到无关的 More menu。Codex driver 同批补 compact Review entry/close 校准，capture
+后恢复原 thread。证据在 `qa/runs/2026-07-23-QA88-98.4w-thread-review-attention/`；
+73 files / 759 frontend tests、build、capture contract、full gate、shared health 与空 browser
+logs 全绿。

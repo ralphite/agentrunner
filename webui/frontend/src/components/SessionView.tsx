@@ -159,6 +159,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // their exact place; a menuitem disappears with its popover, so that path
   // falls back to the stable topbar trigger.
   const diffOpenerRef = useRef<HTMLElement | null>(null);
+  const diffFallbackRef = useRef<HTMLElement | null>(null);
   // QA-0719 · UI-side workspace mutations (Undo/commit/push) emit no session
   // event, so event-driven git surfaces went stale; the epoch rides along in
   // their refreshKey.
@@ -166,6 +167,10 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const openDiff = (hint: "working-tree" | "last-turn" | null = null) => {
     const active = document.activeElement;
     diffOpenerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    diffFallbackRef.current =
+      active instanceof HTMLElement && active.closest('aside[aria-label="Environment"]')
+        ? document.querySelector<HTMLElement>('button[aria-label="Environment"]')
+        : null;
     setDiffScopeHint(hint);
     setView("diff");
   };
@@ -173,9 +178,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     setView("chat");
     requestAnimationFrame(() => {
       const opener = diffOpenerRef.current;
-      const fallback = document.querySelector<HTMLButtonElement>('button[aria-label="More session actions"]');
+      const fallback = diffFallbackRef.current?.isConnected
+        ? diffFallbackRef.current
+        : document.querySelector<HTMLButtonElement>('button[aria-label="More session actions"]');
       (opener?.isConnected ? opener : fallback)?.focus();
       diffOpenerRef.current = null;
+      diffFallbackRef.current = null;
     });
   };
   // RT-5 · The failure banner's "technical details" fold is closed by default:

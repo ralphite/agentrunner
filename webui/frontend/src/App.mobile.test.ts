@@ -30,9 +30,17 @@ describe("mobile navigation breakpoint", () => {
 describe("Changes split layout", () => {
   it("sizes the desktop review rail from the content track, not the whole viewport", () => {
     expect(css).toContain(
-      ".session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 54%); }",
+      "grid-template-columns: minmax(0, 1fr) minmax(320px, clamp(320px, calc(100% - 390px), 54%));",
     );
     expect(css).not.toContain("minmax(320px, 46vw)");
+  });
+
+  it("compacts the conversation by its actual split-track width", () => {
+    expect(css).toContain("container-name: session-primary;");
+    expect(css).toContain("@container session-primary (max-width: 500px)");
+    expect(css).toContain(".cx-session .cx-mode-label { @apply hidden; }");
+    expect(css).toContain(".cx-session .cx-model { @apply max-w-[116px]");
+    expect(css).toContain(".tl-inner { @apply px-[14px]; }");
   });
 });
 
