@@ -11,6 +11,7 @@ import { useStore } from "../store";
 import { Lightbox } from "./Lightbox";
 import { MermaidBlock } from "./Mermaid";
 import { rehypeHighlight } from "./highlight";
+import { Button } from "../ui/Button";
 
 // Markdown renders assistant/runtime message bodies with react-markdown. It
 // replaces the earlier hand-rolled parser (which had no tables, no syntax
@@ -44,20 +45,22 @@ export function CodeBlock({ raw, lang, className, children }: { raw: string; lan
           {lang || "text"}
         </span>
         <div className="flex shrink-0 items-center gap-[2px]">
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
             className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line aria-pressed:text-ink aria-pressed:border-line"
             onClick={() => setWrap((w) => !w)}
             title={wrap ? "Disable line wrap" : "Wrap long lines"}
-            aria-pressed={wrap}
-            type="button"
+            pressed={wrap}
           >
             {wrap ? <TextAlignLeft size={12} /> : <ArrowsHorizontal size={12} />} Wrap
-          </button>
-          <button
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line"
             onClick={copy}
             title="Copy code"
-            type="button"
           >
             {copied ? (
               <>
@@ -68,7 +71,7 @@ export function CodeBlock({ raw, lang, className, children }: { raw: string; lan
                 <Copy size={12} /> Copy
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
       <pre

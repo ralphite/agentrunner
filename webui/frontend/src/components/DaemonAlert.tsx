@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react";
 import { useAppServices } from "../app/appServices";
 import { useStore } from "../store";
+import { Button } from "../ui/Button";
 
 // Shared J5 notification strip. It is intentionally driven by the same health
 // record as the sidebar footer, so Home and an open session never disagree about
@@ -38,14 +39,15 @@ export function DaemonAlert() {
           <span>AgentRunner can’t reach the daemon. Live updates and actions are paused.</span>
         </div>
       </div>
-      <button
-        type="button"
-        className="daemon-alert-retry"
+      <Button
+        aria-label={retrying ? "Retrying…" : "Retry"}
+        className="min-w-[104px] self-start max-[640px]:min-h-11 max-[640px]:w-full max-[640px]:self-stretch"
+        variant="outline"
         onClick={retry}
-        disabled={retrying}
+        loading={retrying}
       >
         <ArrowClockwise size={14} /> {retrying ? "Retrying…" : "Retry"}
-      </button>
+      </Button>
     </div>
   );
 }

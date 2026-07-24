@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { Button } from "../ui/Button";
 
 // ErrorBoundary keeps a single component's render error from unmounting the
 // whole cockpit to a blank screen. It resets when `resetKey` changes (e.g. on
@@ -33,9 +34,9 @@ export class ErrorBoundary extends Component<Props, State> {
           <pre style={{ fontSize: 12, color: "var(--red)", whiteSpace: "pre-wrap", marginTop: 8 }}>
             {String(this.state.error.message || this.state.error)}
           </pre>
-          <button style={{ marginTop: 10 }} onClick={() => this.setState({ error: null })}>
+          <Button className="mt-2.5" variant="outline" onClick={() => this.setState({ error: null })}>
             Retry
-          </button>
+          </Button>
         </div>
       );
     }

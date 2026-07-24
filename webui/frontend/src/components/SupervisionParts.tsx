@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { formatElapsed, type GoalDerived } from "../timeline";
 import type { BackgroundWork } from "../types";
+import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { Subagents, type InspectNode } from "./Subagents";
 
@@ -180,16 +181,16 @@ export function GoalSection({
           <div className="goal-actions">
             {goalEdit === null ? (
               <>
-                <button onClick={() => onGoalEdit(goal.goal)}>Edit</button>
-                <button onClick={() => onGoalAction(goal.paused ? "resume" : "pause")}>
+                <Button size="sm" variant="outline" onClick={() => onGoalEdit(goal.goal)}>Edit</Button>
+                <Button size="sm" variant="outline" onClick={() => onGoalAction(goal.paused ? "resume" : "pause")}>
                   {goal.paused ? "Resume" : "Pause"}
-                </button>
-                <button className="danger" onClick={() => onGoalAction("cancel")}>Cancel</button>
+                </Button>
+                <Button size="sm" variant="outline" tone="danger" className="danger" onClick={() => onGoalAction("cancel")}>Cancel</Button>
               </>
             ) : (
               <>
-                <button className="primary" onClick={onGoalSave}>Save</button>
-                <button onClick={onGoalDiscard}>Discard</button>
+                <Button size="sm" variant="solid" className="primary" onClick={onGoalSave}>Save</Button>
+                <Button size="sm" variant="outline" onClick={onGoalDiscard}>Discard</Button>
               </>
             )}
           </div>

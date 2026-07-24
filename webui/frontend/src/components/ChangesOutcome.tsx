@@ -3,6 +3,7 @@ import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, Caret
 import { useStore } from "../store";
 import { useAppServices } from "../app/appServices";
 import { dropGeneratedFiles, splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
+import { Button } from "../ui/Button";
 import { Lightbox } from "./Lightbox";
 import { inlinedImagePaths, inlinedImagesVersion, subscribeInlinedImages } from "./Markdown";
 
@@ -463,9 +464,9 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         <div className="changes-outcome-title">
           <b>Couldn't load changes</b>
         </div>
-        <button type="button" onClick={retry} className="inline-flex items-center gap-[5px]">
+        <Button size="md" variant="outline" type="button" onClick={retry} className="inline-flex items-center gap-[5px]">
           Retry <ArrowClockwise size={13} />
-        </button>
+        </Button>
       </ChangesShell>
     );
   }
@@ -516,16 +517,19 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             </span>
           </div>
           <div className="changes-outcome-actions ml-auto flex shrink-0 items-center gap-1">
-            <button
+            <Button
+              size="sm"
+              variant="ghost"
+              tone="danger"
               type="button"
               className="inline-flex shrink-0 items-center gap-[5px] border-0 bg-transparent px-2 text-ink hover:text-ink"
               onClick={undo}
               title="Discard all these changes (git checkout . + remove new files)"
             >
               Undo <ArrowCounterClockwise size={13} />
-            </button>
+            </Button>
             {/* CHANGE-CARD-REVIEW-BTN (R68): Codex gold renders Review as an outlined pill, not a borderless slab — match the sibling "Open in" pill (:189). */}
-            <button type="button" className="inline-flex items-center shrink-0 px-[11px] h-[30px] rounded-[8px] border border-line text-[13px] text-ink hover:bg-panel-2" onClick={() => onReview(scope)}>Review</button>
+            <Button size="md" variant="outline" type="button" className="inline-flex items-center shrink-0 px-[11px] h-[30px] rounded-[8px] border border-line text-[13px] text-ink hover:bg-panel-2" onClick={() => onReview(scope)}>Review</Button>
           </div>
         </header>
         <div className="changes-outcome-files -mx-3 -mb-3 mt-3 grid gap-0 overflow-hidden border-t border-line-2">

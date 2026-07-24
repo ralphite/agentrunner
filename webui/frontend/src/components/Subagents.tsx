@@ -1,6 +1,10 @@
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
 import { ArrowSquareOut } from "@phosphor-icons/react";
+import {
+  StatusIndicator,
+  type StatusIndicatorTone,
+} from "../ui/StatusIndicator";
 
 // One node of the `ar inspect --json` tree. `report` is the child's own inspect
 // subtree (recursive), so a subagent carries its status, gen_steps, usage, and
@@ -74,6 +78,14 @@ function tokens(n?: number): string {
   return (n / 1_000_000).toFixed(1) + "M";
 }
 
+function statusTone(cls: string): StatusIndicatorTone {
+  if (cls === "run") return "success";
+  if (cls === "idle") return "info";
+  if (cls === "appr" || cls === "stranded") return "warning";
+  if (cls === "crash") return "danger";
+  return "neutral";
+}
+
 // Subagents mirrors Codex's Subagents panel: a session's spawned children, each
 // with its status + token usage and a click that opens its (read-only) session.
 // Recurses so a subagent that itself spawned workers shows them nested.
@@ -128,7 +140,12 @@ export function SubagentItem({
   const row = (
     <>
       <span className="flex min-w-0 flex-none items-center gap-2 max-[520px]:col-span-3">
-        <span className={`sa-dot shrink-0 ${status.cls}`} aria-hidden="true" />
+        <StatusIndicator
+          className={`sa-dot shrink-0 ${status.cls}`}
+          label={status.text}
+          tone={statusTone(status.cls)}
+          aria-hidden="true"
+        />
         <span className="sa-name">{node.agent || "worker"}</span>
         <span className="sa-status min-w-0 truncate max-[520px]:flex-1 max-[520px]:basis-0">
           {status.text}

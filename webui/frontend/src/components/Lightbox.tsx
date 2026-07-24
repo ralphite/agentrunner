@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { CaretLeft, CaretRight, DownloadSimple, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from "@phosphor-icons/react";
 import { uploadURL } from "../api";
 import { FocusScope } from "../ui/FocusScope";
+import { IconButton } from "../ui/IconButton";
+import { IconLink } from "../ui/IconLink";
 
 // Lightbox is the full-screen image viewer (W9): a dark overlay with the image
 // centered, a bottom zoom bar (− 100% +, 25% steps clamped 50–300%), a top-right
@@ -93,12 +95,27 @@ export function Lightbox({
       <div className="lb-top">
         {multi && <span className="lb-count">{index + 1} / {images.length}</span>}
         <span className="lb-spacer" />
-        <a className="lb-btn" href={src} download={name} title="Download image" aria-label="Download image" onClick={(e) => e.stopPropagation()}>
+        <IconLink
+          className="lb-btn"
+          href={src}
+          download={name}
+          tone="inverse"
+          variant="outline"
+          aria-label="Download image"
+          onClick={(e) => e.stopPropagation()}
+        >
           <DownloadSimple size={18} />
-        </a>
-        <button className="lb-btn" onClick={onClose} title="Close (Esc)" aria-label="Close">
+        </IconLink>
+        <IconButton
+          className="lb-btn"
+          onClick={onClose}
+          title="Close (Esc)"
+          tone="inverse"
+          variant="outline"
+          aria-label="Close"
+        >
           <X size={18} />
-        </button>
+        </IconButton>
       </div>
 
       <div
@@ -118,23 +135,53 @@ export function Lightbox({
 
       <div className="lb-controls" onClick={(e) => e.stopPropagation()}>
         {multi ? (
-          <button className="lb-nav prev" onClick={() => go(-1)} title="Previous (←)" aria-label="Previous image">
+          <IconButton
+            className="lb-nav prev !rounded-full"
+            size="lg"
+            tone="inverse"
+            variant="outline"
+            onClick={() => go(-1)}
+            title="Previous (←)"
+            aria-label="Previous image"
+          >
             <CaretLeft size={26} />
-          </button>
+          </IconButton>
         ) : <span />}
         <div className="lb-zoom-center">
-          <button className="lb-btn" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} title="Zoom out" aria-label="Zoom out">
+          <IconButton
+            className="lb-btn"
+            tone="inverse"
+            variant="outline"
+            onClick={() => zoomBy(-ZOOM_STEP)}
+            disabled={zoom <= ZOOM_MIN}
+            aria-label="Zoom out"
+          >
             <MagnifyingGlassMinus size={17} />
-          </button>
+          </IconButton>
           <span className="lb-pct" aria-live="polite">{zoom}%</span>
-          <button className="lb-btn" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} title="Zoom in" aria-label="Zoom in">
+          <IconButton
+            className="lb-btn"
+            tone="inverse"
+            variant="outline"
+            onClick={() => zoomBy(ZOOM_STEP)}
+            disabled={zoom >= ZOOM_MAX}
+            aria-label="Zoom in"
+          >
             <MagnifyingGlassPlus size={17} />
-          </button>
+          </IconButton>
         </div>
         {multi ? (
-          <button className="lb-nav next" onClick={() => go(1)} title="Next (→)" aria-label="Next image">
+          <IconButton
+            className="lb-nav next !rounded-full"
+            size="lg"
+            tone="inverse"
+            variant="outline"
+            onClick={() => go(1)}
+            title="Next (→)"
+            aria-label="Next image"
+          >
             <CaretRight size={26} />
-          </button>
+          </IconButton>
         ) : <span />}
       </div>
     </FocusScope>,

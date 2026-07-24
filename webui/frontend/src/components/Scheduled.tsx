@@ -12,6 +12,9 @@ import type { Cadence, ScheduleDetail } from "../types";
 import { scheduleFieldError } from "../scheduleValidate";
 import { Modal } from "./Modals";
 import { Button } from "../ui/Button";
+import { Input, Select, Textarea } from "../ui/Field";
+import { Spinner } from "../ui/Spinner";
+import { StatusIndicator, type StatusIndicatorTone } from "../ui/StatusIndicator";
 import { IconButton } from "../ui/IconButton";
 import {
   ScheduledEmptyState,
@@ -28,6 +31,14 @@ export { SUGGESTIONS } from "./ScheduledParts";
 type Filter = ScheduledFilter;
 const INITIAL_VISIBLE_ROWS = 5;
 const ROWS_PER_PAGE = 10;
+
+function statusTone(cls: string): StatusIndicatorTone {
+  if (cls === "run") return "success";
+  if (cls === "idle") return "info";
+  if (cls === "appr" || cls === "stranded") return "warning";
+  if (cls === "crash") return "danger";
+  return "neutral";
+}
 
 // Static template suggestions (Codex parity). Clicking one opens the existing
 // create-run modal prefilled for repeating work, with the description as the
@@ -201,8 +212,17 @@ export function ScheduleDetailPanel({
   return (
     <aside className="schedule-detail" aria-label={`Schedule details for ${title}`}>
       <header className="schedule-detail-head">
+        <IconButton
+          className="schedule-detail-back-icon"
+          variant="ghost"
+          size="md"
+          onClick={onClose}
+          aria-label="Back to scheduled runs"
+        >
+          <ArrowLeft size={17} />
+        </IconButton>
         <Button
-          className="schedule-detail-back"
+          className="schedule-detail-back-label"
           variant="ghost"
           size="md"
           onClick={onClose}
@@ -222,18 +242,23 @@ export function ScheduleDetailPanel({
         </IconButton>
       </header>
       {loading ? (
-        <div className="schedule-detail-loading" role="status">Loading schedule details…</div>
+        <Spinner className="schedule-detail-loading" display="standalone" label="Loading schedule details…" />
       ) : error ? (
         <div className="schedule-detail-error" role="alert">
           <b>Schedule details unavailable</b>
           <span>{error}</span>
-          <button onClick={onRetry}>Try again</button>
+          <Button variant="outline" onClick={onRetry}>Try again</Button>
         </div>
       ) : detail ? (
         <>
           <div className="schedule-detail-scroll">
             <div className="schedule-detail-title">
-              <span className={`status ${status.cls}`}>{status.text}</span>
+              <StatusIndicator
+                className={`status ${status.cls}`}
+                display="pill"
+                label={status.text}
+                tone={statusTone(status.cls)}
+              />
               <h2>{title}</h2>
             </div>
 
@@ -252,7 +277,7 @@ export function ScheduleDetailPanel({
             <section className="schedule-detail-section" aria-labelledby="schedule-detail-frequency">
               <div className="schedule-detail-section-head">
                 <h3 id="schedule-detail-frequency">Frequency</h3>
-                {detail.scheduleEdit && <button className="ghost" onClick={onEdit}>Edit</button>}
+                {detail.scheduleEdit && <Button size="sm" variant="ghost" onClick={onEdit}>Edit</Button>}
               </div>
               <dl>
                 <div><dt>Cadence</dt><dd>{detail.cadence || scheduleLabel(detail.schedule)}</dd></div>
@@ -264,15 +289,16 @@ export function ScheduleDetailPanel({
           </div>
           <div className="schedule-detail-actions">
             {detail.scheduleControl && (
-              <button
+              <Button
+                variant="solid"
                 className="primary"
-                disabled={acting}
+                loading={acting}
                 onClick={() => onCadence(paused ? "resume" : "pause")}
               >
-                {acting ? "Saving…" : paused ? "Resume" : "Pause"}
-              </button>
+                {paused ? "Resume" : "Pause"}
+              </Button>
             )}
-            <button onClick={onHistory}>Open history</button>
+            <Button variant="outline" onClick={onHistory}>Open history</Button>
           </div>
         </>
       ) : null}
@@ -343,15 +369,15 @@ export function ScheduleEditDialog({
       onClose={onClose}
       footer={
         <>
-          <button disabled={busy} onClick={onClose}>Cancel</button>
-          <button className="primary" disabled={busy || blocked} onClick={() => void save()}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          <Button variant="outline" disabled={busy} onClick={onClose}>Cancel</Button>
+          <Button variant="solid" loading={busy} disabled={blocked} onClick={() => void save()}>
+            Save
+          </Button>
         </>
       }
     >
       <label className="field" htmlFor="schedule-edit-prompt">Prompt</label>
-      <textarea
+      <Textarea
         id="schedule-edit-prompt"
         rows={4}
         value={prompt}
@@ -359,15 +385,15 @@ export function ScheduleEditDialog({
       />
       <label className="field" htmlFor="schedule-edit-repeat">Repeat</label>
       <div className="row-flex">
-        <select
+        <Select
           id="schedule-edit-repeat"
           value={schedule}
           onChange={(event) => setSchedule(event.target.value as "interval" | "cron")}
         >
           <option value="interval">Every interval</option>
           <option value="cron">Cron schedule</option>
-        </select>
-        <input
+        </Select>
+        <Input
           aria-label={schedule === "interval" ? "Interval" : "Cron expression"}
           value={cadenceValue}
           onChange={(event) => schedule === "interval" ? setInterval(event.target.value) : setCron(event.target.value)}
@@ -376,14 +402,14 @@ export function ScheduleEditDialog({
       </div>
       {cadenceError && <div className="text-[12px] text-red" role="alert">{cadenceError}</div>}
       <label className="field" htmlFor="schedule-edit-overlap">If a run is still active</label>
-      <select
+      <Select
         id="schedule-edit-overlap"
         value={overlap}
         onChange={(event) => setOverlap(event.target.value as "skip" | "coalesce")}
       >
         <option value="skip">Skip missed runs</option>
         <option value="coalesce">Run once when available</option>
-      </select>
+      </Select>
       {error && <div className="rounded-lg border border-line bg-bg p-3 text-[12px] text-red" role="alert">{error}</div>}
     </Modal>
   );

@@ -21,6 +21,7 @@ import {
 import type { FailureNotice } from "../timeline";
 import { formatElapsed } from "../timeline";
 import { IconButton } from "../ui/IconButton";
+import { Button } from "../ui/Button";
 import type { TerminalNotice } from "./pill";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 
@@ -131,8 +132,8 @@ export function SessionTopbar({
       </div>
       <span className="spacer" />
       {!isSub && needsRecovery && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className="topbar-tool recovery"
           onClick={onResume}
           title="Resume this session from its last durable checkpoint"
@@ -140,11 +141,11 @@ export function SessionTopbar({
         >
           <ArrowClockwise size={15} />{" "}
           <span className="topbar-tool-label">Resume</span>
-        </button>
+        </Button>
       )}
       {!isSub && canRetry && showPrimaryRetry && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className="topbar-tool"
           onClick={onRetry}
           title="Re-send your last message as a new turn; double-clicks are idempotent"
@@ -152,10 +153,11 @@ export function SessionTopbar({
         >
           <ArrowClockwise size={15} />{" "}
           <span className="topbar-tool-label">Retry</span>
-        </button>
+        </Button>
       )}
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        pressed={environmentOpen}
         className={`topbar-tool${environmentOpen ? " active" : ""}`}
         onClick={(event) => onToggleEnvironment(event.currentTarget)}
         title={
@@ -170,7 +172,7 @@ export function SessionTopbar({
         {environmentAttention > 0 && (
           <span className="topbar-attention">{environmentAttention}</span>
         )}
-      </button>
+      </Button>
       <Menu
         label={<DotsThree size={18} weight="bold" />}
         ariaLabel="More session actions"
@@ -292,29 +294,32 @@ export function TurnFailureCard({
         {failure.hint && (
           <span className="turn-error-hint">{failure.hint}</span>
         )}
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="ghost"
           className="turn-error-toggle"
           aria-expanded={detailsOpen}
+          pressed={detailsOpen}
           onClick={onToggleDetails}
         >
           {detailsOpen ? "Hide technical details" : "Technical details"}
-        </button>
+        </Button>
         {detailsOpen && (
           <pre className="turn-error-raw max-w-full overflow-x-auto">
             {failure.raw}
           </pre>
         )}
       </div>
-      <button
-        type="button"
+      <Button
+        size="sm"
+        variant="outline"
         className="turn-error-action"
-        disabled={retrying}
+        loading={retrying}
         onClick={onRetry}
         title="Re-send your last message as a new turn; double-clicks are idempotent"
       >
-        <ArrowClockwise size={14} /> {retrying ? "Retrying…" : "Retry"}
-      </button>
+        <ArrowClockwise size={14} /> Retry
+      </Button>
     </div>
   );
 }
@@ -383,14 +388,15 @@ export function TerminalAlert({
           </span>
         )}
       </div>
-      <button
-        type="button"
+      <Button
+        size="sm"
+        variant="outline"
         className="terminal-alert-action col-span-2 flex w-full items-center justify-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:self-center sm:w-auto"
         onClick={onAction}
       >
         {recovery && <ArrowClockwise size={14} />}
         {notice.actionLabel}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -425,14 +431,15 @@ export function QueuedMessageItem({
       <span className="queued-text" title={message.text}>
         {body}
       </span>
-      <button
-        type="button"
+      <Button
+        size="sm"
+        variant="ghost"
         className="queued-drop"
         onClick={() => onWithdraw(message.command_id)}
         title="Withdraw this queued message before it runs"
       >
         Withdraw
-      </button>
+      </Button>
     </div>
   );
 }
@@ -478,14 +485,15 @@ export function SessionNotice({
       {action && (
         <>
           {" "}
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
             className="ghost"
             onClick={action.onClick}
             title={action.title}
           >
             {action.label}
-          </button>
+          </Button>
         </>
       )}
     </div>

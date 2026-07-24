@@ -1,4 +1,5 @@
 import { ArrowLeft, MagnifyingGlass } from "@phosphor-icons/react";
+import { Button } from "../ui/Button";
 
 // INC-41 L2 · A session id that the daemon doesn't know (typo'd deep link,
 // deleted store, stale bookmark) used to render a fully functional-looking
@@ -14,9 +15,9 @@ export function SessionNotFound({ sid, onBack }: { sid: string; onBack: () => vo
         No session matches <code className="tl-notfound-id">{sid}</code>. The link may be out of date, or the
         session was removed from this machine's store.
       </span>
-      <button type="button" className="tl-empty-cta" onClick={onBack}>
+      <Button className="tl-empty-cta" variant="outline" onClick={onBack}>
         <ArrowLeft size={14} /> Back to all sessions
-      </button>
+      </Button>
     </div>
   );
 }

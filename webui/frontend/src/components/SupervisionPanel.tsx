@@ -24,6 +24,7 @@ import type { BackgroundWork } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
 import type { ChildAnswerRequest, InspectNode } from "./Subagents";
+import { Button } from "../ui/Button";
 import {
   ArtifactsSection,
   AttentionSection,
@@ -642,7 +643,9 @@ export function EnvironmentSection({
           <div className="env-detail">
             <div className="env-detail-path">
               <code className="env-path" title={workspace}>{workspace}</code>
-              <button
+              <Button
+                size="sm"
+                variant="ghost"
                 type="button"
                 className="env-path-copy"
                 onClick={() => {
@@ -652,7 +655,7 @@ export function EnvironmentSection({
                 title="Copy the full workspace path"
               >
                 <Copy size={12} /> Copy path
-              </button>
+              </Button>
             </div>
             <div className="env-wt-actions">
               {/* Gated exactly as DiffView's `…` gates them: apply needs a
@@ -661,7 +664,9 @@ export function EnvironmentSection({
                   gets neither — there is nothing to apply back or prune, and a
                   button that only ever errors is worse than no button. */}
               {env.worktree && env.mainRepo && (
-                <button
+                <Button
+                  size="sm"
+                  variant="outline"
                   type="button"
                   className="env-wt-action"
                   disabled={busy || !hasChanges}
@@ -674,9 +679,11 @@ export function EnvironmentSection({
                 >
                   <ArrowSquareIn size={13} />
                   <span>Apply to project…</span>
-                </button>
+                </Button>
               )}
-              <button
+              <Button
+                size="sm"
+                variant="outline"
                 type="button"
                 className="env-wt-action"
                 onClick={() => void openProjectIn(workspace, "vscode")}
@@ -684,9 +691,12 @@ export function EnvironmentSection({
               >
                 <Code size={13} />
                 <span>Open in VS Code</span>
-              </button>
+              </Button>
               {env.worktree && (
-                <button
+                <Button
+                  size="sm"
+                  variant="outline"
+                  tone="danger"
                   type="button"
                   className="env-wt-action env-wt-danger"
                   disabled={busy}
@@ -695,7 +705,7 @@ export function EnvironmentSection({
                 >
                   <Trash size={13} />
                   <span>Remove worktree…</span>
-                </button>
+                </Button>
               )}
             </div>
           </div>

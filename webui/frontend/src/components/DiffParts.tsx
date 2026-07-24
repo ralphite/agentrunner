@@ -22,6 +22,7 @@ import {
 } from "@phosphor-icons/react";
 import { splitPath, type FileStatus } from "../diffSummary";
 import type { DiffScope } from "../types";
+import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { Popover, PopItem, PopSection } from "./Popover";
 
@@ -157,7 +158,7 @@ export function DiffStateView({ state }: { state: DiffState }) {
       <div className="diff-empty">
         <b>Couldn’t load changes</b>
         <span>{state.message}</span>
-        <button onClick={state.onRetry}>Try again</button>
+        <Button size="md" variant="outline" onClick={state.onRetry}>Try again</Button>
       </div>
     );
   }
@@ -186,7 +187,7 @@ export function DiffStateView({ state }: { state: DiffState }) {
           This session predates workspace metadata, so AgentRunner cannot
           reconstruct its changes view.
         </span>
-        <button onClick={state.onRetry}>Try again</button>
+        <Button size="md" variant="outline" onClick={state.onRetry}>Try again</Button>
       </div>
     );
   }
@@ -199,14 +200,16 @@ export function DiffStateView({ state }: { state: DiffState }) {
           This session's workspace sits inside another repository, so its files
           aren't tracked on their own.
         </span>
-        <button
+        <Button
+          size="md"
+          variant="solid"
           className="primary"
           onClick={state.onTrack}
           disabled={state.busy}
           title="git init in the workspace — safe, local-only"
         >
           Track changes (git init)
-        </button>
+        </Button>
       </div>
     );
   }
@@ -216,14 +219,16 @@ export function DiffStateView({ state }: { state: DiffState }) {
         <GitBranch size={26} weight="light" />
         <b>No Git changes to review</b>
         <span>This session's workspace has no version control yet.</span>
-        <button
+        <Button
+          size="md"
+          variant="solid"
           className="primary"
           onClick={state.onTrack}
           disabled={state.busy}
           title="git init in the workspace — safe, local-only"
         >
           Track changes (git init)
-        </button>
+        </Button>
       </div>
     );
   }
