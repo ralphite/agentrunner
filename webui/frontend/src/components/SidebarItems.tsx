@@ -81,6 +81,7 @@ export function SidebarSessionItem({
     <div
       className={`project-session-wrap max-[900px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11${nested ? " nested" : ""}${active ? " current" : ""}${unread ? " unread" : ""}${archived ? " archived" : ""}`}
       data-session-id={session.id}
+      onClick={onSelect}
       onContextMenu={(event: MouseEvent<HTMLDivElement>) => {
         event.preventDefault();
         const returnFocus =
@@ -94,7 +95,6 @@ export function SidebarSessionItem({
     >
       <button
         className="project-session max-[900px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
-        onClick={onSelect}
         onKeyDown={openContextFromKeyboard}
         title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
         aria-label={`${title} · ${unread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
@@ -153,6 +153,11 @@ export function SidebarSessionItem({
       )}
       <span
         className="session-quick-actions max-[900px]:hidden! [@media(any-pointer:coarse)]:hidden!"
+        onClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onMouseEnter={onDismissPreview}
       >
         <IconButton

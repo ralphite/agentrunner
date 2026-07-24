@@ -136,6 +136,36 @@ describe("mobile sidebar dismissal", () => {
     ]);
   });
 
+  it("selects the session from the full row, including the state-icon area", () => {
+    const select = vi.fn();
+    useStore.setState({
+      sessions: [{
+        id: "20260712-120500-mobile-worktree",
+        status: "running",
+        turns: 1,
+        title: "Mobile worktree",
+        workspace: "/Users/demo/.local/share/agentrunner/worktrees/mobile-worktree",
+      }] as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      select,
+    });
+    const { container } = render(<Sidebar />);
+
+    const row = container.querySelector('[data-session-id="20260712-120500-mobile-worktree"]')!;
+    fireEvent.click(row);
+    fireEvent.click(row.querySelector(".session-state-icons")!);
+
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenNthCalledWith(1, "20260712-120500-mobile-worktree");
+    expect(select).toHaveBeenNthCalledWith(2, "20260712-120500-mobile-worktree");
+  });
+
   it("keeps focus meaningful when menu actions move, open, or remove a real session row", async () => {
     localStorage.clear();
     Object.defineProperty(window, "innerWidth", {
