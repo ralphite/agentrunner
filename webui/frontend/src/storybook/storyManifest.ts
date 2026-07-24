@@ -523,6 +523,11 @@ const baseStoryManifest = [
         status: "covered",
         storyId: "foundations-actions-button-and-iconbutton--long-label",
       },
+      "state:inverse-tone": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--link-semantics-and-inverse-tone",
+      },
     },
   },
   {
@@ -552,6 +557,37 @@ const baseStoryManifest = [
         status: "covered",
         storyId:
           "foundations-actions-button-and-iconbutton--interaction-states",
+      },
+      "state:inverse-tone": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--link-semantics-and-inverse-tone",
+      },
+    },
+  },
+  {
+    componentId: "IconLink",
+    source: "src/ui/IconLink.tsx",
+    storySource: "src/ui/ActionPrimitives.stories.tsx",
+    exportName: "IconLink",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--link-semantics-and-inverse-tone",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason:
+          "IconLink delegates keyboard activation and navigation to the native anchor element.",
+        evidence:
+          "foundations-actions-button-and-iconbutton--link-semantics-and-inverse-tone asserts native link, accessible-name, and download semantics under the Storybook a11y gate.",
+        owner: "webui",
+      },
+      "state:inverse-tone": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--link-semantics-and-inverse-tone",
       },
     },
   },
@@ -587,6 +623,162 @@ const baseStoryManifest = [
       "focus:unavailable-targets": {
         status: "covered",
         storyId: "foundations-behavior-focusscope--filters-unavailable-targets",
+      },
+    },
+  },
+  {
+    componentId: "StatusIndicator",
+    source: "src/ui/StatusIndicator.tsx",
+    storySource: "src/ui/StatusPrimitives.stories.tsx",
+    exportName: "StatusIndicator",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-feedback-status-and-loading--default",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason:
+          "StatusIndicator is an inert live status, not an input control.",
+        evidence:
+          "foundations-feedback-status-and-loading--default asserts the named status role and is checked by the Storybook a11y gate.",
+        owner: "webui",
+      },
+      "state:tone-display-matrix": {
+        status: "covered",
+        storyId:
+          "foundations-feedback-status-and-loading--tone-and-display-matrix",
+      },
+      "boundary:long-label": {
+        status: "covered",
+        storyId: "foundations-feedback-status-and-loading--long-label",
+      },
+    },
+  },
+  {
+    componentId: "Spinner",
+    source: "src/ui/Spinner.tsx",
+    storySource: "src/ui/StatusPrimitives.stories.tsx",
+    exportName: "Spinner",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-feedback-status-and-loading--spinner-sizes",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason:
+          "Spinner is an inert loading announcement, not an input control.",
+        evidence:
+          "foundations-feedback-status-and-loading--spinner-inline-and-standalone asserts aria-busy and named status semantics under the Storybook a11y gate.",
+        owner: "webui",
+      },
+      "state:sizes": {
+        status: "covered",
+        storyId: "foundations-feedback-status-and-loading--spinner-sizes",
+      },
+      "state:inline-standalone": {
+        status: "covered",
+        storyId:
+          "foundations-feedback-status-and-loading--spinner-inline-and-standalone",
+      },
+      "accessibility:reduced-motion": {
+        status: "covered",
+        storyId:
+          "foundations-feedback-status-and-loading--spinner-reduced-motion",
+      },
+    },
+  },
+  {
+    componentId: "Input",
+    source: "src/ui/Field.tsx",
+    storySource: "src/ui/FieldPrimitives.stories.tsx",
+    exportName: "Input",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--input-states",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason: "Input preserves native textbox keyboard behavior.",
+        evidence:
+          "foundations-forms-field-primitives--input-states verifies required, invalid, disabled, read-only, focus, value, and empty semantics under the Storybook a11y gate.",
+        owner: "webui",
+      },
+    },
+  },
+  {
+    componentId: "Textarea",
+    source: "src/ui/Field.tsx",
+    storySource: "src/ui/FieldPrimitives.stories.tsx",
+    exportName: "Textarea",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--textarea-states",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason: "Textarea preserves native textbox keyboard behavior.",
+        evidence:
+          "foundations-forms-field-primitives--textarea-states covers long text, code, error, and disabled states under the Storybook a11y gate.",
+        owner: "webui",
+      },
+    },
+  },
+  {
+    componentId: "Select",
+    source: "src/ui/Field.tsx",
+    storySource: "src/ui/FieldPrimitives.stories.tsx",
+    exportName: "Select",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--select-states",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason: "Select preserves native combobox keyboard behavior.",
+        evidence:
+          "foundations-forms-field-primitives--select-states covers empty, selected, error, and disabled states under the Storybook a11y gate.",
+        owner: "webui",
+      },
+    },
+  },
+  {
+    componentId: "Field",
+    source: "src/ui/Field.tsx",
+    storySource: "src/ui/FieldPrimitives.stories.tsx",
+    exportName: "Field",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--input-states",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason:
+          "Field supplies labels and descriptions while its native child owns keyboard behavior.",
+        evidence:
+          "foundations-forms-field-primitives--input-states asserts the generated required, invalid, disabled, and read-only field relationships under the Storybook a11y gate.",
+        owner: "webui",
+      },
+    },
+  },
+  {
+    componentId: "SearchField",
+    source: "src/ui/Field.tsx",
+    storySource: "src/ui/FieldPrimitives.stories.tsx",
+    exportName: "SearchField",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--search-states",
+      },
+      "a11y:keyboard": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--search-states",
       },
     },
   },
@@ -2118,7 +2310,10 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-sessions-sessionview--goal-terminal-tone-matrix",
     "components-sessions-sessionview--goal-update-pending",
   ],
-  SettingsAppearance: ["components-settings-appearance--diff-marker-selection"],
+  SettingsAppearance: [
+    "components-settings-appearance--diff-marker-selection",
+    "components-settings-appearance--global-type-scale-application",
+  ],
   SettingsConfiguration: ["components-settings-configuration--long-paths"],
   SettingsWorktrees: [
     "components-settings-worktrees--filtered-results",
