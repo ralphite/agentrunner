@@ -54,20 +54,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
-export const Dark: Story = {
-  globals: {
-    theme: "dark",
-  },
-};
-
-export const Phone: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: "mobile1",
-    },
-  },
-};
-
 export const KeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

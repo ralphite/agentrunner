@@ -29,20 +29,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Pending: Story = {};
 
-export const PendingDark: Story = {
-  globals: {
-    theme: "dark",
-  },
-};
-
-export const PendingPhone: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: "mobile1",
-    },
-  },
-};
-
 export const DetailsOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

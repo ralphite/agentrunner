@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 37,
-    "lines": 15216,
+    "count": 49,
+    "lines": 17881,
     "files": [
       {
         "source": "src/App.tsx",
@@ -32,7 +32,7 @@
       },
       {
         "source": "src/components/AskForm.tsx",
-        "lines": 157,
+        "lines": 164,
         "exports": [
           "AskForm"
         ],
@@ -40,48 +40,71 @@
       },
       {
         "source": "src/components/ChangesOutcome.tsx",
-        "lines": 592,
+        "lines": 594,
         "exports": [
-          "ChangesOutcome"
-        ],
-        "privateVisibleCandidates": [
           "ArtifactChips",
           "ArtifactRow",
+          "ChangesOutcome",
           "ChangesShell",
           "ImageArtifacts",
-          "ImageCard",
+          "ImageCard"
+        ],
+        "privateVisibleCandidates": [
           "PlusMinusSquare"
         ]
       },
       {
         "source": "src/components/CommandPalette.tsx",
-        "lines": 271,
+        "lines": 240,
         "exports": [
           "CommandPalette"
         ],
         "privateVisibleCandidates": []
       },
       {
-        "source": "src/components/Composer.tsx",
-        "lines": 2114,
+        "source": "src/components/CommandPaletteItem.tsx",
+        "lines": 70,
         "exports": [
-          "Composer"
+          "CommandPaletteItem"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Composer.tsx",
+        "lines": 1716,
+        "exports": [
+          "Composer",
+          "GoalLoopLauncher"
+        ],
+        "privateVisibleCandidates": [
+          "BestIcon",
+          "GoalIcon",
+          "LoopIcon"
+        ]
+      },
+      {
+        "source": "src/components/ComposerParts.tsx",
+        "lines": 1318,
+        "exports": [
+          "AccessPicker",
+          "AddMenu",
+          "AssistActions",
+          "AttachmentChip",
+          "AttachmentList",
+          "BranchPicker",
+          "DeliveryModeControl",
+          "FileMentionMenu",
+          "GoalOptions",
+          "ModelPicker",
+          "ProjectPicker",
+          "RunLocationPicker",
+          "SlashCommandMenu",
+          "SubmitButton"
         ],
         "privateVisibleCandidates": [
           "AccessIcon",
-          "BestIcon",
-          "BranchIcon",
-          "Caret",
-          "FolderIcon",
-          "GoalIcon",
-          "GoalLoopLauncher",
-          "LoopIcon",
-          "MicIcon",
-          "ModelIcon",
-          "PersonaIcon",
-          "PlanIcon",
-          "PlusIcon",
-          "UndoIcon"
+          "PickerBack",
+          "RiskGlyph"
         ]
       },
       {
@@ -101,17 +124,31 @@
         "privateVisibleCandidates": []
       },
       {
-        "source": "src/components/DiffView.tsx",
-        "lines": 1804,
+        "source": "src/components/DiffParts.tsx",
+        "lines": 884,
         "exports": [
-          "DiffView"
+          "ChangedFilesMenu",
+          "CommitPushMenu",
+          "DiffMoreActionsMenu",
+          "DiffScopePicker",
+          "DiffSkeleton",
+          "DiffStateView",
+          "DiffToolbar"
         ],
         "privateVisibleCandidates": [
-          "DiffSkeleton",
+          "DiffCloseButton"
+        ]
+      },
+      {
+        "source": "src/components/DiffView.tsx",
+        "lines": 1241,
+        "exports": [
+          "DiffView",
           "FileBody",
           "FileHead",
           "UntrackedFile"
-        ]
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/ErrorBoundary.tsx",
@@ -123,7 +160,7 @@
       },
       {
         "source": "src/components/FindBar.tsx",
-        "lines": 180,
+        "lines": 181,
         "exports": [
           "FindBar"
         ],
@@ -131,7 +168,7 @@
       },
       {
         "source": "src/components/Home.tsx",
-        "lines": 240,
+        "lines": 219,
         "exports": [
           "Home"
         ],
@@ -141,8 +178,17 @@
         ]
       },
       {
+        "source": "src/components/HomeParts.tsx",
+        "lines": 69,
+        "exports": [
+          "HomeStarterCard",
+          "IntentSuggestionList"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
         "source": "src/components/Lightbox.tsx",
-        "lines": 148,
+        "lines": 154,
         "exports": [
           "Lightbox"
         ],
@@ -150,14 +196,13 @@
       },
       {
         "source": "src/components/Markdown.tsx",
-        "lines": 337,
+        "lines": 341,
         "exports": [
-          "Markdown"
-        ],
-        "privateVisibleCandidates": [
           "CodeBlock",
+          "Markdown",
           "MdImage"
-        ]
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/Menu.tsx",
@@ -171,7 +216,7 @@
       },
       {
         "source": "src/components/Mermaid.tsx",
-        "lines": 62,
+        "lines": 70,
         "exports": [
           "MermaidBlock"
         ],
@@ -179,16 +224,14 @@
       },
       {
         "source": "src/components/Modals.tsx",
-        "lines": 970,
+        "lines": 978,
         "exports": [
-          "Modal",
-          "Modals"
-        ],
-        "privateVisibleCandidates": [
           "AgentModal",
           "ConfirmModal",
           "ForkModal",
           "MainModal",
+          "Modal",
+          "Modals",
           "NewSessionModal",
           "PromptModal",
           "RenameModal",
@@ -196,7 +239,8 @@
           "RunModal",
           "TrustModal",
           "ViewerModal"
-        ]
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/NotFound.tsx",
@@ -208,7 +252,7 @@
       },
       {
         "source": "src/components/Popover.tsx",
-        "lines": 305,
+        "lines": 323,
         "exports": [
           "PopItem",
           "PopSection",
@@ -217,8 +261,18 @@
         "privateVisibleCandidates": []
       },
       {
+        "source": "src/components/RunParts.tsx",
+        "lines": 100,
+        "exports": [
+          "RunHeader",
+          "RunLogEmptyState",
+          "RunLogItem"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
         "source": "src/components/RunView.tsx",
-        "lines": 180,
+        "lines": 151,
         "exports": [
           "RunView"
         ],
@@ -226,25 +280,49 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 1166,
+        "lines": 884,
         "exports": [
+          "ScheduleDetailPanel",
+          "ScheduleEditDialog",
           "Scheduled"
         ],
-        "privateVisibleCandidates": [
-          "ScheduleDetailPanel",
-          "ScheduleEditDialog"
-        ]
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/ScheduledParts.tsx",
+        "lines": 462,
+        "exports": [
+          "ScheduledEmptyState",
+          "ScheduledRunActions",
+          "ScheduledRunItem",
+          "ScheduledSuggestionCard",
+          "ScheduledSuggestions",
+          "ScheduledToolbar"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SessionChrome.tsx",
+        "lines": 492,
+        "exports": [
+          "QueuedMessageItem",
+          "QueuedMessageList",
+          "SessionNotice",
+          "SessionTopbar",
+          "TerminalAlert",
+          "TurnFailureCard"
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/SessionView.tsx",
-        "lines": 1504,
+        "lines": 1346,
         "exports": [
+          "GoalBanner",
+          "ProgressSummary",
           "SessionView"
         ],
-        "privateVisibleCandidates": [
-          "GoalBanner",
-          "ProgressSummary"
-        ]
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/Settings.tsx",
@@ -258,19 +336,27 @@
         "source": "src/components/SettingsAppearance.tsx",
         "lines": 243,
         "exports": [
-          "SettingsAppearance"
-        ],
-        "privateVisibleCandidates": [
           "FontRow",
+          "SettingsAppearance",
           "ThemePreview",
           "ToggleRow"
-        ]
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/SettingsArchived.tsx",
-        "lines": 63,
+        "lines": 43,
         "exports": [
           "SettingsArchived"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SettingsArchivedParts.tsx",
+        "lines": 103,
+        "exports": [
+          "ArchivedProjectGroup",
+          "ArchivedSessionItem"
         ],
         "privateVisibleCandidates": []
       },
@@ -292,7 +378,7 @@
       },
       {
         "source": "src/components/SettingsGit.tsx",
-        "lines": 49,
+        "lines": 50,
         "exports": [
           "SettingsGit"
         ],
@@ -308,7 +394,7 @@
       },
       {
         "source": "src/components/SettingsWorktrees.tsx",
-        "lines": 73,
+        "lines": 60,
         "exports": [
           "SettingsWorktrees"
         ],
@@ -316,7 +402,7 @@
       },
       {
         "source": "src/components/Shortcuts.tsx",
-        "lines": 68,
+        "lines": 84,
         "exports": [
           "Shortcuts"
         ],
@@ -324,40 +410,70 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 894,
+        "lines": 743,
         "exports": [
           "Sidebar"
         ],
         "privateVisibleCandidates": []
       },
       {
-        "source": "src/components/Subagents.tsx",
-        "lines": 149,
+        "source": "src/components/SidebarItems.tsx",
+        "lines": 420,
         "exports": [
+          "SidebarConnectionStatus",
+          "SidebarPreviewCard",
+          "SidebarProjectActions",
+          "SidebarProjectItem",
+          "SidebarSessionActions",
+          "SidebarSessionItem"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/Subagents.tsx",
+        "lines": 181,
+        "exports": [
+          "SubagentItem",
           "Subagents"
         ],
         "privateVisibleCandidates": []
       },
       {
         "source": "src/components/SupervisionPanel.tsx",
-        "lines": 997,
+        "lines": 777,
         "exports": [
+          "EnvironmentSection",
           "SupervisionPanel"
         ],
-        "privateVisibleCandidates": [
-          "EnvironmentSection"
-        ]
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/SupervisionParts.tsx",
+        "lines": 376,
+        "exports": [
+          "ArtifactItem",
+          "ArtifactsSection",
+          "AttentionItem",
+          "AttentionSection",
+          "BackgroundProcessRow",
+          "BackgroundProcessesSection",
+          "GoalSection",
+          "ProgressItemRow",
+          "ProgressSection",
+          "SupervisionAgentsSection",
+          "SupervisionCloseButton",
+          "SupervisionLoadingState",
+          "SupervisionRestingState",
+          "SupervisionRunDetailsButton"
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/Timeline.tsx",
-        "lines": 1455,
+        "lines": 1540,
         "exports": [
-          "TimelineView"
-        ],
-        "privateVisibleCandidates": [
           "ActivityGroup",
           "AskDetailView",
-          "CategoryIcon",
           "CollapsibleUserText",
           "EditDetailView",
           "GlobDetailView",
@@ -371,27 +487,52 @@
           "SemanticDetailView",
           "ShellDetail",
           "SpawnDetailView",
-          "StepIcon",
           "Thumbs",
+          "TimelineEmptyState",
+          "TimelineJumpToLatest",
+          "TimelineLoadingState",
+          "TimelinePendingMessage",
+          "TimelineTailActions",
+          "TimelineView",
           "ToolCard",
           "ToolDetail",
           "WebDetailView",
           "WorkedFold"
+        ],
+        "privateVisibleCandidates": [
+          "CategoryIcon",
+          "StepIcon"
         ]
       },
       {
+        "source": "src/components/ToastItem.tsx",
+        "lines": 54,
+        "exports": [
+          "ToastItem"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
         "source": "src/components/Toasts.tsx",
-        "lines": 47,
+        "lines": 17,
         "exports": [
           "Toasts"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/components/WorktreeCard.tsx",
+        "lines": 45,
+        "exports": [
+          "WorktreeCard"
         ],
         "privateVisibleCandidates": []
       }
     ]
   },
   "tests": {
-    "files": 74,
-    "declarations": 749
+    "files": 81,
+    "declarations": 793
   },
   "storage": [
     {
