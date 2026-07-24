@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 59,
-    "lines": 18825,
+    "count": 60,
+    "lines": 18920,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -68,39 +68,6 @@
           "CommandPaletteItem"
         ],
         "privateVisibleCandidates": []
-      },
-      {
-        "source": "src/components/Composer.tsx",
-        "lines": 1586,
-        "exports": [
-          "Composer"
-        ],
-        "privateVisibleCandidates": []
-      },
-      {
-        "source": "src/components/ComposerParts.tsx",
-        "lines": 1361,
-        "exports": [
-          "AccessPicker",
-          "AddMenu",
-          "AssistActions",
-          "AttachmentChip",
-          "AttachmentList",
-          "BranchPicker",
-          "DeliveryModeControl",
-          "FileMentionMenu",
-          "GoalOptions",
-          "ModelPicker",
-          "ProjectPicker",
-          "RunLocationPicker",
-          "SlashCommandMenu",
-          "SubmitButton"
-        ],
-        "privateVisibleCandidates": [
-          "AccessIcon",
-          "PickerBack",
-          "RiskGlyph"
-        ]
       },
       {
         "source": "src/components/ContextMenu.tsx",
@@ -312,16 +279,6 @@
         "privateVisibleCandidates": []
       },
       {
-        "source": "src/components/SessionView.tsx",
-        "lines": 1069,
-        "exports": [
-          "GoalBanner",
-          "ProgressSummary",
-          "SessionView"
-        ],
-        "privateVisibleCandidates": []
-      },
-      {
         "source": "src/components/Settings.tsx",
         "lines": 157,
         "exports": [
@@ -466,43 +423,6 @@
         "privateVisibleCandidates": []
       },
       {
-        "source": "src/components/Timeline.tsx",
-        "lines": 1543,
-        "exports": [
-          "ActivityGroup",
-          "AskDetailView",
-          "CollapsibleUserText",
-          "EditDetailView",
-          "GlobDetailView",
-          "GrepDetailView",
-          "Item",
-          "JSONDetail",
-          "MiniDiff",
-          "MsgActions",
-          "ReadDetailView",
-          "RetriedFold",
-          "SemanticDetailView",
-          "ShellDetail",
-          "SpawnDetailView",
-          "Thumbs",
-          "TimelineEmptyState",
-          "TimelineJumpToLatest",
-          "TimelineLoadingState",
-          "TimelinePendingMessage",
-          "TimelineTailActions",
-          "TimelineView",
-          "ToolCard",
-          "ToolDetail",
-          "WebDetailView",
-          "WorkedFold"
-        ],
-        "privateVisibleCandidates": [
-          "CategoryIcon",
-          "StepIcon",
-          "TimelineContentView"
-        ]
-      },
-      {
         "source": "src/components/ToastItem.tsx",
         "lines": 60,
         "exports": [
@@ -527,6 +447,39 @@
         "privateVisibleCandidates": []
       },
       {
+        "source": "src/features/composer/ComposerController.tsx",
+        "lines": 1586,
+        "exports": [
+          "Composer"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/features/composer/ComposerParts.tsx",
+        "lines": 1361,
+        "exports": [
+          "AccessPicker",
+          "AddMenu",
+          "AssistActions",
+          "AttachmentChip",
+          "AttachmentList",
+          "BranchPicker",
+          "DeliveryModeControl",
+          "FileMentionMenu",
+          "GoalOptions",
+          "ModelPicker",
+          "ProjectPicker",
+          "RunLocationPicker",
+          "SlashCommandMenu",
+          "SubmitButton"
+        ],
+        "privateVisibleCandidates": [
+          "AccessIcon",
+          "PickerBack",
+          "RiskGlyph"
+        ]
+      },
+      {
         "source": "src/features/composer/ComposerView.tsx",
         "lines": 136,
         "exports": [
@@ -541,6 +494,61 @@
           "GoalLoopLauncher"
         ],
         "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/features/session/SessionFeature.tsx",
+        "lines": 888,
+        "exports": [
+          "SessionFeature"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/features/session/SessionView.tsx",
+        "lines": 289,
+        "exports": [
+          "GoalBanner",
+          "ProgressSummary",
+          "SessionView"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/features/timeline/TimelineFeature.tsx",
+        "lines": 1530,
+        "exports": [
+          "ActivityGroup",
+          "AskDetailView",
+          "CollapsibleUserText",
+          "EditDetailView",
+          "GlobDetailView",
+          "GrepDetailView",
+          "Item",
+          "JSONDetail",
+          "MiniDiff",
+          "MsgActions",
+          "ReadDetailView",
+          "RetriedFold",
+          "SemanticDetailView",
+          "ShellDetail",
+          "SpawnDetailView",
+          "Thumbs",
+          "TimelineEmptyState",
+          "TimelineFeature",
+          "TimelineJumpToLatest",
+          "TimelineLoadingState",
+          "TimelinePendingMessage",
+          "TimelineTailActions",
+          "ToolCard",
+          "ToolDetail",
+          "WebDetailView",
+          "WorkedFold"
+        ],
+        "privateVisibleCandidates": [
+          "CategoryIcon",
+          "StepIcon",
+          "TimelineContentView"
+        ]
       },
       {
         "source": "src/pages/PageHost.tsx",

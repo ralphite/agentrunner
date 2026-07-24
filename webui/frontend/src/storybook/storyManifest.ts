@@ -202,6 +202,23 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
 
 const BASE_CELLS = ["render:default", "a11y:keyboard"] as const;
 
+const COMPATIBILITY_STORY_SOURCES: Readonly<Record<string, string>> = {
+  "src/features/composer/ComposerController.tsx":
+    "src/components/Composer.stories.tsx",
+  "src/features/composer/ComposerParts.tsx":
+    "src/components/ComposerParts.stories.tsx",
+  "src/features/session/SessionFeature.tsx":
+    "src/components/SessionView.stories.tsx",
+  "src/features/session/SessionView.tsx":
+    "src/components/SessionView.stories.tsx",
+  "src/features/timeline/TimelineFeature.tsx":
+    "src/components/Timeline.stories.tsx",
+};
+
+function compatibilityStorySource(source: string): string | undefined {
+  return COMPATIBILITY_STORY_SOURCES[source];
+}
+
 function missingCells(
   extra: readonly string[] = [],
 ): Record<string, CoverageCell> {
@@ -234,6 +251,7 @@ function coveredBaseTarget(
   return {
     componentId,
     source,
+    storySource: compatibilityStorySource(source),
     exportName,
     cells: {
       "render:default": {
@@ -257,6 +275,7 @@ function coveredDirectLeafTarget(
   return {
     componentId,
     source,
+    storySource: compatibilityStorySource(source),
     exportName: componentId,
     cells: {
       "render:default": {
@@ -331,7 +350,7 @@ function coveredStateTarget({
   return {
     componentId,
     source,
-    storySource,
+    storySource: storySource ?? compatibilityStorySource(source),
     exportName: componentId,
     cells: {
       "render:default": {
@@ -414,7 +433,7 @@ export const privateVisibleExclusions = [
     owner: "webui",
   },
   ...["AccessIcon", "RiskGlyph"].map((declarationName) => ({
-    source: "src/components/ComposerParts.tsx",
+    source: "src/features/composer/ComposerParts.tsx",
     declarationName,
     reason: "Decorative status icon with no independent state or interaction.",
     evidence:
@@ -422,7 +441,7 @@ export const privateVisibleExclusions = [
     owner: "webui",
   })),
   {
-    source: "src/components/ComposerParts.tsx",
+    source: "src/features/composer/ComposerParts.tsx",
     declarationName: "PickerBack",
     reason:
       "Internal ModelPicker subpage header; it has no standalone product contract.",
@@ -440,7 +459,7 @@ export const privateVisibleExclusions = [
     owner: "webui",
   })),
   ...["CategoryIcon", "StepIcon"].map((declarationName) => ({
-    source: "src/components/Timeline.tsx",
+    source: "src/features/timeline/TimelineFeature.tsx",
     declarationName,
     reason: "Decorative status icon selected by its owning timeline row.",
     evidence:
@@ -448,7 +467,7 @@ export const privateVisibleExclusions = [
     owner: "webui",
   })),
   {
-    source: "src/components/Timeline.tsx",
+    source: "src/features/timeline/TimelineFeature.tsx",
     declarationName: "TimelineContentView",
     reason:
       "Private render half of TimelineView; it has no state or product contract outside its controller composition.",
@@ -1085,7 +1104,7 @@ const baseStoryManifest = [
   withCells(
     coveredBaseTarget(
       "Composer",
-      "src/components/Composer.tsx",
+      "src/features/composer/ComposerController.tsx",
       "components-input-composer",
     ),
     {
@@ -1537,7 +1556,7 @@ const baseStoryManifest = [
   withCells(
     coveredBaseTarget(
       "SessionView",
-      "src/components/SessionView.tsx",
+      "src/features/session/SessionView.tsx",
       "components-sessions-sessionview",
     ),
     {
@@ -1587,13 +1606,19 @@ const baseStoryManifest = [
       },
     },
   ),
+  coveredDirectLeafTarget(
+    "SessionFeature",
+    "src/features/session/SessionFeature.tsx",
+    "components-sessions-sessionview--default",
+    "SessionFeature owns runtime orchestration while the SessionView Stories exercise it through the production compatibility entry point.",
+  ),
   ...[
     ["GoalBanner", "goal-banner"],
     ["ProgressSummary", "progress-summary"],
   ].map(([componentId, storyName]) =>
     coveredDirectLeafTarget(
       componentId,
-      "src/components/SessionView.tsx",
+      "src/features/session/SessionView.tsx",
       `components-sessions-sessionview--${storyName}`,
       "SessionView direct and keyboard Stories exercise the leaf in its production composition; theme and viewport are verified with Storybook controls.",
     ),
@@ -1993,8 +2018,8 @@ const baseStoryManifest = [
   ),
   withCells(
     coveredBaseTarget(
-      "TimelineView",
-      "src/components/Timeline.tsx",
+      "TimelineFeature",
+      "src/features/timeline/TimelineFeature.tsx",
       "components-timeline-timelineview",
     ),
     {
@@ -2032,7 +2057,7 @@ const baseStoryManifest = [
   ].map(([componentId, storyName]) =>
     coveredDirectLeafTarget(
       componentId,
-      "src/components/Timeline.tsx",
+      "src/features/timeline/TimelineFeature.tsx",
       `components-timeline-timelineview--${storyName}`,
       "TimelineView direct, composition, and keyboard Stories exercise the leaf; theme and viewport are verified with Storybook controls.",
     ),
@@ -2062,7 +2087,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "ProjectPicker",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "project-picker-recent",
     "project-picker-filtered",
@@ -2074,7 +2099,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "RunLocationPicker",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "run-location-worktree",
     "run-location-local",
@@ -2082,7 +2107,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "BranchPicker",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "branch-picker-worktree",
     "branch-picker-local-dirty",
@@ -2094,14 +2119,14 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "AttachmentChip",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "attachment-single-image",
     "attachment-image-and-file",
   ),
   coveredPrefixedStateTarget(
     "AttachmentList",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "attachment-image-and-file",
     "attachment-single-image",
@@ -2109,7 +2134,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "FileMentionMenu",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "file-mention-results",
     "file-mention-no-matches",
@@ -2117,14 +2142,14 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "SlashCommandMenu",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "slash-command-results",
     "slash-command-results",
   ),
   coveredPrefixedStateTarget(
     "AddMenu",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "add-menu-root",
     "add-menu-agents",
@@ -2132,7 +2157,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "AccessPicker",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "access-home-ask",
     "access-session-switchable",
@@ -2140,7 +2165,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "ModelPicker",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "model-picker-summary",
     "model-picker-models",
@@ -2148,14 +2173,14 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "GoalOptions",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "goal-options-self-certified",
     "goal-options-verifier",
   ),
   coveredPrefixedStateTarget(
     "AssistActions",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "assist-optimize",
     "assist-undo",
@@ -2163,14 +2188,14 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "DeliveryModeControl",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "delivery-queue",
     "delivery-steer",
   ),
   coveredPrefixedStateTarget(
     "SubmitButton",
-    "src/components/ComposerParts.tsx",
+    "src/features/composer/ComposerParts.tsx",
     "components-input-composer-parts",
     "submit-ready",
     "submit-stop",
@@ -2395,7 +2420,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "TimelinePendingMessage",
-    "src/components/Timeline.tsx",
+    "src/features/timeline/TimelineFeature.tsx",
     "components-timeline-timeline-chrome",
     "pending-queued",
     null,
@@ -2404,7 +2429,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "TimelineTailActions",
-    "src/components/Timeline.tsx",
+    "src/features/timeline/TimelineFeature.tsx",
     "components-timeline-timeline-chrome",
     "tail-actions",
     "tail-actions-with-goal-verdict",
@@ -2413,7 +2438,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "TimelineJumpToLatest",
-    "src/components/Timeline.tsx",
+    "src/features/timeline/TimelineFeature.tsx",
     "components-timeline-timeline-chrome",
     "jump-state-matrix",
     "jump-keyboard-interaction",
@@ -2422,7 +2447,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "TimelineLoadingState",
-    "src/components/Timeline.tsx",
+    "src/features/timeline/TimelineFeature.tsx",
     "components-timeline-timeline-chrome",
     "loading",
     null,
@@ -2431,7 +2456,7 @@ const baseStoryManifest = [
   ),
   coveredPrefixedStateTarget(
     "TimelineEmptyState",
-    "src/components/Timeline.tsx",
+    "src/features/timeline/TimelineFeature.tsx",
     "components-timeline-timeline-chrome",
     "empty",
     null,
