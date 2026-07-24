@@ -26,16 +26,28 @@
 ## attachment only
 
 - session：
-  `20260724-045551-please-review-the-attached-fil-7856f1cf1e40e1e6`
+  `20260724-051017-please-review-the-attached-fil-4eaf6e2d7c1bc896`
 - `input_received`：恰好 1 次，`seq=3`，`delivery_seq=1`
+- input source：仅 `cli`，未执行 `interrupt`
 - opening text：`Please review the attached file(s).`
 - opening content：同 event 含 1 个 `file` part 与 files projection
 - 无第二次 `input_received` / send
-- 中性 caption 使 agent 继续探索其独立 worktree；为避免无价值消耗，QA 只
-  `interrupt` 该 turn。session、journal、worktree 均保留。
+- fixture 内指示只回复 marker，session 以 1 generation step、0 tool call 自然结束
+- reply：`INC100-ATTACH-ONLY-OK`
+- deep-link reload 后 opening 附件与 reply 均恢复
 - workspace diff：`No changes since the latest human turn began.`
-- 原始 journal：`attachment-only-events.jsonl`
-- 截图：`attachment-only-webui.png`
+- 原始 journal：`attachment-only-natural-events.jsonl`
+- 截图：`attachment-only-natural-webui.png`
 
 两条证据共同证明：Home 的 text+attachment 与 attachment-only 都由一次 create
 形成唯一 opening turn，附件不是创建后的第二条消息。
+
+## 拒收校准
+
+旧 session
+`20260724-045551-please-review-the-attached-fil-7856f1cf1e40e1e6`
+的 opening 本身正确，但中性 caption 使 agent 继续探索，QA 为节省消耗执行了
+`interrupt`。该 journal 因而在 `seq=382` 增加 `source=interrupt` 的第二条
+`input_received`，不能用于“全 journal 恰好一次”的断言。它及
+`attachment-only-events.jsonl`、`attachment-only-webui.png`、worktree 均保留，
+仅作为拒收证据。

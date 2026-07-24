@@ -88,9 +88,11 @@ Gate A：`TestHandleNewSessionForwardsOpeningAttachments`、
 production build、`go vet ./...`、`go test ./...`、`./scripts/check.sh` 全绿。
 
 Gate B：QA-90 在 `http://127.0.0.1:8809/`、production
-`cadd08e7-215130`、全局 daemon/shared store 上完成。两条真实浏览器 session 的
-opening journal 均恰有一次 `input_received`，typed content/files 同 event 携带附件；
-无第二次 send，console warning/error 为 0，workspace diff 为空。证据见
+`cadd08e7-215130`、全局 daemon/shared store 上完成。两条 accepted 真浏览器
+session 的完整 journal 均恰有一次 `input_received`，typed content/files 同 event
+携带附件；attachment-only 以 1 generation step、0 tool call 自然结束，未执行
+`interrupt`。无第二次 send，console warning/error 为 0，workspace diff 为空。
+一次被 interrupt 污染的校准 session 已明确拒收但仍保留。证据见
 `qa/runs/2026-07-23-QA90-INC100-branch-reconciliation/`。
 
 ## 非目标与保留

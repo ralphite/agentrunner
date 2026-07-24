@@ -7588,3 +7588,19 @@ QA-90 使用 production `http://127.0.0.1:8809/`、全局 daemon 与共享 store
 `send`；浏览器 warning/error 为 0，两个 session workspace diff 均为空。因共享 store
 已有定时 session 正在运行，仅重启 Web UI、不重启 daemon；重启前后的定时 session
 持续为 `running`。会话、worktree、原始 journal、截图全部保留在 QA-90 证据目录。
+
+---
+
+## 2026-07-23 · INC-100.1 QA-90 interrupt 污染证据更正
+
+独立 Goal Governor 复算发现，首条 attachment-only 校准 session 在 opening 后虽无
+第二次 send，但 QA 为停止其无价值探索执行了 `interrupt`，导致完整 journal 在
+`seq=382` 追加 `source=interrupt` 的第二条 `input_received`。因此上一节把该 session
+计入“两条 journal 均只有一次 input”不成立，该校准证据明确拒收但原样保留。
+
+重新从 production Web UI 只上传带自结束指令的非敏感 fixture，retained session
+`20260724-051017-please-review-the-attached-fil-4eaf6e2d7c1bc896` 自然完成：
+1 generation step、0 tool call、reply=`INC100-ATTACH-ONLY-OK`，完整 raw journal
+仅 `seq=3` 一条 `input_received(source=cli,delivery_seq=1)`，同 event 含 file part；
+未 interrupt、无第二次 send，deep-link reload 恢复 opening 与 reply，console 为空、
+workspace diff 为空。QA-90 的完成断言只使用该 session 与 text+attachment session。
