@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchSessions, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
+import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, projectDisplayName, projectLabel, quickSwitchSessions, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
 import type { ProjectGroup } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
@@ -115,7 +115,7 @@ describe("project sidebar model", () => {
     ]);
   });
 
-  it("disambiguates same-basename groups with a short de-noised parent hint (W4)", () => {
+  it("keeps duplicate project labels quiet instead of inventing extra copy", () => {
     const model = buildSidebarModel(
       [
         { id: "b", status: "idle", turns: 1, workspace: "/tmp/team/ws" },
@@ -123,18 +123,7 @@ describe("project sidebar model", () => {
       ],
       { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
     );
-    expect(model.projects.map((p) => p.hint)).toEqual(["team", "me"]);
-  });
-
-  it("leaves uniquely-named sidebar groups without a hint (W4)", () => {
-    const model = buildSidebarModel(
-      [
-        { id: "b", status: "idle", turns: 1, workspace: "/x/ws-iso" },
-        { id: "a", status: "idle", turns: 1, workspace: "/x/ws-shared" },
-      ],
-      { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
-    );
-    expect(model.projects.map((p) => p.hint)).toEqual([undefined, undefined]);
+    expect(model.projects.map((p) => p.label)).toEqual(["ws", "ws"]);
   });
 
   it("labels auto-created workspaces as readable scratch names (W2/W42)", () => {
@@ -205,70 +194,14 @@ describe("project sidebar model", () => {
   });
 });
 
-describe("project name disambiguation (W4)", () => {
-  it("distinguishes managed fork generations without exposing the chain", () => {
+describe("managed worktree labeling", () => {
+  it("keeps the stable project root and hides generated fork suffixes", () => {
     const root = "/Users/me/.local/share/agentrunner/worktrees/rt1-ws";
     const first = `${root}-main-20260712-133500`;
     const latest = `${first}-main-20260712-170909`;
-    const subs = projectSubtitles([root, first, latest]);
-    expect(subs.get(root)).toBe("Root");
-    expect(subs.get(first)).toBe("07-12 13:35");
-    expect(subs.get(latest)).toBe("07-12 17:09");
-  });
-
-  it("de-noises timestamped parent dirs while keeping rows distinct", () => {
-    const subs = projectSubtitles([
-      "/x/qa39-20260710-004434/ws",
-      "/x/qa39-20260710-004023/ws",
-      "/x/qa38-20260710-001743/ws",
-    ]);
-    expect(subs.get("/x/qa39-20260710-004434/ws")).toBe("qa39-004434");
-    expect(subs.get("/x/qa39-20260710-004023/ws")).toBe("qa39-004023");
-    expect(subs.get("/x/qa38-20260710-001743/ws")).toBe("qa38-001743");
-  });
-
-  it("omits a subtitle for uniquely-named projects", () => {
-    const subs = projectSubtitles(["/a/ws-iso", "/b/ws-shared", "/c/repo"]);
-    expect(subs.size).toBe(0);
-  });
-
-  it("distinguishes same-minute Scratch twins by seconds, and stays quiet otherwise", () => {
-    // INC-78 gave every scratch group a minute-level label of its own, so
-    // different-minute groups need no hint at all; only dirs created within
-    // the same minute (QA-0719 review #8: twin "Scratch · 07-13 21:23"
-    // groups) collide, and their hint carries the seconds that tell them apart.
-    const distinct = projectSubtitles(["/tmp/ws-20260710-221530", "/tmp/ws-20260709-100000"]);
-    expect(distinct.size).toBe(0);
-    const twins = projectSubtitles(["/tmp/ws-20260713-212300", "/tmp/ws-20260713-212347"]);
-    expect(twins.get("/tmp/ws-20260713-212300")).toBe("07-13 21:23:00");
-    expect(twins.get("/tmp/ws-20260713-212347")).toBe("07-13 21:23:47");
-    // A fork dir inherits the source timestamp to the second (QA-0719 #17) —
-    // only its fork segment tells the two apart.
-    const forks = projectSubtitles(["/w/ws-20260713-212334", "/w/ws-20260713-212334-fork-61de"]);
-    expect(forks.get("/w/ws-20260713-212334")).toBe("07-13 21:23:34");
-    expect(forks.get("/w/ws-20260713-212334-fork-61de")).toBe("07-13 21:23:34 · fork 61de");
-  });
-
-  it("walks deeper up the path when the nearest parent still collides", () => {
-    const subs = projectSubtitles(["/team/alpha/src/ws", "/team/beta/src/ws"]);
-    expect(subs.get("/team/alpha/src/ws")).toBe("alpha/src");
-    expect(subs.get("/team/beta/src/ws")).toBe("beta/src");
-  });
-
-  it("tolerates trailing slashes and shared parents", () => {
-    const subs = projectSubtitles(["/root/one/ws/", "/root/two/ws"]);
-    expect(subs.get("/root/one/ws")).toBe("one");
-    expect(subs.get("/root/two/ws")).toBe("two");
-  });
-
-  it("de-noises a bare date segment by keeping the raw token", () => {
-    expect(deNoiseSegment("20260710")).toBe("20260710");
-    expect(deNoiseSegment("qa39-20260710-004434")).toBe("qa39-004434");
-    expect(deNoiseSegment("plain")).toBe("plain");
-  });
-
-  it("returns no detail for a lone project (single-item group)", () => {
-    expect(projectSubtitle("/only/repo", ["/only/repo"])).toBe("only");
+    expect(projectLabel(root)).toBe("rt1-ws");
+    expect(projectLabel(first)).toBe("rt1-ws");
+    expect(projectLabel(latest)).toBe("rt1-ws");
   });
 });
 

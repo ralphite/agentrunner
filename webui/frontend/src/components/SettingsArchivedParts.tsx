@@ -80,11 +80,6 @@ export function ArchivedProjectGroup({
           >
             {project.label}
           </b>
-          {project.hint && (
-            <span className="block truncate" title={project.workspace}>
-              {project.hint}
-            </span>
-          )}
         </span>
         <small className="shrink-0 whitespace-nowrap text-[11px] text-dim">
           {project.sessions.length} session

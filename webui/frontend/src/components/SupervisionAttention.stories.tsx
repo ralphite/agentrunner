@@ -16,7 +16,7 @@ const notices: AttentionNotice[] = [
   {
     id: "background",
     message:
-      "Background work still running — it keeps spending tokens; stop it below if it's no longer needed",
+      "Background work still running — it keeps spending tokens until the background session is stopped or finishes",
   },
   {
     id: "child",

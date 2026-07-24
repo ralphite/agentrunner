@@ -1165,12 +1165,13 @@ export function GoalOptions({
       trigger={(open, toggle) => (
         <button
           type="button"
-          className={"cx-pill cx-goal-mode" + (open ? " active" : "")}
+          className={"cx-pill cx-goal-mode active" + (open ? " open" : "")}
           onClick={toggle}
           aria-label="Goal"
+          aria-pressed="true"
           aria-haspopup="dialog"
           aria-expanded={open}
-          title="Goal mode — configure completion checks or exit"
+          title="Goal mode is on — configure completion checks or exit"
         >
           <Target size={14} />
           <span className="cx-goal-mode-label">Goal</span>

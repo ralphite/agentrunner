@@ -513,12 +513,6 @@ export function Composer(props: ComposerProps) {
     requestAnimationFrame(() => taRef.current?.focus());
   }, [isSession, isSession ? (props as Extract<ComposerProps, { variant: "session" }>).sid : ""]);
 
-  // Same-basename projects ("ws", "Scratch") get a short disambiguating
-  // subtitle in the picker; uniquely-named ones stay clean (W4). Computed over
-  // the whole searchable set, so two same-named hits in a search result can be
-  // told apart — the picker prints a bold basename plus that gray parent-path
-  // hint, never one long smear of an absolute path.
-
   const modelLabel = modelById(provider, model)?.label || model;
   const effortLevel = effortById(effort);
   const accessLevel = isSession ? undefined : accessById(access);
@@ -1260,10 +1254,12 @@ export function Composer(props: ComposerProps) {
   // Match Codex's quiet primary prompts exactly. Slash commands remain
   // discoverable by typing `/`; the placeholder should describe the user's
   // job, not advertise implementation mechanics.
-  const placeholder = isSession
-    ? "Ask for follow-up changes"
-    : goalMode
-      ? "Describe your goal, define measurable outcomes for best results"
+  const placeholder = goalMode
+    ? isSession
+      ? "Describe the goal"
+      : "Describe your goal, define measurable outcomes for best results"
+    : isSession
+      ? "Ask for follow-up changes"
       : access === "plan"
         ? "Describe what to plan…"
         : kind === "chat"

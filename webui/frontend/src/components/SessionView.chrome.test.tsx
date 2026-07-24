@@ -785,6 +785,20 @@ describe("single Stop entry point", () => {
     expect(screen.queryByText("Session needs recovery")).toBeNull();
     expect(screen.getByPlaceholderText("Ask for follow-up changes")).toBeTruthy();
   });
+
+  it("keeps Goal mode visibly active in a session composer", async () => {
+    useStore.setState({
+      sessions: [{ id: SID, title: "goal session", status: "idle", workspace: "/tmp/wt-th14" } as any],
+    });
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Add and advanced options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Goal / }));
+
+    expect(screen.getByPlaceholderText("Describe the goal")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Goal" }).getAttribute("aria-pressed")).toBe("true");
+  });
 });
 
 describe("running Queue projection", () => {

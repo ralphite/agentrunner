@@ -176,6 +176,7 @@ describe("Composer add and advanced menu", () => {
     expect(screen.getByPlaceholderText("Describe your goal, define measurable outcomes for best results")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Start goal" })).toBeNull();
     expect(mocks.newSession).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Goal" }).getAttribute("aria-pressed")).toBe("true");
 
     fireEvent.click(screen.getByRole("button", { name: "Goal" }));
     expect(screen.getByText("Goal options")).toBeTruthy();

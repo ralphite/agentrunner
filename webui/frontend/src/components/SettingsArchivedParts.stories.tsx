@@ -97,7 +97,6 @@ const project: ProjectGroupModel = {
   key: "/Users/demo/agentrunner",
   label: "agentrunner",
   workspace: "/Users/demo/agentrunner",
-  hint: "/Users/demo",
   sessions: [
     session,
     {

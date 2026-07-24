@@ -297,7 +297,6 @@ export type SidebarProjectOverflow = "more" | "less" | null;
 
 export interface SidebarProjectItemProps {
   name: string;
-  hint?: string;
   workspace?: string;
   folded?: boolean;
   removed?: boolean;
@@ -315,7 +314,6 @@ export interface SidebarProjectItemProps {
 
 export function SidebarProjectItem({
   name,
-  hint,
   workspace,
   folded = false,
   removed = false,
@@ -365,7 +363,6 @@ export function SidebarProjectItem({
           </span>
           <span className="proj-heading-text">
             <span className="proj-heading-name">{name}</span>
-            {hint && <span className="proj-heading-hint" title={workspace || name}>{hint}</span>}
           </span>
         </button>
         <span className="project-heading-actions" onClick={onDismissPreview}>

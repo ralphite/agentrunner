@@ -6,8 +6,6 @@ export interface ProjectGroup {
   key: string;
   label: string;
   workspace?: string;
-  // Short parent-path hint shown when two groups share a label (W20).
-  hint?: string;
   sessions: Session[];
 }
 
@@ -125,9 +123,9 @@ export function scratchLabel(base: string): string {
 
 // AgentRunner forks append one `-branch-YYYYMMDD-HHMMSS` segment per hop to
 // the original workspace basename. The full chain is useful on disk but is not
-// a project name: keep the stable root in the rail and use the latest hop as a
-// short disambiguator. Restrict this to AgentRunner's managed worktree root so
-// a real repository with a timestamped name is never rewritten.
+// a project name, so the sidebar keeps the stable root only. Restrict this to
+// AgentRunner's managed worktree root so a real repository with a timestamped
+// name is never rewritten.
 function managedWorktreeLineage(workspace: string): { label: string; detail: string } | null {
   const clean = workspace.trim().replace(/\/+$/, "");
   if (!clean.includes("/agentrunner/worktrees/")) return null;
@@ -183,77 +181,6 @@ export function isScratchWorkspace(workspace?: string): boolean {
 export function isManagedWorktreeWorkspace(workspace?: string): boolean {
   const clean = (workspace || "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
   return clean.includes("/agentrunner/worktrees/");
-}
-
-// deNoiseSegment strips a YYYYMMDD date token from a path segment while
-// keeping the distinguishing remainder ("qa39-20260710-004434" →
-// "qa39-004434"). The shared date between sibling QA dirs is pure noise; the
-// prefix ("qa39") and the time suffix ("004434") are what tell them apart.
-// Falls back to the raw segment when stripping would leave nothing (W4).
-export function deNoiseSegment(segment: string): string {
-  const stripped = segment
-    .replace(/(^|[-_.])(20\d{6})(?=[-_.]|$)/g, (_match, sep) => sep)
-    .replace(/[-_.]{2,}/g, (run) => run[0])
-    .replace(/^[-_.]+|[-_.]+$/g, "");
-  return stripped || segment;
-}
-
-// projectSubtitle derives a short disambiguating detail for one workspace,
-// given the sibling workspaces that share its primary name (W4). Scratch
-// workspaces are told apart by their own creation time (their parent dir is
-// shared, e.g. /tmp); real projects by the shortest de-noised parent-path
-// suffix that stays unique within the group.
-export function projectSubtitle(workspace: string, siblings: string[]): string {
-  const clean = (path?: string) => (path || "").trim().replace(/\/+$/, "");
-  const ws = clean(workspace);
-  const base = ws.split("/").filter(Boolean).pop() || "";
-  const lineage = managedWorktreeLineage(ws);
-  if (lineage) return lineage.detail;
-  if (siblings.some((sibling) => managedWorktreeLineage(clean(sibling))?.label === base)) return "Root";
-  const scratch = scratchLabel(base);
-  if (scratch) {
-    // INC-78 后 scratch 组的 label 自带分钟级时间;孪生消歧 hint 若再给
-    // 同一个分钟就是三重复读且零区分度(QA-0719 审查 #8:两个
-    // "Scratch · 07-13 21:23" 并排)。带秒位分开同分钟孪生;fork 目录
-    // 继承原时间戳(ws-…-212334 vs ws-…-212334-fork-61de 连秒都同,
-    // QA-0719 审查 #17),fork 段是它唯一的身份,必须进 hint。
-    let detail = scratch.replace(/^Scratch · /, "");
-    const seconds = /^(?:ws|wt)-\d{8}-\d{4}(\d{2})/.exec(base);
-    if (seconds) detail += `:${seconds[1]}`;
-    const fork = /-fork-(\w+)/.exec(base);
-    if (fork) detail += ` · fork ${fork[1]}`;
-    return detail;
-  }
-  const parents = (path: string) => clean(path).split("/").filter(Boolean).slice(0, -1);
-  const mine = parents(ws);
-  const others = siblings.map(clean).filter((other) => other !== ws).map(parents);
-  let pretty = "";
-  for (let depth = 1; depth <= Math.max(1, mine.length); depth++) {
-    pretty = mine.slice(Math.max(0, mine.length - depth)).map(deNoiseSegment).join("/");
-    const collides = others.some((other) => other.slice(Math.max(0, other.length - depth)).map(deNoiseSegment).join("/") === pretty);
-    if (pretty && !collides) return pretty;
-  }
-  return pretty;
-}
-
-// projectSubtitles is the batch form used by the sidebar and the composer's
-// project picker: for a list of workspaces it returns a subtitle only for the
-// ones whose primary name collides with another's. Uniquely-named workspaces
-// are absent from the map, so callers render no subtitle for them (W4).
-export function projectSubtitles(workspaces: string[]): Map<string, string> {
-  const clean = (path?: string) => (path || "").trim().replace(/\/+$/, "");
-  const items = workspaces.map(clean).filter(Boolean);
-  const byName = new Map<string, string[]>();
-  for (const ws of items) {
-    const name = projectLabel(ws);
-    byName.set(name, [...(byName.get(name) || []), ws]);
-  }
-  const out = new Map<string, string>();
-  for (const group of byName.values()) {
-    if (group.length < 2) continue;
-    for (const ws of group) out.set(ws, projectSubtitle(ws, group));
-  }
-  return out;
 }
 
 // scheduledUnread returns the ids of driver (scheduled) sessions that carry
@@ -369,22 +296,6 @@ export function buildSidebarModel(
       });
     }
     groups.get(key)!.sessions.push(session);
-  }
-
-  // Two different paths ending in the same basename ("ws", "workspace") are
-  // indistinguishable by label alone — disambiguate with a short, de-noised
-  // parent-path segment (W4). The full path stays in the row's tooltip.
-  const byLabel = new Map<string, ProjectGroup[]>();
-  for (const g of groups.values()) {
-    byLabel.set(g.label, [...(byLabel.get(g.label) || []), g]);
-  }
-  for (const twins of byLabel.values()) {
-    if (twins.length < 2) continue;
-    const paths = twins.map((g) => g.workspace).filter((w): w is string => !!w);
-    for (const g of twins) {
-      if (!g.workspace) continue;
-      g.hint = projectSubtitle(g.workspace, paths);
-    }
   }
 
   return { pinned, projects: [...groups.values()], workspaceLessSessions };

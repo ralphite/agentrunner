@@ -416,6 +416,12 @@
   .project-quick-action {
     @apply grid h-6 w-6 shrink-0 place-items-center rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 shadow-none hover:border-line hover:bg-panel-2 hover:text-ink;
   }
+  @media (max-width: 900px), (any-pointer: coarse) {
+    .project-heading-actions .menu-trigger,
+    .project-quick-action {
+      @apply h-11 w-11 rounded-[10px];
+    }
+  }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
      ("Pinned" / "Projects") in a quiet title-case label — regular weight, no
      wide tracking, dim — not the shouty all-caps bold we shared with the repo
@@ -429,16 +435,10 @@
   .section-toggle { @apply w-full rounded-[7px] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
-  /* Repo heading lays the name and its disambiguation hint INLINE on a single
-     row (Codex single-row rhythm). When two groups collide on the same
-     basename, a short de-noised parent-path hint (W20) rides dim right after
-     the name so the rail never reads as a duplicate. The name truncates with
-     ellipsis when the row is narrow; the hint keeps its intrinsic width
-     (shrink-0). Non-twin repos have no hint → just the name → identical
-     single-row layout. */
+  /* Repo heading keeps a single quiet line: just the project name, no extra
+     generated disambiguation copy. */
   .proj-heading-text { @apply flex min-w-0 flex-1 flex-row items-baseline gap-[6px] text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
-  .proj-heading-hint { @apply min-w-0 shrink-0 truncate text-[11px] leading-tight text-dim; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
@@ -453,7 +453,7 @@
   .project-session-wrap:focus-within { @apply bg-panel-2; }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
+    @apply flex min-h-[32px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
   }
   .project-session:focus-visible { @apply outline-none; }
   .project-session-wrap:has(> .project-session:focus-visible) {

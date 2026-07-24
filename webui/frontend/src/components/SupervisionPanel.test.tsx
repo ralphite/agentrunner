@@ -296,6 +296,9 @@ describe("TH-3 · groups with content are untouched", () => {
     expect(container.querySelector(".attention-row")?.textContent).toContain(
       "Background work still running",
     );
+    expect(container.querySelector(".attention-row")?.textContent).not.toContain(
+      "stop it below",
+    );
     expect(screen.getByText("Background processes")).toBeTruthy();
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
