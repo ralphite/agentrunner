@@ -505,8 +505,9 @@ describe("Projects section truncation + group fold (SB-4)", () => {
 
     const showMore = container.querySelector(".projects-show-more")!;
     expect(showMore.textContent).toContain("Show more");
-    // The four withheld groups are counted, not silently dropped.
-    expect(showMore.textContent).toContain("4");
+    // Codex parity: no visible count; the full total lives in the aria-label
+    // so nothing is silently dropped for screen readers (12 = 8 shown + 4 withheld).
+    expect(showMore.getAttribute("aria-label")).toContain("12");
   });
 
   it("Show more reveals every group; Show less puts them back", () => {
@@ -1063,8 +1064,7 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
 
     const showMore = sessions().querySelector(".show-more")!;
-    expect(showMore.textContent).toContain("Show more");
-    expect(showMore.textContent).toContain("3"); // the withheld ones are counted
+    expect(showMore.textContent).toContain("Show more"); // Codex parity: no trailing count
     fireEvent.click(showMore);
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(9);
 

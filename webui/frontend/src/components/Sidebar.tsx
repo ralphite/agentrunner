@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
-  CaretRight,
   Clock,
   DotsThree,
   GearSix,
@@ -579,7 +578,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => toggleSection("pinned")}
               aria-expanded={!foldedSections.has("pinned")}
             >
-              <CaretRight className={`section-caret${foldedSections.has("pinned") ? "" : " open"}`} size={10} weight="bold" />
               <PushPin size={12} weight="fill" /> Pinned
             </button>
             {!foldedSections.has("pinned") && model.pinned.map((session) => renderSession(session))}
@@ -611,7 +609,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             onClick={() => toggleSection("projects")}
             aria-expanded={!foldedSections.has("projects")}
           >
-            <CaretRight className={`section-caret${foldedSections.has("projects") ? "" : " open"}`} size={10} weight="bold" />
             Projects
           </button>
           {!foldedSections.has("projects") && (<>
@@ -701,7 +698,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => setShowAllProjects(true)}
               aria-label={`Show all ${orderedProjects.length} projects`}
             >
-              Show more · {hiddenProjects}
+              Show more
             </button>
           )}
           {showAllProjects && orderedProjects.length > PROJECT_GROUP_LIMIT && (
@@ -737,7 +734,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             {shownSessions.map((session) => renderSession(session))}
             {!showAllSessions && model.workspaceLessSessions.length > shownSessions.length && (
               <button className="show-more" onClick={() => setShowAllSessions(true)}>
-                Show more · {model.workspaceLessSessions.length - shownSessions.length}
+                Show more
               </button>
             )}
             {showAllSessions && model.workspaceLessSessions.length > 6 && (
