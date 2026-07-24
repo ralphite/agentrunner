@@ -815,6 +815,13 @@ describe("model-call failure projection", () => {
       title: "The selected model isn't available",
       hint: "Choose another model, then retry the turn.",
     });
+    expect(explainFailure(
+      "provider_invalid",
+      "Error 400, Status: INVALID_ARGUMENT, Details: []",
+    )).toEqual({
+      title: "The model provider rejected the request",
+      hint: "The request was malformed or too large for this model. Retrying may work; a shorter conversation usually does.",
+    });
     expect(explainFailure("timeout", "activity timeout")).toMatchObject({ title: "The model call timed out" });
     expect(explainFailure("internal", "dial tcp: connection refused")).toMatchObject({
       title: "Couldn't reach the model provider",

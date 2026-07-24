@@ -212,9 +212,14 @@ export function explainFailure(cls: string, message: string): FailureExplained {
       hint: "Choose another model, then retry the turn.",
     };
   }
-  // Network reachability hides inside `internal` (and sometimes provider_server)
-  // rather than having its own class, so it is matched on the message.
-  if (/network|connection refused|connection reset|dial |no such host|dns|unreachable|EOF|tls|socket/i.test(msg)) {
+  // Network reachability hides inside `internal` (and sometimes
+  // `provider_server`) rather than having its own class, so inspect the message
+  // only for those classes. In particular, a `provider_invalid` payload often
+  // contains "Details", which must never be mistaken for the substring "tls".
+  if (
+    (cls === "internal" || cls === "provider_server")
+    && /network|connection refused|connection reset|dial |no such host|\bdns\b|unreachable|\beof\b|\btls\b|socket/i.test(msg)
+  ) {
     return {
       title: "Couldn't reach the model provider",
       hint: "The network call didn't get through. Check your connection, then retry the turn.",

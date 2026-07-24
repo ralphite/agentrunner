@@ -596,7 +596,15 @@ export function createAppStore(
     get().select(order[next]);
   },
   select: (sid) => {
-    set({ currentSid: sid, currentRunId: null, currentPage: "home", scheduledDetailSid: null, toasts: [] });
+    set({
+      currentSid: sid,
+      currentRunId: null,
+      currentPage: "home",
+      scheduledDetailSid: null,
+      modal: null,
+      prompt: null,
+      toasts: [],
+    });
     if (sid) {
       services.navigation.setHash(sid);
       get().markRead(sid); // opening a session clears its unread flag
@@ -605,11 +613,27 @@ export function createAppStore(
     }
   },
   selectRun: (rid) => {
-    set({ currentRunId: rid, currentSid: null, currentPage: "scheduled", scheduledDetailSid: null, toasts: [] });
+    set({
+      currentRunId: rid,
+      currentSid: null,
+      currentPage: "scheduled",
+      scheduledDetailSid: null,
+      modal: null,
+      prompt: null,
+      toasts: [],
+    });
     services.navigation.setHash(rid ? "run:" + rid : "");
   },
   showPage: (page) => {
-    set({ currentSid: null, currentRunId: null, currentPage: page, scheduledDetailSid: null, toasts: [] });
+    set({
+      currentSid: null,
+      currentRunId: null,
+      currentPage: page,
+      scheduledDetailSid: null,
+      modal: null,
+      prompt: null,
+      toasts: [],
+    });
     // "home" is the bare route (no hash); Scheduled routes to a hash that
     // matches its key so deep links + back/forward work (#scheduled).
     services.navigation.setHash(page === "home" ? "" : page);
@@ -620,6 +644,8 @@ export function createAppStore(
       currentRunId: null,
       currentPage: "scheduled",
       scheduledDetailSid: sid,
+      modal: null,
+      prompt: null,
       toasts: [],
     });
     services.navigation.setHash(sid ? `scheduled:${sid}` : "scheduled");

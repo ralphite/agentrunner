@@ -24,6 +24,8 @@ describe("progressive session hydration", () => {
       scheduledDetailSid: null,
       archived: [],
       unread: [],
+      modal: null,
+      prompt: null,
       toasts: [],
     });
   });
@@ -76,20 +78,33 @@ describe("progressive session hydration", () => {
       .toEqual(["b", "a", "old"]);
   });
 
-  it("clears page-scoped notifications when navigation changes context", () => {
+  it("clears page-scoped overlays and notifications when navigation changes context", () => {
+    const openScopedUi = () => {
+      useStore.setState({
+        modal: { kind: "inspect", data: { sid: "previous-session" } },
+        prompt: { title: "Previous session prompt", onSubmit: vi.fn() },
+      });
+      useStore.getState().toast("failure from previous context");
+    };
+
+    openScopedUi();
     useStore.getState().toast("failure from previous session");
-    expect(useStore.getState().toasts).toHaveLength(1);
+    expect(useStore.getState().toasts).toHaveLength(2);
 
     useStore.getState().select("next-session");
-    expect(useStore.getState().toasts).toEqual([]);
+    expect(useStore.getState()).toMatchObject({ modal: null, prompt: null, toasts: [] });
 
-    useStore.getState().toast("failure from previous run");
+    openScopedUi();
     useStore.getState().selectRun("next-run");
-    expect(useStore.getState().toasts).toEqual([]);
+    expect(useStore.getState()).toMatchObject({ modal: null, prompt: null, toasts: [] });
 
-    useStore.getState().toast("failure from previous page");
+    openScopedUi();
     useStore.getState().showPage("scheduled");
-    expect(useStore.getState().toasts).toEqual([]);
+    expect(useStore.getState()).toMatchObject({ modal: null, prompt: null, toasts: [] });
+
+    openScopedUi();
+    useStore.getState().showScheduledDetail("scheduled-session");
+    expect(useStore.getState()).toMatchObject({ modal: null, prompt: null, toasts: [] });
   });
 
   it("returns home when the current session is archived", () => {
