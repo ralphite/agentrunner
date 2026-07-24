@@ -9,6 +9,8 @@ import { sessionFriendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
 import type { Session } from "../types";
 import { FocusScope } from "../ui/FocusScope";
+import { SearchField } from "../ui/Field";
+import { IconButton } from "../ui/IconButton";
 import {
   CommandPaletteItem,
   type CommandPaletteItemModel,
@@ -196,23 +198,33 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
         aria-modal="true"
         aria-label="Command palette"
       >
-        <div className="cmdk-search">
-          <input
-            ref={inputRef}
-            className="cmdk-input"
-            placeholder="Search sessions or run a command"
-            aria-label="Search sessions or run a command"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            role="combobox"
-            aria-controls="command-palette-results"
-            aria-expanded="true"
-            aria-activedescendant={items[idx]?.id}
-          />
-          <button type="button" className="cmdk-close" onClick={() => onClose(true)} title="Close" aria-label="Close command palette">
-            <X size={18} />
-          </button>
-        </div>
+        <SearchField
+          ref={inputRef}
+          type="text"
+          variant="flush"
+          containerClassName="cmdk-search"
+          className="cmdk-input"
+          placeholder="Search sessions or run a command"
+          aria-label="Search sessions or run a command"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          role="combobox"
+          aria-controls="command-palette-results"
+          aria-expanded="true"
+          aria-activedescendant={items[idx]?.id}
+          endActions={
+            <IconButton
+              className="cmdk-close"
+              size="md"
+              variant="ghost"
+              onClick={() => onClose(true)}
+              title="Close"
+              aria-label="Close command palette"
+            >
+              <X size={18} />
+            </IconButton>
+          }
+        />
         <div
           className="cmdk-list"
           id="command-palette-results"

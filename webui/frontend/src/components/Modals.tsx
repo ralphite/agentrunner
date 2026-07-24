@@ -8,7 +8,10 @@ import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
 import { compactCount, summarizeInspect } from "../inspectPresentation";
+import { Button } from "../ui/Button";
 import { FocusScope } from "../ui/FocusScope";
+import { IconButton } from "../ui/IconButton";
+import { Input, Select, Textarea } from "../ui/Field";
 import { friendlyStatus } from "./pill";
 import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
 
@@ -74,9 +77,15 @@ export function Modal({
       >
         <div className="mhead shrink-0">
           <span className="min-w-0 truncate">{title}</span>
-          <button className="ghost -m-2 grid h-11 w-11 shrink-0 place-items-center p-0" onClick={onClose} aria-label="Close dialog">
+          <IconButton
+            aria-label="Close dialog"
+            className="-m-2"
+            size="lg"
+            variant="ghost"
+            onClick={onClose}
+          >
             <X size={16} />
-          </button>
+          </IconButton>
         </div>
         <div className="mbody min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
         {footer && <div className="mfoot shrink-0 max-[640px]:flex-wrap max-[640px]:justify-end">{footer}</div>}
@@ -141,10 +150,15 @@ export function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>,
       onClose={close}
       footer={
         <>
-          <button onClick={close}>Cancel</button>
-          <button className={modal.danger ? "danger" : "primary"} disabled={busy} onClick={confirm}>
+          <Button variant="outline" onClick={close}>Cancel</Button>
+          <Button
+            variant={modal.danger ? "outline" : "solid"}
+            tone={modal.danger ? "danger" : "neutral"}
+            loading={busy}
+            onClick={confirm}
+          >
             {modal.confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
@@ -204,15 +218,15 @@ export function PromptModal({
       onClose={close}
       footer={
         <>
-          <button className="ghost" onClick={close}>Cancel</button>
-          <button className="primary" disabled={!value.trim()} onClick={submit}>
+          <Button variant="ghost" onClick={close}>Cancel</Button>
+          <Button variant="solid" disabled={!value.trim()} onClick={submit}>
             {submitLabel || "OK"}
-          </button>
+          </Button>
         </>
       }
     >
       {label && <label className="field" htmlFor={inputId}>{label}</label>}
-      <input
+      <Input
         id={inputId}
         type="text"
         autoFocus
@@ -328,33 +342,33 @@ export function NewSessionModal({
       onClose={close}
       footer={
         <>
-          <button onClick={() => openModal({ kind: "run", prompt: msg })}>Create a background run…</button>
-          <button className="primary" disabled={busy || !msg.trim()} onClick={create}>
+          <Button variant="outline" onClick={() => openModal({ kind: "run", prompt: msg })}>Create a background run…</Button>
+          <Button variant="solid" disabled={!msg.trim()} loading={busy} onClick={create}>
             Start session
-          </button>
+          </Button>
         </>
       }
     >
       <label className="field" htmlFor="new-session-message">Opening message</label>
-      <textarea id="new-session-message" autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
+      <Textarea id="new-session-message" autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
       <label className="field" htmlFor="new-session-workspace">Workspace</label>
       <div className="row-flex">
-        <input id="new-session-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
-        <button style={{ whiteSpace: "nowrap" }} onClick={mkWorktree} title="Codex 'New worktree': branch a fresh, isolated git worktree of a repo so edits don't touch your checkout">
+        <Input id="new-session-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
+        <Button variant="outline" onClick={choose}>Use folder…</Button>
+        <Button variant="outline" onClick={mkWorktree} title="Codex 'New worktree': branch a fresh, isolated git worktree of a repo so edits don't touch your checkout">
           New worktree…
-        </button>
+        </Button>
       </div>
       <label className="field" htmlFor="new-session-approval">Approval mode</label>
-      <select id="new-session-approval" value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
+      <Select id="new-session-approval" value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
         <option value="">default</option>
         <option value="plan">plan</option>
         <option value="acceptEdits">acceptEdits</option>
-      </select>
+      </Select>
       <label className="field" htmlFor="new-session-spec">Agent specification (YAML)</label>
-      <textarea id="new-session-spec" className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
+      <Textarea id="new-session-spec" code className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
       <label className="field" htmlFor="new-session-worker">Worker specification (optional YAML)</label>
-      <textarea id="new-session-worker" className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
+      <Textarea id="new-session-worker" code className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
 }
@@ -474,9 +488,9 @@ export function RunModal({
       onClose={close}
       returnFocus={returnFocus}
       footer={
-        <button className="primary" disabled={busy || !prompt.trim() || scheduleBlocked} onClick={start}>
+        <Button variant="solid" disabled={!prompt.trim() || scheduleBlocked} loading={busy} onClick={start}>
           {kind === "submit" ? "Start run" : "Start schedule"}
-        </button>
+        </Button>
       }
     >
       <label className="field">Run type</label>
@@ -489,11 +503,11 @@ export function RunModal({
         </button>
       </div>
       <label className="field" htmlFor="run-prompt">Prompt</label>
-      <textarea id="run-prompt" autoFocus rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the outcome you want" />
+      <Textarea id="run-prompt" autoFocus rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the outcome you want" />
       <label className="field" htmlFor="run-workspace">Workspace</label>
       <div className="row-flex">
-        <input id="run-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
+        <Input id="run-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
+        <Button variant="outline" onClick={choose}>Use folder…</Button>
       </div>
       {kind === "submit" ? (
         <details className="advanced-settings">
@@ -501,32 +515,32 @@ export function RunModal({
           <div className="row-flex">
             <div style={{ flex: 1 }}>
               <label className="field" htmlFor="run-approval">Approval mode</label>
-              <select id="run-approval" value={mode} onChange={(e) => setMode(e.target.value)}>
+              <Select id="run-approval" value={mode} onChange={(e) => setMode(e.target.value)}>
                 <option value="">From agent specification</option>
                 <option value="plan">Plan (read-only)</option>
                 <option value="acceptEdits">Auto-accept edits</option>
-              </select>
+              </Select>
             </div>
             <div style={{ flex: 1 }}>
               <label className="field" htmlFor="run-idempotency">Idempotency key (optional)</label>
-              <input id="run-idempotency" type="text" value={idem} onChange={(e) => setIdem(e.target.value)} />
+              <Input id="run-idempotency" type="text" value={idem} onChange={(e) => setIdem(e.target.value)} />
             </div>
           </div>
           <label className="field" htmlFor="run-agent-spec">Agent specification (YAML)</label>
-          <textarea id="run-agent-spec" className="code" rows={9} value={spec} onChange={(e) => setSpec(e.target.value)} />
+          <Textarea id="run-agent-spec" code className="code" rows={9} value={spec} onChange={(e) => setSpec(e.target.value)} />
         </details>
       ) : (
         <>
           <label className="field" htmlFor="run-schedule">Schedule</label>
           <div className="row-flex">
-            <select id="run-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value as ScheduleKind)} title="how iterations are paced">
+            <Select id="run-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value as ScheduleKind)} title="how iterations are paced">
               <option value="immediate">Goal — work until verified</option>
               <option value="interval">Repeat every…</option>
               <option value="cron">Cron schedule…</option>
               <option value="parallel">Best of N attempts</option>
-            </select>
+            </Select>
             {schedule === "interval" && (
-              <input
+              <Input
                 type="text"
                 value={interval}
                 onChange={(e) => setInterval(e.target.value)}
@@ -536,7 +550,7 @@ export function RunModal({
               />
             )}
             {schedule === "cron" && (
-              <input
+              <Input
                 type="text"
                 value={cron}
                 onChange={(e) => setCron(e.target.value)}
@@ -546,7 +560,7 @@ export function RunModal({
               />
             )}
             {schedule === "parallel" && (
-              <input
+              <Input
                 type="number"
                 min={2}
                 value={nAttempts}
@@ -575,9 +589,9 @@ export function RunModal({
           <details className="advanced-settings">
             <summary>Advanced settings</summary>
             <label className="field" htmlFor="run-driver-spec">Driver specification (YAML)</label>
-            <textarea id="run-driver-spec" className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
+            <Textarea id="run-driver-spec" code className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
             <label className="field" htmlFor="run-iteration-agent">Iteration agent (YAML)</label>
-            <textarea id="run-iteration-agent" className="code" rows={7} value={driverAgent} onChange={(e) => setDriverAgent(e.target.value)} />
+            <Textarea id="run-iteration-agent" code className="code" rows={7} value={driverAgent} onChange={(e) => setDriverAgent(e.target.value)} />
           </details>
         </>
       )}
@@ -676,9 +690,9 @@ export function ForkModal({ sid }: { sid: string }) {
       title="Continue in new session"
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || !barrier} onClick={doFork}>
+        <Button variant="solid" disabled={!barrier} loading={busy} onClick={doFork}>
           Continue
-        </button>
+        </Button>
       }
     >
       <div className="dim" style={{ marginBottom: 10 }}>
@@ -689,7 +703,7 @@ export function ForkModal({ sid }: { sid: string }) {
       {barriers.length === 0 ? (
         <div className="fork-empty">
           <span>No checkpoints yet. Create one now, then continue from this exact point.</span>
-          <button onClick={createCheckpoint} disabled={busy}>Create checkpoint</button>
+          <Button variant="outline" loading={busy} onClick={createCheckpoint}>Create checkpoint</Button>
         </div>
       ) : (
         <>
@@ -697,21 +711,21 @@ export function ForkModal({ sid }: { sid: string }) {
             <div className="fork-latest">
               <strong>{barrierLabel(barrier)}</strong>
               {barriers.length > 1 && (
-                <button type="button" onClick={() => setShowEarlier(true)}>
+                <Button variant="outline" onClick={() => setShowEarlier(true)}>
                   Choose an earlier checkpoint
-                </button>
+                </Button>
               )}
             </div>
           )}
           {showEarlier && (
             <>
-              <select id="fork-checkpoint" value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
+              <Select id="fork-checkpoint" value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
                 {barriers.map((b) => (
                   <option key={b} value={b}>
                     {barrierLabel(b)}
                   </option>
                 ))}
-              </select>
+              </Select>
               <div className="dim mt-2">
                 Agent steps are internal model/tool checkpoints, not conversation turns.
               </div>
@@ -722,7 +736,7 @@ export function ForkModal({ sid }: { sid: string }) {
       <details className="advanced-settings">
         <summary>Advanced settings</summary>
         <label className="field" htmlFor="fork-worktree">Worktree directory (optional)</label>
-        <input id="fork-worktree" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Automatically create a worktree" />
+        <Input id="fork-worktree" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Automatically create a worktree" />
       </details>
     </Modal>
   );
@@ -757,16 +771,16 @@ export function AgentModal({ sid }: { sid: string }) {
       title={`Switch agent · ${sid}`}
       onClose={close}
       footer={
-        <button className="primary" disabled={busy} onClick={swap}>
+        <Button variant="solid" loading={busy} onClick={swap}>
           Switch
-        </button>
+        </Button>
       }
     >
       <div className="dim">Same session, context carries over; takes effect at the next safe boundary (decision #32) and lands in the journal as spec_changed. The new spec is written to runtime/specs.</div>
       <label className="field" htmlFor="agent-base-spec">base.yaml (new main agent spec)</label>
-      <textarea id="agent-base-spec" className="code" rows={12} value={spec} onChange={(e) => setSpec(e.target.value)} />
+      <Textarea id="agent-base-spec" code className="code" rows={12} value={spec} onChange={(e) => setSpec(e.target.value)} />
       <label className="field" htmlFor="agent-worker-spec">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
-      <textarea id="agent-worker-spec" className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
+      <Textarea id="agent-worker-spec" code className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
 }
@@ -794,13 +808,19 @@ export function TrustModal() {
       title="Trust workspace directory"
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || !dir.trim()} onClick={go} title="enable project hooks/settings for sessions in this directory (ar trust)">
+        <Button
+          variant="solid"
+          disabled={!dir.trim()}
+          loading={busy}
+          onClick={go}
+          title="enable project hooks/settings for sessions in this directory (ar trust)"
+        >
           Trust directory
-        </button>
+        </Button>
       }
     >
       <label className="field" htmlFor="trust-directory">directory (absolute path)</label>
-      <input id="trust-directory" type="text" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/path/to/workspace" />
+      <Input id="trust-directory" type="text" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/path/to/workspace" />
     </Modal>
   );
 }
@@ -825,17 +845,17 @@ export function RenameModal({ sid }: { sid: string }) {
       onClose={close}
       footer={
         <>
-          <button className="ghost" onClick={close}>
+          <Button variant="ghost" onClick={close}>
             Cancel
-          </button>
-          <button className="primary" onClick={save}>
+          </Button>
+          <Button variant="solid" onClick={save}>
             Save
-          </button>
+          </Button>
         </>
       }
     >
       <label className="field" htmlFor="rename-session">Keep it short and recognizable</label>
-      <input
+      <Input
         id="rename-session"
         type="text"
         autoFocus

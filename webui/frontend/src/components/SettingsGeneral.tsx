@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { resetAll } from "../theme";
 import { matchesQuery } from "./SettingsSearch";
 import { useAppServices } from "../app/appServices";
+import { Button } from "../ui/Button";
 
 // SettingsGeneral is the Settings landing (Codex's Settings → General). Kept to
 // things this slice can honestly own: an at-a-glance status line and a real
@@ -61,18 +62,18 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
               <div className="flex shrink-0 flex-col items-end gap-[8px] text-[12.5px] text-dim max-[500px]:items-stretch">
                 <span className="max-[500px]:leading-[1.5]">Reset all settings to defaults?</span>
                 <div className="flex items-center justify-end gap-[8px] max-[500px]:grid max-[500px]:grid-cols-2">
-                  <button className="px-[15px] py-[7px] border rounded-full bg-panel text-red border-[color-mix(in_srgb,var(--red)_40%,var(--line))] text-[13px] shrink-0 hover:bg-panel-2" onClick={doReset}>
+                  <Button tone="danger" variant="outline" onClick={doReset}>
                     Reset
-                  </button>
-                  <button className="px-[15px] py-[7px] border border-line rounded-full bg-panel text-ink text-[13px] shrink-0 hover:bg-panel-2" onClick={() => setConfirming(false)}>
+                  </Button>
+                  <Button variant="outline" onClick={() => setConfirming(false)}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
-              <button className="px-[15px] py-[7px] border border-line rounded-full bg-panel text-ink text-[13px] shrink-0 hover:bg-panel-2 max-[500px]:self-start" onClick={() => setConfirming(true)}>
+              <Button className="max-[500px]:self-start" variant="outline" onClick={() => setConfirming(true)}>
                 Reset to defaults
-              </button>
+              </Button>
             )}
           </div>
         </section>

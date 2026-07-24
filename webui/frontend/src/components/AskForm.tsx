@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
 import { CheckCircle, Circle, Question } from "@phosphor-icons/react";
+import { Input } from "../ui/Field";
+import { Button } from "../ui/Button";
 
 // AskForm renders a structured ask_user park (INC-47.2): the questions the
 // model posed, each as single/multi-select options and/or a free-text box.
@@ -144,7 +146,7 @@ export function AskForm({
             </div>
           )}
           {(q.allow_free_text || !q.options?.length) && (
-            <input
+            <Input
               className="ask-free"
               aria-labelledby={`${formId}-question-${qi}`}
               placeholder={q.options?.length ? "…or type an answer" : "Type your answer"}
@@ -158,12 +160,12 @@ export function AskForm({
         </div>
       ))}
       <div className="ask-actions">
-        <button className="primary" disabled={!allAnswered || busy} onClick={submit}>
+        <Button variant="solid" disabled={!allAnswered} loading={busy} onClick={submit}>
           Submit
-        </button>
-        <button disabled={busy} onClick={skip}>
+        </Button>
+        <Button variant="outline" disabled={busy} onClick={skip}>
           Skip
-        </button>
+        </Button>
       </div>
     </div>
   );

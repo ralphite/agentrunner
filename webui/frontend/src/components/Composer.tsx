@@ -55,6 +55,9 @@ import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
 import { parseSlash, SLASH, type SlashCmd } from "./slash";
 import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
 import { isScratchWorkspace, projectLabel, projectSubtitles } from "../viewModels";
+import { Button } from "../ui/Button";
+import { Input, Textarea } from "../ui/Field";
+import { IconButton } from "../ui/IconButton";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -1413,7 +1416,8 @@ export function Composer(props: ComposerProps) {
         />
 
         <div className="cx-input-wrap">
-          <textarea
+          <Textarea
+            variant="unstyled"
             ref={taRef}
             value={text}
             placeholder={placeholder}
@@ -1664,32 +1668,36 @@ export function GoalLoopLauncher({
         <b>{meta.label}</b>
         <span className="dim">{meta.hint}</span>
         <span className="cx-spacer" />
-        <button className="ghost sm" onClick={onCancel} aria-label="Close launcher"><X size={13} /></button>
+        <IconButton size="sm" variant="ghost" onClick={onCancel} aria-label="Close launcher">
+          <X size={13} />
+        </IconButton>
       </div>
-      <textarea className="cx-launcher-prompt" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+      <Textarea className="cx-launcher-prompt" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       <div className="cx-launcher-row">
         {mode === "loop" ? (
           <label className="cx-launcher-field" title="How often to run (Go duration, e.g. 30s, 5m, 1h)">
             <span>Every</span>
-            <input placeholder="5m" value={second} onChange={(e) => setSecond(e.target.value)} />
+            <Input placeholder="5m" value={second} onChange={(e) => setSecond(e.target.value)} />
           </label>
         ) : (
           <label className="cx-launcher-field" title={mode === "goal" ? "A shell command that must exit 0 for the goal to count as met. Optional — leave it empty and the agent self-certifies: it calls goal_complete when the goal is verifiably done (audited at the turn boundary)" : "A shell command that judges each attempt — exit 0 = pass (optional; without it the earliest attempt wins)"}>
             <span>{mode === "goal" ? "Done when (command)" : "Judge with (command)"}</span>
-            <input placeholder={mode === "goal" ? "e.g. go test ./…  (empty = agent self-certifies)" : "e.g. go test ./…  (optional)"} value={second} onChange={(e) => setSecond(e.target.value)} />
+            <Input placeholder={mode === "goal" ? "e.g. go test ./…  (empty = agent self-certifies)" : "e.g. go test ./…  (optional)"} value={second} onChange={(e) => setSecond(e.target.value)} />
           </label>
         )}
         <label className="cx-launcher-field small" title={mode === "best" ? "How many isolated attempts to run" : "Safety cap on iterations"}>
           <span>{mode === "best" ? "Attempts" : "Max rounds"}</span>
-          <input type="number" min={mode === "best" ? 2 : 1} value={iters} onChange={(e) => setIters(Math.max(mode === "best" ? 2 : 1, Number(e.target.value) || 1))} />
+          <Input type="number" min={mode === "best" ? 2 : 1} value={iters} onChange={(e) => setIters(Math.max(mode === "best" ? 2 : 1, Number(e.target.value) || 1))} />
         </label>
-        <button
+        <Button
+          variant="solid"
           className="primary cx-launcher-go"
-          disabled={busy || !prompt.trim() || (mode === "loop" && (!second.trim() || intervalError !== ""))}
+          loading={busy}
+          disabled={!prompt.trim() || (mode === "loop" && (!second.trim() || intervalError !== ""))}
           onClick={() => onStart(prompt.trim(), second.trim(), iters)}
         >
           {meta.start}
-        </button>
+        </Button>
       </div>
       {intervalError !== "" && (
         <div className="mt-1 text-[12px] leading-5 text-red" role="alert">

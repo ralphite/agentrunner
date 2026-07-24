@@ -19,6 +19,8 @@ import { SettingsWorktrees } from "./SettingsWorktrees";
 import { SettingsConfiguration } from "./SettingsConfiguration";
 import { SettingsArchived } from "./SettingsArchived";
 import { FocusScope, type FocusTarget } from "../ui/FocusScope";
+import { SearchField } from "../ui/Field";
+import { Button } from "../ui/Button";
 
 // Settings is Codex's full-window Settings surface (INC-41 H1): a left nav rail
 // (grouped sections + "Search settings…"), a "← Back to app" affordance, and a
@@ -93,27 +95,29 @@ export function Settings({
       onEscape={onClose}
     >
       <aside className="shrink-0 grow-0 basis-[264px] flex flex-col gap-[10px] px-[12px] py-[16px] border-r border-line bg-sidebar overflow-y-auto max-[720px]:basis-auto max-[720px]:grid max-[720px]:grid-cols-1 max-[720px]:items-center max-[720px]:gap-[7px] max-[720px]:px-[12px] max-[720px]:py-[8px] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:overflow-hidden">
-        <button className="hidden items-center gap-[7px] self-start pt-[5px] pr-[10px] pb-[5px] pl-[7px] border-0 bg-transparent text-ink-2 text-[13px] rounded-[8px] hover:bg-panel-2 hover:text-ink max-[720px]:inline-flex max-[720px]:self-auto max-[720px]:whitespace-nowrap" onClick={onClose}>
+        <Button variant="ghost" className="hidden items-center gap-[7px] self-start pt-[5px] pr-[10px] pb-[5px] pl-[7px] border-0 bg-transparent text-ink-2 text-[13px] rounded-[8px] hover:bg-panel-2 hover:text-ink max-[720px]:inline-flex max-[720px]:self-auto max-[720px]:whitespace-nowrap" onClick={onClose}>
           <ArrowLeft size={15} weight="bold" /> Back to app
-        </button>
-        <div className="flex items-center gap-[8px] px-[11px] py-[8px] border border-line rounded-app bg-panel text-dim focus-within:border-[var(--rs-accent)]">
-          <MagnifyingGlass size={14} />
-          <input
-            ref={searchRef}
-            className="flex-1 min-w-0 border-0 bg-transparent p-0 text-[13.5px] text-ink focus:outline-none"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search settings…"
-            aria-label="Search settings"
-          />
-        </div>
+        </Button>
+        <SearchField
+          ref={searchRef}
+          type="text"
+          className="text-[13.5px]"
+          containerClassName="rounded-app px-[11px] py-[8px]"
+          icon={<MagnifyingGlass size={14} />}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search settings…"
+          aria-label="Search settings"
+        />
         <nav className="flex flex-col gap-[12px] mt-[2px] max-[720px]:flex-row max-[720px]:flex-wrap max-[720px]:gap-[4px] max-[720px]:mt-0 max-[720px]:overflow-visible max-[720px]:pb-[1px]">
           {groups.length === 0 && <div className="px-[10px] py-[12px] text-dim text-[13px]">No settings match</div>}
           {groups.map((g) => (
             <div key={g.group} className="flex flex-col gap-[2px] max-[720px]:contents">
               <div className="text-[10.5px] uppercase tracking-[0.6px] text-dim px-[10px] py-[4px] max-[720px]:hidden">{g.group}</div>
               {g.items.map((s) => (
-                <button
+                <Button
+                  variant="ghost"
+                  pressed={s.id === active}
                   key={s.id}
                   className={"flex items-center gap-[10px] w-full px-[10px] py-[8px] border-0 rounded-[9px] text-[13.5px] text-left max-[720px]:w-auto max-[720px]:shrink-0 max-[720px]:gap-[7px] max-[720px]:px-[9px] max-[720px]:py-[6px] max-[720px]:text-[13px] max-[720px]:whitespace-nowrap " + (s.id === active ? "bg-[var(--rs-accent-soft)] text-[var(--rs-accent)] font-[550] max-[720px]:bg-panel-2 max-[720px]:text-ink" : "bg-transparent text-ink-2 hover:bg-panel-2 hover:text-ink")}
                   onClick={() => setSection(s.id)}
@@ -121,7 +125,7 @@ export function Settings({
                 >
                   <s.icon size={16} weight={s.id === active ? "fill" : "regular"} />
                   <span>{s.label}</span>
-                </button>
+                </Button>
               ))}
             </div>
           ))}
@@ -133,9 +137,9 @@ export function Settings({
           <div className="inline-flex items-center gap-[7px] text-[13px] text-dim">
             {activeDef && <activeDef.icon size={15} />} Settings <span className="opacity-60">›</span> {activeDef?.label}
           </div>
-          <button className="px-[14px] py-[5px] border border-line rounded-full bg-panel text-ink text-[12.5px] hover:bg-panel-2" onClick={onClose} aria-label="Close settings">
+          <Button variant="outline" className="px-[14px] py-[5px] border border-line rounded-full bg-panel text-ink text-[12.5px] hover:bg-panel-2" onClick={onClose} aria-label="Close settings">
             Done
-          </button>
+          </Button>
         </header>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-[26px] max-[720px]:p-[18px]" key={active + ":" + rev}>
           {active === "general" && <SettingsGeneral query={panelQuery} onReset={() => setRev((r) => r + 1)} />}

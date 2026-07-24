@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAppStoreApi, useStore } from "../store";
+import { Button } from "../ui/Button";
 import { matchesQuery } from "./SettingsSearch";
 import { WorktreeCard } from "./WorktreeCard";
 
@@ -48,12 +49,13 @@ export function SettingsWorktrees({ query }: { query: string }) {
         />
       ))}
       {visible.length < filtered.length && (
-        <button
-          className="mt-3 w-full rounded-[8px] border border-line bg-panel px-3 py-2 text-[12.5px] text-ink-2 hover:bg-panel-2"
+        <Button
+          className="mt-3 w-full"
+          variant="outline"
           onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
         >
           Show {Math.min(PAGE_SIZE, filtered.length - visible.length)} more · {filtered.length - visible.length} remaining
-        </button>
+        </Button>
       )}
     </div>
   );

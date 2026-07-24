@@ -43,6 +43,7 @@ import type { AgentCatalogEntry } from "../types";
 import type { SlashCmd } from "./slash";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { IconButton } from "../ui/IconButton";
+import { Input } from "../ui/Field";
 
 function usePickerPageFocus(page: string) {
   const ref = useRef<HTMLDivElement>(null);
@@ -136,7 +137,8 @@ export function ProjectPicker({
             <>
               <label className="cx-project-search">
                 <MagnifyingGlass size={16} />
-                <input
+                <Input
+                  variant="unstyled"
                   data-popover-autofocus
                   aria-label="Search projects"
                   placeholder="Search projects"
@@ -360,7 +362,8 @@ export function BranchPicker({
         <div className="cx-menu branch-menu">
           <label className="cx-project-search cx-branch-search">
             <MagnifyingGlass size={16} />
-            <input
+            <Input
+              variant="unstyled"
               data-popover-autofocus
               aria-label="Search branches"
               placeholder="Search branches"
@@ -1140,7 +1143,7 @@ export function GoalOptions({
             title="Optional shell command that must exit 0 for the goal to count as met"
           >
             <span>Done when (command)</span>
-            <input
+            <Input
               placeholder="e.g. go test ./…  (empty = agent self-certifies)"
               value={verifier}
               onChange={(event) => onVerifierChange(event.target.value)}
@@ -1151,7 +1154,7 @@ export function GoalOptions({
             title="Safety cap on iterations"
           >
             <span>Max rounds</span>
-            <input
+            <Input
               type="number"
               min={1}
               value={rounds}
@@ -1307,21 +1310,24 @@ export function SubmitButton({
 }: SubmitButtonProps) {
   if (mode === "stop") {
     return (
-      <button
-        type="button"
+      <IconButton
         className="cx-send cx-stop"
+        size="md"
+        tone="danger"
+        variant="solid"
         onClick={onSubmit}
         aria-label="Stop active turn"
         title="Stop the active turn"
       >
         <StopIcon size={15} weight="fill" />
-      </button>
+      </IconButton>
     );
   }
   return (
-    <button
-      type="button"
+    <IconButton
       className="cx-send"
+      size="md"
+      variant="solid"
       onClick={onSubmit}
       disabled={disabled}
       aria-label="Send message"
@@ -1334,6 +1340,6 @@ export function SubmitButton({
       }
     >
       <ArrowUp />
-    </button>
+    </IconButton>
   );
 }
