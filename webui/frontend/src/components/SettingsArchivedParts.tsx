@@ -47,7 +47,7 @@ export function ArchivedSessionItem({
       <Button
         size="md"
         variant="outline"
-        className="rs-archive-restore shrink-0 self-center whitespace-nowrap rounded-[6px] border border-line bg-transparent px-2.5 py-1.5 text-[12px] text-ink-2 hover:bg-panel-2"
+        className="rs-archive-restore shrink-0 self-center"
         onClick={() => onUnarchive(session.id)}
       >
         Unarchive

@@ -239,7 +239,7 @@
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
-  .icon-only:focus, .topbar-icon:focus, .topbar-tool:focus, .gbar-btn:focus, .diff-iconbtn:focus, .cx-icon:focus, .lb-btn:focus {
+  .icon-only:focus, .topbar-icon:focus, .diff-iconbtn:focus {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
   a { @apply cursor-pointer text-blue no-underline hover:underline; }
@@ -276,7 +276,7 @@
   .ghost, button.ghost { @apply border-transparent bg-transparent hover:border-line hover:bg-panel-2; }
   .subtle, button.subtle { @apply border-line bg-panel text-ink-2 hover:text-ink; }
   .sm, button.sm { @apply px-2 py-[3px] text-[12px]; }
-  .icon-only, .topbar-icon, .topbar-tool, .gbar-btn, .diff-iconbtn, .cx-icon, .lb-btn {
+  .icon-only, .topbar-icon, .diff-iconbtn {
     @apply inline-grid place-items-center rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 transition-all duration-100 hover:border-line hover:bg-panel-2 hover:text-ink;
   }
 
@@ -542,18 +542,11 @@
     .cx-home .cx-input-wrap textarea { @apply min-h-[32px]; }
     .cx-home .cx-bar { @apply py-[7px]; }
   }
-  .cx-icon { @apply h-8 w-8 shrink-0; }
-  .cx-icon.active, .cx-icon.listening, .cx-icon.working { @apply bg-panel-2 text-blue; }
+  .cx-icon { @apply shrink-0; }
   .cx-delivery { @apply flex shrink-0 items-center gap-1; }
   .cx-deliv { @apply h-8 shrink-0 py-0; }
   .cx-deliv-label { @apply min-w-0; }
-  .cx-send { @apply grid h-8 w-8 shrink-0 place-items-center rounded-full border-accent bg-accent p-0 text-accent-ink hover:bg-accent; }
-  /* R70 SEND-BTN-DISABLED: 金标 codex-crop-composer.jpg 的禁用送出按钮是
-     浅灰盘 + 清晰可读的灰箭头(读作"未激活但在场")。原先对整个 accent 盘加
-     opacity-40 使盘变中灰、白箭头淡到几乎不可见,affordance 塌掉。改成浅
-     panel-2 盘 + dim 箭头(随主题自适应),去掉整体发虚。 */
-  .cx-send:disabled { @apply border-line bg-panel-2 text-dim opacity-100 hover:bg-panel-2; }
-  .cx-stop { @apply border-red bg-red text-white; }
+  .cx-send { @apply shrink-0; }
   .cx-status { @apply mx-auto mt-2 max-w-[660px] px-2 text-right text-[11px] text-dim; }
   .cx-att { @apply inline-flex max-w-[220px] cursor-pointer items-center gap-[6px] rounded-full border border-line bg-panel-2 px-[8px] py-[4px] text-[12px]; }
   .cx-att-thumb { @apply h-5 w-5 rounded object-cover; }
@@ -687,9 +680,7 @@
   .tt-left { @apply min-w-0; }
   .tt-title { @apply truncate text-[13px] font-medium text-ink; }
   .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim font-medium; }
-  .topbar-tool { @apply relative inline-flex h-8 min-w-8 items-center gap-[6px] px-2; }
-  .topbar-tool.active { @apply bg-blue-soft text-blue; }
-  .topbar-tool.stop, .stop { @apply text-red; }
+  .topbar-tool { @apply relative; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
   /* INC-98.4b/98.4w: size the review rail from the content area, not the whole
@@ -1271,7 +1262,7 @@
   }
   /* R41: Codex renders "✓ Mark all as read" as plain muted text, not a button
      pill — strip the base button chrome (border/bg/shadow). */
-  .sched-markread { @apply flex shrink-0 items-center gap-1 border-0 bg-transparent px-1 py-1 text-[13px] text-dim shadow-none transition-colors duration-100 hover:bg-transparent hover:text-ink hover:shadow-none; }
+  .sched-markread { @apply shrink-0; }
 
   .modal { @apply w-full max-w-[560px] overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
   .mhead, .mfoot { @apply flex items-center justify-between gap-2 border-b border-line px-4 py-3; }
@@ -1346,9 +1337,7 @@
     transform: scale(var(--lb-scale, 1));
     transform-origin: center;
   }
-  .lb-btn, .lb-nav { @apply grid place-items-center border-white/20 bg-white/10 p-0 text-white transition-all duration-100 hover:bg-white/30; }
-  .lb-btn { @apply h-8 w-8 shrink-0; }
-  .lb-nav { @apply absolute top-1/2 h-10 w-10 -translate-y-1/2 rounded-full; }
+  .lb-nav { @apply absolute top-1/2 -translate-y-1/2; }
   .lb-nav.prev { @apply left-3; }
   .lb-nav.next { @apply right-3; }
   .lb-controls { @apply flex shrink-0 items-center justify-center gap-2 p-3; }
@@ -1435,7 +1424,6 @@
   @media (max-width: 680px) {
     .menu-trigger { @apply h-11 w-11; }
     .topbar-tool { @apply h-11 w-11; }
-    .cx-icon { @apply h-11 w-11; }
     .cmdk-back { @apply p-3; padding-top: max(12px, env(safe-area-inset-top)); }
     .cmdk-list { max-height: calc(100dvh - 96px); }
     .cmdk-input { @apply pr-12 text-[16px]; }
@@ -1501,7 +1489,6 @@
       padding-bottom: 0.5rem;
       padding-left: max(0.75rem, env(safe-area-inset-left));
     }
-    .lb-btn { @apply h-11 w-11; }
     .lb-stage {
       @apply flex items-start justify-start p-0;
       touch-action: pan-x pan-y;

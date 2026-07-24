@@ -48,7 +48,6 @@ export function CodeBlock({ raw, lang, className, children }: { raw: string; lan
           <Button
             size="sm"
             variant="ghost"
-            className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line aria-pressed:text-ink aria-pressed:border-line"
             onClick={() => setWrap((w) => !w)}
             title={wrap ? "Disable line wrap" : "Wrap long lines"}
             pressed={wrap}
@@ -58,7 +57,6 @@ export function CodeBlock({ raw, lang, className, children }: { raw: string; lan
           <Button
             size="sm"
             variant="ghost"
-            className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line"
             onClick={copy}
             title="Copy code"
           >

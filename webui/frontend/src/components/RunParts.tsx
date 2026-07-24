@@ -67,7 +67,7 @@ export function RunHeader({
             size="sm"
             tone="danger"
             variant="outline"
-            className="topbar-tool stop"
+            className="topbar-tool"
             onClick={onStop}
             title="Stop run"
             aria-label="Stop run"

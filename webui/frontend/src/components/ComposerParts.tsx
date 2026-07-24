@@ -1311,7 +1311,7 @@ export function SubmitButton({
   if (mode === "stop") {
     return (
       <IconButton
-        className="cx-send cx-stop"
+        className="cx-send cx-stop !rounded-full"
         size="md"
         tone="danger"
         variant="solid"
@@ -1325,7 +1325,7 @@ export function SubmitButton({
   }
   return (
     <IconButton
-      className="cx-send"
+      className="cx-send !rounded-full"
       size="md"
       variant="solid"
       onClick={onSubmit}
