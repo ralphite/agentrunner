@@ -1,9 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
 import type { FailureNotice } from "../timeline";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import {
   QueuedMessageList,
   SessionNotice,

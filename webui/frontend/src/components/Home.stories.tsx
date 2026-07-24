@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { buildAgentCatalog, buildHealth } from "../storybook/fixtures";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import { Home } from "./Home";
 
 type StoryApi = AppServices["api"];

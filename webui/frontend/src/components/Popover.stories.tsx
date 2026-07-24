@@ -1,7 +1,12 @@
 import { GearSix, Monitor, Moon, Sun } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { humanPause } from "../storybook/humanPlayback";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import { PopItem, Popover, PopSection } from "./Popover";
 
 const onLight = fn();

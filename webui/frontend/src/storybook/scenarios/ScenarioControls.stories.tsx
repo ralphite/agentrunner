@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
+import { pacedUserEvent as userEvent } from "../humanPlayback";
 import { ScenarioControls } from "./ScenarioControls";
 import {
   ScenarioExecutionError,

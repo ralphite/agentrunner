@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import type { DiffScope } from "../types";
 import {
   ChangedFilesMenu,

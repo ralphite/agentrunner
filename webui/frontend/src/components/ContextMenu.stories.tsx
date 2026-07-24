@@ -5,11 +5,10 @@ import {
   expect,
   fireEvent,
   fn,
-  userEvent,
   waitFor,
   within,
 } from "storybook/test";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 

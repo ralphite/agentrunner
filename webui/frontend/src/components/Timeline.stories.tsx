@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ReactNode } from "react";
-import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { createStoryApiHandlers } from "../storybook/handlers";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import type {
   BubbleItem,
   FoldRun,

@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "policy": "Inventory proves closure only. REVIEWED is a manual family decision joined to every exact Story and target cell; it never upgrades Codex parity or automated gate status by itself.",
   "summary": {
-    "reviewFamilies": 28,
-    "storyFiles": 67,
-    "stories": 568,
-    "reviewedStories": 568,
+    "reviewFamilies": 29,
+    "storyFiles": 68,
+    "stories": 574,
+    "reviewedStories": 574,
     "productionTargets": 177,
     "targetCells": 685,
     "coveredCells": 619,
     "notApplicableCells": 66,
     "missingCells": 0,
     "uniqueTargetStoryIds": 560,
-    "workbenchStories": 8,
+    "workbenchStories": 14,
     "semanticAssertions": 13,
     "pairedAssertions": 5,
     "privateExclusions": 12
@@ -42,9 +42,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "fa1df71c0e60024c30eb50e20f27a0658fff8e5033bc29dbf94cfed9880e6e32",
+      "reviewedDigest": "919fe93928cda42c712b7d65309a99608bf78c6b5e82ba6dbc5a7005df420aa9",
       "owner": "webui",
-      "familyDigest": "fa1df71c0e60024c30eb50e20f27a0658fff8e5033bc29dbf94cfed9880e6e32",
+      "familyDigest": "919fe93928cda42c712b7d65309a99608bf78c6b5e82ba6dbc5a7005df420aa9",
       "storyCount": 18,
       "storyFiles": [
         "src/components/ApprovalCard.stories.tsx",
@@ -81,9 +81,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "7026651b1695cc657a10f2da70196b3972bad3983f8b5a5e32d31d793ffafab2",
+      "reviewedDigest": "b9e183cce55542e14eb4c12582c742f0670c3ea2892c2d26f391b144c5bf207e",
       "owner": "webui",
-      "familyDigest": "7026651b1695cc657a10f2da70196b3972bad3983f8b5a5e32d31d793ffafab2",
+      "familyDigest": "b9e183cce55542e14eb4c12582c742f0670c3ea2892c2d26f391b144c5bf207e",
       "storyCount": 39,
       "storyFiles": [
         "src/components/ChangesOutcome.stories.tsx",
@@ -134,9 +134,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "7352ac54db99658a351fa0eb429e75607df341a45a36cbcbb9800ee8d6b1da21",
+      "reviewedDigest": "4fc21626e1d59ce12978a43cb38e097cbb6be266cba1156b40dcbf9817a3f5c1",
       "owner": "webui",
-      "familyDigest": "7352ac54db99658a351fa0eb429e75607df341a45a36cbcbb9800ee8d6b1da21",
+      "familyDigest": "4fc21626e1d59ce12978a43cb38e097cbb6be266cba1156b40dcbf9817a3f5c1",
       "storyCount": 10,
       "storyFiles": [
         "src/components/Markdown.stories.tsx",
@@ -173,9 +173,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "07b1f9d1bf219f21abe02a2a79810e460e92cde6645a655305881dea60bc923e",
+      "reviewedDigest": "3313513ec777be0de8ae06cfccf2c9c7c72f97336cc0e21e12fdab22261bce98",
       "owner": "webui",
-      "familyDigest": "07b1f9d1bf219f21abe02a2a79810e460e92cde6645a655305881dea60bc923e",
+      "familyDigest": "3313513ec777be0de8ae06cfccf2c9c7c72f97336cc0e21e12fdab22261bce98",
       "storyCount": 15,
       "storyFiles": [
         "src/components/ErrorBoundary.stories.tsx",
@@ -214,9 +214,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "4c75e9f513c44143eebaec6de335834de9751880589ca119631f4da909a6daa9",
+      "reviewedDigest": "cc7ab029e4933dfd3ee1230ab7d3a58286a5467b8c41dc14aafad57cab43006b",
       "owner": "webui",
-      "familyDigest": "4c75e9f513c44143eebaec6de335834de9751880589ca119631f4da909a6daa9",
+      "familyDigest": "cc7ab029e4933dfd3ee1230ab7d3a58286a5467b8c41dc14aafad57cab43006b",
       "storyCount": 13,
       "storyFiles": [
         "src/components/HomeStarterCard.stories.tsx",
@@ -251,9 +251,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-24",
-      "reviewedDigest": "20a4f4718c69ab0fbee2e4ea2b8c6db583262f66b39cf1fc0521148a2cdf3ebf",
+      "reviewedDigest": "8b6d63cfcb369d39de4fa647d9848667ab01e1c1124f71b664ad5f153cc89c50",
       "owner": "webui",
-      "familyDigest": "20a4f4718c69ab0fbee2e4ea2b8c6db583262f66b39cf1fc0521148a2cdf3ebf",
+      "familyDigest": "8b6d63cfcb369d39de4fa647d9848667ab01e1c1124f71b664ad5f153cc89c50",
       "storyCount": 90,
       "storyFiles": [
         "src/components/Composer.stories.tsx",
@@ -304,9 +304,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "69efb6f282f1af3611610df4da075a2275a55f518fa4d6be9157eeefb0f44248",
+      "reviewedDigest": "cdc58c3fd3abb02d2c77d2a0208f489fba1fcd60f28b642526495d5c571b615e",
       "owner": "webui",
-      "familyDigest": "69efb6f282f1af3611610df4da075a2275a55f518fa4d6be9157eeefb0f44248",
+      "familyDigest": "cdc58c3fd3abb02d2c77d2a0208f489fba1fcd60f28b642526495d5c571b615e",
       "storyCount": 6,
       "storyFiles": [
         "src/components/Lightbox.stories.tsx"
@@ -339,9 +339,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-24",
-      "reviewedDigest": "9dc52c966489c7cf5446205d946001451752915a1a30ba701a76176922c0c5d8",
+      "reviewedDigest": "33d7b5842fb8263744864625616d68d84e5121067d4223983585ac203707a7a0",
       "owner": "webui",
-      "familyDigest": "9dc52c966489c7cf5446205d946001451752915a1a30ba701a76176922c0c5d8",
+      "familyDigest": "33d7b5842fb8263744864625616d68d84e5121067d4223983585ac203707a7a0",
       "storyCount": 52,
       "storyFiles": [
         "src/components/CommandPalette.stories.tsx",
@@ -389,9 +389,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-24",
-      "reviewedDigest": "b50d4d1cda3b4fe9deda3c2d12ab72f27c26d9c4c605003cb51c86a294158a41",
+      "reviewedDigest": "4f0b0b875baea74ca89db5f1aa64aaacc33c26450bca7f92e448b87548bd7a0e",
       "owner": "webui",
-      "familyDigest": "b50d4d1cda3b4fe9deda3c2d12ab72f27c26d9c4c605003cb51c86a294158a41",
+      "familyDigest": "4f0b0b875baea74ca89db5f1aa64aaacc33c26450bca7f92e448b87548bd7a0e",
       "storyCount": 58,
       "storyFiles": [
         "src/components/ContextMenu.stories.tsx",
@@ -447,9 +447,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "1c25a30b4c2826b22ee6aee34ba5ba39aa5e35a8c67cfb0a24f19c0adc2d233a",
+      "reviewedDigest": "148cfd980a0c1a371d52c2df5e1e70b495d0a5f6571b9678bf1f1b510400d346",
       "owner": "webui",
-      "familyDigest": "1c25a30b4c2826b22ee6aee34ba5ba39aa5e35a8c67cfb0a24f19c0adc2d233a",
+      "familyDigest": "148cfd980a0c1a371d52c2df5e1e70b495d0a5f6571b9678bf1f1b510400d346",
       "storyCount": 16,
       "storyFiles": [
         "src/components/RunHeader.stories.tsx",
@@ -487,9 +487,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "9210fa5911155202d2ab31dc57af9bc9e1caa637b22becf403ed8560f75e52a4",
+      "reviewedDigest": "1e1954ab8236a961f2b9a035a032824cf7545dd1fd0768c980487884f5e17bde",
       "owner": "webui",
-      "familyDigest": "9210fa5911155202d2ab31dc57af9bc9e1caa637b22becf403ed8560f75e52a4",
+      "familyDigest": "1e1954ab8236a961f2b9a035a032824cf7545dd1fd0768c980487884f5e17bde",
       "storyCount": 16,
       "storyFiles": [
         "src/components/ScheduledParts.stories.tsx"
@@ -527,9 +527,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "157f535c68e3b191d965c65f45999fb3d7ef0de083988b9e15fc280a90785429",
+      "reviewedDigest": "0c99df4ceb74179472ab37ea7a2935ba74f8ef6f6d01174d3fb3ac540704cfb6",
       "owner": "webui",
-      "familyDigest": "157f535c68e3b191d965c65f45999fb3d7ef0de083988b9e15fc280a90785429",
+      "familyDigest": "0c99df4ceb74179472ab37ea7a2935ba74f8ef6f6d01174d3fb3ac540704cfb6",
       "storyCount": 41,
       "storyFiles": [
         "src/components/SessionChrome.stories.tsx",
@@ -572,9 +572,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "6a58191272b928023407e0eb66dc3d5553c1fab271f41166a36bff42f88dec2a",
+      "reviewedDigest": "a39b227ab0550f54c4fdd3a811e7ee878ad66e6ed6ba5566b3ccb2b7b72daa73",
       "owner": "webui",
-      "familyDigest": "6a58191272b928023407e0eb66dc3d5553c1fab271f41166a36bff42f88dec2a",
+      "familyDigest": "a39b227ab0550f54c4fdd3a811e7ee878ad66e6ed6ba5566b3ccb2b7b72daa73",
       "storyCount": 46,
       "storyFiles": [
         "src/components/SettingsAppearance.stories.tsx",
@@ -627,9 +627,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "157ef8fe0aceceff96ba26002a14966ddf2a604f7900c07141de80556c8ec4af",
+      "reviewedDigest": "18721988d1da222e825905a006ed1f523268173062d4b66382fb1bad70d085d3",
       "owner": "webui",
-      "familyDigest": "157ef8fe0aceceff96ba26002a14966ddf2a604f7900c07141de80556c8ec4af",
+      "familyDigest": "18721988d1da222e825905a006ed1f523268173062d4b66382fb1bad70d085d3",
       "storyCount": 35,
       "storyFiles": [
         "src/components/SubagentItem.stories.tsx",
@@ -686,9 +686,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "4b7ae757218800778c87e0ef13bd1c791b82947aa00ec145f71f20fecf9fe8de",
+      "reviewedDigest": "84ef07c4a02ee75a0f215eda6f920bd46100e27e47899bc6e3cdb704a841ec5e",
       "owner": "webui",
-      "familyDigest": "4b7ae757218800778c87e0ef13bd1c791b82947aa00ec145f71f20fecf9fe8de",
+      "familyDigest": "84ef07c4a02ee75a0f215eda6f920bd46100e27e47899bc6e3cdb704a841ec5e",
       "storyCount": 39,
       "storyFiles": [
         "src/components/Timeline.stories.tsx",
@@ -747,9 +747,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "debf4ca51a0d5d24c0057e246358d7ee770383f0a57bc9d9135b61656b8d1688",
+      "reviewedDigest": "8ae284bb206524c5452db7b0ab6641307a42f685713caff10167e81404f7ee34",
       "owner": "webui",
-      "familyDigest": "debf4ca51a0d5d24c0057e246358d7ee770383f0a57bc9d9135b61656b8d1688",
+      "familyDigest": "8ae284bb206524c5452db7b0ab6641307a42f685713caff10167e81404f7ee34",
       "storyCount": 5,
       "storyFiles": [
         "src/storybook/cujs/CoreSessionJourneys.stories.tsx"
@@ -780,12 +780,45 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "0408d154efe915648dbd08e27458ab7c5eab3052e3b4166d74ba2f845b4c81f0",
+      "reviewedDigest": "fd4b82971706af41bdf0057456cb033364ac35f0824ca64ac78cc2cc170bb571",
       "owner": "webui",
-      "familyDigest": "0408d154efe915648dbd08e27458ab7c5eab3052e3b4166d74ba2f845b4c81f0",
+      "familyDigest": "fd4b82971706af41bdf0057456cb033364ac35f0824ca64ac78cc2cc170bb571",
       "storyCount": 1,
       "storyFiles": [
         "src/storybook/demos/CoreSessionPlayback.stories.tsx"
+      ],
+      "targetIds": []
+    },
+    {
+      "reviewId": "demos-qa-journeys",
+      "titlePrefix": "Demos/QA Journey Playlists",
+      "axes": [
+        "role-name-state",
+        "keyboard-focus",
+        "pointer-touch",
+        "disabled-busy-error",
+        "live-region",
+        "motion",
+        "contrast-theme",
+        "zoom-overflow"
+      ],
+      "visualVerdict": "INTENTIONAL",
+      "codexParity": "INTENTIONAL",
+      "decision": "Six human-paced playlists turn the user-visible projection of complex real QA into inspectable checkpoints while reusing canonical production Stories and the existing playback transport.",
+      "codexEvidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+      "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+      "reviewedBy": [
+        "visual-design",
+        "interaction-a11y",
+        "contract-evidence"
+      ],
+      "reviewedAt": "2026-07-24",
+      "reviewedDigest": "d85bef4639eb4a0f766dc6a2978ec22592c2c5aac3a1f7b1e6da417b3cd9fe89",
+      "owner": "webui",
+      "familyDigest": "d85bef4639eb4a0f766dc6a2978ec22592c2c5aac3a1f7b1e6da417b3cd9fe89",
+      "storyCount": 6,
+      "storyFiles": [
+        "src/storybook/demos/QaJourneyPlaylists.stories.tsx"
       ],
       "targetIds": []
     },
@@ -813,9 +846,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "516c2349c3615080f13bc8e3f3a17d448a0315286d90ebf3e406a6ca69f818fb",
+      "reviewedDigest": "14a1b69685752d64798d017ebfbcaf01c52e0d8e3a304342c2d408e6f6e4a6fc",
       "owner": "webui",
-      "familyDigest": "516c2349c3615080f13bc8e3f3a17d448a0315286d90ebf3e406a6ca69f818fb",
+      "familyDigest": "14a1b69685752d64798d017ebfbcaf01c52e0d8e3a304342c2d408e6f6e4a6fc",
       "storyCount": 2,
       "storyFiles": [
         "src/storybook/scenarios/ScenarioControls.stories.tsx"
@@ -846,9 +879,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "b51bb7841bd224d1291590d57eeff714e754263aec6eee6e94ca5e33cdd04efe",
+      "reviewedDigest": "5fa1c0c8b6d6a0d8e8e55a0d41d7f8462c86a65d51a29fcb95b0b49be267d4a3",
       "owner": "webui",
-      "familyDigest": "b51bb7841bd224d1291590d57eeff714e754263aec6eee6e94ca5e33cdd04efe",
+      "familyDigest": "5fa1c0c8b6d6a0d8e8e55a0d41d7f8462c86a65d51a29fcb95b0b49be267d4a3",
       "storyCount": 7,
       "storyFiles": [
         "src/ui/ActionPrimitives.stories.tsx"
@@ -883,9 +916,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "ac3342eb03edb467ce8b1e74d39889fc57d906ceec477efa8d27e042bae9efae",
+      "reviewedDigest": "1da540b587222110319788575a9b2cb3b0871314e453a42281cd43e6f17cbb5b",
       "owner": "webui",
-      "familyDigest": "ac3342eb03edb467ce8b1e74d39889fc57d906ceec477efa8d27e042bae9efae",
+      "familyDigest": "1da540b587222110319788575a9b2cb3b0871314e453a42281cd43e6f17cbb5b",
       "storyCount": 10,
       "storyFiles": [
         "src/ui/FocusScope.stories.tsx"
@@ -918,9 +951,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "6b4dd0872dd5ad73be7daf12499bfed71e8ec244e5b4f5fa1f68befa87ffd970",
+      "reviewedDigest": "ca25f65255d81f27c959be4378e0cfbac680780c5ff53287e8621031b9e1a1c9",
       "owner": "webui",
-      "familyDigest": "6b4dd0872dd5ad73be7daf12499bfed71e8ec244e5b4f5fa1f68befa87ffd970",
+      "familyDigest": "ca25f65255d81f27c959be4378e0cfbac680780c5ff53287e8621031b9e1a1c9",
       "storyCount": 11,
       "storyFiles": [
         "src/ui/LifecycleStatus.stories.tsx",
@@ -956,9 +989,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "cef0aa5e68baad16656794ce54d2773d553422fdaad25b07cbbca1f528db1e4c",
+      "reviewedDigest": "fceb8b65a9fff562974b35253a14d9c0dbf2c61cd805a9c00b574cc09161feb5",
       "owner": "webui",
-      "familyDigest": "cef0aa5e68baad16656794ce54d2773d553422fdaad25b07cbbca1f528db1e4c",
+      "familyDigest": "fceb8b65a9fff562974b35253a14d9c0dbf2c61cd805a9c00b574cc09161feb5",
       "storyCount": 5,
       "storyFiles": [
         "src/ui/FieldPrimitives.stories.tsx"
@@ -995,9 +1028,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "b1ccbffc2503dbdc9c0d0aaf53a87238ebd980ffff1b3d0ac558d7b4d4b6aebb",
+      "reviewedDigest": "e8e8a99c796663863d4d950b6ad737bd76f562c20667e1ce1fd030da3f193940",
       "owner": "webui",
-      "familyDigest": "b1ccbffc2503dbdc9c0d0aaf53a87238ebd980ffff1b3d0ac558d7b4d4b6aebb",
+      "familyDigest": "e8e8a99c796663863d4d950b6ad737bd76f562c20667e1ce1fd030da3f193940",
       "storyCount": 2,
       "storyFiles": [
         "src/app/AppRuntime.stories.tsx"
@@ -1030,9 +1063,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "5594e6a20b0bbc9099878a602a5e3d3e7ca6632d22527cc9b0e6047f062dbb4d",
+      "reviewedDigest": "b87284f999d31ff58b9f888bb5dccad63309cdeb5fa431ec985f0ee0cffff6bc",
       "owner": "webui",
-      "familyDigest": "5594e6a20b0bbc9099878a602a5e3d3e7ca6632d22527cc9b0e6047f062dbb4d",
+      "familyDigest": "b87284f999d31ff58b9f888bb5dccad63309cdeb5fa431ec985f0ee0cffff6bc",
       "storyCount": 2,
       "storyFiles": [
         "src/App.stories.tsx"
@@ -1065,9 +1098,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "371c39386f4cfe2b53fa813ca15f71999cc2d05d9cff6380d0325a1655354fe1",
+      "reviewedDigest": "6a2d5d6034f294c8ac294fbe07e96202ebbb9d47e9752b1f91ebf87bf3fc51b0",
       "owner": "webui",
-      "familyDigest": "371c39386f4cfe2b53fa813ca15f71999cc2d05d9cff6380d0325a1655354fe1",
+      "familyDigest": "6a2d5d6034f294c8ac294fbe07e96202ebbb9d47e9752b1f91ebf87bf3fc51b0",
       "storyCount": 5,
       "storyFiles": [
         "src/components/Home.stories.tsx"
@@ -1100,9 +1133,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "6b94c5916ed96d78943eb6ce8f87aff7baf88a45751d86b90f7c5548f0539476",
+      "reviewedDigest": "ebd511a5cf4f8685a38ce57e21d62a21f82565bb54dfc136714c3dbbd2bbcad8",
       "owner": "webui",
-      "familyDigest": "6b94c5916ed96d78943eb6ce8f87aff7baf88a45751d86b90f7c5548f0539476",
+      "familyDigest": "ebd511a5cf4f8685a38ce57e21d62a21f82565bb54dfc136714c3dbbd2bbcad8",
       "storyCount": 4,
       "storyFiles": [
         "src/pages/PageHost.stories.tsx"
@@ -1135,9 +1168,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "1930bd70761fb70a983394a71411dcf437630e9cca11abcd31b12fad31d73ed7",
+      "reviewedDigest": "c9825b29d6f2a70c95a85356a9521a17329b35217a794a3503c8bb53b92e903b",
       "owner": "webui",
-      "familyDigest": "1930bd70761fb70a983394a71411dcf437630e9cca11abcd31b12fad31d73ed7",
+      "familyDigest": "c9825b29d6f2a70c95a85356a9521a17329b35217a794a3503c8bb53b92e903b",
       "storyCount": 16,
       "storyFiles": [
         "src/components/Scheduled.stories.tsx"
@@ -1172,9 +1205,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "1a1742ff6c9da4d5ba155c8b12df882ba6211df9b1f6c19b0567dd9e6e792ed3",
+      "reviewedDigest": "9ad7b2cd2a7d66dc029d1939e0f8bfc958c4cd78263e1d3f51c38b0292a0ab5e",
       "owner": "webui",
-      "familyDigest": "1a1742ff6c9da4d5ba155c8b12df882ba6211df9b1f6c19b0567dd9e6e792ed3",
+      "familyDigest": "9ad7b2cd2a7d66dc029d1939e0f8bfc958c4cd78263e1d3f51c38b0292a0ab5e",
       "storyCount": 4,
       "storyFiles": [
         "src/components/Settings.stories.tsx"
@@ -2671,6 +2704,24 @@
       ],
       "reviewIds": [
         "demos-core-session"
+      ],
+      "targetIds": []
+    },
+    {
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "titles": [
+        "Demos/QA Journey Playlists"
+      ],
+      "storyIds": [
+        "demos-qa-journey-playlists--attention-and-permissions",
+        "demos-qa-journey-playlists--changes-and-artifacts",
+        "demos-qa-journey-playlists--goals-agents-and-supervision",
+        "demos-qa-journey-playlists--navigation-and-recovery",
+        "demos-qa-journey-playlists--scheduled-work",
+        "demos-qa-journey-playlists--session-and-delivery"
+      ],
+      "reviewIds": [
+        "demos-qa-journeys"
       ],
       "targetIds": []
     },
@@ -34565,6 +34616,354 @@
       "codex": {
         "verdict": "INTENTIONAL",
         "evidence": "Codex has no equivalent public Storybook playback surface; direct harness parity is intentionally out of scope.",
+        "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
+      },
+      "viewportTheme": {
+        "status": "REVIEWED",
+        "pairedAssertions": [],
+        "evidence": "Canonical Story plus toolbar/global review; no extra Phone/Dark Story copy and no Codex PASS inferred."
+      }
+    },
+    {
+      "storyId": "demos-qa-journey-playlists--attention-and-permissions",
+      "title": "Demos/QA Journey Playlists",
+      "name": "Attention And Permissions",
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "kind": "demo",
+      "tags": [
+        "dev",
+        "manifest",
+        "play-fn",
+        "test"
+      ],
+      "targetRefs": [],
+      "semanticRefs": [],
+      "pairRefs": [],
+      "workbenchRef": {
+        "kind": "demo",
+        "evidence": "Simplifies approval, denial, structured ask, free-text answer, and busy feedback QA into one controlled visual playlist.",
+        "owner": "webui"
+      },
+      "review": {
+        "status": "REVIEWED",
+        "reviewId": "demos-qa-journeys",
+        "axes": [
+          "role-name-state",
+          "keyboard-focus",
+          "pointer-touch",
+          "disabled-busy-error",
+          "live-region",
+          "motion",
+          "contrast-theme",
+          "zoom-overflow"
+        ],
+        "visualVerdict": "INTENTIONAL",
+        "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+        "reviewedBy": [
+          "visual-design",
+          "interaction-a11y",
+          "contract-evidence"
+        ],
+        "reviewedAt": "2026-07-24"
+      },
+      "interactionA11y": {
+        "status": "REVIEWED",
+        "mode": "PLAY_AND_REVIEW",
+        "evidence": "Built index play-fn plus family interaction/a11y review; final gate result is recorded in QA-92."
+      },
+      "codex": {
+        "verdict": "INTENTIONAL",
+        "evidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+        "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
+      },
+      "viewportTheme": {
+        "status": "REVIEWED",
+        "pairedAssertions": [],
+        "evidence": "Canonical Story plus toolbar/global review; no extra Phone/Dark Story copy and no Codex PASS inferred."
+      }
+    },
+    {
+      "storyId": "demos-qa-journey-playlists--changes-and-artifacts",
+      "title": "Demos/QA Journey Playlists",
+      "name": "Changes And Artifacts",
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "kind": "demo",
+      "tags": [
+        "dev",
+        "manifest",
+        "play-fn",
+        "test"
+      ],
+      "targetRefs": [],
+      "semanticRefs": [],
+      "pairRefs": [],
+      "workbenchRef": {
+        "kind": "demo",
+        "evidence": "Simplifies outcome, diff, scope, commit, conflict, image, and retry QA into one controlled visual playlist.",
+        "owner": "webui"
+      },
+      "review": {
+        "status": "REVIEWED",
+        "reviewId": "demos-qa-journeys",
+        "axes": [
+          "role-name-state",
+          "keyboard-focus",
+          "pointer-touch",
+          "disabled-busy-error",
+          "live-region",
+          "motion",
+          "contrast-theme",
+          "zoom-overflow"
+        ],
+        "visualVerdict": "INTENTIONAL",
+        "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+        "reviewedBy": [
+          "visual-design",
+          "interaction-a11y",
+          "contract-evidence"
+        ],
+        "reviewedAt": "2026-07-24"
+      },
+      "interactionA11y": {
+        "status": "REVIEWED",
+        "mode": "PLAY_AND_REVIEW",
+        "evidence": "Built index play-fn plus family interaction/a11y review; final gate result is recorded in QA-92."
+      },
+      "codex": {
+        "verdict": "INTENTIONAL",
+        "evidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+        "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
+      },
+      "viewportTheme": {
+        "status": "REVIEWED",
+        "pairedAssertions": [],
+        "evidence": "Canonical Story plus toolbar/global review; no extra Phone/Dark Story copy and no Codex PASS inferred."
+      }
+    },
+    {
+      "storyId": "demos-qa-journey-playlists--goals-agents-and-supervision",
+      "title": "Demos/QA Journey Playlists",
+      "name": "Goals Agents And Supervision",
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "kind": "demo",
+      "tags": [
+        "dev",
+        "manifest",
+        "play-fn",
+        "test"
+      ],
+      "targetRefs": [],
+      "semanticRefs": [],
+      "pairRefs": [],
+      "workbenchRef": {
+        "kind": "demo",
+        "evidence": "Simplifies goal lifecycle, child-agent navigation, supervision attention, and artifacts QA into one controlled visual playlist.",
+        "owner": "webui"
+      },
+      "review": {
+        "status": "REVIEWED",
+        "reviewId": "demos-qa-journeys",
+        "axes": [
+          "role-name-state",
+          "keyboard-focus",
+          "pointer-touch",
+          "disabled-busy-error",
+          "live-region",
+          "motion",
+          "contrast-theme",
+          "zoom-overflow"
+        ],
+        "visualVerdict": "INTENTIONAL",
+        "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+        "reviewedBy": [
+          "visual-design",
+          "interaction-a11y",
+          "contract-evidence"
+        ],
+        "reviewedAt": "2026-07-24"
+      },
+      "interactionA11y": {
+        "status": "REVIEWED",
+        "mode": "PLAY_AND_REVIEW",
+        "evidence": "Built index play-fn plus family interaction/a11y review; final gate result is recorded in QA-92."
+      },
+      "codex": {
+        "verdict": "INTENTIONAL",
+        "evidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+        "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
+      },
+      "viewportTheme": {
+        "status": "REVIEWED",
+        "pairedAssertions": [],
+        "evidence": "Canonical Story plus toolbar/global review; no extra Phone/Dark Story copy and no Codex PASS inferred."
+      }
+    },
+    {
+      "storyId": "demos-qa-journey-playlists--navigation-and-recovery",
+      "title": "Demos/QA Journey Playlists",
+      "name": "Navigation And Recovery",
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "kind": "demo",
+      "tags": [
+        "dev",
+        "manifest",
+        "play-fn",
+        "test"
+      ],
+      "targetRefs": [],
+      "semanticRefs": [],
+      "pairRefs": [],
+      "workbenchRef": {
+        "kind": "demo",
+        "evidence": "Simplifies sidebar navigation, project recovery, search, daemon recovery, missing-route, and Settings QA into one controlled visual playlist.",
+        "owner": "webui"
+      },
+      "review": {
+        "status": "REVIEWED",
+        "reviewId": "demos-qa-journeys",
+        "axes": [
+          "role-name-state",
+          "keyboard-focus",
+          "pointer-touch",
+          "disabled-busy-error",
+          "live-region",
+          "motion",
+          "contrast-theme",
+          "zoom-overflow"
+        ],
+        "visualVerdict": "INTENTIONAL",
+        "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+        "reviewedBy": [
+          "visual-design",
+          "interaction-a11y",
+          "contract-evidence"
+        ],
+        "reviewedAt": "2026-07-24"
+      },
+      "interactionA11y": {
+        "status": "REVIEWED",
+        "mode": "PLAY_AND_REVIEW",
+        "evidence": "Built index play-fn plus family interaction/a11y review; final gate result is recorded in QA-92."
+      },
+      "codex": {
+        "verdict": "INTENTIONAL",
+        "evidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+        "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
+      },
+      "viewportTheme": {
+        "status": "REVIEWED",
+        "pairedAssertions": [],
+        "evidence": "Canonical Story plus toolbar/global review; no extra Phone/Dark Story copy and no Codex PASS inferred."
+      }
+    },
+    {
+      "storyId": "demos-qa-journey-playlists--scheduled-work",
+      "title": "Demos/QA Journey Playlists",
+      "name": "Scheduled Work",
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "kind": "demo",
+      "tags": [
+        "dev",
+        "manifest",
+        "play-fn",
+        "test"
+      ],
+      "targetRefs": [],
+      "semanticRefs": [],
+      "pairRefs": [],
+      "workbenchRef": {
+        "kind": "demo",
+        "evidence": "Simplifies scheduled list/detail, pause/resume, editing, conflict, and recovery QA into one controlled visual playlist.",
+        "owner": "webui"
+      },
+      "review": {
+        "status": "REVIEWED",
+        "reviewId": "demos-qa-journeys",
+        "axes": [
+          "role-name-state",
+          "keyboard-focus",
+          "pointer-touch",
+          "disabled-busy-error",
+          "live-region",
+          "motion",
+          "contrast-theme",
+          "zoom-overflow"
+        ],
+        "visualVerdict": "INTENTIONAL",
+        "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+        "reviewedBy": [
+          "visual-design",
+          "interaction-a11y",
+          "contract-evidence"
+        ],
+        "reviewedAt": "2026-07-24"
+      },
+      "interactionA11y": {
+        "status": "REVIEWED",
+        "mode": "PLAY_AND_REVIEW",
+        "evidence": "Built index play-fn plus family interaction/a11y review; final gate result is recorded in QA-92."
+      },
+      "codex": {
+        "verdict": "INTENTIONAL",
+        "evidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+        "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
+      },
+      "viewportTheme": {
+        "status": "REVIEWED",
+        "pairedAssertions": [],
+        "evidence": "Canonical Story plus toolbar/global review; no extra Phone/Dark Story copy and no Codex PASS inferred."
+      }
+    },
+    {
+      "storyId": "demos-qa-journey-playlists--session-and-delivery",
+      "title": "Demos/QA Journey Playlists",
+      "name": "Session And Delivery",
+      "source": "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+      "kind": "demo",
+      "tags": [
+        "dev",
+        "manifest",
+        "play-fn",
+        "test"
+      ],
+      "targetRefs": [],
+      "semanticRefs": [],
+      "pairRefs": [],
+      "workbenchRef": {
+        "kind": "demo",
+        "evidence": "Simplifies real QA for Home configuration, context selection, queue, steer, stop, and attachment-backed follow-ups into one controlled visual playlist.",
+        "owner": "webui"
+      },
+      "review": {
+        "status": "REVIEWED",
+        "reviewId": "demos-qa-journeys",
+        "axes": [
+          "role-name-state",
+          "keyboard-focus",
+          "pointer-touch",
+          "disabled-busy-error",
+          "live-region",
+          "motion",
+          "contrast-theme",
+          "zoom-overflow"
+        ],
+        "visualVerdict": "INTENTIONAL",
+        "agentEvidence": "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+        "reviewedBy": [
+          "visual-design",
+          "interaction-a11y",
+          "contract-evidence"
+        ],
+        "reviewedAt": "2026-07-24"
+      },
+      "interactionA11y": {
+        "status": "REVIEWED",
+        "mode": "PLAY_AND_REVIEW",
+        "evidence": "Built index play-fn plus family interaction/a11y review; final gate result is recorded in QA-92."
+      },
+      "codex": {
+        "verdict": "INTENTIONAL",
+        "evidence": "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
         "reason": "No family-wide PASS is inferred from inventory or a one-sided screenshot."
       },
       "viewportTheme": {

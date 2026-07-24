@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("Spinner honors the reduced-motion preference", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(
-    "/iframe.html?id=foundations-feedback-status-and-loading--spinner-reduced-motion&viewMode=story",
+    "/iframe.html?id=foundations-feedback-status-and-loading--spinner-reduced-motion&viewMode=story&globals=playbackPace:instant",
     { waitUntil: "networkidle" },
   );
 

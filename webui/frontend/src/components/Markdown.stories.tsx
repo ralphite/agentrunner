@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import {
   CodeBlock as CodeBlockView,

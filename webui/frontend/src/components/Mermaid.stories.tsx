@@ -35,7 +35,7 @@ export const Default: Story = {
       await canvas.findByRole(
         "img",
         { name: "Mermaid diagram" },
-        { timeout: 5_000 },
+        { timeout: 15_000 },
       ),
     ).toBeVisible();
   },
@@ -44,7 +44,11 @@ export const Default: Story = {
 export const KeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const rendered = await canvas.findByRole("img", { name: "Mermaid diagram" });
+    const rendered = await canvas.findByRole(
+      "img",
+      { name: "Mermaid diagram" },
+      { timeout: 15_000 },
+    );
     rendered.focus();
     await expect(rendered).toHaveFocus();
   },

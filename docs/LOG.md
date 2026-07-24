@@ -7892,8 +7892,6 @@ TestGoalAttachDedupsOpeningPrompt / TestGoalVerifyPlanModeShortCircuit；
 no-skeleton/single-flight。残留小项（不阻塞）：goal 已终结后轮询延迟窗
 内 banner pause 点击得 no_op 无 toast 反馈；GoalLoopLauncher 的 goal
 分支已被 composer Goal chip 形态取代成死路径待清理——记 GAPS。
-
-
 **INC-102.5 对抗 review 与修复(2026-07-24,独立 agent 三视角,用户点名)**:
 裁决「骨架站得住,控制面不站得住」——P0-1 loop 行 "Cancel series…" 走 `ar
 stop`(不摘 schedule,下条消息复活,destructive 撒谎);P1-1 attach argv 缺
@@ -7903,7 +7901,7 @@ stop`(不摘 schedule,下条消息复活,destructive 撒谎);P1-1 attach argv �
 修复**:cancel 分流 `ar schedule cancel`(行模型加 conversation 判别,文案
 "Stop loop…/对话保留");attach 补 `--`+dash 单测;行投 paused、detail
 ScheduleControl=true(翻转原锚,测试同改)+NextRunAt;两处投影加 closed 门;
-DESIGN #21 措辞收窄 + GAPS **G58** 登记新建入口余项;P2 修 launcher 取整与
+DESIGN #21 措辞收窄 + GAPS **G59** 登记新建入口余项;P2 修 launcher 取整与
 rounds=1 反馈,其余 P2(cadence 双方言/detail 差一/model 空投/attach 静默替换/
 buildLoopDriver 死代码)记档待理。review 亦证伪:argv 注入不成立(exec 直传、
 flag 面收敛)、scheduleNextWake 追赶实测 778 万次迭代 0.07s、投影白名单与
@@ -7969,3 +7967,35 @@ driver YAML 逃生门未动（对 interval/cron 分支不再被读取，但按�
 **记档**：GAPS 条目改号 G58→G59 并标 ✅ 已关闭（原文保留改号说明）；
 `docs/DESIGN.md` 决策 #21 的措辞此前已在 INC-102 收窄到位，本次无需
 再改。
+
+---
+
+## 2026-07-24 · INC-103 Storybook 真实人类节奏与复杂 QA Demo
+
+先在共享 production/browser 复跑 retained Session、Environment、Changes、
+Scheduled、Settings，再改变 Storybook。根因确认不是单个 Demo timing，而是 56 个
+Story 文件直接调用 raw `userEvent`，且旧 `humanPause` 把
+`navigator.webdriver` 错当成“用户要求快进”，因此绝大多数中间态在自动控制的真实
+浏览器中瞬间越过。
+
+现由 `pacedUserEvent` 统一接管全部直接交互 API 与 `setup()` 实例；默认 human
+为每动作 1.6s + typing 48ms/字符，组合键/逐键输入为
+180ms/键，automation 只能显式选 400ms/instant。lint 同时阻止 raw import、
+alias/namespace/re-export/dynamic import/require 回流，现有 56 个文件全部迁移；
+visual URL 显式 instant，不再污染人工默认。真实 in-app browser 采样证明 deny flow
+在 2.9s 仍只输入部分文字，5.1s 才完成。
+
+新增六条 QA playlist，把复杂 QA 的可视投影拆为 Session & Delivery、
+Attention & Permissions、Goals/Agents/Supervision、Scheduled Work、
+Changes & Artifacts、Navigation & Recovery；共复用 39 个 canonical Story
+checkpoint，每步显示 QA refs 与观察重点，继续使用同一 Scenario transport。六组在
+当前源码 Storybook 逐个 Ready、无 story error；preview terminal-result handshake
+配合 frame revision 不再把 iframe load 或旧 frame 误报成功，失败可 Retry。
+六组 Play/Pause/Next/Reset/Replay/
+Autoplay/2× 全部真浏览器通过，transport 与 checkpoint 的 step/总数始终一致；
+六个 Demo 自身纳入 interaction gate，checkpoint 断言限定到唯一 region。Scheduled
+detail 不再在 play 中自动 Pause，选中行 Running、详情 Active、动作 Pause 保持一致。
+全量门禁同时暴露四个旧文案断言漂移和一个 320px running composer 溢出，
+前者按现行产品 copy 校正，后者用两行稳定 grid 收住所有 44px action，定向 60/60
+Story interaction 转绿。QA-94 有效截图与 shared data 全保留，空白 manager 校准图
+拒收并移出证据目录。

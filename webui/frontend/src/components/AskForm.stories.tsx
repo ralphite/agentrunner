@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import { AskForm } from "./AskForm";
 
 const questions = [

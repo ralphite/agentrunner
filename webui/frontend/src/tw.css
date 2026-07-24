@@ -853,6 +853,19 @@
        semantic groups when running/goal controls need more room, so deleting
        this critical setting is no longer the fallback that protects Send. */
     .cx-session .cx-model { @apply max-w-[104px]; }
+    /* A running draft can expose model + optimize + dictation + delivery +
+       send at once. Keep every 44px target inside the card by giving the
+       trailing group two stable rows instead of centering an over-wide flex
+       line beyond both card edges. */
+    .cx-session .cx-bar-trailing {
+      @apply ml-auto grid w-[196px] max-w-full shrink-0 grid-cols-[minmax(80px,104px)_44px_44px] gap-x-1 gap-y-1;
+    }
+    .cx-session .cx-delivery {
+      @apply col-span-2 row-start-2 justify-self-end;
+    }
+    .cx-session .cx-send {
+      @apply col-start-3 row-start-2;
+    }
   }
   .turn-sep { @apply my-[22px] h-px bg-line; }
   .msg { @apply relative flex gap-3 py-2; }

@@ -595,6 +595,49 @@ export const workbenchStories = [
       "Production AppRuntime/AppShell journey from Home project and Build intent through configuration, send, deterministic streaming, Environment, completion, Changes, Review, and return to the session; in-canvas transport covers Play/Pause/Next/Replay/Reset/speed/autoplay.",
     owner: "webui",
   },
+  ...[
+    {
+      storyId:
+        "demos-qa-journey-playlists--session-and-delivery",
+      evidence:
+        "Simplifies real QA for Home configuration, context selection, queue, steer, stop, and attachment-backed follow-ups into one controlled visual playlist.",
+    },
+    {
+      storyId:
+        "demos-qa-journey-playlists--attention-and-permissions",
+      evidence:
+        "Simplifies approval, denial, structured ask, free-text answer, and busy feedback QA into one controlled visual playlist.",
+    },
+    {
+      storyId:
+        "demos-qa-journey-playlists--goals-agents-and-supervision",
+      evidence:
+        "Simplifies goal lifecycle, child-agent navigation, supervision attention, and artifacts QA into one controlled visual playlist.",
+    },
+    {
+      storyId: "demos-qa-journey-playlists--scheduled-work",
+      evidence:
+        "Simplifies scheduled list/detail, pause/resume, editing, conflict, and recovery QA into one controlled visual playlist.",
+    },
+    {
+      storyId:
+        "demos-qa-journey-playlists--changes-and-artifacts",
+      evidence:
+        "Simplifies outcome, diff, scope, commit, conflict, image, and retry QA into one controlled visual playlist.",
+    },
+    {
+      storyId:
+        "demos-qa-journey-playlists--navigation-and-recovery",
+      evidence:
+        "Simplifies sidebar navigation, project recovery, search, daemon recovery, missing-route, and Settings QA into one controlled visual playlist.",
+    },
+  ].map(({ storyId, evidence }) => ({
+    storyId,
+    source: "src/storybook/demos/QaJourneyPlaylists.stories.tsx",
+    kind: "demo" as const,
+    evidence,
+    owner: "webui",
+  })),
 ] satisfies readonly WorkbenchStory[];
 
 // High-risk global dimensions reuse canonical Stories through globals and
@@ -671,61 +714,63 @@ const ALL_STORY_REVIEW_AXES = [
 // digest edit.
 const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-attention":
-    "fa1df71c0e60024c30eb50e20f27a0658fff8e5033bc29dbf94cfed9880e6e32",
+    "919fe93928cda42c712b7d65309a99608bf78c6b5e82ba6dbc5a7005df420aa9",
   "components-changes":
-    "7026651b1695cc657a10f2da70196b3972bad3983f8b5a5e32d31d793ffafab2",
+    "b9e183cce55542e14eb4c12582c742f0670c3ea2892c2d26f391b144c5bf207e",
   "components-content":
-    "7352ac54db99658a351fa0eb429e75607df341a45a36cbcbb9800ee8d6b1da21",
+    "4fc21626e1d59ce12978a43cb38e097cbb6be266cba1156b40dcbf9817a3f5c1",
   "components-feedback":
-    "07b1f9d1bf219f21abe02a2a79810e460e92cde6645a655305881dea60bc923e",
+    "3313513ec777be0de8ae06cfccf2c9c7c72f97336cc0e21e12fdab22261bce98",
   "components-home":
-    "4c75e9f513c44143eebaec6de335834de9751880589ca119631f4da909a6daa9",
+    "cc7ab029e4933dfd3ee1230ab7d3a58286a5467b8c41dc14aafad57cab43006b",
   "components-input":
-    "20a4f4718c69ab0fbee2e4ea2b8c6db583262f66b39cf1fc0521148a2cdf3ebf",
+    "8b6d63cfcb369d39de4fa647d9848667ab01e1c1124f71b664ad5f153cc89c50",
   "components-media":
-    "69efb6f282f1af3611610df4da075a2275a55f518fa4d6be9157eeefb0f44248",
+    "cdc58c3fd3abb02d2c77d2a0208f489fba1fcd60f28b642526495d5c571b615e",
   "components-navigation":
-    "9dc52c966489c7cf5446205d946001451752915a1a30ba701a76176922c0c5d8",
+    "33d7b5842fb8263744864625616d68d84e5121067d4223983585ac203707a7a0",
   "components-overlays":
-    "b50d4d1cda3b4fe9deda3c2d12ab72f27c26d9c4c605003cb51c86a294158a41",
+    "4f0b0b875baea74ca89db5f1aa64aaacc33c26450bca7f92e448b87548bd7a0e",
   "components-runs":
-    "1c25a30b4c2826b22ee6aee34ba5ba39aa5e35a8c67cfb0a24f19c0adc2d233a",
+    "148cfd980a0c1a371d52c2df5e1e70b495d0a5f6571b9678bf1f1b510400d346",
   "components-scheduled":
-    "9210fa5911155202d2ab31dc57af9bc9e1caa637b22becf403ed8560f75e52a4",
+    "1e1954ab8236a961f2b9a035a032824cf7545dd1fd0768c980487884f5e17bde",
   "components-sessions":
-    "157f535c68e3b191d965c65f45999fb3d7ef0de083988b9e15fc280a90785429",
+    "0c99df4ceb74179472ab37ea7a2935ba74f8ef6f6d01174d3fb3ac540704cfb6",
   "components-settings":
-    "6a58191272b928023407e0eb66dc3d5553c1fab271f41166a36bff42f88dec2a",
+    "a39b227ab0550f54c4fdd3a811e7ee878ad66e6ed6ba5566b3ccb2b7b72daa73",
   "components-supervision":
-    "157ef8fe0aceceff96ba26002a14966ddf2a604f7900c07141de80556c8ec4af",
+    "18721988d1da222e825905a006ed1f523268173062d4b66382fb1bad70d085d3",
   "components-timeline":
-    "4b7ae757218800778c87e0ef13bd1c791b82947aa00ec145f71f20fecf9fe8de",
+    "84ef07c4a02ee75a0f215eda6f920bd46100e27e47899bc6e3cdb704a841ec5e",
   "cujs-core-session":
-    "debf4ca51a0d5d24c0057e246358d7ee770383f0a57bc9d9135b61656b8d1688",
+    "8ae284bb206524c5452db7b0ab6641307a42f685713caff10167e81404f7ee34",
   "demos-core-session":
-    "0408d154efe915648dbd08e27458ab7c5eab3052e3b4166d74ba2f845b4c81f0",
+    "fd4b82971706af41bdf0057456cb033364ac35f0824ca64ac78cc2cc170bb571",
+  "demos-qa-journeys":
+    "d85bef4639eb4a0f766dc6a2978ec22592c2c5aac3a1f7b1e6da417b3cd9fe89",
   "demos-scenario-controls":
-    "516c2349c3615080f13bc8e3f3a17d448a0315286d90ebf3e406a6ca69f818fb",
+    "14a1b69685752d64798d017ebfbcaf01c52e0d8e3a304342c2d408e6f6e4a6fc",
   "foundations-actions":
-    "b51bb7841bd224d1291590d57eeff714e754263aec6eee6e94ca5e33cdd04efe",
+    "5fa1c0c8b6d6a0d8e8e55a0d41d7f8462c86a65d51a29fcb95b0b49be267d4a3",
   "foundations-behavior":
-    "ac3342eb03edb467ce8b1e74d39889fc57d906ceec477efa8d27e042bae9efae",
+    "1da540b587222110319788575a9b2cb3b0871314e453a42281cd43e6f17cbb5b",
   "foundations-feedback":
-    "6b4dd0872dd5ad73be7daf12499bfed71e8ec244e5b4f5fa1f68befa87ffd970",
+    "ca25f65255d81f27c959be4378e0cfbac680780c5ff53287e8621031b9e1a1c9",
   "foundations-forms":
-    "cef0aa5e68baad16656794ce54d2773d553422fdaad25b07cbbca1f528db1e4c",
+    "fceb8b65a9fff562974b35253a14d9c0dbf2c61cd805a9c00b574cc09161feb5",
   "pages-appruntime":
-    "b1ccbffc2503dbdc9c0d0aaf53a87238ebd980ffff1b3d0ac558d7b4d4b6aebb",
+    "e8e8a99c796663863d4d950b6ad737bd76f562c20667e1ce1fd030da3f193940",
   "pages-appshell":
-    "5594e6a20b0bbc9099878a602a5e3d3e7ca6632d22527cc9b0e6047f062dbb4d",
+    "b87284f999d31ff58b9f888bb5dccad63309cdeb5fa431ec985f0ee0cffff6bc",
   "pages-home":
-    "371c39386f4cfe2b53fa813ca15f71999cc2d05d9cff6380d0325a1655354fe1",
+    "6a2d5d6034f294c8ac294fbe07e96202ebbb9d47e9752b1f91ebf87bf3fc51b0",
   "pages-pagehost":
-    "6b94c5916ed96d78943eb6ce8f87aff7baf88a45751d86b90f7c5548f0539476",
+    "ebd511a5cf4f8685a38ce57e21d62a21f82565bb54dfc136714c3dbbd2bbcad8",
   "pages-scheduled":
-    "1930bd70761fb70a983394a71411dcf437630e9cca11abcd31b12fad31d73ed7",
+    "c9825b29d6f2a70c95a85356a9521a17329b35217a794a3503c8bb53b92e903b",
   "pages-settings":
-    "1a1742ff6c9da4d5ba155c8b12df882ba6211df9b1f6c19b0567dd9e6e792ed3",
+    "9ad7b2cd2a7d66dc029d1939e0f8bfc958c4cd78263e1d3f51c38b0292a0ab5e",
 };
 
 function reviewedFamily(
@@ -1009,6 +1054,16 @@ export const storyReviewFamilies = [
     "The human-paced playback is a deterministic reviewer tool over production components; transport controls are intentionally workbench-only.",
     "Codex has no equivalent public Storybook playback surface; direct harness parity is intentionally out of scope.",
     "Core Session Playback Story and 19-step production-component journey.",
+  ),
+  reviewedFamily(
+    "demos-qa-journeys",
+    "Demos/QA Journey Playlists",
+    "INTENTIONAL",
+    "INTENTIONAL",
+    "Six human-paced playlists turn the user-visible projection of complex real QA into inspectable checkpoints while reusing canonical production Stories and the existing playback transport.",
+    "Codex has no equivalent public QA playlist surface; direct harness parity is intentionally out of scope.",
+    "QA-94 browser evidence, exact QA refs in every checkpoint, canonical Story reuse, and ScenarioRunner control coverage.",
+    "2026-07-24",
   ),
   reviewedFamily(
     "demos-scenario-controls",

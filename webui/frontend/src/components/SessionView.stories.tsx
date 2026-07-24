@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse, http } from "msw";
 import { useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";

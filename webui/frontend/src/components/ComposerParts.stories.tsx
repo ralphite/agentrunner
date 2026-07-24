@@ -1,8 +1,13 @@
 import { useMemo, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
 import { createStoryApiHandlers } from "../storybook/handlers";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import { SLASH } from "./slash";
 import {
   AccessPicker,

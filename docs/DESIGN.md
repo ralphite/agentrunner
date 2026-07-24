@@ -1810,7 +1810,7 @@ resume 永不重读 live default。
 | 18 | Event schema 版本化（INC-11.7 修订） | `SessionStarted`/snapshot 记录 namespaced sub-state 版本；additive-optional 字段与旧 namespace 子集由兼容 reader 接受，旧 snapshot 缺新投影则只丢缓存、从 journal 全量 fold；共享 namespace 真正版本冲突/未知 namespace 明确拒绝且不改原数据。破坏性升级只走 EventStore 单点显式 upcast/migration。 | 长期 session 可跨 additive 升级恢复，同时避免错误 tail replay 丢掉新投影的历史事实。 |
 | 19 | 信任模型 | 可执行配置（hooks、command tools——见 §10，INC-55）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。command tool 是同族新成员（运行命令、吃模型控制 stdin），落在执行侧，与 hooks 同门；memory 只进 prompt 是文本侧对照。 |
 | 20 | 树级约束（INC-12.5 修订，2026-07-09） | 权限 rules 默认在 spawn 时冻结交集下传；唯一放宽路径是 child 显式 `escalate`，经 `ApprovalRequested` 由人批准后改用 child 声明 rules。拒绝/interrupt 降级为交集。预算 = min(child 限额, parent 剩余)、深度/扇出、工具子集与 OS 收容棘轮均无例外 | 用户明确批准可控的权限例外，同时保持树总成本与硬安全边界有界。 |
-| 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日；INC-48 llm_judge 兑现，2026-07-10；INC-102 loop 会话化，2026-07-24） | **best-of-N（`parallel{n}`）与 one-shot 是 `IterationDriver` 的 schedule**，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）——**driver 收窄为并行选优/批式专用（INC-102）：fresh-child 的隔离只对 best-of-N 是刚需，对连续迭代构造上丢对话 context**。**loop 的用户默认形态 = in-session schedule**（INC-74：standing prompt 每 tick 以 program input 注入同一 fold 跑普通 turn、context 延续、composer 可用可插话；webui `/loop` 即此形态。批式 loop/driver-goal 降为 legacy 兼容——旧 journal 照常投影;composer `/loop` 已不再造 driver,**Scheduled 页的 Repeating 新建/suggestions 仍走 legacy driver,余项 GAPS G58 待收编**）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：**有 command verifier 时 command 是唯一裁决者**（每边界跑，claim 仅注记）；**否则有 llm_judge verifier 时 judge 是唯一裁决者，但仅在 `goal_complete` 声明待决时调用**（claim-gated：无声明 = miss 续跑，不调 judge、零 LLM 花费）；**都没有时由模型 `goal_complete` 声明边界接受**（self-cert；mid-turn 记 journal、边界才裁决）。llm_judge 是 budget-gated 的 journaled `llm_call` 管线 effect（Activity-bracketed；crash 后复用 journaled verdict 不重判——同 command verifier 的幂等窗，但走独立 verdict 解析）。judge 二态 pass/fail（blocked 终态列余项，避免 judge 获得单方终结权这一更强授权）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）。llm_judge 兑现（INC-48，契约 review 2026-07-11 修订后放行）：写不成命令的长程目标原先只能落到 self-cert（无条件接受声明），补齐决策自己命名的第三态是**兑现**而非违反——"唯一裁决者"枚举从 command 扩为 command｜llm_judge；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
+| 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日；INC-48 llm_judge 兑现，2026-07-10；INC-102 loop 会话化，2026-07-24） | **best-of-N（`parallel{n}`）与 one-shot 是 `IterationDriver` 的 schedule**，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）——**driver 收窄为并行选优/批式专用（INC-102）：fresh-child 的隔离只对 best-of-N 是刚需，对连续迭代构造上丢对话 context**。**loop 的用户默认形态 = in-session schedule**（INC-74：standing prompt 每 tick 以 program input 注入同一 fold 跑普通 turn、context 延续、composer 可用可插话；webui `/loop` 即此形态。批式 loop/driver-goal 降为 legacy 兼容——旧 journal 照常投影;composer `/loop` 已不再造 driver,**Scheduled 页的 Repeating 新建/suggestions 仍走 legacy driver,余项 GAPS G59 待收编**）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：**有 command verifier 时 command 是唯一裁决者**（每边界跑，claim 仅注记）；**否则有 llm_judge verifier 时 judge 是唯一裁决者，但仅在 `goal_complete` 声明待决时调用**（claim-gated：无声明 = miss 续跑，不调 judge、零 LLM 花费）；**都没有时由模型 `goal_complete` 声明边界接受**（self-cert；mid-turn 记 journal、边界才裁决）。llm_judge 是 budget-gated 的 journaled `llm_call` 管线 effect（Activity-bracketed；crash 后复用 journaled verdict 不重判——同 command verifier 的幂等窗，但走独立 verdict 解析）。judge 二态 pass/fail（blocked 终态列余项，避免 judge 获得单方终结权这一更强授权）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）。llm_judge 兑现（INC-48，契约 review 2026-07-11 修订后放行）：写不成命令的长程目标原先只能落到 self-cert（无条件接受声明），补齐决策自己命名的第三态是**兑现**而非违反——"唯一裁决者"枚举从 command 扩为 command｜llm_judge；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
 | 24 | 静止动作时序（INC-D1 加格） | session 静止时固定顺序：auto-publish outputs → barrier → **goal_verify（有 in-session goal 时；INC-D1）** → 向 parent 投回执（若有 parent）；可重复发生。goal_verify 置于 barrier 之后，使 barrier 快照 pre-injection 的干净边界 | 多个 feature 都往"静止时刻"加步骤，顺序必须唯一定义。 |
@@ -2121,10 +2121,29 @@ error、disabled、selected、expanded、busy、keyboard、focus、hover/reveal�
 及可组合的业务状态；纯 theme/viewport/pseudo-state 通过 Storybook toolbar/global
 和参数化 Playwright 复用 canonical Story，禁止复制 Phone/Dark Story。
 
-Demo 与自动化使用同一 `ScenarioRunner` 状态机但不同节奏：普通 interaction Story
-在关键中间态至少停留 1.6s；人工 Demo 按语义分档，普通操作 1.2–1.8s，
-send/stream/completion/review 等阅读态 2.4–3.8s，输入按 48ms/字符模拟；
-component test/CUJ 即时完成，browser automation 使用 400ms 可暂停窗口。
+Demo 与自动化使用同一 `ScenarioRunner` 状态机但不同节奏。所有会造成可见变化的
+Story `userEvent` 必须经 `pacedUserEvent`；lint 禁止 Story 从
+`storybook/test` 直接导入 raw `userEvent`，并拦截 alias、namespace、
+re-export、dynamic import 与 `require` 绕行。Storybook global 只有
+`human | automated | instant` 三档且默认 `human`：每个普通动作后至少停留
+1.6s，`type` 按 48ms/字符推进，组合键/逐键 `keyboard` 按 180ms/键推进；
+`automated` 使用 400ms 可暂停窗口；component
+test/Vitest 才强制 `instant`。`navigator.webdriver` 只说明浏览器由自动化控制，
+不代表观看者要求快进，禁止用它隐式跳过人类节奏。CI/视觉 URL 必须显式选择
+`automated` 或 `instant`。
+
+长时间、跨 production journey 的 Demo 继续以 `!test` 避免 interaction project
+重复执行整条模拟时钟；QA Journey Playlists 的 `play` 只验证外层 transport、
+唯一 checkpoint region 与可操作性，不驱动嵌套 journey，因此作为明确白名单纳入
+Story interaction gate，防止 Demo 本身的断言/结构错误被跳过。
+
+人工 Demo 按语义分档，普通操作 1.2–1.8s，
+send/stream/completion/review 等阅读态 2.4–3.8s。完整 Core Session 之外，
+复杂真实 QA 的用户可见投影按 Session & Delivery、Attention & Permissions、
+Goals/Agents/Supervision、Scheduled Work、Changes & Artifacts、
+Navigation & Recovery 六条 playlist 组织；每个 checkpoint 必须标出 exact QA ref
+与观察重点，并嵌入 canonical production Story，不复制组件或伪造第二套 UI。
+API-only、无可见投影的 QA 继续留在真实 Gate B，不得为了 demo completeness 画假状态。
 Reset 必须重建隔离 context，Replay 不得复用陈旧 callback，最终步骤必须返回稳定
 产品页面而非停在临时 overlay。
 

@@ -1,6 +1,12 @@
 import { useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import type { AppServices } from "../app/appServices";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import type { FileDiffSummary } from "../diffSummary";

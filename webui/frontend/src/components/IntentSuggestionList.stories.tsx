@@ -5,7 +5,13 @@ import {
   MagnifyingGlass,
 } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import {
   IntentSuggestionList,
   type HomeSuggestion,

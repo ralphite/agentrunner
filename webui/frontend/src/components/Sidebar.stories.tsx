@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import type { AppServices } from "../app/appServices";
 import { useAppServices } from "../app/appServices";
 import { SIDEBAR_MIN_WIDTH, useStore, type AppState } from "../store";

@@ -103,7 +103,9 @@ function collectRuntimeIssues(page: Page) {
 }
 
 async function settleStory(page: Page, golden: GoldenCase) {
-  const globals = encodeURIComponent(`theme:${golden.theme}`);
+  const globals = encodeURIComponent(
+    `theme:${golden.theme};playbackPace:instant`,
+  );
   await page.goto(
     `/iframe.html?id=${golden.storyId}&viewMode=story&globals=${globals}`,
     { waitUntil: "networkidle" },

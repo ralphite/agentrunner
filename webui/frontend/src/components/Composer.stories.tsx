@@ -4,7 +4,6 @@ import {
   expect,
   fireEvent,
   fn,
-  userEvent,
   waitFor,
   within,
 } from "storybook/test";
@@ -14,7 +13,7 @@ import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { buildSession, fixtureDefaults } from "../storybook/fixtures";
 import { createStoryApiHandlers } from "../storybook/handlers";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import {
   Composer,
   type SessionActions,

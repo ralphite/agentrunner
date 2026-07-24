@@ -1,7 +1,12 @@
 import { DotsThree, PencilSimple, Trash } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { humanPause } from "../storybook/humanPlayback";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 
 const onRename = fn();

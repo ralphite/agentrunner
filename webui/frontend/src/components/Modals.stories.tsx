@@ -1,12 +1,17 @@
 import { useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import type { EffortId } from "../specs";
 import type { AppState, ModalKind } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { buildAgentCatalog } from "../storybook/fixtures";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import { Toasts } from "./Toasts";
 import {
   AgentModal,

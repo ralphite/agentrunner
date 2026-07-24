@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { MagnifyingGlass, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import { IconButton } from "./IconButton";
 import { Field, Input, SearchField, Select, Textarea } from "./Field";
 

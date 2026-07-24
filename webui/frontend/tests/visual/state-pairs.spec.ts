@@ -22,7 +22,9 @@ for (const pair of globalStatePairs) {
   test(`global pair: ${pair.pairId}`, async ({ page }) => {
     const runtimeIssues = collectRuntimeIssues(page);
     await page.setViewportSize(pair.viewport);
-    const globals = encodeURIComponent(`theme:${pair.theme}`);
+    const globals = encodeURIComponent(
+      `theme:${pair.theme};playbackPace:instant`,
+    );
     const url = `/iframe.html?id=${pair.storyId}&viewMode=story&globals=${globals}`;
 
     const expectStoryReady = async () => {

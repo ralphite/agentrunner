@@ -1,6 +1,12 @@
 import type { Preview } from "@storybook/react-vite";
 import { initialize, mswLoader } from "msw-storybook-addon";
 import { useEffect, type ReactNode } from "react";
+import { addons } from "storybook/preview-api";
+import { STORY_FINISHED } from "storybook/internal/core-events";
+import {
+  setStoryPlaybackPace,
+  type StoryPlaybackPace,
+} from "../src/storybook/humanPlayback";
 import { applyTheme, type Theme } from "../src/theme";
 import "../src/tw.css";
 
@@ -29,13 +35,51 @@ initialize({
   },
 });
 
+const QA_FRAME_MESSAGE = "agentrunner-story-frame";
+
+function reportNestedStoryFrame(
+  storyId: string,
+  status: "ready" | "failed",
+) {
+  if (globalThis.window?.parent === globalThis.window) return;
+  const frameRevision =
+    new URLSearchParams(globalThis.window.location.search).get("qaDemo") ??
+    "";
+  globalThis.window?.parent.postMessage(
+    { type: QA_FRAME_MESSAGE, storyId, frameRevision, status },
+    globalThis.window.location.origin,
+  );
+}
+
+// Mirror Storybook's terminal result into the parent QA playlist. A render can
+// briefly enter an errored phase while Storybook retries it, so only the
+// canonical finished event is authoritative.
+addons
+  .getChannel()
+  .on(
+    STORY_FINISHED,
+    ({
+      status,
+      storyId,
+    }: {
+      status: "success" | "error";
+      storyId: string;
+    }) => {
+      reportNestedStoryFrame(storyId, status === "success" ? "ready" : "failed");
+    },
+  );
+
 function StorySurface({
   children,
+  frameRevision,
   reviewSurface,
+  storyId,
   theme,
 }: {
   children: ReactNode;
+  frameRevision: string;
   reviewSurface: ReviewSurface;
+  storyId: string;
   theme: Theme;
 }) {
   // Full-page Stories run production appearance effects that restore persisted
@@ -48,7 +92,9 @@ function StorySurface({
   return (
     <div
       className={REVIEW_SURFACE_CLASS[reviewSurface]}
+      data-qa-frame-revision={frameRevision}
       data-review-surface={reviewSurface}
+      data-story-id={storyId}
     >
       {children}
       <div id="modal-root" />
@@ -71,8 +117,21 @@ const preview: Preview = {
         dynamicTitle: true,
       },
     },
+    playbackPace: {
+      description: "Story interaction playback pace",
+      toolbar: {
+        icon: "timer",
+        items: [
+          { value: "human", title: "Human playback" },
+          { value: "automated", title: "Automated QA" },
+          { value: "instant", title: "Instant" },
+        ],
+        dynamicTitle: true,
+      },
+    },
   },
   initialGlobals: {
+    playbackPace: "human",
     theme: "light",
     viewport: { value: "responsive", isRotated: false },
   },
@@ -83,10 +142,23 @@ const preview: Preview = {
         context.parameters.reviewSurface ??
         (context.parameters.fullHeight === true ? "full-page" : "component")
       ) as ReviewSurface;
+      const playbackPace =
+        (context.globals.playbackPace as StoryPlaybackPace | undefined) ??
+        "human";
+      const frameRevision =
+        globalThis.window == null
+          ? ""
+          : new URLSearchParams(globalThis.window.location.search).get(
+              "qaDemo",
+            ) ?? "";
+      setStoryPlaybackPace(playbackPace);
       applyTheme(theme);
       return (
         <StorySurface
+          key={`${context.id}:${frameRevision}`}
+          frameRevision={frameRevision}
           reviewSurface={reviewSurface}
+          storyId={context.id}
           theme={theme}
         >
           <Story />

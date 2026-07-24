@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import { RunHeader } from "./RunParts";
 
 const meta = {

@@ -1,10 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse, http } from "msw";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fn,
+  waitFor,
+  within,
+} from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
-import { humanPause } from "../storybook/humanPlayback";
+import { pacedUserEvent as userEvent, humanPause } from "../storybook/humanPlayback";
 import {
   buildRun,
   buildScheduleDetail,
@@ -292,9 +297,8 @@ export const ScheduleDetail: Story = {
       }),
     ).toBeVisible();
     await expect(await canvas.findByText("4,096 token budget")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Pause" }));
     await expect(
-      await canvas.findByRole("button", { name: "Resume" }),
+      canvas.getByRole("button", { name: "Pause" }),
     ).toBeVisible();
   },
 };

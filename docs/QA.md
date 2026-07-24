@@ -2372,3 +2372,21 @@ ChangesOutcome.test no-skeleton/single-flight。
 
 **通过标准**：场景 A 五步硬断言全绿 + 场景 B 检查项全绿；证据归档
 `qa/runs/<日期>-QA-93/`。
+---
+
+## QA-94 Storybook 真实人类节奏与复杂 QA Demo（INC-103，UJ-24）
+
+**环境**：当前源码 Storybook `http://127.0.0.1:6011/`；production
+`http://127.0.0.1:8809/`；全局 daemon 与共享
+`~/.local/share/agentrunner/`（674 个 retained session，未隔离、未清理）。
+证据目录：`qa/runs/2026-07-24-QA-94-storybook-demo-audit/`。
+
+| 菜单 | 硬断言 |
+|---|---|
+| A 真实 QA 先行 | 在改 Demo 前先从 production retained session 复跑 Session deep-link、Environment、Changes、Scheduled、Settings；页面可达且浏览器 console warning/error 为空，不重启 daemon、不改 shared store |
+| B 全量节奏契约 | 全部使用交互的 Story 文件统一改走 `pacedUserEvent`；human 每动作 1.6s、typing 48ms/字符、keyboard 180ms/键，automated 400ms，instant 0；`navigator.webdriver` 不再隐式快进；lint 禁止 raw import、alias/namespace/re-export/dynamic import/require 回流 |
+| C 人类节奏实测 | `ApprovalCard/DenyReasonOpen` 显式 human：200ms deny reason 尚未出现，1.8s 输入框为空，2.9s 仅输入 `Command ch`，5.1s 才完成；`SessionView/KeyboardNavigation` 的 opener 252ms focus、Ctrl+F 557ms 才到 search、2694–3100ms 逐字输入、4938ms Escape 回焦；截图 `09`/`20` 保留中间态 |
+| D 六组 Demo | Session & Delivery（8 checkpoints）、Attention & Permissions（6）、Goals/Agents/Supervision（6）、Scheduled Work（6）、Changes & Artifacts（7）、Navigation & Recovery（6），合计 39 个 canonical checkpoint；均显示 exact QA refs/观察重点并复用 canonical Story；六个 Demo 自身纳入 Story interaction gate；preview terminal-result handshake 逐个报 Ready、render error 报 retryable Failed，并匹配 frame revision，不把 iframe load/旧 frame 当成功 |
+| E transport | 六组均在 in-app browser 逐个通过 Play/Pause/Next/Reset/Replay/Autoplay/2×；Next 后 transport 与 checkpoint 同为 step 2/总数，Reset 回首 checkpoint；继续复用 `ScenarioRunner` / `ScenarioControls` |
+| F 视觉与窄屏 | 六组 step 2 截图 `14`–`19` 均无空白/crash；Scheduled 选中行 `Running`、详情 `Active`、动作 `Pause` 一致；Changes、Scheduled、Session 无横向页面溢出；320×640 Running Queued 的 model/assist 与 Queue/Steer/Send 稳定分两行，所有 44px target 留在 composer card 内 |
+| G 边界 | playlist 只简化真实 QA 的用户可见投影；API-only QA 不画假 UI。Demo 全用 fixture/MSW，不写 production store；retained session/workspace/journal 与全部有效截图保留 |

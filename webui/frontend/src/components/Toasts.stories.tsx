@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
+import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { Toasts } from "./Toasts";

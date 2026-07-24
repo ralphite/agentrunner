@@ -9,6 +9,11 @@ export interface ScenarioControlsProps<Context> {
   label?: string;
   autoPlay?: boolean;
   onAutoPlayChange?: (enabled: boolean) => void;
+  displayProgress?: {
+    index: number;
+    count: number;
+    title?: string;
+  };
 }
 
 function run(action: () => Promise<void>) {
@@ -31,6 +36,7 @@ export function ScenarioControls<Context>({
   label = "Demo playback",
   autoPlay = false,
   onAutoPlayChange,
+  displayProgress,
 }: ScenarioControlsProps<Context>) {
   const snapshot = useSyncExternalStore(
     runner.subscribe.bind(runner),
@@ -140,10 +146,15 @@ export function ScenarioControls<Context>({
       <div className="scenario-controls-status" role="status" aria-live="polite">
         <b>{snapshot.status}</b>
         <span>
-          Step {Math.min(snapshot.stepIndex + 1, snapshot.stepCount)} /{" "}
-          {snapshot.stepCount}
+          Step{" "}
+          {displayProgress
+            ? displayProgress.index + 1
+            : Math.min(snapshot.stepIndex + 1, snapshot.stepCount)}{" "}
+          / {displayProgress?.count ?? snapshot.stepCount}
         </span>
-        {snapshot.currentStep?.title && <span>{snapshot.currentStep.title}</span>}
+        {(displayProgress?.title ?? snapshot.currentStep?.title) && (
+          <span>{displayProgress?.title ?? snapshot.currentStep?.title}</span>
+        )}
         {snapshot.error && <span role="alert">{snapshot.error.message}</span>}
       </div>
     </section>

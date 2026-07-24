@@ -136,6 +136,119 @@ const requiredReviewAxes = new Set([
 ]);
 const reviewIds = new Set();
 const reviewPrefixes = new Set();
+const storybookTestModules = new Set(["storybook/test", "@storybook/test"]);
+const isStorybookTestModule = (moduleName) =>
+  storybookTestModules.has(moduleName);
+
+// Human playback is a product-review contract, not an optional Story style.
+// Any Story that performs visible user actions must use the shared paced
+// driver so a new play function cannot silently return to instant playback.
+const indexedStorySources = new Set(
+  Object.values(entries)
+    .filter((entry) => entry.type === "story")
+    .map((entry) => entry.importPath.replace(/^\.\//, "")),
+);
+for (const storySource of indexedStorySources) {
+  const absolute = path.join(frontendRoot, storySource);
+  const source = fs.readFileSync(absolute, "utf8");
+  const sourceFile = ts.createSourceFile(
+    absolute,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  let usesUserEvent = false;
+  const pacedUserEventAliases = new Set();
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement)) {
+      const moduleName = statement.moduleSpecifier.text;
+      const bindings = statement.importClause?.namedBindings;
+      if (
+        isStorybookTestModule(moduleName) &&
+        (statement.importClause?.name ||
+          (bindings && ts.isNamespaceImport(bindings)))
+      ) {
+        fail(
+          `${storySource}: default/namespace storybook/test imports can bypass the paced driver; use named test helpers and storybook/humanPlayback`,
+        );
+      }
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          if (
+            importedName === "userEvent" &&
+            !moduleName.endsWith("storybook/humanPlayback") &&
+            moduleName !== "../humanPlayback"
+          ) {
+            fail(
+              `${storySource}: imports userEvent from ${moduleName}; use pacedUserEvent from storybook/humanPlayback`,
+            );
+          }
+          if (
+            (moduleName.endsWith("storybook/humanPlayback") ||
+              moduleName === "../humanPlayback") &&
+            importedName === "pacedUserEvent"
+          ) {
+            pacedUserEventAliases.add(element.name.text);
+          }
+        }
+      }
+      continue;
+    }
+    if (
+      ts.isExportDeclaration(statement) &&
+      isStorybookTestModule(statement.moduleSpecifier?.text)
+    ) {
+      const exports = statement.exportClause;
+      if (!exports || !ts.isNamedExports(exports)) {
+        fail(
+          `${storySource}: wildcard storybook/test re-export can bypass the paced driver`,
+        );
+        continue;
+      }
+      for (const element of exports.elements) {
+        const exportedName = element.propertyName?.text ?? element.name.text;
+        if (exportedName === "userEvent") {
+          fail(
+            `${storySource}: re-exports raw userEvent from storybook/test`,
+          );
+        }
+      }
+    }
+  }
+  const visitUserEvent = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.arguments.length > 0 &&
+      ((node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        isStorybookTestModule(node.arguments[0].text)) ||
+        (ts.isIdentifier(node.expression) &&
+          node.expression.text === "require" &&
+          ts.isStringLiteral(node.arguments[0]) &&
+          isStorybookTestModule(node.arguments[0].text)))
+    ) {
+      fail(
+        `${storySource}: dynamic/require storybook/test access can bypass the paced driver`,
+      );
+    }
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "userEvent"
+    ) {
+      usesUserEvent = true;
+    }
+    ts.forEachChild(node, visitUserEvent);
+  };
+  visitUserEvent(sourceFile);
+  if (usesUserEvent && !pacedUserEventAliases.has("userEvent")) {
+    fail(
+      `${storySource}: userEvent actions bypass storybook/humanPlayback paced driver`,
+    );
+  }
+}
 
 for (const family of storyReviewFamilies) {
   if (!family || typeof family !== "object") {
@@ -424,13 +537,20 @@ for (const pair of globalStatePairs) {
   }
 }
 
+const interactionSafeDemoTitles = new Set([
+  "Demos/QA Journey Playlists",
+]);
 for (const entry of Object.values(entries)) {
   if (entry.type !== "story") continue;
   const root = entry.title.split("/")[0];
   if (!allowedRoots.has(root)) {
     fail(`${entry.id}: invalid taxonomy root ${root}`);
   }
-  if ((root === "Demos" || root === "Future") && entry.tags?.includes("test")) {
+  if (
+    (root === "Future" ||
+      (root === "Demos" && !interactionSafeDemoTitles.has(entry.title))) &&
+    entry.tags?.includes("test")
+  ) {
     fail(`${entry.id}: ${root} Story must opt out with !test`);
   }
   if (!coveredStoryIds.has(entry.id)) {
