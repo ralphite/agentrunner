@@ -182,10 +182,10 @@ export function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; f
   };
 
   return (
-    <div className={"flex items-center gap-[10px] px-[12px] py-[10px]" + (divider ? " border-t border-line" : "")}>
+    <div className={"flex items-center gap-[10px] px-[12px] py-[13px]" + (divider ? " border-t border-line" : "")}>
       <span className="grid place-items-center w-[38px] h-[38px] shrink-0 rounded-[10px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={20} /> : <FileText size={20} />}</span>
       <div className="flex flex-col gap-[1px] flex-1 min-w-0">
-        <span className="text-[15px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
+        <span className="text-[15px] font-[500] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
         <span className="text-[13px] text-dim">{label} · {ext.toUpperCase()}</span>
       </div>
       <div className="relative shrink-0">
