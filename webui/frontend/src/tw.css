@@ -56,8 +56,8 @@
   --code-font-size: 12px;
   --rs-accent: #0169cc;
   --rs-accent-soft: #e8f1fb;
-  --hl-kw: #8250df;
-  --hl-str: #c2410c;
+  --hl-kw: #7528c7;
+  --hl-str: #b33a08;
   --hl-num: #1d4ed8;
   --hl-fn: #0b7285;
   --hl-com: #6b7280;
@@ -156,8 +156,8 @@
 :root[data-theme="light"] {
   --rs-accent: #0169cc;
   --rs-accent-soft: #e8f1fb;
-  --hl-kw: #8250df;
-  --hl-str: #c2410c;
+  --hl-kw: #7528c7;
+  --hl-str: #b33a08;
   --hl-num: #1d4ed8;
   --hl-fn: #0b7285;
   --hl-com: #6b7280;
@@ -861,7 +861,7 @@
   .progress-summary-title { @apply min-w-0 truncate text-ink-2; }
   .progress-summary-count { @apply shrink-0 text-[12px] text-dim; }
   .gbar-text { @apply min-w-0 flex-1 truncate; }
-  .gbar.paused { @apply opacity-75; }
+  .gbar.paused { @apply bg-panel-2 opacity-100; }
   .terminal-alert.ok, .gbar.achieved { @apply border-green bg-green-soft text-green; }
   .terminal-alert.blocked, .gbar.blocked { @apply border-amber bg-amber-soft text-amber; }
   .turn-error-body, .terminal-alert-text { @apply min-w-0 flex-1; }
@@ -1374,6 +1374,7 @@
   .hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-type { color: var(--hl-punc); }
   .hljs-addition { @apply bg-green-soft text-green; }
   .hljs-deletion { @apply bg-red-soft text-red; }
+  .md a { text-decoration: underline; text-underline-offset: 2px; }
 
   :root[data-reduce-motion] * {
     animation-duration: 0.001ms !important;
