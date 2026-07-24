@@ -44,16 +44,17 @@ function RuntimeFixture() {
   });
 
   return (
-    <AppRuntime
-      services={runtime.harness.services}
-      store={runtime.store}
-    />
+    <AppRuntime services={runtime.harness.services} store={runtime.store} />
   );
 }
 
 const meta = {
   title: "Pages/AppRuntime",
   component: AppRuntime,
+  parameters: {
+    fullHeight: true,
+    options: { showNav: false, showPanel: false },
+  },
   render: () => <RuntimeFixture />,
 } satisfies Meta<typeof AppRuntime>;
 
@@ -67,6 +68,8 @@ export const KeyboardNavigation: Story = {
     const canvas = within(canvasElement);
     (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
     await userEvent.tab();
-    await expect(canvas.getByRole("link", { name: "Skip to conversation" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("link", { name: "Skip to conversation" }),
+    ).toHaveFocus();
   },
 };

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import { Settings } from "./Settings";
 
 const initialState = {
@@ -31,6 +32,10 @@ const initialState = {
 const meta = {
   title: "Pages/Settings",
   component: Settings,
+  parameters: {
+    fullHeight: true,
+    options: { showPanel: false },
+  },
   args: {
     onClose: fn(),
     initialSection: "general",
@@ -42,9 +47,15 @@ const meta = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("dialog", { name: "Settings" })).toBeVisible();
-    await expect(canvas.getByRole("heading", { name: "General" })).toBeVisible();
-    await expect(canvas.getByRole("textbox", { name: "Search settings" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("dialog", { name: "Settings" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("heading", { name: "General" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Search settings" }),
+    ).toHaveFocus();
   },
 } satisfies Meta<typeof Settings>;
 
@@ -65,6 +76,7 @@ export const KeyboardNavigation: Story = {
     await userEvent.type(search, "git");
     await expect(canvas.getByRole("heading", { name: "Git" })).toBeVisible();
     await expect(canvas.getByText("Commit message template")).toBeVisible();
+    await humanPause();
 
     await userEvent.keyboard("{Escape}");
     await expect(args.onClose).toHaveBeenCalledTimes(1);
@@ -74,9 +86,14 @@ export const KeyboardNavigation: Story = {
 export const SearchNoMatches: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("textbox", { name: "Search settings" }), "audio output");
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Search settings" }),
+      "audio output",
+    );
     await expect(canvas.getByText("No settings match")).toBeVisible();
-    await expect(canvas.getByText("No general settings match “audio output”.")).toBeVisible();
+    await expect(
+      canvas.getByText("No general settings match “audio output”."),
+    ).toBeVisible();
   },
 };
 

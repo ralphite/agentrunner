@@ -1,6 +1,7 @@
 import { GearSix, Monitor, Moon, Sun } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { humanPause } from "../storybook/humanPlayback";
 import { PopItem, Popover, PopSection } from "./Popover";
 
 const onLight = fn();
@@ -33,8 +34,22 @@ const meta = {
             active
             onClick={close}
           />
-          <PopItem icon={<Sun size={16} />} title="Light" onClick={() => { onLight(); close(); }} />
-          <PopItem icon={<Moon size={16} />} title="Dark" onClick={() => { onDark(); close(); }} />
+          <PopItem
+            icon={<Sun size={16} />}
+            title="Light"
+            onClick={() => {
+              onLight();
+              close();
+            }}
+          />
+          <PopItem
+            icon={<Moon size={16} />}
+            title="Dark"
+            onClick={() => {
+              onDark();
+              close();
+            }}
+          />
           <PopItem title="Unavailable theme" disabled />
         </PopSection>
       )}
@@ -44,7 +59,9 @@ const meta = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Appearance" }));
     await expect(canvas.getByRole("menu")).toBeVisible();
-    await expect(canvas.getByRole("menuitem", { name: /System/ })).toBeVisible();
+    await expect(
+      canvas.getByRole("menuitem", { name: /System/ }),
+    ).toBeVisible();
   },
 } satisfies Meta<typeof Popover>;
 
@@ -59,9 +76,12 @@ export const KeyboardNavigation: Story = {
     const trigger = canvas.getByRole("button", { name: "Appearance" });
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
-    await waitFor(() => expect(canvas.getByRole("menuitem", { name: /System/ })).toHaveFocus());
+    await waitFor(() =>
+      expect(canvas.getByRole("menuitem", { name: /System/ })).toHaveFocus(),
+    );
     await userEvent.keyboard("{End}");
     await expect(canvas.getByRole("menuitem", { name: "Dark" })).toHaveFocus();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(trigger).toHaveFocus();
   },
@@ -80,6 +100,7 @@ export const KeyboardWrapSkipAndSelectionReturn: Story = {
     await expect(dark).toHaveFocus();
     await userEvent.keyboard("{Home}");
     await expect(system).toHaveFocus();
+    await humanPause();
     await userEvent.keyboard("{End}{Enter}");
     await expect(canvas.queryByRole("menu")).not.toBeInTheDocument();
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -107,9 +128,13 @@ export const DialogAutofocus: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Search choices" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Search choices" }),
+    );
     await waitFor(() =>
-      expect(canvas.getByRole("textbox", { name: "Choice query" })).toHaveFocus(),
+      expect(
+        canvas.getByRole("textbox", { name: "Choice query" }),
+      ).toHaveFocus(),
     );
   },
 };
@@ -143,7 +168,9 @@ export const DownwardOverflow: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Open long menu" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Open long menu" }),
+    );
     const menu = canvas.getByRole("menu");
     await expect(menu).toHaveClass("pop-down");
     await waitFor(() =>
@@ -199,8 +226,12 @@ export const PopItemStateMatrix: Story = {
     await expect(selected.querySelector(".pop-check")).toBeVisible();
     await expect(selected).toHaveClass("active");
     await expect(selected).toHaveAttribute("aria-current", "true");
-    await expect(canvas.getByRole("menuitem", { name: /Danger row/ })).toHaveClass("danger");
-    await expect(canvas.getByRole("menuitem", { name: /Right detail row/ })).toHaveTextContent("⌘K");
+    await expect(
+      canvas.getByRole("menuitem", { name: /Danger row/ }),
+    ).toHaveClass("danger");
+    await expect(
+      canvas.getByRole("menuitem", { name: /Right detail row/ }),
+    ).toHaveTextContent("⌘K");
     await expect(
       canvas.getByRole("menuitem", {
         name: /A very long popover row title/,

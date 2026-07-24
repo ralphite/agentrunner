@@ -4,6 +4,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import {
   buildRun,
   buildScheduleDetail,
@@ -117,7 +118,8 @@ const details: Record<string, ScheduleDetailData> = {
     sessionId: active.id,
     name: "Review Storybook coverage",
     status: "active",
-    prompt: "Review Storybook coverage and report every missing component state.",
+    prompt:
+      "Review Storybook coverage and report every missing component state.",
     cadence: "Every 30m",
     nextRunAt: active.nextRunAt,
     interval: "30m",
@@ -173,12 +175,14 @@ interface ScheduledFixture {
   initialState: Partial<AppState>;
 }
 
-function makeFixture(options: {
-  sessions?: Session[];
-  runs?: Run[];
-  detailSid?: string | null;
-  unread?: string[];
-} = {}): ScheduledFixture {
+function makeFixture(
+  options: {
+    sessions?: Session[];
+    runs?: Run[];
+    detailSid?: string | null;
+    unread?: string[];
+  } = {},
+): ScheduledFixture {
   const fixtureSessions = options.sessions ?? sessions;
   const fixtureRuns = options.runs ?? runs;
   return {
@@ -203,9 +207,7 @@ function renderFixture(fixture: ScheduledFixture) {
       initialState={fixture.initialState}
       services={{ clock: storyClock }}
     >
-      <div className="h-screen min-h-[640px]">
-        <Scheduled />
-      </div>
+      <Scheduled />
     </StoryAppFrame>
   );
 }
@@ -215,7 +217,9 @@ const meta = {
   title: "Pages/Scheduled",
   component: Scheduled,
   parameters: {
+    fullHeight: true,
     layout: "fullscreen",
+    options: { showPanel: false },
     msw: { handlers: defaultFixture.api.handlers },
   },
   render: () => renderFixture(defaultFixture),
@@ -227,11 +231,15 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "Scheduled runs" })).toBeVisible();
+    await expect(
+      canvas.getByRole("heading", { name: "Scheduled runs" }),
+    ).toBeVisible();
     await expect(canvas.getByText("Every 30m")).toBeVisible();
     await expect(canvas.getByTitle("Needs approval")).toBeVisible();
     await expect(canvas.getByText("Failed")).toBeVisible();
-    await expect(canvas.getByText("Paused", { selector: ".sched-sub span" })).toBeVisible();
+    await expect(
+      canvas.getByText("Paused", { selector: ".sched-sub span" }),
+    ).toBeVisible();
   },
 };
 
@@ -243,12 +251,19 @@ export const KeyboardNavigation: Story = {
     const canvas = within(canvasElement);
     (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
     await userEvent.tab();
-    await expect(canvas.getByRole("button", { name: "Create scheduled work" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("button", { name: "Create scheduled work" }),
+    ).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     await expect(canvas.getByRole("menu")).toBeVisible();
-    await expect(canvas.getByRole("menuitem", { name: /Repeating/ })).toBeVisible();
+    await expect(
+      canvas.getByRole("menuitem", { name: /Repeating/ }),
+    ).toBeVisible();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
-    await expect(canvas.getByRole("button", { name: "Create scheduled work" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("button", { name: "Create scheduled work" }),
+    ).toHaveFocus();
   },
 };
 
@@ -259,7 +274,9 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("No scheduled work")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: /Daily brief/ })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /Daily brief/ }),
+    ).toBeVisible();
   },
 };
 
@@ -276,7 +293,9 @@ export const ScheduleDetail: Story = {
     ).toBeVisible();
     await expect(await canvas.findByText("4,096 token budget")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Pause" }));
-    await expect(await canvas.findByRole("button", { name: "Resume" })).toBeVisible();
+    await expect(
+      await canvas.findByRole("button", { name: "Resume" }),
+    ).toBeVisible();
   },
 };
 
@@ -291,7 +310,9 @@ export const PausedScheduleDetail: Story = {
         name: "Schedule details for Check component screenshots for regressions",
       }),
     ).toBeVisible();
-    await expect(await canvas.findByRole("button", { name: "Resume" })).toBeVisible();
+    await expect(
+      await canvas.findByRole("button", { name: "Resume" }),
+    ).toBeVisible();
   },
 };
 
@@ -302,7 +323,9 @@ export const EditSchedule: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole("button", { name: "Edit" }));
-    await expect(canvas.getByRole("dialog", { name: "Edit schedule" })).toBeVisible();
+    await expect(
+      canvas.getByRole("dialog", { name: "Edit schedule" }),
+    ).toBeVisible();
     const interval = canvas.getByRole("textbox", { name: "Interval" });
     await userEvent.clear(interval);
     await userEvent.type(interval, "45m");
@@ -325,9 +348,9 @@ export const DetailLoading: Story = {
   },
   render: () => renderFixture(loadingFixture),
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("status"),
-    ).toHaveTextContent("Loading schedule details…");
+    await expect(within(canvasElement).getByRole("status")).toHaveTextContent(
+      "Loading schedule details…",
+    );
   },
 };
 
@@ -340,7 +363,8 @@ export const DetailError: Story = {
           HttpResponse.json(
             { error: "Fixture schedule service is unavailable." },
             { status: 503 },
-          )),
+          ),
+        ),
         ...errorFixture.api.handlers,
       ],
     },
@@ -349,7 +373,9 @@ export const DetailError: Story = {
   play: async ({ canvasElement }) => {
     const alert = await within(canvasElement).findByRole("alert");
     await expect(alert).toHaveTextContent("Schedule details unavailable");
-    await expect(alert).toHaveTextContent("Fixture schedule service is unavailable.");
+    await expect(alert).toHaveTextContent(
+      "Fixture schedule service is unavailable.",
+    );
   },
 };
 
@@ -359,14 +385,22 @@ export const FilterAndNoResults: Story = {
   render: () => renderFixture(searchFixture),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const search = canvas.getByRole("textbox", { name: "Search scheduled runs" });
+    const search = canvas.getByRole("textbox", {
+      name: "Search scheduled runs",
+    });
     await userEvent.type(search, "does-not-exist");
-    await expect(canvas.getByText('No results for "does-not-exist".')).toBeVisible();
+    await expect(
+      canvas.getByText('No results for "does-not-exist".'),
+    ).toBeVisible();
     await userEvent.clear(search);
     await userEvent.click(canvas.getByRole("tab", { name: "Paused" }));
-    await expect(canvas.getByText("Check component screenshots for regressions")).toBeVisible();
+    await expect(
+      canvas.getByText("Check component screenshots for regressions"),
+    ).toBeVisible();
     await waitFor(() => {
-      expect(canvas.queryByText("Review Storybook coverage and report gaps")).toBeNull();
+      expect(
+        canvas.queryByText("Review Storybook coverage and report gaps"),
+      ).toBeNull();
     });
   },
 };
@@ -396,10 +430,16 @@ export const Pagination: Story = {
   render: () => renderFixture(paginationFixture),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(5);
+    await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(
+      5,
+    );
     await userEvent.click(canvas.getByRole("button", { name: /Show 2 more/ }));
-    await expect(canvas.getByText("Paginated scheduled review 7")).toBeVisible();
-    await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(7);
+    await expect(
+      canvas.getByText("Paginated scheduled review 7"),
+    ).toBeVisible();
+    await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(
+      7,
+    );
     await userEvent.click(
       canvas.getByRole("button", { name: "Show fewer · newest 5" }),
     );
@@ -418,7 +458,7 @@ const editDetail = fn();
 export const ScheduleDetailPanel: Story = {
   render: () => (
     <StoryAppFrame>
-      <div className="mx-auto h-[720px] max-w-[520px] bg-bg">
+      <div className="mx-auto flex h-screen min-h-0 max-w-[520px] overflow-hidden bg-bg">
         <ScheduleDetailPanelView
           title="Review Storybook coverage"
           detail={details[active.id]}
@@ -443,8 +483,11 @@ export const ScheduleDetailPanel: Story = {
     ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Pause" }));
     await expect(changeCadence).toHaveBeenCalledWith("pause");
+    await humanPause();
     await userEvent.click(canvas.getByRole("button", { name: "Edit" }));
     await expect(editDetail).toHaveBeenCalled();
+    await humanPause();
+    canvas.getByRole("button", { name: "Close schedule details" }).focus();
   },
 };
 
@@ -475,7 +518,7 @@ const fallbackDetail: ScheduleDetailData = {
 export const ScheduleDetailFallbacks: Story = {
   render: () => (
     <StoryAppFrame>
-      <div className="mx-auto min-h-[720px] max-w-[520px] bg-bg">
+      <div className="mx-auto flex h-screen min-h-0 max-w-[520px] overflow-hidden bg-bg">
         <ScheduleDetailPanelView
           title="Legacy schedule metadata"
           detail={fallbackDetail}
@@ -493,10 +536,14 @@ export const ScheduleDetailFallbacks: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const fallback = within(canvas.getByRole("complementary", {
-      name: "Schedule details for Legacy schedule metadata",
-    }));
-    await expect(fallback.getByText("No standing prompt recorded.")).toBeVisible();
+    const fallback = within(
+      canvas.getByRole("complementary", {
+        name: "Schedule details for Legacy schedule metadata",
+      }),
+    );
+    await expect(
+      fallback.getByText("No standing prompt recorded."),
+    ).toBeVisible();
     await expect(fallback.getByText("No project")).toBeVisible();
     await expect(fallback.getByText("Default agent")).toBeVisible();
     await expect(fallback.getByText("Not recorded")).toBeVisible();
@@ -510,7 +557,7 @@ export const ScheduleDetailFallbacks: Story = {
 export const ScheduleDetailSaving: Story = {
   render: () => (
     <StoryAppFrame>
-      <div className="mx-auto min-h-[720px] max-w-[520px] bg-bg">
+      <div className="mx-auto flex h-screen min-h-0 max-w-[520px] overflow-hidden bg-bg">
         <ScheduleDetailPanelView
           title="Saving schedule control"
           detail={details[active.id]}
@@ -528,10 +575,14 @@ export const ScheduleDetailSaving: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const saving = within(canvas.getByRole("complementary", {
-      name: "Schedule details for Saving schedule control",
-    }));
-    await expect(saving.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    const saving = within(
+      canvas.getByRole("complementary", {
+        name: "Schedule details for Saving schedule control",
+      }),
+    );
+    await expect(
+      saving.getByRole("button", { name: "Saving…" }),
+    ).toBeDisabled();
   },
 };
 
@@ -556,7 +607,9 @@ export const ScheduleEditDialog: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("dialog", { name: "Edit schedule" })).toBeVisible();
+    await expect(
+      canvas.getByRole("dialog", { name: "Edit schedule" }),
+    ).toBeVisible();
     const interval = canvas.getByRole("textbox", { name: "Interval" });
     await userEvent.clear(interval);
     await userEvent.type(interval, "not-a-duration");
@@ -580,7 +633,8 @@ export const ScheduleEditCronConflict: Story = {
               code: "schedule_conflict",
             },
             { status: 409 },
-          )),
+          ),
+        ),
         ...conflictEditFixture.api.handlers,
       ],
     },
@@ -599,10 +653,7 @@ export const ScheduleEditCronConflict: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.selectOptions(
-      canvas.getByLabelText("Repeat"),
-      "cron",
-    );
+    await userEvent.selectOptions(canvas.getByLabelText("Repeat"), "cron");
     const cron = canvas.getByRole("textbox", { name: "Cron expression" });
     await userEvent.clear(cron);
     await userEvent.type(cron, "not-a-cron");

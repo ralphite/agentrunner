@@ -14,9 +14,11 @@ initialize({
 
 function StorySurface({
   children,
+  fullHeight,
   theme,
 }: {
   children: ReactNode;
+  fullHeight: boolean;
   theme: Theme;
 }) {
   // Full-page Stories run production appearance effects that restore persisted
@@ -27,7 +29,13 @@ function StorySurface({
   }, [theme]);
 
   return (
-    <div className="min-h-screen bg-bg text-ink">
+    <div
+      className={
+        fullHeight
+          ? "h-[100dvh] min-h-0 overflow-clip bg-bg text-ink"
+          : "min-h-screen bg-bg text-ink"
+      }
+    >
       {children}
       <div id="modal-root" />
       <div id="popover-root" />
@@ -52,14 +60,17 @@ const preview: Preview = {
   },
   initialGlobals: {
     theme: "light",
-    viewport: { value: "desktop", isRotated: false },
+    viewport: { value: "responsive", isRotated: false },
   },
   decorators: [
     (Story, context) => {
       const theme = (context.globals.theme as Theme | undefined) ?? "light";
       applyTheme(theme);
       return (
-        <StorySurface theme={theme}>
+        <StorySurface
+          fullHeight={context.parameters.fullHeight === true}
+          theme={theme}
+        >
           <Story />
         </StorySurface>
       );
@@ -80,6 +91,11 @@ const preview: Preview = {
       },
     },
     options: {
+      // Page Stories deliberately hide manager chrome so the production shell
+      // can use the full canvas. Storybook persists those option overrides
+      // across navigation, so restate the normal component-story defaults here.
+      showNav: true,
+      showPanel: true,
       storySort: {
         order: [
           "Foundations",
@@ -95,6 +111,11 @@ const preview: Preview = {
     layout: "fullscreen",
     viewport: {
       options: {
+        responsive: {
+          name: "Responsive canvas",
+          styles: { width: "100%", height: "100%" },
+          type: "desktop",
+        },
         desktop: {
           name: "Desktop",
           styles: { width: "1280px", height: "720px" },

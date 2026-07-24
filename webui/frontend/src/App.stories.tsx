@@ -32,6 +32,10 @@ const sessions: Session[] = [
 const meta = {
   title: "Pages/AppShell",
   component: AppShell,
+  parameters: {
+    fullHeight: true,
+    options: { showNav: false, showPanel: false },
+  },
   decorators: [
     (Story) => (
       <StoryAppFrame
@@ -62,7 +66,9 @@ export const KeyboardNavigation: Story = {
     // local tab order.
     (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
     await userEvent.tab();
-    await expect(canvas.getByRole("link", { name: "Skip to conversation" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("link", { name: "Skip to conversation" }),
+    ).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     const main = canvasElement.querySelector<HTMLElement>("#main");
     await expect(main).not.toBeNull();

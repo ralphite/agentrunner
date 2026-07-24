@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { createStoryApiHandlers } from "../storybook/handlers";
+import { humanPause } from "../storybook/humanPlayback";
 import { SLASH } from "./slash";
 import {
   AccessPicker,
@@ -24,9 +25,7 @@ import {
 function StorySurface({ children }: { children?: React.ReactNode }) {
   return (
     <div className="cx cx-home mx-auto flex min-h-[360px] w-full max-w-3xl items-end p-8">
-      <div className="cx-card relative w-full overflow-visible">
-        {children}
-      </div>
+      <div className="cx-card relative w-full overflow-visible">{children}</div>
     </div>
   );
 }
@@ -48,10 +47,7 @@ type Story = StoryObj<typeof meta>;
 const body = (canvasElement: HTMLElement) =>
   within(canvasElement.ownerDocument.body);
 
-async function openPopover(
-  canvasElement: HTMLElement,
-  name: string | RegExp,
-) {
+async function openPopover(canvasElement: HTMLElement, name: string | RegExp) {
   const canvas = within(canvasElement);
   await userEvent.click(canvas.getByRole("button", { name }));
 }
@@ -145,7 +141,9 @@ export const ProjectPickerFiltered: Story = {
     await openPopover(canvasElement, "agentrunner");
     const page = body(canvasElement);
     await expect(page.getByRole("button", { name: /handa/ })).toBeVisible();
-    await expect(page.queryByRole("button", { name: /^docs/ })).not.toBeInTheDocument();
+    await expect(
+      page.queryByRole("button", { name: /^docs/ }),
+    ).not.toBeInTheDocument();
   },
 };
 
@@ -157,7 +155,9 @@ export const ProjectPickerNoResults: Story = {
   ),
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, "agentrunner");
-    await expect(body(canvasElement).getByText("No projects found")).toBeVisible();
+    await expect(
+      body(canvasElement).getByText("No projects found"),
+    ).toBeVisible();
   },
 };
 
@@ -171,7 +171,9 @@ export const ProjectPickerNewProject: Story = {
     await openPopover(canvasElement, "agentrunner");
     const page = body(canvasElement);
     await expect(page.getByText("New project")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Start from scratch/ })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Start from scratch/ }),
+    ).toBeVisible();
   },
 };
 
@@ -204,19 +206,28 @@ export const ProjectPickerPageFlowKeyboard: Story = {
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
-      expect(page.getByRole("textbox", { name: "Search projects" })).toHaveFocus(),
+      expect(
+        page.getByRole("textbox", { name: "Search projects" }),
+      ).toHaveFocus(),
     );
+    await humanPause();
 
     page.getByRole("button", { name: "New project" }).focus();
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("button", { name: "Back to projects" })).toHaveFocus(),
+      expect(
+        page.getByRole("button", { name: "Back to projects" }),
+      ).toHaveFocus(),
     );
+    await humanPause();
 
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("textbox", { name: "Search projects" })).toHaveFocus(),
+      expect(
+        page.getByRole("textbox", { name: "Search projects" }),
+      ).toHaveFocus(),
     );
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(trigger).toHaveFocus();
   },
@@ -247,7 +258,9 @@ export const ProjectPickerLongOverflow: Story = {
     const list = dialog.querySelector<HTMLElement>(".cx-project-list");
     const title = within(dialog).getByText(longProjectLabel);
     await expect(title).toBeVisible();
-    await waitFor(() => expect(list!.scrollHeight).toBeGreaterThan(list!.clientHeight));
+    await waitFor(() =>
+      expect(list!.scrollHeight).toBeGreaterThan(list!.clientHeight),
+    );
     await expect(title.scrollWidth).toBeGreaterThan(title.clientWidth);
   },
 };
@@ -365,7 +378,9 @@ export const RunLocationKeyboardSelection: Story = {
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: /New worktree/ })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: /New worktree/ }),
+      ).toHaveFocus(),
     );
     await userEvent.keyboard("{ArrowDown}{Enter}");
     await waitFor(() =>
@@ -439,7 +454,9 @@ export const BranchPickerLocalDirty: Story = {
   ),
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, "storybook/components");
-    await expect(body(canvasElement).getByText("Local branch · 3 uncommitted")).toBeVisible();
+    await expect(
+      body(canvasElement).getByText("Local branch · 3 uncommitted"),
+    ).toBeVisible();
   },
 };
 
@@ -451,7 +468,9 @@ export const BranchPickerNoMatches: Story = {
   ),
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, "storybook/components");
-    await expect(body(canvasElement).getByText("No branches found")).toBeVisible();
+    await expect(
+      body(canvasElement).getByText("No branches found"),
+    ).toBeVisible();
   },
 };
 
@@ -463,7 +482,9 @@ export const BranchPickerEmptyRepo: Story = {
   ),
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, "storybook/components");
-    await expect(body(canvasElement).getByText("No branches yet")).toBeVisible();
+    await expect(
+      body(canvasElement).getByText("No branches yet"),
+    ).toBeVisible();
   },
 };
 
@@ -519,7 +540,9 @@ export const BranchPickerDialogKeyboard: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = body(canvasElement);
-    const trigger = canvas.getByRole("button", { name: "storybook/components" });
+    const trigger = canvas.getByRole("button", {
+      name: "storybook/components",
+    });
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
@@ -527,6 +550,7 @@ export const BranchPickerDialogKeyboard: Story = {
     );
     await userEvent.tab();
     await expect(page.getByRole("button", { name: /^main/ })).toHaveFocus();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(trigger).toHaveFocus();
   },
@@ -663,7 +687,9 @@ export const FileMentionNoMatches: Story = {
     </StorySurface>
   ),
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText("No matching files")).toBeVisible();
+    await expect(
+      within(canvasElement).getByText("No matching files"),
+    ).toBeVisible();
   },
 };
 
@@ -681,15 +707,13 @@ export const FileMentionUnknownWorkspace: Story = {
     </StorySurface>
   ),
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText("Workspace unknown")).toBeVisible();
+    await expect(
+      within(canvasElement).getByText("Workspace unknown"),
+    ).toBeVisible();
   },
 };
 
-function FileMentionHarness({
-  files,
-}: {
-  files: string[];
-}) {
+function FileMentionHarness({ files }: { files: string[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   return (
     <FileMentionMenu
@@ -836,7 +860,9 @@ export const AddMenuRoot: Story = {
         page.getByRole("menuitem", { name: /Files and folders/ }),
       ).toHaveFocus(),
     );
-    await expect(page.getByRole("menuitem", { name: /Plan mode/ })).toBeEnabled();
+    await expect(
+      page.getByRole("menuitem", { name: /Plan mode/ }),
+    ).toBeEnabled();
     await userEvent.keyboard("{Escape}");
     await expect(trigger).toHaveFocus();
     await userEvent.click(trigger);
@@ -913,7 +939,9 @@ export const AddMenuAgents: Story = {
     await openPopover(canvasElement, "Add and advanced options");
     const page = body(canvasElement);
     await expect(page.getByText("Agent")).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Edit agent spec/ })).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: /Edit agent spec/ }),
+    ).toBeVisible();
   },
 };
 
@@ -947,14 +975,20 @@ export const AddMenuPageFlowKeyboard: Story = {
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: /Files and folders/ })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: /Files and folders/ }),
+      ).toHaveFocus(),
     );
+    await humanPause();
 
     page.getByRole("menuitem", { name: /Automation/ }).focus();
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: "Back to add menu" })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: "Back to add menu" }),
+      ).toHaveFocus(),
     );
+    await humanPause();
 
     page.getByRole("menuitem", { name: /Agent/ }).focus();
     await userEvent.keyboard("{Enter}");
@@ -963,14 +997,19 @@ export const AddMenuPageFlowKeyboard: Story = {
         page.getByRole("menuitem", { name: "Back to automation menu" }),
       ).toHaveFocus(),
     );
+    await humanPause();
 
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: "Back to add menu" })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: "Back to add menu" }),
+      ).toHaveFocus(),
     );
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: /Files and folders/ })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: /Files and folders/ }),
+      ).toHaveFocus(),
     );
   },
 };
@@ -1054,7 +1093,9 @@ export const AccessSessionSwitchable: Story = {
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, "Auto-accept edits");
     const page = body(canvasElement);
-    await expect(page.getByRole("button", { name: /Full access/ })).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: /Full access/ }),
+    ).toBeDisabled();
     await expect(page.getByRole("button", { name: /^Plan/ })).toBeDisabled();
   },
 };
@@ -1102,9 +1143,15 @@ export const AccessClosedStateMatrix: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Ask to approve" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Auto-accept edits" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Full access" })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Ask to approve" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Auto-accept edits" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Full access" }),
+    ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Plan" })).toBeVisible();
   },
 };
@@ -1120,9 +1167,7 @@ export const AccessHomeKeyboardSelection: Story = {
     const page = body(canvasElement);
     const trigger = canvas.getByRole("button", { name: "Ask to approve" });
     await userEvent.click(trigger);
-    await waitFor(() =>
-      expect(page.getByRole("menu")).toBeVisible(),
-    );
+    await waitFor(() => expect(page.getByRole("menu")).toBeVisible());
     const ask = page.getByRole("menuitem", { name: /Ask to approve/ });
     ask.focus();
     await expect(ask).toHaveFocus();
@@ -1170,9 +1215,7 @@ function ModelPickerHarness({
         page={page}
         onOpen={() => {}}
         onPageChange={setPage}
-        onSelectModel={(provider, id) =>
-          setModel({ provider, id, label: id })
-        }
+        onSelectModel={(provider, id) => setModel({ provider, id, label: id })}
         onSelectEffort={setEffort}
         onCustomModel={fn()}
         onCustomBudget={fn()}
@@ -1230,7 +1273,9 @@ export const ModelPickerAdvanced: Story = {
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, /Gemini Flash/);
     const page = body(canvasElement);
-    await expect(page.getByRole("menuitem", { name: /Custom model id/ })).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: /Custom model id/ }),
+    ).toBeVisible();
     await expect(page.getByText("8192 tokens")).toBeVisible();
   },
 };
@@ -1266,31 +1311,38 @@ export const ModelPickerPageFlowKeyboard: Story = {
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: /Model Gemini Flash/ })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: /Model Gemini Flash/ }),
+      ).toHaveFocus(),
     );
+    await humanPause();
 
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: "Back to model menu" })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: "Back to model menu" }),
+      ).toHaveFocus(),
     );
+    await humanPause();
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: /Model Gemini Flash/ })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: /Model Gemini Flash/ }),
+      ).toHaveFocus(),
     );
+    await humanPause();
 
     page.getByRole("menuitem", { name: /Effort Medium/ }).focus();
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(page.getByRole("menuitem", { name: "Back to model menu" })).toHaveFocus(),
+      expect(
+        page.getByRole("menuitem", { name: "Back to model menu" }),
+      ).toHaveFocus(),
     );
   },
 };
 
-function GoalOptionsHarness({
-  configured = false,
-}: {
-  configured?: boolean;
-}) {
+function GoalOptionsHarness({ configured = false }: { configured?: boolean }) {
   const [verifier, setVerifier] = useState(configured ? "npm test" : "");
   const [rounds, setRounds] = useState(configured ? 20 : 10);
   return (
@@ -1315,10 +1367,10 @@ export const GoalOptionsSelfCertified: Story = {
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, "Goal");
     const page = body(canvasElement);
-    await expect(page.getByPlaceholderText(/agent self-certifies/)).toHaveValue("");
-    await waitFor(() =>
-      expect(page.getByRole("spinbutton")).toHaveValue(10),
+    await expect(page.getByPlaceholderText(/agent self-certifies/)).toHaveValue(
+      "",
     );
+    await waitFor(() => expect(page.getByRole("spinbutton")).toHaveValue(10));
   },
 };
 
@@ -1334,9 +1386,7 @@ export const GoalOptionsVerifier: Story = {
     await expect(page.getByPlaceholderText(/agent self-certifies/)).toHaveValue(
       "npm test",
     );
-    await waitFor(() =>
-      expect(page.getByRole("spinbutton")).toHaveValue(20),
-    );
+    await waitFor(() => expect(page.getByRole("spinbutton")).toHaveValue(20));
   },
 };
 
@@ -1382,8 +1432,11 @@ export const GoalOptionsExitKeyboard: Story = {
       expect(page.getByPlaceholderText(/agent self-certifies/)).toBeVisible(),
     );
     page.getByPlaceholderText(/agent self-certifies/).focus();
-    await expect(page.getByPlaceholderText(/agent self-certifies/)).toHaveFocus();
+    await expect(
+      page.getByPlaceholderText(/agent self-certifies/),
+    ).toHaveFocus();
     page.getByRole("button", { name: "Exit Goal mode" }).focus();
+    await humanPause();
     await userEvent.keyboard("{Enter}");
     await expect(trigger).toHaveFocus();
   },
@@ -1409,7 +1462,9 @@ export const AssistOptimize: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTitle("Optimize prompt — rewrite this draft to be clearer")).toBeEnabled();
+    await expect(
+      canvas.getByTitle("Optimize prompt — rewrite this draft to be clearer"),
+    ).toBeEnabled();
     await expect(canvas.getByTitle("Dictate")).toBeEnabled();
   },
 };
@@ -1434,7 +1489,9 @@ export const AssistOptimizingAndTranscribing: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTitle("Optimize prompt — rewrite this draft to be clearer")).toBeDisabled();
+    await expect(
+      canvas.getByTitle("Optimize prompt — rewrite this draft to be clearer"),
+    ).toBeDisabled();
     await expect(canvas.getByTitle("Transcribing…")).toBeDisabled();
   },
 };
@@ -1516,11 +1573,7 @@ export const AssistHidden: Story = {
   },
 };
 
-function DeliveryHarness({
-  initial,
-}: {
-  initial: "queue" | "steer";
-}) {
+function DeliveryHarness({ initial }: { initial: "queue" | "steer" }) {
   const [mode, setMode] = useState(initial);
   return (
     <div className="cx-bar justify-end">
@@ -1677,12 +1730,18 @@ export const SemanticControlPseudoStates: Story = {
     const canvas = within(canvasElement);
     const ready = canvas.getAllByRole("button", { name: "Send message" })[0];
     await waitFor(() => expect(ready).toBeVisible());
-    await expect(canvas.getAllByRole("button", { name: "Send message" })).toHaveLength(2);
+    await expect(
+      canvas.getAllByRole("button", { name: "Send message" }),
+    ).toHaveLength(2);
     await expect(canvas.getByRole("button", { name: "Queue" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    await expect(canvas.getByRole("button", { name: "Stop active turn" })).toBeVisible();
-    await expect(canvas.getAllByRole("button", { name: "Send message" })[1]).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Stop active turn" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getAllByRole("button", { name: "Send message" })[1],
+    ).toBeDisabled();
   },
 };

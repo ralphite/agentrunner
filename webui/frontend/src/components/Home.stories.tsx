@@ -4,6 +4,7 @@ import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { buildHealth } from "../storybook/fixtures";
+import { humanPause } from "../storybook/humanPlayback";
 import { Home } from "./Home";
 
 type StoryApi = AppServices["api"];
@@ -46,11 +47,12 @@ const initialState = {
 const meta = {
   title: "Pages/Home",
   component: Home,
+  parameters: {
+    fullHeight: true,
+    options: { showPanel: false },
+  },
   render: () => (
-    <StoryAppFrame
-      initialState={initialState}
-      services={{ api: noNetworkApi }}
-    >
+    <StoryAppFrame initialState={initialState} services={{ api: noNetworkApi }}>
       <Home />
     </StoryAppFrame>
   ),
@@ -98,6 +100,7 @@ export const StarterIntentFlow: Story = {
     const textarea = canvas.getByPlaceholderText("Do anything");
     await expect(textarea).toHaveValue("Build");
     await expect(canvas.getByLabelText("Build suggestions")).toBeVisible();
+    await humanPause();
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Build an internal tool" }),
@@ -158,6 +161,8 @@ export const DraftWithoutIntent: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Explore and understand code" }),
     ).not.toBeInTheDocument();
-    await expect(canvas.queryByLabelText(/suggestions$/)).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByLabelText(/suggestions$/),
+    ).not.toBeInTheDocument();
   },
 };
