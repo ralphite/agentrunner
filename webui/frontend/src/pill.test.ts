@@ -17,6 +17,14 @@ describe("abnormal terminal notices", () => {
     });
   });
 
+  it("continues a step-limited turn in the same session", () => {
+    expect(terminalNoticeFor("max_generation_steps")).toMatchObject({
+      title: "Step limit reached",
+      action: "message",
+      actionLabel: "Continue here",
+    });
+  });
+
   it("maps stranded sessions to the real resume action", () => {
     expect(terminalNoticeFor("stranded")).toMatchObject({
       title: "Session needs recovery",

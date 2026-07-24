@@ -81,7 +81,7 @@ export interface TerminalNotice {
   title: string;
   body: string;
   tone: "attention" | "danger";
-  action: "continue" | "resume" | "inspect";
+  action: "continue" | "message" | "resume" | "inspect";
   actionLabel: string;
 }
 
@@ -121,10 +121,12 @@ export function terminalNoticeFor(raw: string, driver = false): TerminalNotice |
   if (s.includes("max_generation_steps") || s.includes("step limit")) {
     return {
       title: "Step limit reached",
-      body: "The session stopped at its configured generation-step limit. Review the run or continue from a checkpoint.",
+      body: driver
+        ? "This scheduled run completed its configured generation-step limit. Review the run before extending it."
+        : "The last turn reached its step limit. Send a follow-up to continue in this session.",
       tone: "attention",
-      action: driver ? "inspect" : "continue",
-      actionLabel: driver ? "Run details" : "Continue in new session",
+      action: driver ? "inspect" : "message",
+      actionLabel: driver ? "Run details" : "Continue here",
     };
   }
   // A deliberate Stop already has an in-thread terminal chip and a Retry

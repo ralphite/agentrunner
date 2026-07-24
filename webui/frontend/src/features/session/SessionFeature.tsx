@@ -516,6 +516,10 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const terminalNotice = live || failure ? null : terminalNoticeFor(listStatus || folded.status.text, isDriver);
   const runTerminalAction = () => {
     if (!terminalNotice) return;
+    if (terminalNotice.action === "message") {
+      document.querySelector<HTMLTextAreaElement>(".cx-session textarea")?.focus();
+      return;
+    }
     if (terminalNotice.action === "continue") {
       openModal({ kind: "fork", sid });
       return;
@@ -531,14 +535,14 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // cancellation as an in-thread chip AND the goal banner AND Supervision's
   // goal group; a step-limit stop as a red chip AND the terminal alert. Codex
   // says it once. The chrome above the composer is the actionable copy (it
-  // carries the elapsed/checks and the "Continue in new session" button), so when
+  // carries the elapsed/checks and the relevant recovery action), so when
   // it's on screen the thread's echo of it is dropped — and ONLY then, so a
   // session with no banner (sub-agent, dismissed banner, no goal) still tells
   // the whole story from the thread alone.
   //
   // TH-14 (round 33) · TH-12 deduped the *thread*, but the chrome itself was
-  // still saying it twice: a `terminal-alert` ("Step limit reached… Continue in
-  // new session") with a `gbar` ("Goal cancelled · 00:34 · ✕") stacked underneath
+  // still saying it twice: a `terminal-alert` ("Step limit reached… Continue
+  // here") with a `gbar` ("Goal cancelled · 00:34 · ✕") stacked underneath
   // it — 93px of banner about ONE ending, pinned above the composer, squeezing
   // the reading column to 630px of a 900px window. Codex pins nothing: its
   // terminal fact is a grey line in the last message that scrolls away with the
