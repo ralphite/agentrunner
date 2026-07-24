@@ -7,11 +7,12 @@ import { defineConfig } from "vitest/config";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  // Browser mode has no HTML entry for Vite to crawl. Scan Story files up
-  // front so adding a page-level Story does not trigger a mid-test dependency
-  // optimization reload (which discards the dynamically imported test module).
+  // A Storybook browser run shares one Vite server across all Story files.
+  // Automatic dependency discovery can therefore reload an unrelated canvas
+  // while its play() function is mid-interaction. Serve dependencies without
+  // the dev optimizer so the tester document stays mounted for the whole run.
   optimizeDeps: {
-    entries: ["src/**/*.stories.{ts,tsx}"],
+    noDiscovery: true,
   },
   plugins: [
     storybookTest({
