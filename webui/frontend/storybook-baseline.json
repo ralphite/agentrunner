@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 49,
-    "lines": 17881,
+    "count": 50,
+    "lines": 18617,
     "files": [
       {
         "source": "src/App.tsx",
-        "lines": 255,
+        "lines": 311,
         "exports": [
           "AppShell"
         ],
@@ -24,7 +24,7 @@
       },
       {
         "source": "src/components/ApprovalCard.tsx",
-        "lines": 151,
+        "lines": 155,
         "exports": [
           "ApprovalCard"
         ],
@@ -32,7 +32,7 @@
       },
       {
         "source": "src/components/AskForm.tsx",
-        "lines": 164,
+        "lines": 172,
         "exports": [
           "AskForm"
         ],
@@ -40,7 +40,7 @@
       },
       {
         "source": "src/components/ChangesOutcome.tsx",
-        "lines": 594,
+        "lines": 598,
         "exports": [
           "ArtifactChips",
           "ArtifactRow",
@@ -55,7 +55,7 @@
       },
       {
         "source": "src/components/CommandPalette.tsx",
-        "lines": 240,
+        "lines": 258,
         "exports": [
           "CommandPalette"
         ],
@@ -63,7 +63,7 @@
       },
       {
         "source": "src/components/CommandPaletteItem.tsx",
-        "lines": 70,
+        "lines": 77,
         "exports": [
           "CommandPaletteItem"
         ],
@@ -71,7 +71,7 @@
       },
       {
         "source": "src/components/Composer.tsx",
-        "lines": 1716,
+        "lines": 1724,
         "exports": [
           "Composer",
           "GoalLoopLauncher"
@@ -84,7 +84,7 @@
       },
       {
         "source": "src/components/ComposerParts.tsx",
-        "lines": 1318,
+        "lines": 1359,
         "exports": [
           "AccessPicker",
           "AddMenu",
@@ -117,7 +117,7 @@
       },
       {
         "source": "src/components/DaemonAlert.tsx",
-        "lines": 51,
+        "lines": 53,
         "exports": [
           "DaemonAlert"
         ],
@@ -125,7 +125,7 @@
       },
       {
         "source": "src/components/DiffParts.tsx",
-        "lines": 884,
+        "lines": 891,
         "exports": [
           "ChangedFilesMenu",
           "CommitPushMenu",
@@ -152,7 +152,7 @@
       },
       {
         "source": "src/components/ErrorBoundary.tsx",
-        "lines": 44,
+        "lines": 45,
         "exports": [
           "ErrorBoundary"
         ],
@@ -160,7 +160,7 @@
       },
       {
         "source": "src/components/FindBar.tsx",
-        "lines": 181,
+        "lines": 209,
         "exports": [
           "FindBar"
         ],
@@ -188,7 +188,7 @@
       },
       {
         "source": "src/components/Lightbox.tsx",
-        "lines": 154,
+        "lines": 190,
         "exports": [
           "Lightbox"
         ],
@@ -196,7 +196,7 @@
       },
       {
         "source": "src/components/Markdown.tsx",
-        "lines": 341,
+        "lines": 344,
         "exports": [
           "CodeBlock",
           "Markdown",
@@ -224,7 +224,7 @@
       },
       {
         "source": "src/components/Modals.tsx",
-        "lines": 978,
+        "lines": 962,
         "exports": [
           "AgentModal",
           "ConfirmModal",
@@ -244,7 +244,7 @@
       },
       {
         "source": "src/components/NotFound.tsx",
-        "lines": 22,
+        "lines": 23,
         "exports": [
           "SessionNotFound"
         ],
@@ -252,7 +252,7 @@
       },
       {
         "source": "src/components/Popover.tsx",
-        "lines": 323,
+        "lines": 364,
         "exports": [
           "PopItem",
           "PopSection",
@@ -262,7 +262,7 @@
       },
       {
         "source": "src/components/RunParts.tsx",
-        "lines": 100,
+        "lines": 120,
         "exports": [
           "RunHeader",
           "RunLogEmptyState",
@@ -280,7 +280,7 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 884,
+        "lines": 924,
         "exports": [
           "ScheduleDetailPanel",
           "ScheduleEditDialog",
@@ -290,7 +290,7 @@
       },
       {
         "source": "src/components/ScheduledParts.tsx",
-        "lines": 462,
+        "lines": 470,
         "exports": [
           "ScheduledEmptyState",
           "ScheduledRunActions",
@@ -303,7 +303,7 @@
       },
       {
         "source": "src/components/SessionChrome.tsx",
-        "lines": 492,
+        "lines": 501,
         "exports": [
           "QueuedMessageItem",
           "QueuedMessageList",
@@ -316,7 +316,7 @@
       },
       {
         "source": "src/components/SessionView.tsx",
-        "lines": 1346,
+        "lines": 1387,
         "exports": [
           "GoalBanner",
           "ProgressSummary",
@@ -326,7 +326,7 @@
       },
       {
         "source": "src/components/Settings.tsx",
-        "lines": 151,
+        "lines": 157,
         "exports": [
           "Settings"
         ],
@@ -334,7 +334,7 @@
       },
       {
         "source": "src/components/SettingsAppearance.tsx",
-        "lines": 243,
+        "lines": 261,
         "exports": [
           "FontRow",
           "SettingsAppearance",
@@ -353,7 +353,7 @@
       },
       {
         "source": "src/components/SettingsArchivedParts.tsx",
-        "lines": 103,
+        "lines": 105,
         "exports": [
           "ArchivedProjectGroup",
           "ArchivedSessionItem"
@@ -370,7 +370,7 @@
       },
       {
         "source": "src/components/SettingsGeneral.tsx",
-        "lines": 82,
+        "lines": 83,
         "exports": [
           "SettingsGeneral"
         ],
@@ -378,7 +378,7 @@
       },
       {
         "source": "src/components/SettingsGit.tsx",
-        "lines": 50,
+        "lines": 51,
         "exports": [
           "SettingsGit"
         ],
@@ -394,7 +394,7 @@
       },
       {
         "source": "src/components/SettingsWorktrees.tsx",
-        "lines": 60,
+        "lines": 62,
         "exports": [
           "SettingsWorktrees"
         ],
@@ -402,7 +402,7 @@
       },
       {
         "source": "src/components/Shortcuts.tsx",
-        "lines": 84,
+        "lines": 81,
         "exports": [
           "Shortcuts"
         ],
@@ -410,7 +410,7 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 743,
+        "lines": 751,
         "exports": [
           "Sidebar"
         ],
@@ -418,7 +418,7 @@
       },
       {
         "source": "src/components/SidebarItems.tsx",
-        "lines": 420,
+        "lines": 427,
         "exports": [
           "SidebarConnectionStatus",
           "SidebarPreviewCard",
@@ -431,7 +431,7 @@
       },
       {
         "source": "src/components/Subagents.tsx",
-        "lines": 181,
+        "lines": 198,
         "exports": [
           "SubagentItem",
           "Subagents"
@@ -440,7 +440,7 @@
       },
       {
         "source": "src/components/SupervisionPanel.tsx",
-        "lines": 777,
+        "lines": 787,
         "exports": [
           "EnvironmentSection",
           "SupervisionPanel"
@@ -449,7 +449,7 @@
       },
       {
         "source": "src/components/SupervisionParts.tsx",
-        "lines": 376,
+        "lines": 381,
         "exports": [
           "ArtifactItem",
           "ArtifactsSection",
@@ -470,7 +470,7 @@
       },
       {
         "source": "src/components/Timeline.tsx",
-        "lines": 1540,
+        "lines": 1568,
         "exports": [
           "ActivityGroup",
           "AskDetailView",
@@ -506,7 +506,7 @@
       },
       {
         "source": "src/components/ToastItem.tsx",
-        "lines": 54,
+        "lines": 56,
         "exports": [
           "ToastItem"
         ],
@@ -527,12 +527,20 @@
           "WorktreeCard"
         ],
         "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/Field.tsx",
+        "lines": 265,
+        "exports": [
+          "Field"
+        ],
+        "privateVisibleCandidates": []
       }
     ]
   },
   "tests": {
-    "files": 81,
-    "declarations": 793
+    "files": 82,
+    "declarations": 794
   },
   "storage": [
     {
