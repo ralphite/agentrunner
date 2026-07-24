@@ -21,6 +21,7 @@ import {
   Paperclip,
   PencilSimple,
   Plus,
+  Question,
   ShieldCheck,
   Sparkle,
   Stop as StopIcon,
@@ -113,6 +114,7 @@ export function ProjectPicker({
     <Popover
       align="left"
       wrapClass="cx-env-project-wrap"
+      panelClass="cx-pop-codex cx-project-popover flex !overflow-hidden"
       panelRole="dialog"
       ariaLabel="Project picker"
       trigger={(open, toggle) => (
@@ -132,7 +134,6 @@ export function ProjectPicker({
           </span>
         </button>
       )}
-      panelClass="cx-project-popover flex !overflow-hidden"
       onOpen={onOpen}
     >
       {(close) => (
@@ -253,6 +254,7 @@ export function RunLocationPicker({
   return (
     <Popover
       align="left"
+      panelClass="cx-pop-codex"
       trigger={(open, toggle) => (
         <button
           className={"cx-env-control" + (open ? " active" : "")}
@@ -347,7 +349,7 @@ export function BranchPicker({
     <Popover
       align="left"
       wrapClass={narrow ? "min-w-0 flex-1" : ""}
-      panelClass="cx-branch-popover"
+      panelClass="cx-pop-codex cx-branch-popover"
       panelRole="dialog"
       ariaLabel="Branch picker"
       onOpen={onOpen}
@@ -457,7 +459,7 @@ export function AttachmentList({
   if (attachments.length === 0) return null;
   return (
     <div
-      className="cx-atts flex flex-wrap gap-[6px] pt-[12px] px-[14px]"
+      className="cx-atts"
       role="group"
       aria-label="Attachments"
     >
@@ -473,6 +475,7 @@ export function AttachmentList({
 }
 
 export interface FileMentionMenuProps {
+  id?: string;
   query: string;
   known: boolean;
   files: string[];
@@ -481,7 +484,12 @@ export interface FileMentionMenuProps {
   onSelect: (file: string) => void;
 }
 
+export function composerTypeaheadOptionId(listboxId: string, index: number) {
+  return `${listboxId}-option-${index}`;
+}
+
 export function FileMentionMenu({
+  id = "composer-file-mentions",
   query,
   known,
   files,
@@ -491,6 +499,7 @@ export function FileMentionMenu({
 }: FileMentionMenuProps) {
   return (
     <div
+      id={id}
       className="cx-slash cx-at"
       role={files.length > 0 ? "listbox" : "status"}
       aria-label="Workspace files"
@@ -509,6 +518,7 @@ export function FileMentionMenu({
       )}
       {files.map((file, index) => (
         <button
+          id={composerTypeaheadOptionId(id, index)}
           key={file}
           type="button"
           role="option"
@@ -525,6 +535,7 @@ export function FileMentionMenu({
 }
 
 export interface SlashCommandMenuProps {
+  id?: string;
   commands: SlashCmd[];
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
@@ -532,6 +543,7 @@ export interface SlashCommandMenuProps {
 }
 
 export function SlashCommandMenu({
+  id = "composer-slash-commands",
   commands,
   activeIndex,
   onActiveIndexChange,
@@ -540,6 +552,7 @@ export function SlashCommandMenu({
   if (commands.length === 0) return null;
   return (
     <div
+      id={id}
       className="cx-slash cx-slash-codex"
       role="listbox"
       aria-label="Slash commands"
@@ -547,6 +560,7 @@ export function SlashCommandMenu({
       <div className="cx-slash-hd">Commands</div>
       {commands.map((command, index) => (
         <button
+          id={composerTypeaheadOptionId(id, index)}
           key={command.name}
           type="button"
           role="option"
@@ -803,10 +817,10 @@ const accessIconById: Record<AccessId, typeof LockOpen> = {
   plan: Eye,
 };
 
-function AccessIcon({ id, risk }: { id: AccessId; risk: string }) {
-  const Icon = accessIconById[id] || ShieldCheck;
+function AccessIcon({ id, risk }: { id?: AccessId; risk: string }) {
+  const Icon = id ? accessIconById[id] : Question;
   return (
-    <span className={`cx-access-ico ${risk}`}>
+    <span className={`cx-access-ico ${risk}`} data-access-id={id || "unknown"}>
       <Icon size={16} />
     </span>
   );
@@ -817,12 +831,12 @@ function RiskGlyph({ risk }: { risk: string }) {
     <WarningCircle
       size={15}
       weight="regular"
-      className="shrink-0"
+      className="cx-mode-risk shrink-0"
       style={{ color: "var(--amber)" }}
     />
   ) : (
     <span
-      className={`risk-dot h-[7px] w-[7px] shrink-0 rounded-full ${risk}`}
+      className={`cx-mode-risk risk-dot h-[7px] w-[7px] shrink-0 rounded-full ${risk}`}
     />
   );
 }
@@ -862,7 +876,7 @@ export function AccessPicker({
           ref={triggerRef}
           className={`cx-pill cx-mode ${risk}${open ? " active" : ""}`}
           onClick={toggle}
-          aria-label={session ? label : undefined}
+          aria-label={label}
           aria-haspopup={session ? "dialog" : "menu"}
           aria-expanded={open}
           title={
@@ -873,6 +887,9 @@ export function AccessPicker({
               : "How the agent's actions are approved"
           }
         >
+          <span className="cx-mode-mobile-icon" aria-hidden>
+            <AccessIcon id={active} risk={risk} />
+          </span>
           <RiskGlyph risk={risk} />
           <span className="cx-mode-label">{label}</span>
         </button>
@@ -956,6 +973,7 @@ export function ModelPicker({
   return (
     <Popover
       align="right"
+      wrapClass="cx-model-wrap"
       panelClass="cx-model-popover w-[360px] max-w-[calc(100vw-32px)] [@media(max-height:220px)]:py-px"
       onOpen={onOpen}
       trigger={(open, toggle) => (
@@ -964,6 +982,7 @@ export function ModelPicker({
           className={"cx-pill cx-model" + (open ? " active" : "")}
           onClick={toggle}
           title="Model & effort"
+          aria-label={`${modelLabel}, ${effortLabel} effort`}
           aria-haspopup="menu"
           aria-expanded={open}
         >
@@ -985,7 +1004,6 @@ export function ModelPicker({
             <>
               <div className="cx-model-roots">
                 <PopItem
-                  className="[@media(max-height:220px)]:!min-h-0 [@media(max-height:220px)]:!py-px"
                   title="Model"
                   right={
                     <span className="inline-flex max-w-[210px] items-center gap-2">
@@ -1000,7 +1018,6 @@ export function ModelPicker({
                   onClick={() => onPageChange("model")}
                 />
                 <PopItem
-                  className="[@media(max-height:220px)]:!min-h-0 [@media(max-height:220px)]:!py-px"
                   title="Effort"
                   right={
                     <span className="inline-flex max-w-[210px] items-center gap-2">
@@ -1019,7 +1036,6 @@ export function ModelPicker({
               </div>
               <div className="cx-model-advanced [@media(max-height:220px)]:p-0">
                 <PopItem
-                  className="[@media(max-height:220px)]:!min-h-0 [@media(max-height:220px)]:!py-px"
                   title="Advanced"
                   right={
                     <CaretRight
@@ -1145,12 +1161,13 @@ export function GoalOptions({
           type="button"
           className={"cx-pill cx-goal-mode" + (open ? " active" : "")}
           onClick={toggle}
+          aria-label="Goal"
           aria-haspopup="dialog"
           aria-expanded={open}
           title="Goal mode — configure completion checks or exit"
         >
           <Target size={14} />
-          Goal
+          <span className="cx-goal-mode-label">Goal</span>
         </button>
       )}
     >

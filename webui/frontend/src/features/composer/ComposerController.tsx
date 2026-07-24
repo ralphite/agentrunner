@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { sessionImageURL, type ForkDraft } from "../../api";
 import { useAppServices } from "../../app/appServices";
 import { useAppStoreApi, useStore, type NewSessionProject } from "../../store";
@@ -23,7 +23,10 @@ import {
   type AccessId,
   type EffortId,
 } from "../../specs";
-import type { ComposerAttachment } from "./ComposerParts";
+import {
+  composerTypeaheadOptionId,
+  type ComposerAttachment,
+} from "./ComposerParts";
 import { useVoice } from "./useVoice";
 import { useDictation } from "./useDictation";
 import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
@@ -131,6 +134,9 @@ function rememberProject(storage: Storage, workspace: string) {
 
 export function Composer(props: ComposerProps) {
   const { api, clock, ids, storage } = useAppServices();
+  const typeaheadId = useId();
+  const fileMentionListboxId = `${typeaheadId}-file-mentions`;
+  const slashCommandListboxId = `${typeaheadId}-slash-commands`;
   const store = useAppStoreApi();
   const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
   const allSessions = useStore((s) => s.sessions);
@@ -1297,6 +1303,19 @@ export function Composer(props: ComposerProps) {
       });
   };
 
+  const typeaheadListboxId =
+    atQuery !== null && atFiles.length > 0
+      ? fileMentionListboxId
+      : slashOpen && filteredSlash.length > 0
+        ? slashCommandListboxId
+        : undefined;
+  const typeaheadActiveOptionId =
+    atQuery !== null && atFiles.length > 0
+      ? composerTypeaheadOptionId(fileMentionListboxId, atIdx)
+      : slashOpen && filteredSlash.length > 0
+        ? composerTypeaheadOptionId(slashCommandListboxId, slashIdx)
+        : undefined;
+
   return (
     <ComposerView
       isSession={isSession}
@@ -1451,6 +1470,10 @@ export function Composer(props: ComposerProps) {
         value: text,
         placeholder,
         "aria-label": "Message AgentRunner",
+        "aria-autocomplete": "list",
+        "aria-haspopup": "listbox",
+        "aria-controls": typeaheadListboxId,
+        "aria-activedescendant": typeaheadActiveOptionId,
         onChange: (event) => {
           setText(event.target.value);
           grow(event.target);
@@ -1462,6 +1485,7 @@ export function Composer(props: ComposerProps) {
       fileMentionMenu={
         atQuery !== null
           ? {
+              id: fileMentionListboxId,
               query: atQuery,
               known: atKnown,
               files: atFiles,
@@ -1474,6 +1498,7 @@ export function Composer(props: ComposerProps) {
       slashCommandMenu={
         slashOpen && filteredSlash.length > 0
           ? {
+              id: slashCommandListboxId,
               commands: filteredSlash,
               activeIndex: slashIdx,
               onActiveIndexChange: setSlashIdx,

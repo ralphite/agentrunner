@@ -141,9 +141,34 @@ const preview: Preview = {
           styles: { width: "1280px", height: "720px" },
           type: "desktop",
         },
+        phoneCompact: {
+          name: "Phone · compact",
+          styles: { width: "320px", height: "640px" },
+          type: "mobile",
+        },
+        phoneNarrow: {
+          name: "Phone · narrow",
+          styles: { width: "360px", height: "640px" },
+          type: "mobile",
+        },
+        phoneSmall: {
+          name: "Phone · small",
+          styles: { width: "375px", height: "667px" },
+          type: "mobile",
+        },
         phone: {
           name: "Phone",
           styles: { width: "390px", height: "844px" },
+          type: "mobile",
+        },
+        phoneShort: {
+          name: "Phone · short",
+          styles: { width: "390px", height: "500px" },
+          type: "mobile",
+        },
+        phoneWide: {
+          name: "Phone · wide",
+          styles: { width: "430px", height: "932px" },
           type: "mobile",
         },
       },

@@ -7747,3 +7747,37 @@ ENV-OVERLAP-1440 仍需真人 Codex 1440 实窗取证；在证据成立前不盲
 28/28 family digest 逐项批准并重建 ledger/baseline：567/567 Stories、177 targets、
 684 cells、0 missing。`check-webui.sh --skip-install` 同轮通过 849 unit、564 Story
 interaction、18 visual 及 production/Storybook build；shared QA/runtime 数据未清理。
+
+---
+
+## 2026-07-24 · R84–R85 / INC-101 Diff 与移动 Composer 收敛
+
+R84 的证据从误写的只读 `docs/archive/` 迁回本活台账。无需 API key 的 retained
+workspace fixture 已解锁真实 modified diff；split 视图现与 inline 共用可展开的
+`N unmodified lines` fold band，light/dark 实窗与 843 unit 通过，证据保留于
+`qa/runs/2026-07-24-r84/`。该 shared QA/runtime fixture 按纪律继续保留。
+
+R85 同样从只读 archive 迁入本台账：desktop Review diff 复用已稳定的 mobile
+edge-to-edge 文件流，移除文件卡双重框线与 24px 横向浪费，light/dark/mobile
+实窗及 851 unit 通过，证据保留于 `qa/runs/2026-07-24-r85/`。同时确认 Scheduled
+Pause/Resume 已前后端全链路接线，旧“后端未接线”memo 关闭。
+
+INC-101 继续关闭移动 Composer 的高频 P1：320×640 起与 coarse-pointer 下所有 context
+trigger、action、delivery segment、attachment chip、menu row、search 与 field 均遵守
+44px；九个长附件改为 56px 单行独立横滚，不再把 textarea/footer 推出视口；footer
+按 context/action 两组稳定换行，Model 归入 Add/Access/Goal context 组，Assist/
+Delivery/Send 保持 action 组，避免条件控件导致跨行跳位。移动 Access 不再把未知
+posture 冒充 Ask shield，而用独立 Question glyph 且保留明确 accessible name；Goal
+保留可发现的短标签；Model accessible name 同时包含 model 与 effort。Storybook
+补入 320/360/375/430 canonical phone viewports。@ file / slash command
+typeahead 继续把焦点留在原生 multiline textarea，同时用稳定
+`aria-controls`/`aria-activedescendant` 关联 listbox option；移动 Add menu 的整行
+hit area 拉满 popover，不再在 390/430 留下不可点击空带。
+
+真实 Pages/AppShell Home/Session、320/360/390 的 LongDraftAndAttachments、
+RunningQueued/Goal 与 Access/Model/Project/Branch popup 的 hard-reload 复验均无
+document/bar 横向 overflow，
+Escape 精确回 trigger、Tab 交接下一控件。三位 fresh design/interaction/code reviewer
+给出 P0/P1=0；Composer Stories 90/90、定向 unit 28/28 与 production build 已通过。
+`components-input` 仍诚实保持 GAP，仅剩 async failure recovery UI 未收口。320–390
+截图与几何记录保留于 `qa/runs/2026-07-24-inc101-composer-mobile/`。

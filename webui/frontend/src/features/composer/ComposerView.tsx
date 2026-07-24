@@ -117,16 +117,19 @@ export function ComposerView({
         {slashCommandMenu && <SlashCommandMenu {...slashCommandMenu} />}
 
         <div className="cx-bar">
-          <AddMenu {...addMenu} />
-          <AccessPicker {...accessPicker} />
-          {goalOptions && <GoalOptions {...goalOptions} />}
-          <span className="cx-spacer" />
-          <ModelPicker {...modelPicker} />
-          <AssistActions {...assistActions} />
-          {deliveryModeControl && (
-            <DeliveryModeControl {...deliveryModeControl} />
-          )}
-          <SubmitButton {...submitButton} />
+          <div className="cx-bar-leading">
+            <AddMenu {...addMenu} />
+            <AccessPicker {...accessPicker} />
+            {goalOptions && <GoalOptions {...goalOptions} />}
+            <ModelPicker {...modelPicker} />
+          </div>
+          <div className="cx-bar-trailing">
+            <AssistActions {...assistActions} />
+            {deliveryModeControl && (
+              <DeliveryModeControl {...deliveryModeControl} />
+            )}
+            <SubmitButton {...submitButton} />
+          </div>
         </div>
       </div>
 

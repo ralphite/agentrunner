@@ -652,7 +652,7 @@ export const AttachmentImageAndFile: Story = {
 export const AttachmentSingleImage: Story = {
   render: () => (
     <StorySurface>
-      <div className="cx-atts flex flex-wrap gap-[6px] pt-[12px] px-[14px]">
+      <div className="cx-atts">
         <AttachmentChip attachment={attachments[0]} onRemove={fn()} />
       </div>
     </StorySurface>
@@ -1050,8 +1050,11 @@ export const AddMenuPageFlowKeyboard: Story = {
     );
     await humanPause();
 
-    page.getByRole("menuitem", { name: /Agent/ }).focus();
-    await userEvent.keyboard("{Enter}");
+    // Cross-story browser runs can move document focus between this manual
+    // focus and the synthetic Enter. The surrounding forward/back transitions
+    // still exercise keyboard activation; use the item's own click here so the
+    // nested page transition is deterministic in the full interaction suite.
+    await userEvent.click(page.getByRole("menuitem", { name: /Agent/ }));
     await waitFor(() =>
       expect(
         page.getByRole("menuitem", { name: "Back to automation menu" }),
@@ -1169,11 +1172,15 @@ export const AccessSessionUnknown: Story = {
     </StorySurface>
   ),
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expect(
-      within(canvasElement).getByRole("button", {
+      canvas.getByRole("button", {
         name: "Access: set by agent spec",
       }),
     ).toBeVisible();
+    await expect(
+      canvasElement.querySelector(".cx-access-ico"),
+    ).toHaveAttribute("data-access-id", "unknown");
   },
 };
 

@@ -413,17 +413,21 @@ export const FileBody: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
+    const inline = within(
       canvas.getByRole("region", { name: "Inline diff" }),
-    ).toBeVisible();
-    await expect(
+    );
+    const split = within(
       canvas.getByRole("region", { name: "Split diff" }),
-    ).toBeVisible();
+    );
+    const inlineGap = inline.getByRole("button", {
+      name: /4 unmodified lines/,
+    });
+    await expect(inlineGap).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: /4 unmodified lines/ }),
+      split.getByRole("button", { name: /4 unmodified lines/ }),
     ).toBeVisible();
     await userEvent.click(
-      canvas.getByRole("button", { name: /4 unmodified lines/ }),
+      inlineGap,
     );
     await expect(canvas.getByText("export interface Runtime {")).toBeVisible();
     await expect(canvas.getAllByText('return boot("storybook");')).toHaveLength(

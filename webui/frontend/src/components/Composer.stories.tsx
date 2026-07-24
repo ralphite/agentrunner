@@ -201,6 +201,21 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+async function expectComposerBarFits(canvasElement: HTMLElement) {
+  const bar = canvasElement.querySelector<HTMLElement>(".cx-bar")!;
+  const card = canvasElement.querySelector<HTMLElement>(".cx-card")!;
+  const cardRect = card.getBoundingClientRect();
+  for (const control of Array.from(
+    bar.querySelectorAll<HTMLElement>("button"),
+  ).filter((element) => getComputedStyle(element).display !== "none")) {
+    const controlRect = control.getBoundingClientRect();
+    await expect(controlRect.height).toBeGreaterThanOrEqual(44);
+    await expect(controlRect.left).toBeGreaterThanOrEqual(cardRect.left);
+    await expect(controlRect.right).toBeLessThanOrEqual(cardRect.right);
+  }
+  await expect(bar.scrollWidth).toBe(bar.clientWidth);
+}
+
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -266,6 +281,9 @@ export const Draft: Story = {
 const queuedSend = fn(async () => {});
 
 export const RunningQueued: Story = {
+  globals: {
+    viewport: { value: "phoneCompact", isRotated: false },
+  },
   render: () => (
     <ComposerFixture
       variant="session"
@@ -283,6 +301,9 @@ export const RunningQueued: Story = {
     await expect(canvas.getByRole("button", { name: "Queue" })).toHaveClass(
       "on",
     );
+    const model = canvas.getByTitle("Model & effort");
+    await expect(model).toBeVisible();
+    await expectComposerBarFits(canvasElement);
 
     await userEvent.click(canvas.getByTitle(/Send · queue/));
     await expect(queuedSend).toHaveBeenCalledWith(
@@ -408,6 +429,9 @@ const longAttachmentSeed: ForkDraft = {
 };
 
 export const LongDraftAndAttachments: Story = {
+  globals: {
+    viewport: { value: "phoneCompact", isRotated: false },
+  },
   render: () => <ComposerFixture variant="session" seed={longAttachmentSeed} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -419,8 +443,24 @@ export const LongDraftAndAttachments: Story = {
     );
     await expect(canvas.getAllByTitle("Remove attachment")).toHaveLength(9);
     await expect(longName.scrollWidth).toBeGreaterThan(longName.clientWidth);
-    await expect(attachments.getBoundingClientRect().height).toBeGreaterThan(
-      40,
+    await expect(
+      attachments.getBoundingClientRect().height,
+    ).toBeLessThanOrEqual(64);
+    await expect(attachments.scrollWidth).toBeGreaterThan(
+      attachments.clientWidth,
+    );
+    for (const chip of canvas.getAllByTitle("Remove attachment")) {
+      await expect(chip.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+        44,
+      );
+    }
+    await expect(canvas.getByTitle("Model & effort")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Optimize prompt" }),
+    ).toBeVisible();
+    await expectComposerBarFits(canvasElement);
+    await expect(document.documentElement.scrollWidth).toBe(
+      document.documentElement.clientWidth,
     );
   },
 };
@@ -543,6 +583,9 @@ export const AccessAndApproval: Story = {
 };
 
 export const GoalLauncher: Story = {
+  globals: {
+    viewport: { value: "phoneCompact", isRotated: false },
+  },
   render: () => (
     <ComposerFixture homeDraft="Ship complete Storybook coverage" />
   ),
@@ -560,6 +603,7 @@ export const GoalLauncher: Story = {
     );
     await expect(input).toHaveValue("Ship complete Storybook coverage");
     await expect(canvas.getByRole("button", { name: "Goal" })).toBeVisible();
+    await expectComposerBarFits(canvasElement);
   },
 };
 
@@ -711,14 +755,22 @@ export const FileMentionKeyboard: Story = {
     const second = canvas.getByRole("option", {
       name: "src/components/Composer.stories.tsx",
     });
+    const fileListbox = canvas.getByRole("listbox", {
+      name: "Workspace files",
+    });
+    await expect(input).toHaveAttribute("aria-haspopup", "listbox");
+    await expect(input).toHaveAttribute("aria-controls", fileListbox.id);
+    await expect(input).toHaveAttribute("aria-activedescendant", first.id);
     await expect(first).toHaveAttribute("aria-selected", "true");
     await userEvent.keyboard("{ArrowUp}");
+    await expect(input).toHaveAttribute("aria-activedescendant", second.id);
     await expect(second).toHaveAttribute("aria-selected", "true");
     await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(
       canvas.queryByRole("listbox", { name: "Workspace files" }),
     ).not.toBeInTheDocument();
+    await expect(input).not.toHaveAttribute("aria-controls");
     await expect(input).toHaveFocus();
 
     await userEvent.clear(input);
@@ -736,6 +788,16 @@ export const SlashCommands: Story = {
     const canvas = within(canvasElement);
     const input = canvas.getByPlaceholderText("Ask for follow-up changes");
     await userEvent.type(input, "/");
+    const slashListbox = canvas.getByRole("listbox", {
+      name: "Slash commands",
+    });
+    const activeSlash = canvas.getByRole("option", { selected: true });
+    await expect(input).toHaveAttribute("aria-haspopup", "listbox");
+    await expect(input).toHaveAttribute("aria-controls", slashListbox.id);
+    await expect(input).toHaveAttribute(
+      "aria-activedescendant",
+      activeSlash.id,
+    );
     await expect(canvas.getByText("/goal")).toBeVisible();
     await expect(canvas.getByText("/interrupt")).toBeVisible();
 

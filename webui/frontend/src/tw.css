@@ -582,6 +582,11 @@
     @apply border-0 shadow-none ring-0 outline-none;
   }
   .cx-bar { @apply flex min-w-0 items-center gap-[6px] px-[10px] py-[9px]; }
+  .cx-bar-leading, .cx-bar-trailing {
+    @apply flex min-w-0 items-center gap-[6px];
+  }
+  .cx-bar-leading { @apply shrink-0; }
+  .cx-bar-trailing { @apply ml-auto shrink min-w-0; }
   @media (min-width: 681px) {
     .home-main:not(.intent-active) .home-empty {
       transform: translateY(clamp(0px, calc(337.5px - 37.5dvh), 75px));
@@ -597,6 +602,7 @@
   .cx-deliv-label { @apply min-w-0; }
   .cx-send { @apply shrink-0; }
   .cx-status { @apply mx-auto mt-2 max-w-[660px] px-2 text-right text-[11px] text-dim; }
+  .cx-atts { @apply flex flex-wrap gap-[6px] px-[14px] pt-[12px]; }
   .cx-att { @apply inline-flex max-w-[220px] cursor-pointer items-center gap-[6px] rounded-full border border-line bg-panel-2 px-[8px] py-[4px] text-[12px]; }
   .cx-att-thumb { @apply h-5 w-5 rounded object-cover; }
   .cx-att-ico, .cx-att-x { @apply shrink-0 text-dim; }
@@ -648,6 +654,7 @@
   .risk-dot.med { @apply bg-amber; }
   .risk-dot.high { @apply bg-red; }
   .risk-dot.unknown { @apply bg-dim; }
+  .cx-mode-mobile-icon { @apply hidden; }
   .cx-access-ico { @apply grid h-6 w-6 place-items-center rounded-full bg-panel-2; }
   .cx-access-ico.low { @apply text-green; }
   .cx-access-ico.med { @apply text-amber; }
@@ -762,7 +769,6 @@
     .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
     .cx-session .cx-mode-label { @apply hidden; }
     .cx-session .cx-model { @apply max-w-[116px] overflow-hidden px-2 text-[11px]; }
-    .cx-session .cx-optimize { display: none !important; }
     .cx-session .cx-delivery { @apply gap-[2px]; }
     .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
     .cx-session .cx-deliv-label { @apply hidden; }
@@ -775,13 +781,15 @@
     .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
     .cx-session .cx-mode-label { @apply hidden; }
     .cx-session .cx-model { @apply max-w-[116px] overflow-hidden px-2 text-[11px]; }
-    .cx-session .cx-optimize { display: none !important; }
     .cx-session .cx-delivery { @apply gap-[2px]; }
     .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
     .cx-session .cx-deliv-label { @apply hidden; }
   }
   @container composer (max-width: 340px) {
-    .cx-session .cx-model { display: none !important; }
+    /* Keep model selection reachable on phones. The bar now wraps its two
+       semantic groups when running/goal controls need more room, so deleting
+       this critical setting is no longer the fallback that protects Send. */
+    .cx-session .cx-model { @apply max-w-[104px]; }
   }
   .turn-sep { @apply my-[22px] h-px bg-line; }
   .msg { @apply relative flex gap-3 py-2; }
@@ -1537,19 +1545,44 @@
     .cx-env-control.environment { @apply max-w-none; }
     .cx-env-project-wrap { @apply flex-none; }
     .cx-env-project-wrap .cx-env-control { @apply max-w-[170px]; }
-    .cx-bar { @apply gap-1 px-2; }
+    .cx-bar {
+      @apply flex-wrap gap-x-[2px] gap-y-1 px-2;
+    }
+    .cx-bar-leading { @apply max-w-full shrink gap-[2px]; }
+    .cx-bar-trailing { @apply ml-auto max-w-full shrink-0 gap-px justify-end; }
+    .cx-bar-leading .cx-model-wrap {
+      @apply min-w-[80px] max-w-[104px] flex-1;
+    }
+    .cx-bar-leading .cx-model { @apply w-full; }
     .cx-pill { @apply max-w-[126px] overflow-hidden px-2 text-[11px]; }
-    .cx-mode { @apply max-w-[134px]; }
-    .cx-model { @apply max-w-[116px]; }
-    .cx-icon, .cx-send { @apply h-8 w-8; }
-    .cx-optimize { display: none !important; }
+    .cx-mode {
+      @apply h-11 w-11 shrink-0 justify-center overflow-hidden px-0;
+    }
+    .cx-mode-mobile-icon { @apply inline-flex; }
+    .cx-mode-risk { @apply hidden; }
+    .cx-mode-label, .cx-model .cx-pill-sub {
+      @apply hidden;
+    }
+    .cx-goal-mode { @apply min-h-11 min-w-11 justify-center px-2; }
+    .cx-model { @apply min-h-11 min-w-[80px] max-w-[104px]; }
+    .cx-model-name { @apply min-w-0 truncate; }
+    .cx-icon, .cx-send { @apply h-11 w-11; }
     .cx-delivery { @apply gap-[2px]; }
-    .cx-deliv { @apply h-8 w-8 justify-center px-0; }
+    .cx-deliv { @apply h-11 w-11 justify-center px-0; }
     .cx-deliv-label { @apply hidden; }
+    .cx-atts {
+      @apply flex-nowrap overflow-x-auto overscroll-x-contain;
+      scrollbar-width: none;
+    }
+    .cx-atts::-webkit-scrollbar { display: none; }
+    .cx-att { @apply min-h-11 shrink-0; }
     .cx-pop-codex {
       width: calc(100vw - 24px) !important;
       max-width: calc(100vw - 24px) !important;
-      max-height: min(72dvh, 520px) !important;
+    }
+    .cx-pop-codex > .cx-add-menu {
+      width: 100% !important;
+      max-width: none !important;
     }
     .cx-add-menu .pop-item,
     .cx-model-menu .pop-item { @apply min-h-11; }
@@ -1589,6 +1622,66 @@
       padding-left: max(0.75rem, env(safe-area-inset-left));
     }
     .lb-nav { @apply static translate-y-0; }
+  }
+
+  @media (max-width: 680px), (any-pointer: coarse) {
+    /* Composer is compact visually, but its complete interaction surface
+       still honors the 44px touch contract: context triggers, command rows,
+       picker navigation, searches, and goal fields. Keep this feature-scoped
+       so dense desktop menus elsewhere retain their established rhythm. */
+    .cx-env-control,
+    .cx-pill,
+    .cx-icon,
+    .cx-send,
+    .cx-deliv,
+    .cx-att,
+    .cx-slash-item,
+    .cx-pop-codex .pop-item,
+    .cx-pop-codex .pop-back,
+    .cx-pop-codex .cx-project-search,
+    .cx-pop-codex .cx-model-adv-toggle,
+    .cx-pop-codex .cx-effort-stop,
+    .cx-pop-codex [data-ui-button],
+    .cx-pop-codex input,
+    .cx-pop-codex select,
+    .cx-model-popover .pop-item,
+    .cx-model-popover [data-ui-button] {
+      min-height: 44px;
+    }
+    .cx-input-wrap textarea {
+      min-height: 44px;
+    }
+    .cx-icon,
+    .cx-send,
+    .cx-env-control,
+    .cx-mode,
+    .cx-goal-mode,
+    .cx-deliv {
+      min-width: 44px;
+    }
+    .cx-pop-codex [data-ui-icon-button],
+    .cx-model-popover [data-ui-icon-button] {
+      min-width: 44px;
+    }
+    .cx-pop-codex .cx-menu.wide {
+      min-width: 0;
+      width: 100%;
+    }
+  }
+
+  @media (any-pointer: coarse) {
+    .cx-icon, .cx-send, .cx-mode, .cx-goal-mode, .cx-model, .cx-deliv, .cx-att {
+      min-height: 44px;
+    }
+    .cx-icon, .cx-send, .cx-mode, .cx-goal-mode, .cx-deliv {
+      min-width: 44px;
+    }
+    .cx-atts {
+      @apply flex-nowrap overflow-x-auto overscroll-x-contain;
+      scrollbar-width: none;
+    }
+    .cx-atts::-webkit-scrollbar { display: none; }
+    .cx-att { @apply shrink-0; }
   }
 
   @media (max-height: 700px) {

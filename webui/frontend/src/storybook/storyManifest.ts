@@ -615,9 +615,9 @@ export const globalStatePairs = [
     storyId: "components-input-composer--long-draft-and-attachments",
     states: ["long-content", "mobile"],
     theme: "light",
-    viewport: { width: 390, height: 844 },
+    viewport: { width: 390, height: 500 },
     evidenceSelector: ".cx-card",
-    evidence: "Long composer content remains contained at the phone viewport.",
+    evidence: "Long composer content remains contained at the short phone viewport.",
     owner: "webui",
   },
   {
@@ -671,61 +671,61 @@ const ALL_STORY_REVIEW_AXES = [
 // digest edit.
 const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-attention":
-    "7baf8fa2c36c789615fc68c304b28ca0af93531333cd9b4f39aa6ce8de276725",
+    "7705a0e3cc99a1efe45d4d94371008e6af0a8937bafdd4368409b7c670fe3f14",
   "components-changes":
-    "9856292feeb0284d5929eb2694f0376d1b9562eaf9a874a46930a9558846b131",
+    "c9c9cfed90b4af13059ad238a0b1a5435ac557e5720bcfea1ef7acd7f79e0535",
   "components-content":
-    "b0e7ce69b5733774977f2d6a5d4532634b600225075ddcd790d7db034ac3a6e9",
+    "882d90634f6ca1b197ea7d1bc80b43e3f4f2cda1201af5fb8c62145589c17333",
   "components-feedback":
-    "a1042f0cf51dd78488ef0e90753d07dea58f0c59e6145339dfd7aececc3f1920",
+    "2d961318149e8e2fc6de201312e8818bb93bd12ab8ada164ff36f23a6f080cb5",
   "components-home":
-    "bd0c3cf78592f913a98af5dece08895bd229ab4bf7ccafa390ef91ee167d8435",
+    "fed3935232c2c5ca73f5f751950180fddb3f1e549b2949e7e78cfb6e7619d56a",
   "components-input":
-    "9e46c322ff6686c7d4b4fac83a9e8d687744f58546e31c5d7a73b5b2df5e74cd",
+    "82e5f9d93f191bad8f6dfaf0101b456e41e6471730db122200caa4af564dd251",
   "components-media":
-    "f4dbf3dbbcbf139505ef2d7fe4d379863c4a572b0259026f4ca81300359bee26",
+    "c2d05b08ec053db39b544d6ba155faf35c962196ace8705a86782c73ab1f4553",
   "components-navigation":
-    "0d8ff799f81c7b8d531e4f2b9d63c7f4940762cdf2bac389b4bc3875da45f578",
+    "0e91f69871ffa3222b44b5a609c3446ae80e85ccac383cd97a9f82eaaf19fea3",
   "components-overlays":
-    "9a65eeaebe7e44c447f1dafb866033f4fff4ad6c9e9ce1825f60000efc8e2649",
+    "b656ebde09cc271e13a62ae0008af443f8218835903fcc67b72c1d9147c51580",
   "components-runs":
-    "c5fc41c13661700b616f01b116be4b5fd509bc8fee2be2e2447bb961d09c40e6",
+    "edd159fe71b21399ff4a46ce833b27d74c1a4e9234033b0a2810a5c1c38bd856",
   "components-scheduled":
-    "877488467d9cedb7d0dc0495443cb610efc1107515440831e5d2e9a913ea60e8",
+    "bbf629d23908b9282cad81e5b2e21de7834abdc888c6776e8979ddfdca782e59",
   "components-sessions":
-    "af04487d40ee816aff5bd085e27e2156cf1e09372e2439cbeeed271671980518",
+    "8379151e7d41a23c02b694faca456e0da8e3f0879486916cdde6305b3677b8db",
   "components-settings":
-    "003baa9b4139375c3375213ff1ef9122281506faf77dbfc2429c03fd92c4ec39",
+    "ca8fd5fb19dc2319b31b3cd9883a53e28ee87b71ca21f1fe62c9f3f25dbc2782",
   "components-supervision":
-    "d5adc7b0485fa67959134a89249b7dc0963502577424b4d21adadf2aa9500dbc",
+    "73a67684eed623f1dba4eb09805dc3448cb4764dd15ca7a62610e430623d0559",
   "components-timeline":
-    "ba5c8aee5a2a6887cfacebc79ac2cf708d1a9f41f23fe7dd933e53f7b0faee17",
+    "303698e0c96011741e27e398aa776567a90d26238e9916b027d6e2a5f66b344d",
   "cujs-core-session":
-    "af36cde691bc552c9056e073110bd9dccc235e1dcafaaa5e133521caff46f7f9",
+    "cbce1b3a4f7043dd473851f5fda19d64c6b98fa10bc952b47b2c71ed1932e702",
   "demos-core-session":
-    "dbdee2b132f239faa0028ce18b87086a3c00b57c528d65789e1fd8fca07e0fd3",
+    "9e7bf47bf0723cf91a115a7ba9e78bbcbe66d8b1637c3fbe28c411cc3f1bd070",
   "demos-scenario-controls":
-    "9fa2fbbe7ca32889676acf000a978f2170a17a01fd8bc837122cd6141a84b526",
+    "6863e5748899fce8f74d0a9d7b4dd77facb69309bee90fc33d7a36704f94fdd9",
   "foundations-actions":
-    "8b30ada6ab179fc9f8eb32278d5ca50c385bbdbafaf7f7c4b0ded3cf03de2f9f",
+    "6c7c2057236327cbe75172a77568f031e2606f6e177346d85a57cd393c667395",
   "foundations-behavior":
-    "f2aa721040968463b31729ec87d486fdf4db3bb2b76631fcae890567714cd23f",
+    "ecb30ef2063a3a28402b8ddabed42fad3e98a891b786f2d474f5f95ab95ef519",
   "foundations-feedback":
-    "24c5dbef33888c1acac30123c87eb512538e9de9a76ebc2dcfe58fbe4358d613",
+    "8046e173072d717af3c979500cd8fca9657144993d473069183393fc0642db38",
   "foundations-forms":
-    "28279096e96e3143ee0af649c7cd2ca80755f9a28779936bf292ad6b09325f76",
+    "e098a28dad2bebbda8faf4fe4a55e6c5236051839ef511c9b84b69a1321bf6fe",
   "pages-appruntime":
-    "298ab2a41fb41b54bdca3cc6f0ee9a8d906588e913048ad262b0352ac959453a",
+    "a034c3bd04a98072211dc8e41a424f73eed601799818bbe5a52315cb2a349957",
   "pages-appshell":
-    "6d93ac29e1d4a07e3ec5f9af493bedece2ee33042a43bcd1f7eb68db60c2a76c",
+    "826f12fe7a284c63a90fc996bff52e76ea8a20b9c124c3e8a4aff73520a420a9",
   "pages-home":
-    "43d40e9289089105b6c933d96bf60c54e2976d36e1a079a348f78500e45795af",
+    "4fbd824bc45d60b5b861bf7a37a41f59ed994e83393a7de72edf34730da7a43e",
   "pages-pagehost":
-    "31ba558d1e1bf0b84344edc789a08db62a9fb123f1398c302058c370999afb41",
+    "dfe5468f5bdad096d2fdc1d577223f6801dddeb377d1fd120084fe6d63699d2f",
   "pages-scheduled":
-    "5f74620f0bacac0a8d8ad61e98ea711e34ecd87fb98e813b10addccd681f0dcb",
+    "b0bc8a22c437dfbfe849ae63ebd1064019c8fd9d463765530ef044ec88848f7b",
   "pages-settings":
-    "5bb814e73ef3a152f1c5abe62fdcc58ba7dd70e5edab566a453194c0e6cba559",
+    "909d53c49d422cfe18364096658cfe3657edfa0296e8cf5f9bd638dabe0e3a9c",
 };
 
 function reviewedFamily(
@@ -833,9 +833,9 @@ export const storyReviewFamilies = [
     "Components/Input",
     "GAP",
     "UNTESTED",
-    "Model Picker and Project Picker compact-canvas containment are fixed. Project Picker now keeps search and footer actions visible around one independently scrolling result list, uses 44px mobile/coarse-pointer targets, contains long CJK paths, and preserves open, Back, selection, and Escape focus return. The family remains GAP: several other Composer controls miss 44px touch geometry, long attachments can crowd out the action bar, and async failure states need honest recovery UI.",
+    "Model Picker, Project Picker, and Composer mobile resilience are fixed. Project Picker keeps search and footer actions visible around one independently scrolling result list. At mobile/coarse-pointer breakpoints every Composer context trigger, action, delivery segment, attachment chip, menu row, search, and field honors the 44px contract; long attachments use an independent single-line scroll region; the footer wraps as stable context/action groups without hiding Model or Optimize. The family remains GAP only because async failure states still need honest recovery UI.",
     "CODEX-PARITY NS input rows contain mixed PASS/GAP/UNTESTED states; no family-wide PASS is claimed.",
-    "Fresh Project Picker design, interaction, and code review at 390x500, 390x844, and 1280x800: panel margins stay >=8px; search, trigger, New project, projectless, and Back meet 44px on mobile; panel scroll is zero while the 14-row list scrolls; long English/CJK labels truncate; document overflow and browser console errors are zero; Storybook 67/67 and shared-runtime focus-chain checks pass. Evidence: 11-after-component-local-390x500.png, 10-after-long-overflow-390x844.png, 12-after-desktop-recent-1280x800.png, 13-real-shared-runtime-390x500.png. Fresh visual and code reviewers APPROVE with P0/P1/P2=0.",
+    "Fresh cumulative design, interaction, and code review at 390x500, 390x844, and 1280x800. Project Picker retains its contained independently scrolling result list, long-path truncation, 44px mobile geometry, and focus return. Latest hard-reload evidence adds the production AppShell Home/Session, RunningQueued, and nine-long-attachment Composer: the attachment rail is 56px high with scrollWidth 1667 > clientWidth 324; textarea and footer remain visible; Model, Optimize, Access, Add, Dictate, Queue, Steer, and Send remain reachable; all visible controls are at least 44px; semantic footer groups wrap without horizontal overflow; mobile Access uses a real shield glyph; popup rows and Back are at least 44px; Escape returns to the exact trigger and Tab hands off to the next control. Document and bar overflow are zero. Fresh independent visual, interaction, and code reviewers APPROVE with P0/P1/P2=0.",
     "2026-07-24",
   ),
   reviewedFamily(

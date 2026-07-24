@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 61,
-    "lines": 20040,
+    "lines": 20166,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -87,7 +87,7 @@
       },
       {
         "source": "src/components/DiffParts.tsx",
-        "lines": 889,
+        "lines": 913,
         "exports": [
           "ChangedFilesMenu",
           "CommitPushMenu",
@@ -103,7 +103,7 @@
       },
       {
         "source": "src/components/DiffView.tsx",
-        "lines": 1241,
+        "lines": 1294,
         "exports": [
           "DiffView",
           "FileBody",
@@ -365,7 +365,7 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 861,
+        "lines": 862,
         "exports": [
           "Sidebar"
         ],
@@ -373,7 +373,7 @@
       },
       {
         "source": "src/components/SidebarItems.tsx",
-        "lines": 499,
+        "lines": 502,
         "exports": [
           "SidebarConnectionStatus",
           "SidebarPreviewCard",
@@ -449,7 +449,7 @@
       },
       {
         "source": "src/features/composer/ComposerController.tsx",
-        "lines": 1634,
+        "lines": 1659,
         "exports": [
           "Composer"
         ],
@@ -457,7 +457,7 @@
       },
       {
         "source": "src/features/composer/ComposerParts.tsx",
-        "lines": 1368,
+        "lines": 1385,
         "exports": [
           "AccessPicker",
           "AddMenu",
@@ -482,7 +482,7 @@
       },
       {
         "source": "src/features/composer/ComposerView.tsx",
-        "lines": 136,
+        "lines": 139,
         "exports": [
           "ComposerView"
         ],
@@ -630,8 +630,8 @@
     ]
   },
   "tests": {
-    "files": 84,
-    "declarations": 809
+    "files": 86,
+    "declarations": 815
   },
   "storage": [
     {
