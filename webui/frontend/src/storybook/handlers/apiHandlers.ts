@@ -11,6 +11,7 @@ import type {
   Session,
 } from "../../types";
 import {
+  buildAgentCatalog,
   buildBackgroundWork,
   buildDiff,
   buildHealth,
@@ -114,20 +115,7 @@ function initialState(seed: StoryApiSeed): StoryApiState {
   const defaultRun = buildRun({ sessionId: defaultSession.id });
   return {
     health: cloneFixture(seed.health ?? buildHealth()),
-    agents: cloneFixture(seed.agents ?? [
-      {
-        name: "dev",
-        description: "Build and change code",
-        source: "shipped",
-        yaml: "name: dev\nsystem_prompt: Build and change code.\ntools: []\n",
-      },
-      {
-        name: "reviewer",
-        description: "Review implementation quality",
-        source: "shipped",
-        yaml: "name: reviewer\nsystem_prompt: Review implementation quality.\ntools: []\n",
-      },
-    ]),
+    agents: cloneFixture(seed.agents ?? buildAgentCatalog()),
     sessions: cloneFixture(seed.sessions ?? [defaultSession]),
     runs: cloneFixture(seed.runs ?? [defaultRun]),
     projects: cloneFixture(seed.projects ?? buildProjects()),

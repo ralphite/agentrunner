@@ -5,6 +5,7 @@ import type { AppServices } from "../app/appServices";
 import type { EffortId } from "../specs";
 import type { AppState, ModalKind } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { buildAgentCatalog } from "../storybook/fixtures";
 import { humanPause } from "../storybook/humanPlayback";
 import { Toasts } from "./Toasts";
 import {
@@ -27,7 +28,11 @@ import {
 type StoryApi = AppServices["api"];
 
 function failClosedApi(overrides: Partial<StoryApi> = {}): StoryApi {
-  return new Proxy(overrides as StoryApi, {
+  const allowed = {
+    agents: async () => buildAgentCatalog(),
+    ...overrides,
+  } as StoryApi;
+  return new Proxy(allowed, {
     get: (target, property) => {
       if (property in target) return target[property as keyof StoryApi];
       return () => {
@@ -404,10 +409,15 @@ export const AgentModalDefault: Story = {
     </LeafFrame>
   ),
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expectDialog(canvasElement, "Switch agent · story-session");
-    await expect(
-      within(canvasElement).getAllByDisplayValue(/provider: gemini/i)[0],
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("textbox", {
+          name: "base.yaml (new main agent spec)",
+        }),
+      ).toHaveValue(buildAgentCatalog()[0].yaml),
+    );
   },
 };
 

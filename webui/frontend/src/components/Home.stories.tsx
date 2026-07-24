@@ -3,29 +3,18 @@ import { expect, userEvent, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
-import { buildHealth } from "../storybook/fixtures";
+import { buildAgentCatalog, buildHealth } from "../storybook/fixtures";
 import { humanPause } from "../storybook/humanPlayback";
 import { Home } from "./Home";
 
 type StoryApi = AppServices["api"];
 
-const noNetworkApi = new Proxy({} as StoryApi, {
-  get: (_target, property) => () => {
-    throw new Error(`Unexpected Storybook API call: ${String(property)}`);
-  },
-});
-
-const projectApi = new Proxy(
-  {
-    gitBranches: async () => ({
-      isRepo: true,
-      current: "main",
-      branches: ["main"],
-      dirty: 0,
-      hasCommits: true,
-    }),
-  } as Partial<StoryApi> as StoryApi,
-  {
+function failClosedApi(overrides: Partial<StoryApi> = {}): StoryApi {
+  const allowed = {
+    agents: async () => buildAgentCatalog(),
+    ...overrides,
+  } as StoryApi;
+  return new Proxy(allowed, {
     get: (target, property, receiver) => {
       if (Reflect.has(target, property)) {
         return Reflect.get(target, property, receiver);
@@ -34,8 +23,20 @@ const projectApi = new Proxy(
         throw new Error(`Unexpected Storybook API call: ${String(property)}`);
       };
     },
-  },
-);
+  });
+}
+
+const noNetworkApi = failClosedApi();
+
+const projectApi = failClosedApi({
+    gitBranches: async () => ({
+      isRepo: true,
+      current: "main",
+      branches: ["main"],
+      dirty: 0,
+      hasCommits: true,
+    }),
+});
 
 const initialState = {
   health: buildHealth(),

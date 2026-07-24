@@ -1,4 +1,5 @@
 import type {
+  AgentCatalogEntry,
   BackgroundWork,
   DiffResp,
   Envelope,
@@ -59,6 +60,23 @@ function mergeFixture<T>(base: T, overrides?: FixtureOverrides<T>): T {
 
 const FIXTURE_TIME = "2026-01-15T12:00:00Z";
 const FIXTURE_WORKSPACE = "/workspace/storybook-demo";
+
+export function buildAgentCatalog(): AgentCatalogEntry[] {
+  return [
+    {
+      name: "dev",
+      description: "Build and change code",
+      source: "shipped",
+      yaml: "name: dev\nsystem_prompt: Build and change code.\ntools: []\n",
+    },
+    {
+      name: "reviewer",
+      description: "Review implementation quality",
+      source: "shipped",
+      yaml: "name: reviewer\nsystem_prompt: Review implementation quality.\ntools: []\n",
+    },
+  ];
+}
 
 export function buildHealth(overrides?: FixtureOverrides<Health>): Health {
   return mergeFixture<Health>(
