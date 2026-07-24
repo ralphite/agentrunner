@@ -121,9 +121,9 @@ export function ComposerView({
             <AddMenu {...addMenu} />
             <AccessPicker {...accessPicker} />
             {goalOptions && <GoalOptions {...goalOptions} />}
-            <ModelPicker {...modelPicker} />
           </div>
           <div className="cx-bar-trailing">
+            <ModelPicker {...modelPicker} />
             <AssistActions {...assistActions} />
             {deliveryModeControl && (
               <DeliveryModeControl {...deliveryModeControl} />
