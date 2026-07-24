@@ -250,7 +250,7 @@ export function AppShell() {
         className="main"
         id="main"
         tabIndex={-1}
-        inert={isMobile && mobileSidebarOpen ? true : undefined}
+        {...(isMobile && mobileSidebarOpen ? { inert: "" } : {})}
         aria-hidden={isMobile && mobileSidebarOpen ? "true" : undefined}
       >
         {effectiveCollapsed && !(isMobile && currentPage === "scheduled" && scheduledDetailSid) && (
