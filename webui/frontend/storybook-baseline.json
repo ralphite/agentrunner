@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 59,
-    "lines": 19247,
+    "lines": 18822,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -275,13 +275,15 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 923,
+        "lines": 496,
         "exports": [
           "ScheduleDetailPanel",
           "ScheduleEditDialog",
           "Scheduled"
         ],
-        "privateVisibleCandidates": []
+        "privateVisibleCandidates": [
+          "ScheduledView"
+        ]
       },
       {
         "source": "src/components/ScheduledParts.tsx",
@@ -311,7 +313,7 @@
       },
       {
         "source": "src/components/SessionView.tsx",
-        "lines": 1067,
+        "lines": 1069,
         "exports": [
           "GoalBanner",
           "ProgressSummary",
@@ -612,7 +614,7 @@
   },
   "tests": {
     "files": 82,
-    "declarations": 794
+    "declarations": 795
   },
   "storage": [
     {

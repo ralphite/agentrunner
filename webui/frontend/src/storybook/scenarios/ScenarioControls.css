@@ -8,6 +8,10 @@
   gap: 10px 16px;
   justify-content: space-between;
   padding: 10px 12px;
+  position: relative;
+  /* Demo transport must remain operable while a production fixed Popover is
+     the state under inspection. Product overlays top out below this layer. */
+  z-index: 100;
 }
 
 .scenario-controls-actions,
