@@ -116,16 +116,23 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
     expect(screen.getByLabelText("Changed files").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("moves Expand / Collapse-all into the … overflow", async () => {
+  // DIFF-COLLAPSE-ALL-ICON — on a wide multi-file review, collapse-all/expand-all
+  // is a first-class resident toolbar icon (it was buried in `…` at every width,
+  // unlike Copy/Wrap/Split). It still demotes into `…` on a tight bar.
+  it("keeps collapse-all as a resident toolbar icon on a wide multi-file review", async () => {
     arMock.diff = () => Promise.resolve(worktreeDiff());
     const { container } = render(<DiffView sid="s3" onClose={() => {}} />);
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
-    expect(screen.queryByLabelText("Collapse all files")).toBeNull();
-    expect(screen.queryByLabelText("Expand all files")).toBeNull();
-
+    // Both files open by default → the resident action is "collapse".
+    const btn = screen.getByLabelText("Collapse all files");
+    expect(container.querySelector(".diffbar")!.contains(btn)).toBe(true);
+    // …and it is not duplicated in the `…` menu on a wide bar.
     fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Collapse all files"));
+    expect(screen.queryByText("Fold every file down to its header")).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.click(btn);
     await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBe(0));
   });
 

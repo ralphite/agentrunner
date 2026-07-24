@@ -212,8 +212,9 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
     expect(head.querySelector(".fd-counts .del")!.textContent).toBe("-0");
 
     // Expandable: Expand-all opens it and the body is the file, as added lines.
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Expand all files"));
+    // DIFF-COLLAPSE-ALL-ICON · the control is a resident toolbar icon on a wide
+    // multi-file review now, not a `…` menu item.
+    fireEvent.click(screen.getByLabelText("Expand all files"));
     await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
     const rows = container.querySelectorAll("details.filediff-untracked .fd-body .dl.add");
     expect(rows.length).toBe(3);
@@ -284,8 +285,7 @@ describe("Binary files are never prefetched (INC-41 DF-D7)", () => {
     // user opens it (its tracked neighbour still prefetches, as it should).
     const binCalls = () => blob.mock.calls.filter((c: any[]) => c[1] === "qa-inc41-d4/asset.bin");
     expect(binCalls()).toHaveLength(0);
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Expand all files"));
+    fireEvent.click(screen.getByLabelText("Expand all files"));
     await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
     expect(binCalls()).toHaveLength(0);
   });
@@ -328,9 +328,8 @@ describe("Changes panel focuses the file the thread asked for (INC-41 TH-5)", ()
     const { container } = render(<DiffView sid="f2" />);
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
 
-    // user folds everything…
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Collapse all files"));
+    // user folds everything (resident toolbar icon — DIFF-COLLAPSE-ALL-ICON)…
+    fireEvent.click(screen.getByLabelText("Collapse all files"));
     await waitFor(() => expect(container.querySelector("details.filediff[open]")).toBeNull());
 
     // …then clicks app.ts in the thread's change card, with the panel already open.
@@ -476,8 +475,7 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
 
     // fold everything, so landing on the file means opening it too
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Collapse all files"));
+    fireEvent.click(screen.getByLabelText("Collapse all files"));
     await waitFor(() => expect(container.querySelector("details.filediff[open]")).toBeNull());
     scrollSpy.mockReset();
 
@@ -506,12 +504,12 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     fireEvent.click(row);
     await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBeGreaterThan(0));
 
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Collapse all files"));
+    // DIFF-COLLAPSE-ALL-ICON · resident toolbar icon on a wide multi-file review.
+    fireEvent.click(screen.getByLabelText("Collapse all files"));
     await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBe(0));
 
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    expect(screen.getByText("Expand all files")).toBeTruthy();
+    // …and the icon flips to the expand action once everything is folded.
+    expect(screen.getByLabelText("Expand all files")).toBeTruthy();
   });
 
   it("filters the list and the review together, and keeps the query when a file is picked", async () => {
@@ -627,8 +625,7 @@ describe("Review order and binary truth (INC-41 RVW-ORDER / RVW-BINCOUNT)", () =
     // remount (fold-all, filter, focus) never buys another 400.
     const arCalls = () => blob.mock.calls.filter((c: any[]) => c[1] === "bin/ar");
     expect(arCalls()).toHaveLength(1);
-    fireEvent.click(screen.getByLabelText("More changes actions"));
-    fireEvent.click(screen.getByText("Expand all files"));
+    fireEvent.click(screen.getByLabelText("Expand all files"));
     await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
     expect(arCalls()).toHaveLength(1);
     expect(card().querySelector(".fd-nobody")!.textContent).toMatch(/binary/);

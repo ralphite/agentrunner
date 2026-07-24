@@ -455,7 +455,7 @@ export function DiffMoreActionsMenu({
     >
       {(close) => (
         <PopSection label="Changes">
-          {fileCount > 1 && (
+          {barTight && fileCount > 1 && (
             <PopItem
               icon={
                 allShownOpen ? (
@@ -813,6 +813,30 @@ export function DiffToolbar(props: DiffToolbarProps) {
         onApplyProject={props.onApplyProject}
         onRemoveWorktree={props.onRemoveWorktree}
       />
+      {/* DIFF-COLLAPSE-ALL-ICON · collapse-all/expand-all is a first-class
+          toolbar icon on a wide multi-file review (it used to live only inside
+          the `…` overflow, at every width) — mirroring Copy/Wrap/Split, and the
+          golden, where it sits immediately left of the file-search icon. It
+          demotes back into `…` on a tight bar (see DiffMoreActionsMenu). */}
+      {!props.empty && !props.barTight && props.fileCount > 1 && (
+        <IconButton
+          size="md"
+          variant="ghost"
+          onClick={props.onToggleAll}
+          aria-label={
+            props.allShownOpen ? "Collapse all files" : "Expand all files"
+          }
+          title={
+            props.allShownOpen ? "Collapse all files" : "Expand all files"
+          }
+        >
+          {props.allShownOpen ? (
+            <ArrowsInLineVertical size={15} />
+          ) : (
+            <ArrowsOutLineVertical size={15} />
+          )}
+        </IconButton>
+      )}
       <ChangedFilesMenu
         files={props.files}
         fileCount={props.fileCount}
