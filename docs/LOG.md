@@ -7625,3 +7625,25 @@ ScenarioControls 现隔离 pointer/mousedown 并建立高于 product overlay 的
 stacking layer，`Reset→Next→Next` 与 `Play→Step7→Pause→Next→Step8` 均真浏览器
 通过。AppShell、360px Composer、四个 PageHost route 与最终 Story console 证据归档
 在 `qa/runs/2026-07-23-QA-89-webui-storybook-components/`。
+
+---
+
+## 2026-07-23 · INC-99.3 Web UI feature boundary 诚实收口
+
+独立架构复审指出 Composer、Session、Timeline 虽已抽出部分 hook/view，旧
+`components/` module 仍持有大块 runtime controller，因而与 DESIGN 宣称的
+production boundary 不符。本轮按事实修正实现而非降低文档标准：
+
+- Composer controller、parts、voice/dictation、optimize、slash 与 session spec
+  全部归 `features/composer/`；旧 Composer/ComposerParts entry 缩为 14/5 行兼容
+  re-export；
+- Session runtime/store/storage/command 编排归 `SessionFeature`，通过 typed render
+  slots 驱动不读取 AppServices/store/storage/clock 的纯 `SessionView`；旧 entry 为
+  9 行；
+- Timeline production composition 归 feature，clipboard/timer 进入 controller
+  hook，视觉叶不再读取 AppServices；旧 entry 为 4 行。
+
+manifest 按真实实现路径重建为 175 targets、559 Stories、13 semantic states、
+5 global pairs、12 private exclusions、0 missing。Composer focused unit 41/41、
+Composer Stories 90/90、Session/Timeline focused 173/173 与迁移后 smoke 40/40
+通过；完整最新 HEAD 门禁与浏览器复验仍以 QA-89 的最终记录为准。
