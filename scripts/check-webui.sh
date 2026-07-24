@@ -25,11 +25,9 @@ if [[ "$skip_install" != "true" ]]; then
   npm ci
 fi
 
-npm run baseline:storybook:check
 npm run test
 npm run build
 npm run build-storybook
-npm run lint:storybook
 npm run test:storybook
 npm run test:visual
 

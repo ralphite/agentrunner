@@ -313,13 +313,9 @@ New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 wrapper 四类共享问题，并在 production token/primitive/component 层修复。Home
 保留 Codex fresh New chat 的 chromeless resting row；路由语义只由
 `aria-current="page"` 表达，不把可访问性 current 反推为视觉 selected parity。
-tracked `storybook-review-ledger.json` 将 28 个人工裁决 family 机械展开到全部
-67 个 Story 文件、567 个 Story、177 targets / 684 cells（618 covered、66 N/A）、
-13 个 semantic assertions、5 个 global pairs 与 12 个 exclusions；每个 Story
-保留 exact ID/source/target refs、八轴 review、Codex `UNTESTED/GAP/INTENTIONAL`
-理由与人工批准的 family source digest；baseline update 不能改批准 digest，
-新增/变更 Story 或关联源码必须 fresh review。inventory 只证明集合闭环，不自动生成
-parity PASS。
+当时曾引入 `storybook-review-ledger.json` 这类生成审计物，把人工裁决机械展开到全部
+Story/target cell。该链路后来已删除，因为维护成本高、容易 stale、且不直接提升真实
+session 体验；现在 inventory 只保留集合闭环含义，不再把生成 ledger 当作 parity 证据。
 QA-91/92 属单侧 visual regression 与 shared-store 回归证据，不足以把 GL-06、
 SC-06、AX-04 或 AX-06 升为 `PASS`；上述行继续等待同 state/viewport/theme 的
 Codex 双侧证据。

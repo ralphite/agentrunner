@@ -2302,7 +2302,7 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 
 | 菜单 | 验收 |
 |---|---|
-| A 全 Story inventory | 实施前 66/562/176；新增 lifecycle primitive 后最终 67 个 Story 文件、567 个 Story、177 targets / 684 cells（618 covered、66 N/A）、13 semantic states、5 global pairs、12 exclusions；manifest/index 0 missing、0 orphan；tracked `storybook-review-ledger.json` 把 28 个三角色 family 裁决展开到每个 exact Story/target cell；computed digest 必须等于 manifest 中人工批准 digest，baseline update 无权改批准值，inventory 不自动生成 parity PASS |
+| A 全 Story inventory | 实施前 66/562/176；新增 lifecycle primitive 后最终 67 个 Story 文件、567 个 Story、177 targets / 684 cells（618 covered、66 N/A）、13 semantic states、5 global pairs、12 exclusions；manifest/index 0 missing、0 orphan。曾经存在的 `storybook-review-ledger.json` / digest stale gate 已移除，因为它们是高维护成本的生成审计物，不再作为 parity 证据；inventory 只证明集合闭环，不自动生成 parity PASS |
 | B manager / foundations | AgentRunner 中性 manager，无 onboarding/what's-new 噪音；taxonomy/search/toolbar/addons 保留；centered Story 不再被全屏 wrapper 推到顶端 |
 | C production primitives | radius/control/type/shadow 使用语义 token；普通 button 无无差别 elevation；explicit light/dark/system 有正确 `color-scheme` |
 | D lifecycle / selection | running/done/waiting/idle/attention/failed 复用 `LifecycleStatus`；Sidebar icon-only running 不挤标题；Scheduled current row 使用安静选中态；Home 与 Codex fresh New chat 一样保持 chromeless，但保留 `aria-current="page"` |
