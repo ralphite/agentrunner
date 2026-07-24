@@ -7647,3 +7647,24 @@ manifest 按真实实现路径重建为 175 targets、559 Stories、13 semantic 
 5 global pairs、12 private exclusions、0 missing。Composer focused unit 41/41、
 Composer Stories 90/90、Session/Timeline focused 173/173 与迁移后 smoke 40/40
 通过；完整最新 HEAD 门禁与浏览器复验仍以 QA-89 的最终记录为准。
+
+---
+
+## 2026-07-23 · INC-99.4 Agent Catalog 整合与最终浏览器闭环
+
+`origin/main` 在组件重构期间并行落地 Agent Catalog contract。最终整合没有选择任一
+冲突边，而是以迁移前 Composer 为 base 做三方内容合并：保留 runtime-owned agent
+catalog、独立 provider/model/effort、model recall/persistence，同时继续让
+`components/Composer*` 保持薄兼容 entry，生产实现归 `features/composer/`。
+
+整合审计发现新增的 `ModelFields` 视觉叶不应逃出 Story denominator，现增加默认、
+custom model 与 keyboard 三个直接 Story；inventory 为 176 targets、562 Stories、
+13 semantic states、5 global pairs、12 private exclusions、0 missing。真实浏览器又发现
+AppShell Story 的新 `/api/agents` 请求没有挂 MSW handler：handler factory 先补 endpoint，
+随后 AppShell Story 显式注册该 fixture。hard reload 后 fresh `/api/agents` error 为 0。
+
+最终浏览器复验覆盖 shared-store Home/retained Session、AppShell、toolbar 360px canonical
+Composer、Session default/running、Timeline、三个 ModelFields 状态及 Demo
+Reset/Next/Play/Pause；Demo 约 1.0s 仍在 Step 1、约 1.84s 才进入 Step 2，popover 与
+z-index transport control 均可人工操作。证据保留在 QA-89；完整自动门禁以其最终
+`commands.md` 为准。
