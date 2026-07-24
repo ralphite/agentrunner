@@ -243,9 +243,8 @@ export const TopbarOverflowActions: Story = {
       name: "Retry last message",
     });
     await expect(retry).toBeVisible();
-    retry.focus();
     await humanPause();
-    await userEvent.keyboard("{Enter}");
+    await userEvent.click(retry);
     await expect(topbarActions.onRetry).toHaveBeenCalled();
   },
 };
