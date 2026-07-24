@@ -748,7 +748,7 @@ describe("project hover and management controls (INC-87)", () => {
     expect(useStore.getState().prompt?.title).toBe("Create permanent worktree");
   });
 
-  it("disambiguates duplicate project names with a dim parent-path subtitle", () => {
+  it("keeps project headings quiet and leaves the full path in progressive disclosure", () => {
     const duplicateNames = [
       { id: "20260722-140000-a", status: "idle", turns: 1, title: "Alpha", workspace: "/Users/a/workspace" },
       { id: "20260722-130000-b", status: "idle", turns: 1, title: "Beta", workspace: "/Users/b/workspace" },
@@ -758,13 +758,7 @@ describe("project hover and management controls (INC-87)", () => {
 
     expect(groups).toHaveLength(2);
     expect(groups.map((group) => group.querySelector(".proj-heading-name")?.textContent)).toEqual(["workspace", "workspace"]);
-    // Twin basenames now carry a short de-noised parent-path hint so the rail
-    // never reads as a duplicate (SIDE-PROJECT-HINT / W20).
-    expect(groups.map((group) => group.querySelector(".proj-heading-hint")?.textContent)).toEqual(["a", "b"]);
-    expect(groups.map((group) => group.querySelector(".proj-heading-hint")?.getAttribute("title"))).toEqual([
-      "/Users/a/workspace",
-      "/Users/b/workspace",
-    ]);
+    expect(container.querySelector(".proj-heading-hint")).toBeNull();
     expect(groups.map((group) => group.querySelector(".project-heading")?.getAttribute("title"))).toEqual([
       "/Users/a/workspace",
       "/Users/b/workspace",

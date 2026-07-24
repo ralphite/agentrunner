@@ -41,7 +41,7 @@ import {
   rememberModel,
   rememberSpec,
 } from "./sessionSpecs";
-import { isScratchWorkspace, projectLabel, projectSubtitles } from "../../viewModels";
+import { isScratchWorkspace, projectLabel } from "../../viewModels";
 import { ComposerView } from "./ComposerView";
 import type { AgentCatalogEntry } from "../../types";
 
@@ -519,7 +519,6 @@ export function Composer(props: ComposerProps) {
   // the whole searchable set, so two same-named hits in a search result can be
   // told apart — the picker prints a bold basename plus that gray parent-path
   // hint, never one long smear of an absolute path.
-  const projectSubs = useMemo(() => projectSubtitles(allWorkspaces), [allWorkspaces]);
 
   const modelLabel = modelById(provider, model)?.label || model;
   const effortLevel = effortById(effort);
@@ -1348,7 +1347,6 @@ export function Composer(props: ComposerProps) {
                 projects: filteredProjects.map((workspace) => ({
                   workspace,
                   label: projectLabel(workspace),
-                  subtitle: projectSubs.get(workspace),
                   active: workspace === normalizedWs,
                 })),
                 onOpen: () => {

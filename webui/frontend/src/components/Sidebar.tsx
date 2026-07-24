@@ -648,7 +648,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               <SidebarProjectItem
                 key={project.key}
                 name={name}
-                hint={project.hint}
                 workspace={project.workspace}
                 folded={folded}
                 removed={overlay?.removed}
