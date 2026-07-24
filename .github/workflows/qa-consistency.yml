@@ -53,7 +53,6 @@ jobs:
           git -C qa-run/ws -c user.email=qa@local -c user.name=qa commit -q --allow-empty -m init
           cat > qa-run/base.yaml <<'YAML'
           name: dev
-          model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
           system_prompt: |
             You are a terse assistant. Answer with the minimum text asked for.
           tools: [read_file, bash]
@@ -62,7 +61,6 @@ jobs:
           YAML
           cat > qa-run/ask.yaml <<'YAML'
           name: dev
-          model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
           system_prompt: |
             You are a terse assistant. Use tools exactly as instructed.
           tools: [read_file, bash]
@@ -87,8 +85,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OUT_DIR: qa-run/out
         run: |
+          set -o pipefail
           node qa/consistency/check.mjs http://127.0.0.1:8788 "$PWD/bin/ar" "$PWD/qa-run/ws" fresh | tee fresh.log
           sid_b=$(grep -oE '^SID_B=.*' fresh.log | cut -d= -f2)
+          test -n "$sid_b" || { echo "fresh phase did not emit SID_B" >&2; exit 1; }
           echo "sid_b=$sid_b" >> "$GITHUB_OUTPUT"
 
       - name: Restart daemon + webui (S3 前置:journal replay)
