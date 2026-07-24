@@ -45,8 +45,8 @@ import {
 import { IconButton } from "../ui/IconButton";
 
 type SidebarContext =
-  | { kind: "session"; x: number; y: number; sid: string }
-  | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[] };
+  | { kind: "session"; x: number; y: number; sid: string; returnFocus: HTMLElement }
+  | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[]; returnFocus: HTMLElement };
 
 type SidebarHover =
   | { kind: "session"; sid: string; top: number }
@@ -345,7 +345,10 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     });
   };
 
-  const renderSessionActions = (sid: string) => (
+  const renderSessionActions = (
+    sid: string,
+    modalReturnFocus?: HTMLElement,
+  ) => (
     <SidebarSessionActions
       title={displayTitle(renames, sid, sessions.find((session) => session.id === sid)?.title)}
       pinned={pinned.includes(sid)}
@@ -356,6 +359,16 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         restoreSessionActionFocusAfterMutation(sid);
       }}
       onRename={() => {
+        const active =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        const returnFocus =
+          modalReturnFocus ??
+          active
+            ?.closest(".pop-wrap")
+            ?.querySelector<HTMLElement>(".menu-trigger") ??
+          undefined;
         // Menu's bubble-phase close queues a zero-delay trigger restore after
         // this handler returns. The inner timer is registered only when this
         // outer timer runs, so the already-queued restore runs first and the
@@ -363,7 +376,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         const openRename = store.getState().openModal;
         window.setTimeout(() => {
           window.setTimeout(
-            () => openRename({ kind: "rename", sid }),
+            () => openRename({
+              kind: "rename",
+              sid,
+              returnFocus,
+            }),
             0,
           );
         }, 0);
@@ -436,11 +453,15 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     const isUnread = unread.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTimeAgo(sessionUpdatedDate(session));
-    const openContext = (x: number, y: number) => {
+    const openContext = (
+      x: number,
+      y: number,
+      returnFocus: HTMLElement,
+    ) => {
       // Opening a context menu instantly dismisses any hover preview so the
       // two floating layers stay mutually exclusive (R3-1).
       setHoverPreview(null);
-      setCtx({ kind: "session", x, y, sid: session.id });
+      setCtx({ kind: "session", x, y, sid: session.id, returnFocus });
     };
     return (
       <SidebarSessionItem
@@ -530,11 +551,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         {NAV_DESTINATIONS.map(({ key, label, icon: DestIcon, keys }) => (
           <button
             key={key}
-            className={
+            className={`max-[900px]:h-11 [@media(any-pointer:coarse)]:h-11${
               key !== "home" && !currentSid && currentPage === key
-                ? "active"
+                ? " active"
                 : ""
-            }
+            }`}
             aria-current={!currentSid && currentPage === key ? "page" : undefined}
             onClick={() => { showPage(key); onNavigate?.(); }}
             title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
@@ -610,9 +631,22 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             const folded = persistedFold;
             const showAll = expanded.has(project.key);
             const shown = visibleProjectSessions(project, { folded, expanded: showAll, current: currentSid || undefined });
-            const openMenu = (x: number, y: number) => {
+            const openMenu = (
+              x: number,
+              y: number,
+              returnFocus: HTMLElement,
+            ) => {
               setHoverPreview(null);
-              setCtx({ kind: "project", x, y, key: project.key, label: name, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
+              setCtx({
+                kind: "project",
+                x,
+                y,
+                key: project.key,
+                label: name,
+                workspace: project.workspace,
+                ids: project.sessions.map((session) => session.id),
+                returnFocus,
+              });
             };
             return (
               <SidebarProjectItem
@@ -797,12 +831,28 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       })()}
 
       {ctx?.kind === "session" && (
-        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-          {renderSessionActions(ctx.sid)}
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          ariaLabel={`${displayTitle(
+            renames,
+            ctx.sid,
+            sessions.find((session) => session.id === ctx.sid)?.title,
+          )} actions`}
+          returnFocus={ctx.returnFocus}
+          onClose={() => setCtx(null)}
+        >
+          {renderSessionActions(ctx.sid, ctx.returnFocus)}
         </ContextMenu>
       )}
       {ctx?.kind === "project" && (
-        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          ariaLabel={`${ctx.label} actions`}
+          returnFocus={ctx.returnFocus}
+          onClose={() => setCtx(null)}
+        >
           {renderProjectActions(ctx.key, ctx.label, ctx.workspace, ctx.ids)}
         </ContextMenu>
       )}

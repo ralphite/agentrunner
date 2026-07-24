@@ -147,7 +147,7 @@ export function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
         />
       );
     case "rename":
-      return <RenameModal sid={modal.sid} />;
+      return <RenameModal sid={modal.sid} returnFocus={modal.returnFocus} />;
     case "trust":
       return <TrustModal />;
     case "confirm":
@@ -1080,7 +1080,13 @@ export function TrustModal() {
   );
 }
 
-export function RenameModal({ sid }: { sid: string }) {
+export function RenameModal({
+  sid,
+  returnFocus,
+}: {
+  sid: string;
+  returnFocus?: HTMLElement;
+}) {
   const { openModal, sessions, renames, setRename, toast } = useStore();
   const raw = sessions.find((s) => s.id === sid)?.title;
   const [name, setName] = useState(() => displayTitle(renames, sid, raw));
@@ -1098,6 +1104,7 @@ export function RenameModal({ sid }: { sid: string }) {
     <Modal
       title="Rename session"
       onClose={close}
+      returnFocus={returnFocus}
       footer={
         <>
           <Button variant="ghost" onClick={close}>

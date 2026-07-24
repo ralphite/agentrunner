@@ -671,61 +671,61 @@ const ALL_STORY_REVIEW_AXES = [
 // digest edit.
 const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-attention":
-    "f10c052274cf1a521e4ef7a27d679ca618e4130a0a42800b946cbaff528a781a",
+    "7baf8fa2c36c789615fc68c304b28ca0af93531333cd9b4f39aa6ce8de276725",
   "components-changes":
-    "19ea4b9f22892204414c9067240e7b272583836b05e1ba338a8c9d005531890f",
+    "9856292feeb0284d5929eb2694f0376d1b9562eaf9a874a46930a9558846b131",
   "components-content":
-    "46d819f19d10b9aeb38d0486b1054bb90dc7bc04a364ec58c01215409c0538e4",
+    "b0e7ce69b5733774977f2d6a5d4532634b600225075ddcd790d7db034ac3a6e9",
   "components-feedback":
-    "fbaeff7780ef346f576bc2e450c525346c4c45edf22d680d64dd453af8021897",
+    "a1042f0cf51dd78488ef0e90753d07dea58f0c59e6145339dfd7aececc3f1920",
   "components-home":
-    "185b48f2887973bffd37876a59e6b617cf150ff0034f6bc8bf701ba583d23434",
+    "bd0c3cf78592f913a98af5dece08895bd229ab4bf7ccafa390ef91ee167d8435",
   "components-input":
-    "caa6db1c52c8fcdc65643ee055c244d7e4ff943151908a6ca6682cfa921eb19c",
+    "9e46c322ff6686c7d4b4fac83a9e8d687744f58546e31c5d7a73b5b2df5e74cd",
   "components-media":
-    "8c4e3c5047195658cc7707e93064ad33171d4c4d2f1af5877996d71b8a1fb033",
+    "f4dbf3dbbcbf139505ef2d7fe4d379863c4a572b0259026f4ca81300359bee26",
   "components-navigation":
-    "78fb1a2a52c602afb68894cca21bc324af22f69d439890863be8fe06e8585c86",
+    "0d8ff799f81c7b8d531e4f2b9d63c7f4940762cdf2bac389b4bc3875da45f578",
   "components-overlays":
-    "d2823a144399138f22255570df379dde8ddc6f046ed59f96e4cc47011b8e03ff",
+    "9a65eeaebe7e44c447f1dafb866033f4fff4ad6c9e9ce1825f60000efc8e2649",
   "components-runs":
-    "fd27e026779c6209f19f882b735b423faf0a28d0c0b41e3d9bd60f771d5e285e",
+    "c5fc41c13661700b616f01b116be4b5fd509bc8fee2be2e2447bb961d09c40e6",
   "components-scheduled":
-    "3c8b9889844c39819894d24ac148c647549350c0bb4130329edaeaf16cd39ca2",
+    "877488467d9cedb7d0dc0495443cb610efc1107515440831e5d2e9a913ea60e8",
   "components-sessions":
-    "a179e83640e8be87e252b768e471c8cb756fceff2abb1e1ea0edebd8ccc46a06",
+    "af04487d40ee816aff5bd085e27e2156cf1e09372e2439cbeeed271671980518",
   "components-settings":
-    "bc7c0f3c9e6506cf4c3659a73efb937c7794df4ba0b2f26c354e691917c14918",
+    "003baa9b4139375c3375213ff1ef9122281506faf77dbfc2429c03fd92c4ec39",
   "components-supervision":
-    "1d0b7dc660f76d64117b27066fda22dcddf5fca22a0c24664a7a5518349245ae",
+    "d5adc7b0485fa67959134a89249b7dc0963502577424b4d21adadf2aa9500dbc",
   "components-timeline":
-    "5d6c272e074a1a388103051ddd6ab1f2533fc37b604c4c3b3452b15dba3ffff7",
+    "ba5c8aee5a2a6887cfacebc79ac2cf708d1a9f41f23fe7dd933e53f7b0faee17",
   "cujs-core-session":
-    "c7841a614e861ad19f0480f52fbdb265100e39595a74f1969cc64233f44d08db",
+    "af36cde691bc552c9056e073110bd9dccc235e1dcafaaa5e133521caff46f7f9",
   "demos-core-session":
-    "b4cbfaa9b1213d54008b8633dbb5a150b44491968b41897c555a98bd79a62a77",
+    "dbdee2b132f239faa0028ce18b87086a3c00b57c528d65789e1fd8fca07e0fd3",
   "demos-scenario-controls":
-    "f49f0525881899f118ac7fa6c59ad0c2ec5a20269ce89468f9663ba2436b41c3",
+    "9fa2fbbe7ca32889676acf000a978f2170a17a01fd8bc837122cd6141a84b526",
   "foundations-actions":
-    "9d2a8e00fb199ac7e254ef355c8ac04c8834a3d3c1b9926ba6b6f6fcf43c1857",
+    "8b30ada6ab179fc9f8eb32278d5ca50c385bbdbafaf7f7c4b0ded3cf03de2f9f",
   "foundations-behavior":
-    "b27535561d2f61014a046d253e81d867acbade5551a740d1dede826f065dd890",
+    "f2aa721040968463b31729ec87d486fdf4db3bb2b76631fcae890567714cd23f",
   "foundations-feedback":
-    "7959855cf1faeee969928c6bd080ab26bfc1c84add2272273b0d7a60cc4af33f",
+    "24c5dbef33888c1acac30123c87eb512538e9de9a76ebc2dcfe58fbe4358d613",
   "foundations-forms":
-    "4cd5d6971af302189260029544e0779fef934ee7c851c933442df58c5de563f3",
+    "28279096e96e3143ee0af649c7cd2ca80755f9a28779936bf292ad6b09325f76",
   "pages-appruntime":
-    "efae6dffaa798f98fdcbe1a1608ccaccc333be5fef42aaa2d25c147947a2f983",
+    "298ab2a41fb41b54bdca3cc6f0ee9a8d906588e913048ad262b0352ac959453a",
   "pages-appshell":
-    "6eee4fa4ffc3cd320ea19d3ab277b02cbe56fb9aecef6c29bbca0c15f5200743",
+    "6d93ac29e1d4a07e3ec5f9af493bedece2ee33042a43bcd1f7eb68db60c2a76c",
   "pages-home":
-    "30ec95c43a6ef6100f01dcdb2ae1b25526b1f34ef29f0a885998349f6d91636c",
+    "43d40e9289089105b6c933d96bf60c54e2976d36e1a079a348f78500e45795af",
   "pages-pagehost":
-    "d9f1d94dad52d364ca5f2ff5f6b76ead0dfdbe66730245b84246e284cabd2849",
+    "31ba558d1e1bf0b84344edc789a08db62a9fb123f1398c302058c370999afb41",
   "pages-scheduled":
-    "6f1a4dcf2da6c4991109481d5e0993aa39842e487f874404709ca134c165de8d",
+    "5f74620f0bacac0a8d8ad61e98ea711e34ecd87fb98e813b10addccd681f0dcb",
   "pages-settings":
-    "7be59f31d294195812678229823f4f30372253b692404efedce371d11800f613",
+    "5bb814e73ef3a152f1c5abe62fdcc58ba7dd70e5edab566a453194c0e6cba559",
 };
 
 function reviewedFamily(
@@ -787,9 +787,9 @@ export const storyReviewFamilies = [
     "Foundations/Behavior",
     "ALIGNED",
     "UNTESTED",
-    "Focus containment, initial focus, tab order, Escape, restore, nested scope, and empty-scope fallbacks retain their production interaction contract.",
+    "Focus containment, initial focus, tab order, restore, nested scope, and empty-scope fallbacks retain their production interaction contract. Escape ownership now uses its own top-layer stack, so temporary cursor ContextMenus and anchored Popover/Menus can dismiss above a parent Tab-trapping scope while a subsequently opened modal still takes precedence.",
     "Codex focus internals are not observable as a complete same-state matrix; parity remains UNTESTED.",
-    "FocusScope ten-state Story family and interaction/a11y review.",
+    "FocusScope ten-state Story family, ContextMenu/Popover interaction coverage, and real mobile AppShell nested-layer review through both pointer ContextMenu and touch More Popover/Menu: Escape from the active item closes only the temporary menu, preserves the parent sidebar, and returns the exact durable invoker; the top menu layer makes the parent Tab trap yield so Tab closes and hands off to the next page-order control; explicit durable return focus survives Rename modal close. Nested modal and standalone FocusScope behavior remain green.",
   ),
   reviewedFamily(
     "foundations-feedback",
@@ -814,18 +814,18 @@ export const storyReviewFamilies = [
     "Components/Changes",
     "ALIGNED",
     "GAP",
-    "Diff and artifact surfaces inherit the shared typography, border, focus, overflow, and action primitives; INC-101 deliberately avoids a second Story-only diff layout.",
+    "Diff and artifact surfaces inherit the shared typography, border, focus, overflow, and action primitives; INC-101 deliberately avoids a second Story-only diff layout. Undo remains a neutral quiet action at rest, reserving danger emphasis for the destructive confirmation step.",
     "CODEX-PARITY G13/Changes rows retain product workflow GAP; current-source Changes is explicitly UNTESTED in QA-92.",
-    "ChangesOutcome, DiffParts, and DiffView Story families plus contract review.",
+    "ChangesOutcome, DiffParts, and DiffView Story families plus contract review and R82 golden/live probe: Undo changed from resting red to neutral ink while its confirmed destructive workflow remains unchanged.",
   ),
   reviewedFamily(
     "components-navigation",
     "Components/Navigation",
     "GAP",
     "UNTESTED",
-    "At mobile or coarse-input breakpoints, each session row now exposes one stable 44×44 More action without selecting the session. Its viewport-clamped menu preserves Pin, Rename, Mark read/unread, and Archive actions, meaningful focus handoff and return, long-title context, and running, worktree, unread, and attention states. Desktop retains quiet hover quick actions and the context-menu path without a persistent ellipsis. This touch-action defect is fixed, while other navigation-family gaps remain, so the family stays GAP.",
+    "Desktop primary navigation now shares the rail's 32px/13px row rhythm, using icons and weight rather than oversized rows for hierarchy; mobile and coarse-pointer navigation keeps 44px touch height. At mobile or coarse-input breakpoints, each session row exposes one stable 44×44 More action without selecting the session. Its viewport-clamped menu preserves Pin, Rename, Mark read/unread, and Archive actions, meaningful focus handoff and return, long-title context, and running, worktree, unread, and attention states. Desktop retains quiet hover quick actions and the context-menu path without a persistent ellipsis. Pointer/keyboard ContextMenu and touch More Popover/Menu entries name the action surface, use enabled-only roving focus and Tab handoff, and return Escape, ordinary selections, and closed destination dialogs to the durable invoker. These navigation rhythm, touch-action, and temporary-menu focus defects are fixed, while other navigation-family gaps remain, so the family stays GAP.",
     "CODEX-PARITY GL-03/GL-07 pass selected interactions, while GL-05/GL-06 remain UNTESTED; the family therefore remains UNTESTED.",
-    "Fresh visual and accessibility review of components-navigation-sidebar-items--session-interaction (“Mobile session actions”) at 390×844 plus the current four-file diff: row and trigger measure 44×44; the 220px panel stays within x=91…311; all four actions are visible; Pin receives initial focus; Escape and mutating actions preserve meaningful focus; running, worktree, unread, and three-action attention states remain visible; document overflow is zero. Evidence: 05-session-interaction-final-390x844.png. Scoped P0/P1/P2 = 0.",
+    "Fresh cumulative visual and accessibility review of components-navigation-sidebar-items--session-interaction (“Mobile session actions”) at 390×844 plus 04-real-sidebar-context-390x500.png, R82 desktop rail evidence, and the production Sidebar/ContextMenu callsites: desktop primary nav and session rows share 32px/13px rhythm; a latest-main 390×500 live probe confirms both primary nav rows remain 44px/13px on mobile with zero overflow. Session row and touch trigger measure 44×44; the 220px panel remains viewport-contained; both the cursor ContextMenu and touch More Popover/Menu expose the full session-title aria-label, dismiss preview, and give Pin the unique enabled roving focus. The real Pages/AppShell run verifies both entry paths: Escape from the active menuitem closes only the temporary menu and returns the exact invoker, Tab closes and advances to the next page-order target (the neighboring session or footer More options, depending on the invoking row), and Rename dialog Escape returns to that same invoker while the mobile sidebar stays open throughout; ordinary selections retain the same durable return. Console warnings/errors remain zero. Running, worktree, unread, and attention states remain visible. Independent code and design reviewers APPROVE with scoped P0/P1/P2=0.",
     "2026-07-24",
   ),
   reviewedFamily(
@@ -843,9 +843,9 @@ export const storyReviewFamilies = [
     "Components/Overlays",
     "GAP",
     "UNTESTED",
-    "Model and Project Picker containment remain fixed. Anchored Popover and Menu now share one focus contract: pointer, Enter, Space, and ArrowDown focus the first available item; enabled-only roving skips hidden and disabled content; Tab exits to the trigger-adjacent control; and Escape or selection restores the trigger. The family remains GAP because cursor ContextMenu Tab/disabled parity, dialog-popover edge containment, and 44px generic mobile overlay comfort are not yet complete.",
+    "Model and Project Picker containment remain fixed. Anchored Popover, Menu, and cursor ContextMenu now share one focus contract: pointer and keyboard entry focus the first available item; exactly one enabled item owns roving focus; hidden and disabled content is skipped; Tab exits relative to the durable invoker; and Escape or ordinary selection restores meaningful focus without stealing it from a destination dialog. ContextMenu additionally names its surface, keeps internal long-menu scrolling open, clamps to 8px viewport gutters, and uses 44px mobile/coarse actions. The family remains GAP because dialog-popover edge containment and 44px comfort across every generic mobile anchored overlay are not yet complete.",
     "Only selected overlay journeys have same-state Codex evidence; family parity remains UNTESTED.",
-    "Fresh review of 04-after-menu-disabled-tab-390x500.png, 05-after-popover-focus-390x500.png, and 06-after-popover-focus-1280x800.png plus live Storybook: exactly one enabled menuitem owns tabIndex=0; hidden, inert, CSS-hidden, closed-details, and disabled rows are excluded; bidirectional Tab, wrap, dynamic item removal/loading, Escape, selection return, and dialog ArrowDown opening pass; document overflow and current console errors are zero on the dedicated 390x500 and 1280x800 surfaces. Code and dialog-regression reviewers APPROVE with P0/P1/P2=0; visual review APPROVES with one non-blocking 44px touch-comfort P2 retained as GAP.",
+    "Fresh final Product Design/UX review of 01-after-default-390x500.png through 05-real-scheduled-context-390x500.png plus ContextMenu, Menu, menuFocus, Popover, and the production Sidebar/Scheduled entry points: the Codex-like 220px hierarchy, 12px radius, 13px actions, 12px labels, token contrast, visible focus, disabled treatment, and danger hierarchy are coherent; mobile/coarse ContextMenu items hold at least 44px, long menus scroll internally and remain within 8px viewport gutters, and real Sidebar/Scheduled menus preserve context. Exactly one available item owns roving focus; hidden, disabled, inert, CSS-hidden, and closed-details rows are excluded; Tab/Shift+Tab honor positive tabindex and checked-radio order; dynamic removal/loading and empty-menu exit recover; plain selections restore the durable invoker; and destination FocusScope retains focus before returning to that invoker on close. A separate top-layer Escape stack lets the cursor menu and anchored Popover/Menu dismiss above a parent mobile-sidebar FocusScope, while the menu's non-trapping top focus layer makes the parent yield Tab and nested modals retain precedence; explicit ephemeral return targets survive StrictMode remounts. Real Pages/AppShell at 390×500 and integration coverage verify both pointer ContextMenu and touch More Popover/Menu through menuitem Escape, Tab, and Rename-dialog Escape without closing the sidebar or losing focus. Independent code and design reviewers APPROVE with scoped P0/P1/P2=0.",
     "2026-07-24",
   ),
   reviewedFamily(
@@ -898,9 +898,9 @@ export const storyReviewFamilies = [
     "Components/Scheduled",
     "FIXED",
     "UNTESTED",
-    "Scheduled rows use the shared lifecycle glyph, correct settled/crash precedence, 44px action geometry, labelled status/cadence, quiet current-row selection, and unchanged menu behavior.",
+    "Scheduled rows use the shared lifecycle glyph, correct settled/crash precedence, 44px action geometry, labelled status/cadence, and quiet current-row selection. Their cursor action menu now exposes a title-derived accessible name, 44px mobile/coarse rows, enabled-only roving focus, internal long-menu scroll, Tab/Shift+Tab handoff, and durable Escape, ordinary-selection, and dialog-close focus return.",
     "CODEX-PARITY GL-11 passes the shell, but detailed scheduled states remain mixed; family parity remains UNTESTED.",
-    "QA-92 screenshot 06, Scheduled Parts Stories, and final contract/interaction review.",
+    "QA-92 screenshot 06 and Scheduled Parts Stories plus fresh 05-real-scheduled-context-390x500.png/live production-callsite review: the menu exposes the full schedule-title aria-label, gives Pause the unique enabled initial focus at 44px, remains within 8px viewport gutters with zero document overflow, and returns Escape and Pin selection to the exact More trigger. Independent code and design reviewers APPROVE with scoped P0/P1/P2=0.",
   ),
   reviewedFamily(
     "components-sessions",
@@ -943,9 +943,9 @@ export const storyReviewFamilies = [
     "Pages/AppShell",
     "FIXED",
     "UNTESTED",
-    "The composed shell uses chromeless Home current treatment, glyph-only running status, shared tokens, and unchanged keyboard navigation.",
+    "The composed shell uses chromeless Home current treatment, glyph-only running status, shared tokens, and deliberate keyboard navigation. Desktop primary navigation follows the 32px/13px rail rhythm while mobile/coarse navigation remains 44px tall. On mobile, both a pointer ContextMenu and the touch More Popover/Menu own Escape and yield Tab above the sidebar focus scope: Escape closes only the temporary menu and returns to the exact invoker, Tab closes and advances relative to that invoker, and Rename dialog close returns to the same durable invoker without collapsing the sidebar.",
     "CODEX-PARITY GL-01/NS-01 cover clean shell states, but the keyboard Story has no same-state Codex capture; family parity remains UNTESTED.",
-    "QA-92 screenshot 05 and AppShell Stories.",
+    "QA-92 screenshot 05, R82 desktop rail probe, and AppShell Stories plus fresh Pages/AppShell live review at 390×500 and App.mobile-focus integration coverage: desktop nav/session rows share 32px/13px rhythm; mobile New session and Scheduled rows measure 44px/13px. Both pointer ContextMenu and touch More Popover/Menu pass the same contract: Escape from the active item leaves the temporary menu absent, sidebar expanded, Show sidebar absent, and exact invoker focused; Tab leaves the menu absent and advances to the next page-order target (neighboring session or footer More options, depending on the invoking row); Rename input Escape leaves the dialog absent and restores the exact invoker. The sidebar remains expanded, document overflow stays zero, and console warnings/errors stay zero in all three paths.",
   ),
   reviewedFamily(
     "pages-appruntime",
@@ -970,9 +970,9 @@ export const storyReviewFamilies = [
     "Pages/Scheduled",
     "FIXED",
     "UNTESTED",
-    "Scheduled list/detail/edit/loading/empty/search/filter/pagination/conflict/busy/error states share lifecycle, selection, touch, label, and responsive contracts.",
+    "Scheduled list/detail/edit/loading/empty/search/filter/pagination/conflict/busy/error states share lifecycle, selection, touch, label, and responsive contracts. The real list-row action path also shares the named, enabled-only roving, viewport-contained, Tab-handoff, and durable focus-return contract with other cursor menus.",
     "CODEX-PARITY GL-11 passes the shell; detailed states and current-source mobile remain UNTESTED.",
-    "QA-92 screenshots 06/09/10, Scheduled Stories, and exact lifecycle tests.",
+    "QA-92 screenshots 06/09/10 and Scheduled Stories plus fresh 05-real-scheduled-context-390x500.png/live list-row review: the real More trigger opens a full-title-labelled menu, gives Pause the unique 44px initial focus, stays within 8px viewport gutters with zero document overflow, and regains focus after Escape or Pin selection. ContextMenu interaction tests cover Tab handoff and destination-dialog ownership; independent code and design reviewers APPROVE with scoped P0/P1/P2=0.",
   ),
   reviewedFamily(
     "pages-settings",

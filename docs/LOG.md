@@ -7715,3 +7715,35 @@ Home/Session/Scheduled/Settings；production 8809 未重启，shared QA/runtime 
 interaction、18 visual 及全部 build/lint/Go/install gate。未覆盖的 Changes、
 shared mobile、OS reduced-motion、全 storage key 与 8809 deploy/restart 继续明确
 记为 `UNTESTED`。
+
+---
+
+## 2026-07-24 · R82 / INC-101 Sidebar 与临时菜单契约收敛
+
+R82 的证据从误写的只读 `docs/archive/` 迁回本活台账。Sidebar desktop rail 的
+New session / Scheduled 从 40px/15px 收敛到与 session row 一致的
+32px/13px；累计 mobile review 同时补回 44px touch target，避免桌面密度优化伤及
+触屏可达性。Changes 卡的静息 Undo 从 danger 改为 neutral，破坏性语义仍留在确认层。
+原轮证据保留于 `qa/runs/2026-07-24-r82/`；ENV-OVERLAP-1440、Settings 容器一致性、
+WorkedFold 顺序、THREAD-CARD-DENSITY 与缺少 modified diff fixture 的差距继续作为
+待真人实窗取证 seed，不在本轮盲改。
+
+INC-101 的 ContextMenu / Menu / Popover 统一采用顶层 Escape ownership、真实 roving
+focus、Tab 邻接交接、viewport clamp、动态 item 恢复与显式 modal return target。
+390×500 Pages/AppShell 实窗复验覆盖右键菜单和触屏 More 两条主入口：
+Escape 只关临时菜单、Tab 离开菜单但保留 sidebar、Rename Escape 回到原 session
+trigger，三条路径均无横向 overflow；定向 AppShell / Popover / Sidebar 回归
+63/63 通过。Story family digest 仍须以本批最终 working tree 的 fresh reviewer
+批准为准。
+
+R83 的新证据同样从误写的 archive 迁入本活台账：跨
+`internal/driver/cadence.go`、`webui/schedule.go` 与 frontend `runPreset.ts`
+统一 multi-day cadence，把 `Every 171h` 收敛为人类可读的 `Every 7d3h`；
+对应 Go/TS 测试及 `check.sh` 已在 `08024ae0` 全绿，视觉证据保留于
+`qa/runs/2026-07-24-R83/`。DIFF-REVIEW-SPLIT 仍需带真实 modification 的会话，
+ENV-OVERLAP-1440 仍需真人 Codex 1440 实窗取证；在证据成立前不盲改。
+
+最终 stable tree 由两位 fresh reviewer 独立给出 APPROVE（P0/P1/P2 均为 0），
+28/28 family digest 逐项批准并重建 ledger/baseline：567/567 Stories、177 targets、
+684 cells、0 missing。`check-webui.sh --skip-install` 同轮通过 849 unit、564 Story
+interaction、18 visual 及 production/Storybook build；shared QA/runtime 数据未清理。

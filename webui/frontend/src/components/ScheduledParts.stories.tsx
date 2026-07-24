@@ -340,6 +340,7 @@ function ActionsFixture({
 }: {
   state: "active" | "paused" | "recoverable" | "settled" | "run";
 }) {
+  const [returnFocus, setReturnFocus] = useState<HTMLButtonElement | null>(null);
   const model =
     state === "paused"
       ? row({ paused: true, active: false, raw: "paused" })
@@ -356,24 +357,28 @@ function ActionsFixture({
             : row();
   return (
     <div className="min-h-[420px] p-6">
-      <ScheduledRunActions
-        row={model}
-        x={32}
-        y={32}
-        pinned={state === "settled"}
-        archived={state === "settled"}
-        unread={state === "active"}
-        onClose={fn()}
-        onResume={fn()}
-        onRetry={fn()}
-        onPause={fn()}
-        onCancel={fn()}
-        onTogglePin={fn()}
-        onRename={fn()}
-        onToggleRead={fn()}
-        onToggleArchive={fn()}
-        onStop={fn()}
-      />
+      <button ref={setReturnFocus}>Scheduled action source</button>
+      {returnFocus && (
+        <ScheduledRunActions
+          row={model}
+          x={32}
+          y={72}
+          returnFocus={returnFocus}
+          pinned={state === "settled"}
+          archived={state === "settled"}
+          unread={state === "active"}
+          onClose={fn()}
+          onResume={fn()}
+          onRetry={fn()}
+          onPause={fn()}
+          onCancel={fn()}
+          onTogglePin={fn()}
+          onRename={fn()}
+          onToggleRead={fn()}
+          onToggleArchive={fn()}
+          onStop={fn()}
+        />
+      )}
     </div>
   );
 }

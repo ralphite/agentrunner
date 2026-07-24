@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 61,
-    "lines": 19752,
+    "lines": 20040,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -71,7 +71,7 @@
       },
       {
         "source": "src/components/ContextMenu.tsx",
-        "lines": 104,
+        "lines": 348,
         "exports": [
           "ContextMenu"
         ],
@@ -168,7 +168,7 @@
       },
       {
         "source": "src/components/Menu.tsx",
-        "lines": 63,
+        "lines": 76,
         "exports": [
           "Menu",
           "MenuItem",
@@ -186,7 +186,7 @@
       },
       {
         "source": "src/components/Modals.tsx",
-        "lines": 1217,
+        "lines": 1224,
         "exports": [
           "AgentModal",
           "ConfirmModal",
@@ -215,7 +215,7 @@
       },
       {
         "source": "src/components/Popover.tsx",
-        "lines": 625,
+        "lines": 519,
         "exports": [
           "PopItem",
           "PopSection",
@@ -243,7 +243,7 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 493,
+        "lines": 499,
         "exports": [
           "ScheduleDetailPanel",
           "ScheduleEditDialog",
@@ -255,7 +255,7 @@
       },
       {
         "source": "src/components/ScheduledParts.tsx",
-        "lines": 503,
+        "lines": 523,
         "exports": [
           "ScheduledEmptyState",
           "ScheduledRunActions",
@@ -365,7 +365,7 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 811,
+        "lines": 861,
         "exports": [
           "Sidebar"
         ],
@@ -373,7 +373,7 @@
       },
       {
         "source": "src/components/SidebarItems.tsx",
-        "lines": 489,
+        "lines": 499,
         "exports": [
           "SidebarConnectionStatus",
           "SidebarPreviewCard",
@@ -581,7 +581,7 @@
       },
       {
         "source": "src/ui/FocusScope.tsx",
-        "lines": 247,
+        "lines": 291,
         "exports": [
           "FocusScope"
         ],
@@ -630,8 +630,8 @@
     ]
   },
   "tests": {
-    "files": 83,
-    "declarations": 799
+    "files": 84,
+    "declarations": 809
   },
   "storage": [
     {
@@ -639,28 +639,28 @@
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.archived",
-      "line": 348
+      "line": 353
     },
     {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.pinned",
-      "line": 380
+      "line": 385
     },
     {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.sidebar",
-      "line": 406
+      "line": 411
     },
     {
       "source": "src/store.ts",
       "storage": "localStorage",
       "operation": "setItem",
       "key": "arwebui.sidebarWidth",
-      "line": 416
+      "line": 421
     }
   ],
   "routes": [

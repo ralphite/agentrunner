@@ -27,7 +27,12 @@ export type ModalKind =
     }
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string; provider?: string; model?: string; effort?: string }
-  | { kind: "rename"; sid: string }
+  | {
+      kind: "rename";
+      sid: string;
+      // Ephemeral UI reference only; never persisted or sent to the daemon.
+      returnFocus?: HTMLElement;
+    }
   | { kind: "trust" }
   | {
       kind: "confirm";

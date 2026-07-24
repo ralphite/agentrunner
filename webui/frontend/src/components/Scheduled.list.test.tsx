@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 // Nothing here depends on the network; stub the API with never-settling promises
 // (same pattern as Sidebar.nav / loadingStates).
@@ -512,22 +518,34 @@ describe("a scheduled row can be acted on (SC-12)", () => {
     expect(container.querySelector(".scheduled-row .sched-pinned")).toBeTruthy();
   });
 
-  it("carries a ⋯ button per row that opens the same menu, and never clicks the row", () => {
+  it("carries a ⋯ button per row that opens the same menu, and never clicks the row", async () => {
     const { container } = mountRich();
     const before = useStore.getState().currentSid;
-    const more = container.querySelectorAll(".sched-more");
+    const more = container.querySelectorAll<HTMLButtonElement>(".sched-more");
     expect(more).toHaveLength(2); // every row has one
 
     fireEvent.click(more[0]);
     expect(container.querySelector(".ctx-menu")).toBeTruthy();
     // Opening the menu must not also open the session.
     expect(useStore.getState().currentSid).toBe(before);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]),
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(more[0]));
   });
 
-  it("reaches the menu from the keyboard (Shift+F10), as the sidebar rows do", () => {
+  it("reaches the menu from the keyboard (Shift+F10), as the sidebar rows do", async () => {
     const { container } = mountRich();
-    fireEvent.keyDown(container.querySelector(".scheduled-row")!, { key: "F10", shiftKey: true });
+    const row = container.querySelector<HTMLButtonElement>(".scheduled-row")!;
+    row.focus();
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
     expect(container.querySelector(".ctx-menu")).toBeTruthy();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]),
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(row));
   });
 });
 

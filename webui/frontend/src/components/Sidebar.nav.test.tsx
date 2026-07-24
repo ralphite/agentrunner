@@ -115,6 +115,7 @@ describe("mobile sidebar dismissal", () => {
       expect(openModal).toHaveBeenCalledWith({
         kind: "rename",
         sid: "20260712-120000-mobile-actions",
+        returnFocus: trigger,
       }),
     );
 
@@ -338,9 +339,13 @@ describe("sidebar session row states and hover actions (INC-92)", () => {
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
       "Pin", "Rename…", "Mark as unread", "Archive",
     ]);
-    fireEvent.keyDown(document, { key: "Escape" });
-
     const opener = row.querySelector<HTMLButtonElement>(".project-session")!;
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]),
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+
     opener.focus();
     fireEvent.keyDown(opener, { key: "F10", shiftKey: true });
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
@@ -365,6 +370,12 @@ describe("mobile sidebar chrome touch targets", () => {
     for (const control of controls) {
       expect(control.className).toContain("max-[900px]:w-[44px]!");
       expect(control.className).toContain("max-[900px]:h-[44px]!");
+    }
+    for (const row of container.querySelectorAll(".primary-nav button")) {
+      expect(row.className).toContain("max-[900px]:h-11");
+      expect(row.className).toContain(
+        "[@media(any-pointer:coarse)]:h-11",
+      );
     }
 
     const brandRow = container.querySelector(".brand-main")!.parentElement!;

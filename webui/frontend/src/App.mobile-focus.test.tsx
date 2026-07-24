@@ -38,7 +38,16 @@ afterEach(() => {
 function renderMobileApp() {
   const harness = createStoryAppServices();
   const store = createAppStore(harness.services);
-  store.setState({ sessionsReady: true });
+  store.setState({
+    sessions: [{
+      id: "20260723-120000-mobile-context",
+      status: "idle",
+      turns: 1,
+      title: "Mobile context owner",
+      workspace: "/repo/mobile-context",
+    }] as any,
+    sessionsReady: true,
+  });
   return render(
     <AppServicesProvider services={harness.services}>
       <AppStoreProvider store={store}>
@@ -80,5 +89,101 @@ describe("mobile sidebar focus scope", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     await expectSidebarClosed();
+  });
+
+  it("lets a nested session menu own Escape without closing the sidebar", async () => {
+    const { container } = renderMobileApp();
+
+    await openSidebar();
+    const row = container.querySelector<HTMLElement>(
+      '[data-session-id="20260723-120000-mobile-context"]',
+    )!;
+    const opener = row.querySelector<HTMLButtonElement>(".project-session")!;
+    fireEvent.contextMenu(row, { clientX: 30, clientY: 40 });
+
+    const firstItem = await screen.findByRole("menuitem", { name: "Pin" });
+    await waitFor(() => expect(document.activeElement).toBe(firstItem));
+    fireEvent.keyDown(firstItem, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(container.querySelector(".app.collapsed")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Show sidebar" })).toBeNull();
+      expect(document.activeElement).toBe(opener);
+    });
+  });
+
+  it("keeps the touch More menu, Tab handoff, and Rename inside the sidebar layer", async () => {
+    const { container } = renderMobileApp();
+
+    await openSidebar();
+    const trigger = screen.getByRole("button", {
+      name: "More actions for Mobile context owner",
+    });
+    fireEvent.click(trigger);
+    const firstItem = await screen.findByRole("menuitem", { name: "Pin" });
+    await waitFor(() => expect(document.activeElement).toBe(firstItem));
+    fireEvent.keyDown(firstItem, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(container.querySelector(".app.collapsed")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Show sidebar" })).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    fireEvent.click(trigger);
+    const reopenedItem = await screen.findByRole("menuitem", { name: "Pin" });
+    await waitFor(() => expect(document.activeElement).toBe(reopenedItem));
+    fireEvent.keyDown(reopenedItem, { key: "Tab" });
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(container.querySelector(".app.collapsed")).toBeNull();
+      expect(document.activeElement).not.toBe(reopenedItem);
+    });
+
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename…" }));
+    const input = await screen.findByPlaceholderText("Session name");
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(container.querySelector(".app.collapsed")).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+    });
+  });
+
+  it("lets a nested session menu hand off Tab and restore focus after Rename", async () => {
+    const { container } = renderMobileApp();
+
+    await openSidebar();
+    const row = container.querySelector<HTMLElement>(
+      '[data-session-id="20260723-120000-mobile-context"]',
+    )!;
+    const opener = row.querySelector<HTMLButtonElement>(".project-session")!;
+    fireEvent.contextMenu(row, { clientX: 30, clientY: 40 });
+
+    const firstItem = await screen.findByRole("menuitem", { name: "Pin" });
+    await waitFor(() => expect(document.activeElement).toBe(firstItem));
+    fireEvent.keyDown(firstItem, { key: "Tab" });
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(container.querySelector(".app.collapsed")).toBeNull();
+      expect(document.activeElement).not.toBe(firstItem);
+    });
+
+    fireEvent.contextMenu(row, { clientX: 30, clientY: 40 });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename…" }));
+    const input = await screen.findByPlaceholderText("Session name");
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(container.querySelector(".app.collapsed")).toBeNull();
+      expect(document.activeElement).toBe(opener);
+    });
   });
 });

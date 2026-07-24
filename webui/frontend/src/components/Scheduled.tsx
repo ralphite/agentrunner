@@ -407,8 +407,13 @@ function ScheduledView({ controller }: { controller: ScheduledController }) {
                 selected={controller.detail.sid === row.id}
                 menuOpen={controller.contextMenu?.key === row.key}
                 showProjectHit={controller.projectMatched(row)}
-                onOpenMenu={(x, y) =>
-                  controller.openContextMenu({ x, y, key: row.key })}
+                onOpenMenu={(x, y, returnFocus) =>
+                  controller.openContextMenu({
+                    x,
+                    y,
+                    key: row.key,
+                    returnFocus,
+                  })}
               />
             );
           })
@@ -449,6 +454,7 @@ function ScheduledView({ controller }: { controller: ScheduledController }) {
           row={controller.menuRow}
           x={controller.contextMenu.x}
           y={controller.contextMenu.y}
+          returnFocus={controller.contextMenu.returnFocus}
           pinned={controller.isPinned(controller.menuRow.id)}
           archived={controller.isArchived(controller.menuRow.id)}
           unread={controller.isUnread(controller.menuRow.id)}

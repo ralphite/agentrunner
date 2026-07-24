@@ -37,7 +37,7 @@ export interface SidebarSessionItemProps {
   archived?: boolean;
   pinned?: boolean;
   onSelect: () => void;
-  onOpenContext: (x: number, y: number) => void;
+  onOpenContext: (x: number, y: number, returnFocus: HTMLElement) => void;
   onPreview: (top: number) => void;
   onPreviewEnd: () => void;
   onDismissPreview: () => void;
@@ -74,7 +74,7 @@ export function SidebarSessionItem({
     if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    onOpenContext(rect.left + 20, rect.top + rect.height);
+    onOpenContext(rect.left + 20, rect.top + rect.height, event.currentTarget);
   };
 
   return (
@@ -83,7 +83,11 @@ export function SidebarSessionItem({
       data-session-id={session.id}
       onContextMenu={(event: MouseEvent<HTMLDivElement>) => {
         event.preventDefault();
-        onOpenContext(event.clientX, event.clientY);
+        const returnFocus =
+          event.currentTarget.querySelector<HTMLElement>(".project-session");
+        if (returnFocus) {
+          onOpenContext(event.clientX, event.clientY, returnFocus);
+        }
       }}
       onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
       onMouseLeave={onPreviewEnd}
@@ -218,7 +222,9 @@ export function SidebarSessionActions({
 }: SidebarSessionActionsProps) {
   return (
     <>
-      <MenuLabel><span className="block max-w-[188px] truncate">{title}</span></MenuLabel>
+      <MenuLabel title={title}>
+        <span className="block max-w-[188px] truncate">{title}</span>
+      </MenuLabel>
       <MenuItem onClick={onTogglePin}>
         <PushPin size={16} weight={pinned ? "fill" : "regular"} /> {pinned ? "Unpin" : "Pin"}
       </MenuItem>
@@ -298,7 +304,7 @@ export interface SidebarProjectItemProps {
   actions: ReactNode;
   overflow?: SidebarProjectOverflow;
   onToggle: () => void;
-  onOpenContext: (x: number, y: number) => void;
+  onOpenContext: (x: number, y: number, returnFocus: HTMLElement) => void;
   onPreview: (top: number) => void;
   onPreviewEnd: () => void;
   onDismissPreview: () => void;
@@ -326,7 +332,7 @@ export function SidebarProjectItem({
     if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    onOpenContext(rect.left + 20, rect.bottom);
+    onOpenContext(rect.left + 20, rect.bottom, event.currentTarget);
   };
 
   return (
@@ -343,7 +349,11 @@ export function SidebarProjectItem({
           aria-expanded={!folded}
           onContextMenu={(event) => {
             event.preventDefault();
-            onOpenContext(event.clientX, event.clientY);
+            onOpenContext(
+              event.clientX,
+              event.clientY,
+              event.currentTarget,
+            );
           }}
           onKeyDown={openContextFromKeyboard}
         >

@@ -58,6 +58,19 @@ export function MenuItem({
   );
 }
 
-export function MenuLabel({ children }: { children: React.ReactNode }) {
-  return <div className="menu-label">{children}</div>;
+export function MenuLabel({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
+  return (
+    <div
+      className="menu-label"
+      title={title ?? (typeof children === "string" ? children : undefined)}
+    >
+      {children}
+    </div>
+  );
 }

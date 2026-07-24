@@ -8,6 +8,13 @@ import {
   useState,
 } from "react";
 import { Check } from "@phosphor-icons/react";
+import {
+  getAvailableMenuItems,
+  getMenuItems,
+  getTabbableElements,
+  setRovingMenuItem,
+} from "./menuFocus";
+import { useEscapeLayer } from "../ui/FocusScope";
 
 const PopoverMenuContext = createContext(true);
 
@@ -70,18 +77,10 @@ export function Popover({
     wrapRef.current?.querySelector<HTMLElement>(
       ":scope > button, :scope > * > button",
     ) ?? null;
-  const allMenuItems = () =>
-    [
-      ...(panelRef.current?.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]',
-      ) ?? []),
-    ];
-  const enabledMenuItems = () =>
-    allMenuItems().filter(isAvailableMenuItem);
+  const allMenuItems = () => getMenuItems(panelRef.current);
+  const enabledMenuItems = () => getAvailableMenuItems(panelRef.current);
   const focusMenuItem = (target: HTMLElement) => {
-    allMenuItems().forEach((item) => {
-      item.tabIndex = item === target ? 0 : -1;
-    });
+    setRovingMenuItem(panelRef.current, target);
     rovingItemRef.current = target;
     target.focus();
   };
@@ -103,6 +102,20 @@ export function Popover({
     // visible product tabs and headless Storybook workers.
     window.setTimeout(focusTrigger, 0);
   };
+
+  // Popovers can live inside persistent focus scopes (most visibly the mobile
+  // sidebar). Register the open panel as the top dismissible layer so Escape
+  // closes only this temporary surface instead of bubbling to and collapsing
+  // its parent. This is deliberately separate from Tab containment: menus hand
+  // Tab back to the page, while dialog popovers keep their existing controls.
+  useEscapeLayer(
+    () => {
+      setPlace(null);
+      setOpen(false);
+      triggerElement()?.focus();
+    },
+    open,
+  );
 
   // Measure the anchor, then pin the panel to those viewport coordinates.
   //
@@ -296,12 +309,6 @@ export function Popover({
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setPlace(null);
-        setOpen(false);
-        triggerElement()?.focus();
-        return;
-      }
       if (panelRole !== "menu") return;
       if (e.key === "Tab") {
         const trigger = triggerElement();
@@ -418,119 +425,6 @@ const GAP = 8; // between the anchor and the panel
 const MIN_PANEL_HEIGHT = 48;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
-
-const TABBABLE_SELECTOR = [
-  'a[href]',
-  'area[href]',
-  'button',
-  'input:not([type="hidden"])',
-  'select',
-  'textarea',
-  'iframe',
-  'object',
-  'embed',
-  'audio[controls]',
-  'video[controls]',
-  'summary',
-  '[contenteditable]:not([contenteditable="false"])',
-  '[tabindex]',
-].join(",");
-
-function getTabbableElements() {
-  const candidates = [
-    ...document.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR),
-  ].filter(
-    (element) =>
-      element.tabIndex >= 0 &&
-      !element.matches(":disabled") &&
-      !hasUnavailableAncestor(element),
-  );
-  const radios = candidates.filter(
-    (element): element is HTMLInputElement =>
-      element instanceof HTMLInputElement &&
-      element.type === "radio" &&
-      element.name !== "",
-  );
-  const radioStops = new Set<HTMLElement>();
-  for (const radio of radios) {
-    const group = radios.filter(
-      (candidate) =>
-        candidate.name === radio.name && candidate.form === radio.form,
-    );
-    radioStops.add(group.find((candidate) => candidate.checked) ?? group[0]);
-  }
-
-  return candidates
-    .filter(
-      (element) =>
-        !(element instanceof HTMLInputElement) ||
-        element.type !== "radio" ||
-        element.name === "" ||
-        radioStops.has(element),
-    )
-    .map((element, domIndex) => ({ element, domIndex }))
-    .sort((a, b) => {
-      const aPositive = a.element.tabIndex > 0;
-      const bPositive = b.element.tabIndex > 0;
-      if (aPositive && bPositive) {
-        return a.element.tabIndex - b.element.tabIndex || a.domIndex - b.domIndex;
-      }
-      if (aPositive) return -1;
-      if (bPositive) return 1;
-      return a.domIndex - b.domIndex;
-    })
-    .map(({ element }) => element);
-}
-
-function isAvailableMenuItem(element: HTMLElement) {
-  return (
-    !element.matches(":disabled") &&
-    element.getAttribute("aria-disabled") !== "true" &&
-    !hasUnavailableAncestor(element, true)
-  );
-}
-
-function hasUnavailableAncestor(
-  element: HTMLElement,
-  includeAriaDisabled = false,
-) {
-  for (
-    let current: HTMLElement | null = element;
-    current;
-    current = current.parentElement
-  ) {
-    if (
-      current instanceof HTMLDetailsElement &&
-      !current.open &&
-      element !== current
-    ) {
-      const summary = [...current.children].find(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child.tagName === "SUMMARY",
-      );
-      if (!summary?.contains(element)) return true;
-    }
-    if (
-      current.hidden ||
-      current.hasAttribute("inert") ||
-      current.getAttribute("aria-hidden") === "true" ||
-      (includeAriaDisabled &&
-        current.getAttribute("aria-disabled") === "true")
-    ) {
-      return true;
-    }
-    const style = getComputedStyle(current);
-    if (
-      style.display === "none" ||
-      style.visibility === "hidden" ||
-      style.visibility === "collapse" ||
-      style.contentVisibility === "hidden"
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
 
 // The one thing that can still clip a fixed panel: an ancestor that makes itself
 // the containing block for fixed descendants. Nothing in the app does today

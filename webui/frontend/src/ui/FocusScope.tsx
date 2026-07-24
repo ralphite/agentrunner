@@ -30,6 +30,8 @@ export interface FocusScopeProps extends Omit<HTMLAttributes<HTMLDivElement>, "o
   shouldRestoreFocus?: () => boolean;
   /** Called only by the top-most active scope. */
   onEscape?: (event: KeyboardEvent) => void;
+  /** Contain Tab within the scope; disable for menus that hand focus off. */
+  trapTab?: boolean;
   /** Lets a persistent surface activate/deactivate the focus contract. */
   enabled?: boolean;
 }
@@ -52,6 +54,45 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 
 const activeScopes: symbol[] = [];
+const activeEscapeLayers: symbol[] = [];
+
+/**
+ * Give Escape to the most recently mounted dismissible layer without also
+ * imposing a Tab trap. Cursor menus use this above a parent FocusScope; a
+ * nested modal can then mount above the menu and become the new owner.
+ */
+export function useEscapeLayer(
+  onEscape: ((event: KeyboardEvent) => void) | undefined,
+  enabled = true,
+) {
+  const onEscapeRef = useRef(onEscape);
+  onEscapeRef.current = onEscape;
+  const active = enabled && !!onEscape;
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    const id = Symbol("escape-layer");
+    activeEscapeLayers.push(id);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        activeEscapeLayers[activeEscapeLayers.length - 1] !== id
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      onEscapeRef.current?.(event);
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      const index = activeEscapeLayers.lastIndexOf(id);
+      if (index >= 0) activeEscapeLayers.splice(index, 1);
+    };
+  }, [active]);
+}
 
 function isUnavailable(element: HTMLElement, allowProgrammatic = false): boolean {
   if (
@@ -102,23 +143,30 @@ export function useFocusScope(
     restoreFocus = true,
     shouldRestoreFocus,
     onEscape,
+    trapTab = true,
     enabled = true,
   }: Pick<
     FocusScopeProps,
-    "initialFocus" | "restoreFocus" | "shouldRestoreFocus" | "onEscape" | "enabled"
+    | "initialFocus"
+    | "restoreFocus"
+    | "shouldRestoreFocus"
+    | "onEscape"
+    | "trapTab"
+    | "enabled"
   >,
 ) {
+  useEscapeLayer(onEscape, enabled);
   const optionsRef = useRef({
     initialFocus,
     restoreFocus,
     shouldRestoreFocus,
-    onEscape,
+    trapTab,
   });
   optionsRef.current = {
     initialFocus,
     restoreFocus,
     shouldRestoreFocus,
-    onEscape,
+    trapTab,
   };
 
   useLayoutEffect(() => {
@@ -147,13 +195,7 @@ export function useFocusScope(
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (activeScopes[activeScopes.length - 1] !== id) return;
-      if (event.key === "Escape" && optionsRef.current.onEscape) {
-        event.preventDefault();
-        event.stopPropagation();
-        optionsRef.current.onEscape(event);
-        return;
-      }
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || !optionsRef.current.trapTab) return;
 
       const items = focusableElements(root);
       if (items.length === 0) {
@@ -218,6 +260,7 @@ export const FocusScope = forwardRef<HTMLDivElement, FocusScopeProps>(
       restoreFocus = true,
       shouldRestoreFocus,
       onEscape,
+      trapTab = true,
       enabled = true,
       tabIndex = -1,
       ...props
@@ -230,6 +273,7 @@ export const FocusScope = forwardRef<HTMLDivElement, FocusScopeProps>(
       restoreFocus,
       shouldRestoreFocus,
       onEscape,
+      trapTab,
       enabled,
     });
 

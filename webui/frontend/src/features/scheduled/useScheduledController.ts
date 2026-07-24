@@ -63,6 +63,7 @@ export interface ScheduledContextMenu {
   x: number;
   y: number;
   key: string;
+  returnFocus: HTMLElement;
 }
 
 export interface ScheduledDetailController {
@@ -521,7 +522,11 @@ export function useScheduledController(): ScheduledController {
     toggleMenuRowPin: () => requireMenuRow((row) => togglePin(row.id)),
     renameMenuRow: () =>
       requireMenuRow((row) =>
-        openModal({ kind: "rename", sid: row.id }),
+        openModal({
+          kind: "rename",
+          sid: row.id,
+          returnFocus: contextMenu?.returnFocus,
+        }),
       ),
     toggleMenuRowRead: () =>
       requireMenuRow((row) =>

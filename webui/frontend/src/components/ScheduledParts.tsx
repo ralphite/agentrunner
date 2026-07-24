@@ -121,7 +121,7 @@ export interface ScheduledRunItemProps {
   selected?: boolean;
   menuOpen?: boolean;
   showProjectHit?: boolean;
-  onOpenMenu: (x: number, y: number) => void;
+  onOpenMenu: (x: number, y: number, returnFocus: HTMLElement) => void;
 }
 
 export function ScheduledRunItem({
@@ -147,7 +147,11 @@ export function ScheduledRunItem({
       onContextMenu={(event) => {
         if (!hasActions) return;
         event.preventDefault();
-        onOpenMenu(event.clientX, event.clientY);
+        const returnFocus =
+          event.currentTarget.querySelector<HTMLElement>(".scheduled-row");
+        if (returnFocus) {
+          onOpenMenu(event.clientX, event.clientY, returnFocus);
+        }
       }}
     >
       <button
@@ -176,7 +180,11 @@ export function ScheduledRunItem({
           }
           event.preventDefault();
           const rect = event.currentTarget.getBoundingClientRect();
-          onOpenMenu(rect.left + 20, rect.top + rect.height);
+          onOpenMenu(
+            rect.left + 20,
+            rect.top + rect.height,
+            event.currentTarget,
+          );
         }}
         title={[
           row.full,
@@ -249,7 +257,11 @@ export function ScheduledRunItem({
           onClick={(event) => {
             event.stopPropagation();
             const rect = event.currentTarget.getBoundingClientRect();
-            onOpenMenu(rect.right - 8, rect.bottom + 4);
+            onOpenMenu(
+              rect.right - 8,
+              rect.bottom + 4,
+              event.currentTarget,
+            );
           }}
         >
           <DotsThree size={18} weight="bold" />
@@ -263,6 +275,7 @@ export interface ScheduledRunActionsProps {
   row: ScheduledRunItemModel;
   x: number;
   y: number;
+  returnFocus: HTMLElement;
   pinned: boolean;
   archived: boolean;
   unread: boolean;
@@ -282,6 +295,7 @@ export function ScheduledRunActions({
   row,
   x,
   y,
+  returnFocus,
   pinned,
   archived,
   unread,
@@ -297,7 +311,13 @@ export function ScheduledRunActions({
   onStop,
 }: ScheduledRunActionsProps) {
   return (
-    <ContextMenu x={x} y={y} onClose={onClose}>
+    <ContextMenu
+      x={x}
+      y={y}
+      ariaLabel={`${row.title} actions`}
+      returnFocus={returnFocus}
+      onClose={onClose}
+    >
       <MenuLabel>{row.title}</MenuLabel>
       {row.kind === "session" ? (
         <>
