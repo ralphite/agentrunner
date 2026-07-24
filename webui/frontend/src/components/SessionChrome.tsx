@@ -488,7 +488,6 @@ export function SessionNotice({
           <Button
             size="sm"
             variant="ghost"
-            className="ghost"
             onClick={action.onClick}
             title={action.title}
           >

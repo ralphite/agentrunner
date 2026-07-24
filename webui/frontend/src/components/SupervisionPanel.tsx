@@ -647,7 +647,6 @@ export function EnvironmentSection({
                 size="sm"
                 variant="ghost"
                 type="button"
-                className="env-path-copy"
                 onClick={() => {
                   void copyText(workspace);
                   toast("workspace path copied", "info");
@@ -668,7 +667,6 @@ export function EnvironmentSection({
                   size="sm"
                   variant="outline"
                   type="button"
-                  className="env-wt-action"
                   disabled={busy || !hasChanges}
                   onClick={() => applyBack(env.mainRepo)}
                   title={
@@ -685,7 +683,6 @@ export function EnvironmentSection({
                 size="sm"
                 variant="outline"
                 type="button"
-                className="env-wt-action"
                 onClick={() => void openProjectIn(workspace, "vscode")}
                 title="Open this workspace in VS Code"
               >
@@ -698,7 +695,6 @@ export function EnvironmentSection({
                   variant="outline"
                   tone="danger"
                   type="button"
-                  className="env-wt-action env-wt-danger"
                   disabled={busy}
                   onClick={removeWorktree}
                   title="Delete this worktree checkout and prune it from git"

@@ -1587,10 +1587,7 @@
   .env-detail { @apply mt-1 rounded-[8px] bg-panel-2 p-2; }
   .env-detail-path { @apply flex min-w-0 items-center gap-2; }
   .env-path { @apply min-w-0 flex-1 truncate font-mono text-[11.5px] text-dim; }
-  .env-path-copy { @apply shrink-0 px-2 py-1 text-[12px]; }
   .env-wt-actions { @apply mt-2 flex flex-wrap gap-1.5; }
-  .env-wt-action { @apply px-2.5 py-1 text-[12px]; }
-  .env-wt-danger { @apply border-red text-red hover:bg-red-soft; }
 
   /* goal 文案与杂项标签 */
   .goal-copy, .goal-settled-copy { @apply text-[12.5px] leading-5 text-ink-2 [overflow-wrap:anywhere]; }

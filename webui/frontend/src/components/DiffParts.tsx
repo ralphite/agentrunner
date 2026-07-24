@@ -204,9 +204,8 @@ export function DiffStateView({ state }: { state: DiffState }) {
         <Button
           size="md"
           variant="solid"
-          className="primary"
           onClick={state.onTrack}
-          disabled={state.busy}
+          loading={state.busy}
           title="git init in the workspace — safe, local-only"
         >
           Track changes (git init)
@@ -223,9 +222,8 @@ export function DiffStateView({ state }: { state: DiffState }) {
         <Button
           size="md"
           variant="solid"
-          className="primary"
           onClick={state.onTrack}
-          disabled={state.busy}
+          loading={state.busy}
           title="git init in the workspace — safe, local-only"
         >
           Track changes (git init)

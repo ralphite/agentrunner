@@ -291,7 +291,6 @@ export function ScheduleDetailPanel({
             {detail.scheduleControl && (
               <Button
                 variant="solid"
-                className="primary"
                 loading={acting}
                 onClick={() => onCadence(paused ? "resume" : "pause")}
               >

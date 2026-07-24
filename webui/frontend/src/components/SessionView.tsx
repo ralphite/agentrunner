@@ -1004,7 +1004,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           {showSys && (
                 <div className="system-events-notice">
                   System events are visible
-                  <button onClick={toggleSys}>Hide</button>
+                  <Button size="sm" variant="ghost" onClick={toggleSys}>Hide</Button>
                 </div>
               )}
               <TimelineView
@@ -1378,8 +1378,8 @@ export function GoalBanner({
           </>
         ) : (
           <>
-            <Button size="sm" variant="solid" className="gbar-btn text" onClick={onSave}>Save</Button>
-            <Button size="sm" variant="ghost" className="gbar-btn text" onClick={onDiscard}>Discard</Button>
+            <Button size="sm" variant="solid" onClick={onSave}>Save</Button>
+            <Button size="sm" variant="ghost" onClick={onDiscard}>Discard</Button>
           </>
         )}
       </span>

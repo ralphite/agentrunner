@@ -184,11 +184,11 @@ export function GoalSection({
                 <Button size="sm" variant="outline" onClick={() => onGoalAction(goal.paused ? "resume" : "pause")}>
                   {goal.paused ? "Resume" : "Pause"}
                 </Button>
-                <Button size="sm" variant="outline" tone="danger" className="danger" onClick={() => onGoalAction("cancel")}>Cancel</Button>
+                <Button size="sm" variant="outline" tone="danger" onClick={() => onGoalAction("cancel")}>Cancel</Button>
               </>
             ) : (
               <>
-                <Button size="sm" variant="solid" className="primary" onClick={onGoalSave}>Save</Button>
+                <Button size="sm" variant="solid" onClick={onGoalSave}>Save</Button>
                 <Button size="sm" variant="outline" onClick={onGoalDiscard}>Discard</Button>
               </>
             )}

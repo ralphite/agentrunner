@@ -464,7 +464,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         <div className="changes-outcome-title">
           <b>Couldn't load changes</b>
         </div>
-        <Button size="md" variant="outline" type="button" onClick={retry} className="inline-flex items-center gap-[5px]">
+        <Button size="md" variant="outline" type="button" onClick={retry}>
           Retry <ArrowClockwise size={13} />
         </Button>
       </ChangesShell>

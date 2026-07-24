@@ -1691,7 +1691,7 @@ export function GoalLoopLauncher({
         </label>
         <Button
           variant="solid"
-          className="primary cx-launcher-go"
+          className="cx-launcher-go"
           loading={busy}
           disabled={!prompt.trim() || (mode === "loop" && (!second.trim() || intervalError !== ""))}
           onClick={() => onStart(prompt.trim(), second.trim(), iters)}
