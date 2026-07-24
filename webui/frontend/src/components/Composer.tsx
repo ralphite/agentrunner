@@ -1450,6 +1450,7 @@ export function Composer(props: ComposerProps) {
         ref: taRef,
         value: text,
         placeholder,
+        "aria-label": "Message AgentRunner",
         onChange: (event) => {
           setText(event.target.value);
           grow(event.target);

@@ -86,7 +86,9 @@ export const ScheduledRoute: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      await within(canvasElement).findByRole("heading", { name: "Scheduled" }),
+      await within(canvasElement).findByRole("heading", {
+        name: "Scheduled runs",
+      }),
     ).toBeVisible();
   },
 };

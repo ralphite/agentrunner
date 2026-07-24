@@ -1272,6 +1272,7 @@ export function DeliveryModeControl({
       <button
         type="button"
         className={"cx-deliv" + (mode === "queue" ? " on" : "")}
+        aria-label="Queue"
         aria-pressed={mode === "queue"}
         onClick={() => onChange("queue")}
         title="Queue: deliver after the current turn ends (⌘⏎ to steer this one)"
@@ -1282,6 +1283,7 @@ export function DeliveryModeControl({
       <button
         type="button"
         className={"cx-deliv" + (mode === "steer" ? " on" : "")}
+        aria-label="Steer"
         aria-pressed={mode === "steer"}
         onClick={() => onChange("steer")}
         title="Steer: fold into the current turn at its next safe boundary (⌘⏎ to queue this one)"
