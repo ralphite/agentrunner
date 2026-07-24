@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useAppStoreApi, useStore } from "./store";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 import { Sidebar } from "./components/Sidebar";
@@ -16,6 +16,8 @@ import { quickSwitchSessions } from "./viewModels";
 import { applyAppearance, loadAppearance } from "./theme";
 import { SidebarSimple } from "@phosphor-icons/react";
 import { useAppServices } from "./app/appServices";
+import { useFocusScope } from "./ui/FocusScope";
+import { IconButton } from "./ui/IconButton";
 
 export function AppShell() {
   const { storage } = useAppServices();
@@ -39,6 +41,36 @@ export function AppShell() {
   const bp = useBreakpoint();
   const isMobile = bp.compact || bp.tablet;
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const mobileSidebarRestoreFocusRef = useRef(true);
+  const mobileSidebarReturnFocusRef = useRef<HTMLElement | null>(null);
+  const mobileSidebarRoot = useCallback(
+    () => document.querySelector<HTMLElement>(".app > .sidebar"),
+    [],
+  );
+  const openMobileSidebar = useCallback(() => {
+    mobileSidebarReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    mobileSidebarRestoreFocusRef.current = true;
+    setMobileSidebarOpen(true);
+  }, []);
+  const closeMobileSidebar = useCallback((restoreFocus = true) => {
+    mobileSidebarRestoreFocusRef.current = restoreFocus;
+    setMobileSidebarOpen(false);
+  }, []);
+
+  useFocusScope(mobileSidebarRoot, {
+    enabled: isMobile && mobileSidebarOpen,
+    initialFocus: '[aria-label="Search sessions"]',
+    restoreFocus: () => {
+      const target = mobileSidebarReturnFocusRef.current;
+      if (target?.isConnected && target.getClientRects().length > 0) return target;
+      return document.querySelector<HTMLElement>("[data-focus-restore-fallback]");
+    },
+    shouldRestoreFocus: () => mobileSidebarRestoreFocusRef.current,
+    onEscape: () => closeMobileSidebar(true),
+  });
 
   const openPalette = () => {
     paletteRestoreFocusRef.current = true;
@@ -71,6 +103,14 @@ export function AppShell() {
   useEffect(() => {
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
+
+  // Help is opened by Sidebar's store action rather than an App callback. Close
+  // the drawer before paint and mark this as a focus transfer so its cleanup
+  // cannot steal focus back from Shortcuts.
+  useLayoutEffect(() => {
+    if (!helpOpen || !isMobile || !mobileSidebarOpen) return;
+    closeMobileSidebar(false);
+  }, [closeMobileSidebar, helpOpen, isMobile, mobileSidebarOpen]);
 
   useEffect(() => {
     document.title = unread.length > 0 ? `(${unread.length}) AgentRunner` : "AgentRunner";
@@ -164,10 +204,10 @@ export function AppShell() {
   }, []);
 
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
-  const hideSidebar = () => isMobile ? setMobileSidebarOpen(false) : toggleSidebar();
-  const showSidebar = () => isMobile ? setMobileSidebarOpen(true) : toggleSidebar();
+  const hideSidebar = () => isMobile ? closeMobileSidebar(true) : toggleSidebar();
+  const showSidebar = () => isMobile ? openMobileSidebar() : toggleSidebar();
   const closeAfterNavigate = () => {
-    if (isMobile) setMobileSidebarOpen(false);
+    if (isMobile) closeMobileSidebar(true);
   };
 
   return (
@@ -195,11 +235,11 @@ export function AppShell() {
         onNavigate={closeAfterNavigate}
         // RH-5: the sidebar's magnifier *is* ⌘K — one search entry point.
         onOpenPalette={() => {
-          closeAfterNavigate();
+          if (isMobile) closeMobileSidebar(false);
           openPalette();
         }}
         onOpenSettings={() => {
-          closeAfterNavigate();
+          if (isMobile) closeMobileSidebar(false);
           openSettings();
         }}
       />
@@ -208,14 +248,17 @@ export function AppShell() {
           the next Tab then continues into the conversation / composer. */}
       <div className="main" id="main" tabIndex={-1}>
         {effectiveCollapsed && !(isMobile && currentPage === "scheduled" && scheduledDetailSid) && (
-          <button
+          <IconButton
             className="sidebar-show"
+            data-focus-restore-fallback
+            size="md"
+            variant="outline"
             onClick={showSidebar}
             title="Show sidebar (⌘B)"
             aria-label="Show sidebar"
           >
             <SidebarSimple size={17} />
-          </button>
+          </IconButton>
         )}
         <ErrorBoundary resetKey={currentRunId || currentSid || "home"}>
           {currentRunId ? (
