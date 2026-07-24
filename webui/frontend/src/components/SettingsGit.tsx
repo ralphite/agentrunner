@@ -30,11 +30,13 @@ export function SettingsGit({ query }: { query: string }) {
 
       {show("commit message template default") && (
         <section className="rs-row rs-row-block min-w-0 max-[500px]:rounded-[8px] max-[500px]:p-2.5">
-          <div className="rs-row-head min-w-0 max-[500px]:flex-col max-[500px]:items-stretch max-[500px]:gap-1">
-            <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-1.5">
-              <span>Commit message template</span>
+          <div className="rs-row-head min-w-0">
+            <div className="min-w-0">
+              <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-1.5">
+                <span>Commit message template</span>
+              </div>
+              <div className="rs-row-desc mt-[3px] min-w-0 leading-[1.5]">Pre-fills commit messages in Changes.</div>
             </div>
-            <div className="rs-row-desc max-w-[430px] min-w-0 leading-[1.5] max-[500px]:max-w-none">Pre-fills commit messages in Changes.</div>
           </div>
           <Textarea
             className="rs-textarea mt-3 min-w-0 max-w-full resize-y"

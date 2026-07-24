@@ -49,9 +49,11 @@ export function SettingsAppearance({ query }: { query: string }) {
 
       {show("Theme system light dark") && (
         <section className="rs-row rs-row-block max-[500px]:rounded-[8px] max-[500px]:p-2.5">
-          <div className="rs-row-head max-[500px]:grid max-[500px]:grid-cols-1 max-[500px]:gap-0.5">
-            <div className="rs-row-label">Theme</div>
-            <div className="rs-row-desc">Follow the system, or pin a light or dark appearance.</div>
+          <div className="rs-row-head">
+            <div className="min-w-0">
+              <div className="rs-row-label">Theme</div>
+              <div className="rs-row-desc mt-[3px] leading-[1.5]">Follow the system, or pin a light or dark appearance.</div>
+            </div>
           </div>
           <div className="rs-themecards mt-3 min-w-0 max-[500px]:gap-1.5">
             {THEME_CARDS.map((c) => (
@@ -99,9 +101,11 @@ export function SettingsAppearance({ query }: { query: string }) {
 
       {show("Contrast") && (
         <section className="rs-row max-[500px]:rounded-[8px] max-[500px]:p-2.5">
-          <div className="rs-row-head max-[500px]:grid max-[500px]:grid-cols-1 max-[500px]:gap-0.5">
-            <div className="rs-row-label">Contrast</div>
-            <div className="rs-row-desc">Strengthen or soften secondary text and borders.</div>
+          <div className="rs-row-head">
+            <div className="min-w-0">
+              <div className="rs-row-label">Contrast</div>
+              <div className="rs-row-desc mt-[3px] leading-[1.5]">Strengthen or soften secondary text and borders.</div>
+            </div>
           </div>
           <div className="rs-slider mt-3 flex min-w-0 items-center gap-3">
             <input
@@ -121,9 +125,11 @@ export function SettingsAppearance({ query }: { query: string }) {
 
       {show("Diff markers color signs colorblind") && (
         <section className="rs-row max-[500px]:rounded-[8px] max-[500px]:p-2.5">
-          <div className="rs-row-head max-[500px]:grid max-[500px]:grid-cols-1 max-[500px]:gap-0.5">
-            <div className="rs-row-label">Diff markers</div>
-            <div className="rs-row-desc">How added and removed lines are distinguished.</div>
+          <div className="rs-row-head">
+            <div className="min-w-0">
+              <div className="rs-row-label">Diff markers</div>
+              <div className="rs-row-desc mt-[3px] leading-[1.5]">How added and removed lines are distinguished.</div>
+            </div>
           </div>
           <div className="rs-seg">
             {(["color", "signs"] as DiffMarkers[]).map((m) => (
@@ -215,9 +221,11 @@ export function FontRow({
 }) {
   return (
     <section className="rs-row max-[500px]:rounded-[8px] max-[500px]:p-2.5">
-      <div className="rs-row-head max-[500px]:grid max-[500px]:grid-cols-1 max-[500px]:gap-0.5">
-        <div className="rs-row-label">{label}</div>
-        <div className="rs-row-desc">{desc}</div>
+      <div className="rs-row-head">
+        <div className="min-w-0">
+          <div className="rs-row-label">{label}</div>
+          <div className="rs-row-desc mt-[3px] leading-[1.5]">{desc}</div>
+        </div>
       </div>
       <div className="rs-slider mt-3 grid grid-cols-[32px_64px_32px] justify-end gap-1.5">
         <IconButton
@@ -249,9 +257,11 @@ export function FontRow({
 export function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <section className="rs-row max-[500px]:relative max-[500px]:rounded-[8px] max-[500px]:p-2.5">
-      <div className="rs-row-head max-[500px]:grid max-[500px]:grid-cols-1 max-[500px]:gap-0.5 max-[500px]:pr-12">
-        <div className="rs-row-label">{label}</div>
-        <div className="rs-row-desc">{desc}</div>
+      <div className="rs-row-head max-[500px]:pr-12">
+        <div className="min-w-0">
+          <div className="rs-row-label">{label}</div>
+          <div className="rs-row-desc mt-[3px] leading-[1.5]">{desc}</div>
+        </div>
       </div>
       <button className={"rs-switch max-[500px]:absolute max-[500px]:right-2.5 max-[500px]:top-2.5" + (checked ? " on" : "")} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}>
         <span className="rs-switch-knob" />
