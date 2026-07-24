@@ -60,8 +60,7 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     evidenceSelector: ".project-session-wrap:hover .session-quick-actions",
     storyId:
       "components-navigation-sidebar-items--session-quick-actions-reveal",
-    evidence:
-      "Hover exposes Pin/Archive without hiding the running indicator.",
+    evidence: "Hover exposes Pin/Archive without hiding the running indicator.",
     owner: "webui",
   },
   {
@@ -70,18 +69,15 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     source: "src/tw.css",
     evidenceSelector:
       ".project-session-wrap:focus-within .session-quick-actions",
-    storyId:
-      "components-navigation-sidebar-items--session-quick-actions-focus",
-    evidence:
-      "Keyboard focus exposes the same actions as pointer hover.",
+    storyId: "components-navigation-sidebar-items--session-quick-actions-focus",
+    evidence: "Keyboard focus exposes the same actions as pointer hover.",
     owner: "webui",
   },
   {
     componentId: "SidebarSessionItem",
     state: "hover-worktree-icon-replaced",
     source: "src/tw.css",
-    evidenceSelector:
-      ".project-session-wrap:hover .session-worktree-icon",
+    evidenceSelector: ".project-session-wrap:hover .session-worktree-icon",
     storyId:
       "components-navigation-sidebar-items--session-quick-actions-reveal",
     evidence:
@@ -94,8 +90,7 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     source: "src/tw.css",
     evidenceSelector:
       ".project-session-wrap:focus-within .session-worktree-icon",
-    storyId:
-      "components-navigation-sidebar-items--session-quick-actions-focus",
+    storyId: "components-navigation-sidebar-items--session-quick-actions-focus",
     evidence:
       "Keyboard focus performs the same worktree-to-actions slot replacement.",
     owner: "webui",
@@ -104,12 +99,9 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     componentId: "SidebarProjectItem",
     state: "hover-actions-revealed",
     source: "src/tw.css",
-    evidenceSelector:
-      ".project-heading-row:hover .project-heading-actions",
-    storyId:
-      "components-navigation-sidebar-items--project-actions-hover",
-    evidence:
-      "Hover reveals the project menu and New chat actions.",
+    evidenceSelector: ".project-heading-row:hover .project-heading-actions",
+    storyId: "components-navigation-sidebar-items--project-actions-hover",
+    evidence: "Hover reveals the project menu and New chat actions.",
     owner: "webui",
   },
   {
@@ -129,8 +121,7 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     state: "hover-folder-to-caret",
     source: "src/tw.css",
     evidenceSelector: ".project-heading:hover .proj-caret",
-    storyId:
-      "components-navigation-sidebar-items--project-actions-hover",
+    storyId: "components-navigation-sidebar-items--project-actions-hover",
     evidence:
       "Hover replaces the folder glyph with the expansion caret in the same slot.",
     owner: "webui",
@@ -164,10 +155,8 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     source: "src/tw.css",
     evidenceSelector:
       ".timeline .tl-inner .msg:not(.msg-last):focus-within .msg-actions",
-    storyId:
-      "components-timeline-timelineview--message-actions-focus-within",
-    evidence:
-      "Keyboard focus exposes the same earlier-message actions.",
+    storyId: "components-timeline-timelineview--message-actions-focus-within",
+    evidence: "Keyboard focus exposes the same earlier-message actions.",
     owner: "webui",
   },
   {
@@ -175,10 +164,8 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     state: "hover-actions-revealed",
     source: "src/tw.css",
     evidenceSelector: ".scheduled-row-wrap:hover .sched-more",
-    storyId:
-      "components-scheduled-parts--run-item-action-visibility-states",
-    evidence:
-      "Hover exposes the scheduled-run action trigger.",
+    storyId: "components-scheduled-parts--run-item-action-visibility-states",
+    evidence: "Hover exposes the scheduled-run action trigger.",
     owner: "webui",
   },
   {
@@ -186,10 +173,8 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     state: "focus-within-actions-revealed",
     source: "src/tw.css",
     evidenceSelector: ".scheduled-row-wrap:focus-within .sched-more",
-    storyId:
-      "components-scheduled-parts--run-item-focus-and-menu-open",
-    evidence:
-      "Keyboard focus exposes the scheduled-run action trigger.",
+    storyId: "components-scheduled-parts--run-item-focus-and-menu-open",
+    evidence: "Keyboard focus exposes the scheduled-run action trigger.",
     owner: "webui",
   },
   {
@@ -197,20 +182,17 @@ export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
     state: "menu-open-actions-persist",
     source: "src/tw.css",
     evidenceSelector: ".scheduled-row-wrap.menu-open .sched-more",
-    storyId:
-      "components-scheduled-parts--run-item-focus-and-menu-open",
-    evidence:
-      "The trigger remains visible while its context menu is open.",
+    storyId: "components-scheduled-parts--run-item-focus-and-menu-open",
+    evidence: "The trigger remains visible while its context menu is open.",
     owner: "webui",
   },
 ] satisfies readonly SemanticStateRequirement[];
 
-const BASE_CELLS = [
-  "render:default",
-  "a11y:keyboard",
-] as const;
+const BASE_CELLS = ["render:default", "a11y:keyboard"] as const;
 
-function missingCells(extra: readonly string[] = []): Record<string, CoverageCell> {
+function missingCells(
+  extra: readonly string[] = [],
+): Record<string, CoverageCell> {
   return Object.fromEntries(
     [...BASE_CELLS, ...extra].map((cell) => [cell, { status: "missing" }]),
   );
@@ -271,7 +253,8 @@ function coveredDirectLeafTarget(
       },
       "a11y:keyboard": {
         status: "n-a",
-        reason: "Keyboard semantics are owned by the interactive composition or the leaf is inert.",
+        reason:
+          "Keyboard semantics are owned by the interactive composition or the leaf is inert.",
         evidence: `${storyId} runs the direct leaf through the Story browser a11y gate; ${compositionEvidence}`,
         owner: "webui",
       },
@@ -350,7 +333,8 @@ function coveredStateTarget({
           }
         : {
             status: "n-a",
-            reason: "This leaf is informational and has no independently focusable control.",
+            reason:
+              "This leaf is informational and has no independently focusable control.",
             evidence: `${renderStory} renders the leaf directly through the Story browser a11y gate; keyboard behavior belongs to its interactive parent composition.`,
             owner: "webui",
           },
@@ -378,9 +362,7 @@ function coveredPrefixedStateTarget(
     source,
     storySource,
     renderStory: `${storyPrefix}--${renderStory}`,
-    keyboardStory: keyboardStory
-      ? `${storyPrefix}--${keyboardStory}`
-      : null,
+    keyboardStory: keyboardStory ? `${storyPrefix}--${keyboardStory}` : null,
     stateStories: Object.fromEntries(
       extraStories.map((storyName) => [
         `state:${storyName}`,
@@ -398,60 +380,68 @@ export const privateVisibleExclusions = [
     source: "src/app/AppRuntime.tsx",
     declarationName: "RuntimeController",
     reason: "Non-visual runtime effect owner; it renders children unchanged.",
-    evidence: "AppRuntime Story covers the rendered shell while RuntimeController characterization tests cover effects.",
+    evidence:
+      "AppRuntime Story covers the rendered shell while RuntimeController characterization tests cover effects.",
     owner: "webui",
   },
   {
     source: "src/components/ChangesOutcome.tsx",
     declarationName: "PlusMinusSquare",
     reason: "Decorative icon adapter with no independent state or interaction.",
-    evidence: "Rendered only inside ChangesOutcome controls and hidden from the accessibility tree.",
+    evidence:
+      "Rendered only inside ChangesOutcome controls and hidden from the accessibility tree.",
     owner: "webui",
   },
   {
     source: "src/components/DiffParts.tsx",
     declarationName: "DiffCloseButton",
-    reason: "Internal DiffToolbar affordance with no standalone product contract.",
-    evidence: "DiffToolbar Ready, Tight, and State Stories render the close action in both production toolbar variants.",
+    reason:
+      "Internal DiffToolbar affordance with no standalone product contract.",
+    evidence:
+      "DiffToolbar Ready, Tight, and State Stories render the close action in both production toolbar variants.",
     owner: "webui",
   },
-  ...[
-    "BestIcon",
-    "GoalIcon",
-    "LoopIcon",
-  ].map((declarationName) => ({
+  ...["BestIcon", "GoalIcon", "LoopIcon"].map((declarationName) => ({
     source: "src/components/Composer.tsx",
     declarationName,
-    reason: "Decorative icon adapter; not an independently operable UI surface.",
-    evidence: "Its semantics and state belong to the Composer control that supplies the accessible name.",
+    reason:
+      "Decorative icon adapter; not an independently operable UI surface.",
+    evidence:
+      "Its semantics and state belong to the Composer control that supplies the accessible name.",
     owner: "webui",
   })),
   ...["AccessIcon", "RiskGlyph"].map((declarationName) => ({
     source: "src/components/ComposerParts.tsx",
     declarationName,
     reason: "Decorative status icon with no independent state or interaction.",
-    evidence: "AccessPicker Stories cover every labelled access and risk state that selects the icon.",
+    evidence:
+      "AccessPicker Stories cover every labelled access and risk state that selects the icon.",
     owner: "webui",
   })),
   {
     source: "src/components/ComposerParts.tsx",
     declarationName: "PickerBack",
-    reason: "Internal ModelPicker subpage header; it has no standalone product contract.",
-    evidence: "ModelPicker Stories exercise the Model, Effort, and Thinking budget subpages and their back interaction.",
+    reason:
+      "Internal ModelPicker subpage header; it has no standalone product contract.",
+    evidence:
+      "ModelPicker Stories exercise the Model, Effort, and Thinking budget subpages and their back interaction.",
     owner: "webui",
   },
   ...["CloudMark", "Telescope"].map((declarationName) => ({
     source: "src/components/Home.tsx",
     declarationName,
-    reason: "Decorative illustration primitive with no independent product state.",
-    evidence: "Home owns the visible empty-state composition and accessibility semantics.",
+    reason:
+      "Decorative illustration primitive with no independent product state.",
+    evidence:
+      "Home owns the visible empty-state composition and accessibility semantics.",
     owner: "webui",
   })),
   ...["CategoryIcon", "StepIcon"].map((declarationName) => ({
     source: "src/components/Timeline.tsx",
     declarationName,
     reason: "Decorative status icon selected by its owning timeline row.",
-    evidence: "Tool/Activity Stories cover each status through the complete labelled row.",
+    evidence:
+      "Tool/Activity Stories cover each status through the complete labelled row.",
     owner: "webui",
   })),
 ] satisfies readonly PrivateVisibleExclusion[];
@@ -498,6 +488,105 @@ const baseStoryManifest = [
       "a11y:keyboard": {
         status: "covered",
         storyId: "pages-appruntime--keyboard-navigation",
+      },
+    },
+  },
+  {
+    componentId: "Button",
+    source: "src/ui/Button.tsx",
+    storySource: "src/ui/ActionPrimitives.stories.tsx",
+    exportName: "Button",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-actions-button-and-iconbutton--default",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason:
+          "Button delegates keyboard activation to the native button element.",
+        evidence:
+          "foundations-actions-button-and-iconbutton--default is checked by the Storybook a11y gate and asserts native button semantics.",
+        owner: "webui",
+      },
+      "state:sizes-variants-tones": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--button-sizes-variants-and-tones",
+      },
+      "state:interaction": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--interaction-states",
+      },
+      "boundary:long-label": {
+        status: "covered",
+        storyId: "foundations-actions-button-and-iconbutton--long-label",
+      },
+    },
+  },
+  {
+    componentId: "IconButton",
+    source: "src/ui/IconButton.tsx",
+    storySource: "src/ui/ActionPrimitives.stories.tsx",
+    exportName: "IconButton",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-actions-button-and-iconbutton--default",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason:
+          "IconButton delegates keyboard activation to the native button element and requires an accessible name.",
+        evidence:
+          "foundations-actions-button-and-iconbutton--default is checked by the Storybook a11y gate and asserts the icon action name.",
+        owner: "webui",
+      },
+      "state:sizes-variants-tones": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--icon-button-sizes-variants-and-tones",
+      },
+      "state:interaction": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--interaction-states",
+      },
+    },
+  },
+  {
+    componentId: "FocusScope",
+    source: "src/ui/FocusScope.tsx",
+    exportName: "FocusScope",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--first-focus-selector",
+      },
+      "a11y:keyboard": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--tab-and-shift-tab-wrap",
+      },
+      "focus:ref-target": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--first-focus-ref",
+      },
+      "interaction:escape": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--escape",
+      },
+      "focus:restore": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--restore-focus-on-unmount",
+      },
+      "focus:no-target-fallback": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--no-focusable-fallback",
+      },
+      "focus:unavailable-targets": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--filters-unavailable-targets",
       },
     },
   },
@@ -807,9 +896,21 @@ const baseStoryManifest = [
       "Markdown direct and keyboard Stories exercise the leaf in its production composition; theme and viewport are verified with Storybook controls.",
     ),
   ),
-  coveredBaseTarget("Menu", "src/components/Menu.tsx", "components-overlays-menu"),
-  coveredBaseTarget("MenuItem", "src/components/Menu.tsx", "components-overlays-menu"),
-  coveredBaseTarget("MenuLabel", "src/components/Menu.tsx", "components-overlays-menu"),
+  coveredBaseTarget(
+    "Menu",
+    "src/components/Menu.tsx",
+    "components-overlays-menu",
+  ),
+  coveredBaseTarget(
+    "MenuItem",
+    "src/components/Menu.tsx",
+    "components-overlays-menu",
+  ),
+  coveredBaseTarget(
+    "MenuLabel",
+    "src/components/Menu.tsx",
+    "components-overlays-menu",
+  ),
   withCells(
     coveredBaseTarget(
       "MermaidBlock",
@@ -823,19 +924,16 @@ const baseStoryManifest = [
       },
     },
   ),
-  withCells(
-    target("Modal", "src/components/Modals.tsx"),
-    {
-      "render:default": {
-        status: "covered",
-        storyId: "components-overlays-modals--standalone-default",
-      },
-      "a11y:keyboard": {
-        status: "covered",
-        storyId: "components-overlays-modals--standalone-keyboard-navigation",
-      },
+  withCells(target("Modal", "src/components/Modals.tsx"), {
+    "render:default": {
+      status: "covered",
+      storyId: "components-overlays-modals--standalone-default",
     },
-  ),
+    "a11y:keyboard": {
+      status: "covered",
+      storyId: "components-overlays-modals--standalone-keyboard-navigation",
+    },
+  }),
   withCells(
     coveredBaseTarget(
       "Modals",
@@ -887,9 +985,21 @@ const baseStoryManifest = [
       },
     },
   ),
-  coveredBaseTarget("Popover", "src/components/Popover.tsx", "components-overlays-popover"),
-  coveredBaseTarget("PopSection", "src/components/Popover.tsx", "components-overlays-popover"),
-  coveredBaseTarget("PopItem", "src/components/Popover.tsx", "components-overlays-popover"),
+  coveredBaseTarget(
+    "Popover",
+    "src/components/Popover.tsx",
+    "components-overlays-popover",
+  ),
+  coveredBaseTarget(
+    "PopSection",
+    "src/components/Popover.tsx",
+    "components-overlays-popover",
+  ),
+  coveredBaseTarget(
+    "PopItem",
+    "src/components/Popover.tsx",
+    "components-overlays-popover",
+  ),
   withCells(
     coveredBaseTarget(
       "RunView",
@@ -1239,7 +1349,8 @@ const baseStoryManifest = [
     {
       "failure:unknown-overflow": {
         status: "covered",
-        storyId: "components-supervision-supervisionpanel--failure-unknown-and-overflow",
+        storyId:
+          "components-supervision-supervisionpanel--failure-unknown-and-overflow",
       },
       "interaction:goal-editing": {
         status: "covered",
@@ -1291,11 +1402,7 @@ const baseStoryManifest = [
     "components-supervision-goal-section",
     "active",
     "editing",
-    [
-      "paused-self-certified",
-      "settled-outcomes",
-      "settled-echoed-compact",
-    ],
+    ["paused-self-certified", "settled-outcomes", "settled-echoed-compact"],
     "src/components/SupervisionGoal.stories.tsx",
   ),
   coveredPrefixedStateTarget(
@@ -1897,9 +2004,7 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-attention-askform--long-question-and-options",
     "components-attention-askform--semantic-pseudo-states",
   ],
-  ChangesOutcome: [
-    "components-changes-changesoutcome--image-lightbox-open",
-  ],
+  ChangesOutcome: ["components-changes-changesoutcome--image-lightbox-open"],
   CommandPalette: [
     "components-navigation-commandpalette--pointer-selection",
     "components-navigation-commandpalette--keyboard-selection",
@@ -1968,24 +2073,12 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-input-composer-parts--submit-running-steer",
     "components-input-composer-parts--semantic-control-pseudo-states",
   ],
-  ContextMenu: [
-    "components-overlays-contextmenu--viewport-edge-long-content",
-  ],
-  ChangedFilesMenu: [
-    "components-changes-diffparts--changed-files-no-matches",
-  ],
-  DiffMoreActionsMenu: [
-    "components-changes-diffparts--more-actions-empty",
-  ],
-  CommitPushMenu: [
-    "components-changes-diffparts--commit-busy",
-  ],
-  UntrackedFile: [
-    "components-changes-diffview--untracked-file-loading",
-  ],
-  FileBody: [
-    "components-changes-diffview--file-body-context-loading",
-  ],
+  ContextMenu: ["components-overlays-contextmenu--viewport-edge-long-content"],
+  ChangedFilesMenu: ["components-changes-diffparts--changed-files-no-matches"],
+  DiffMoreActionsMenu: ["components-changes-diffparts--more-actions-empty"],
+  CommitPushMenu: ["components-changes-diffparts--commit-busy"],
+  UntrackedFile: ["components-changes-diffview--untracked-file-loading"],
+  FileBody: ["components-changes-diffview--file-body-context-loading"],
   HomeStarterCard: [
     "components-home-home-starter-card--semantic-pseudo-states",
   ],
@@ -1997,12 +2090,8 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-media-lightbox--single-image",
     "components-media-lightbox--maximum-zoom",
   ],
-  CodeBlock: [
-    "components-content-markdown--plain-code-block",
-  ],
-  MdImage: [
-    "components-content-markdown--md-image-failure",
-  ],
+  CodeBlock: ["components-content-markdown--plain-code-block"],
+  MdImage: ["components-content-markdown--md-image-failure"],
   Menu: [
     "components-overlays-menu--closed",
     "components-overlays-menu--keyboard-wrap-and-selection-return",
@@ -2014,15 +2103,9 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-overlays-popover--dialog-autofocus",
     "components-overlays-popover--downward-overflow",
   ],
-  PopItem: [
-    "components-overlays-popover--pop-item-state-matrix",
-  ],
-  RunHeader: [
-    "components-runs-run-header--running-without-stop",
-  ],
-  RunLogItem: [
-    "components-runs-run-log-item--iteration-verdict",
-  ],
+  PopItem: ["components-overlays-popover--pop-item-state-matrix"],
+  RunHeader: ["components-runs-run-header--running-without-stop"],
+  RunLogItem: ["components-runs-run-log-item--iteration-verdict"],
   ScheduledRunItem: [
     "components-scheduled-parts--run-item-action-visibility-states",
     "components-scheduled-parts--run-item-focus-and-menu-open",
@@ -2030,19 +2113,13 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
   SessionTopbar: [
     "components-sessions-sessionchrome--topbar-read-only-sub-agent",
   ],
-  TerminalAlert: [
-    "components-sessions-sessionchrome--terminal-tone-matrix",
-  ],
+  TerminalAlert: ["components-sessions-sessionchrome--terminal-tone-matrix"],
   GoalBanner: [
     "components-sessions-sessionview--goal-terminal-tone-matrix",
     "components-sessions-sessionview--goal-update-pending",
   ],
-  SettingsAppearance: [
-    "components-settings-appearance--diff-marker-selection",
-  ],
-  SettingsConfiguration: [
-    "components-settings-configuration--long-paths",
-  ],
+  SettingsAppearance: ["components-settings-appearance--diff-marker-selection"],
+  SettingsConfiguration: ["components-settings-configuration--long-paths"],
   SettingsWorktrees: [
     "components-settings-worktrees--filtered-results",
     "components-settings-worktrees--pagination-collapsed",
@@ -2077,22 +2154,14 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-timeline-timelineview--message-actions-focus-within",
     "components-timeline-timelineview--msg-actions-busy-and-error",
   ],
-  ToolCard: [
-    "components-timeline-timelineview--tool-lifecycle-matrix",
-  ],
-  ToastItem: [
-    "components-feedback-toast-item--long-details-overflow",
-  ],
-  WorktreeCard: [
-    "components-settings-worktree-card--empty-sessions",
-  ],
+  ToolCard: ["components-timeline-timelineview--tool-lifecycle-matrix"],
+  ToastItem: ["components-feedback-toast-item--long-details-overflow"],
+  WorktreeCard: ["components-settings-worktree-card--empty-sessions"],
   Home: [
     "pages-home--project-aware-long-headline",
     "pages-home--draft-without-intent",
   ],
-  Scheduled: [
-    "pages-scheduled--pagination",
-  ],
+  Scheduled: ["pages-scheduled--pagination"],
   ScheduleDetailPanel: [
     "pages-scheduled--schedule-detail-fallbacks",
     "pages-scheduled--schedule-detail-saving",
@@ -2101,13 +2170,12 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "pages-scheduled--schedule-edit-cron-conflict",
     "pages-scheduled--schedule-edit-busy",
   ],
-  Settings: [
-    "pages-settings--initial-appearance-section",
-  ],
+  Settings: ["pages-settings--initial-appearance-section"],
 };
 
 export const storyManifest = baseStoryManifest.map((component) => {
-  const stories = additionalStateStoriesByComponent[component.componentId] ?? [];
+  const stories =
+    additionalStateStoriesByComponent[component.componentId] ?? [];
   return withCells(
     component,
     Object.fromEntries(
