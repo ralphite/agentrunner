@@ -17,7 +17,6 @@ import {
   MagnifyingGlass,
   Rows,
   TextAlignLeft,
-  TreeStructure,
   X,
 } from "@phosphor-icons/react";
 import { splitPath, type FileStatus } from "../diffSummary";
@@ -304,7 +303,7 @@ export function ChangedFilesMenu({
               : "Changed files — jump to one, or filter the review"
           }
         >
-          <TreeStructure size={15} />
+          <FileMagnifyingGlass size={15} />
         </IconButton>
       )}
     >
