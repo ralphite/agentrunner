@@ -1564,6 +1564,7 @@ func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {
 		Interval         *string `json:"interval,omitempty"`
 		Cron             *string `json:"cron,omitempty"`
 		Overlap          *string `json:"overlap,omitempty"`
+		MaxWakes         *int    `json:"maxWakes,omitempty"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -1574,8 +1575,58 @@ func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {
 		})(w, r)
 		return
 	}
+	if req.Action == "attach" {
+		// INC-102: the composer's /loop creates the in-session schedule over
+		// HTTP — same CLI verb the terminal uses (`ar schedule <sid> attach`),
+		// so cadence validation and journaling stay with the runtime.
+		if req.Prompt == nil || strings.TrimSpace(*req.Prompt) == "" {
+			badRequest(w, "attach requires a standing prompt")
+			return
+		}
+		id, ok := sid(w, r)
+		if !ok {
+			return
+		}
+		args := []string{"schedule", id, "attach"}
+		sched := ""
+		if req.Schedule != nil {
+			sched = *req.Schedule
+		}
+		switch sched {
+		case "interval":
+			if req.Interval == nil || strings.TrimSpace(*req.Interval) == "" {
+				badRequest(w, "interval is required for an interval schedule")
+				return
+			}
+			args = append(args, "--every", *req.Interval)
+		case "cron":
+			if req.Cron == nil || strings.TrimSpace(*req.Cron) == "" {
+				badRequest(w, "cron is required for a cron schedule")
+				return
+			}
+			args = append(args, "--cron", *req.Cron)
+		default:
+			badRequest(w, "attach schedule must be interval or cron")
+			return
+		}
+		if req.MaxWakes != nil {
+			if *req.MaxWakes < 0 {
+				badRequest(w, "maxWakes must be non-negative")
+				return
+			}
+			args = append(args, "--max-wakes", strconv.Itoa(*req.MaxWakes))
+		}
+		args = append(args, *req.Prompt)
+		res := s.runAR(r.Context(), oneShotTimeout, args...)
+		if res.Err != nil {
+			arFail(w, "ar schedule attach", res)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+		return
+	}
 	if req.Action != "update" || req.ExpectedRevision == nil || *req.ExpectedRevision < 0 {
-		badRequest(w, "schedule action must be pause, resume, or an update with expectedRevision")
+		badRequest(w, "schedule action must be pause, resume, attach, or an update with expectedRevision")
 		return
 	}
 	id, ok := sid(w, r)

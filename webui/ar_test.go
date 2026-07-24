@@ -290,6 +290,46 @@ func TestHandleScheduleControlForwardsRevisionCheckedUpdate(t *testing.T) {
 	}
 }
 
+// INC-102: /loop creates the in-session schedule over HTTP — attach must map
+// onto the CLI verb exactly (cadence flag, optional --max-wakes, prompt last)
+// and reject a cadence-less or prompt-less body without shelling out.
+func TestHandleScheduleControlForwardsAttach(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	s := &server{arPath: writeFakeAR(t, argsFile, "schedule attached")}
+	body := `{"action":"attach","schedule":"interval","interval":"30s","maxWakes":2,"prompt":"review one file per round"}`
+	req := httptest.NewRequest("POST", "/api/sessions/loop-1/schedule", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("sid", "loop-1")
+	rr := httptest.NewRecorder()
+	s.handleScheduleControl(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	got, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "schedule\nloop-1\nattach\n--every\n30s\n--max-wakes\n2\nreview one file per round\n"
+	if !strings.HasSuffix(string(got), want) {
+		t.Fatalf("args=%q, want suffix %q", got, want)
+	}
+
+	for name, bad := range map[string]string{
+		"no cadence": `{"action":"attach","prompt":"p"}`,
+		"no prompt":  `{"action":"attach","schedule":"interval","interval":"30s"}`,
+		"neg wakes":  `{"action":"attach","schedule":"interval","interval":"30s","maxWakes":-1,"prompt":"p"}`,
+	} {
+		req := httptest.NewRequest("POST", "/api/sessions/loop-1/schedule", strings.NewReader(bad))
+		req.Header.Set("Content-Type", "application/json")
+		req.SetPathValue("sid", "loop-1")
+		rr := httptest.NewRecorder()
+		s.handleScheduleControl(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status=%d body=%s", name, rr.Code, rr.Body.String())
+		}
+	}
+}
+
 func TestHandleScheduleControlMapsRevisionConflict(t *testing.T) {
 	dir := t.TempDir()
 	arPath := filepath.Join(dir, "ar")
