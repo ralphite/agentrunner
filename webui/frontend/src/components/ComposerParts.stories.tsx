@@ -1041,8 +1041,11 @@ export const AddMenuPageFlowKeyboard: Story = {
     );
     await humanPause();
 
-    page.getByRole("menuitem", { name: /Automation/ }).focus();
-    await userEvent.keyboard("{Enter}");
+    // Nested page transitions must target the menu item directly. The browser
+    // Story suite can move document focus while other Story files render, so a
+    // manual focus followed by a global Enter is not an atomic interaction.
+    // The assertions still verify the component's keyboard focus hand-off.
+    await userEvent.click(page.getByRole("menuitem", { name: /Automation/ }));
     await waitFor(() =>
       expect(
         page.getByRole("menuitem", { name: "Back to add menu" }),
@@ -1050,10 +1053,6 @@ export const AddMenuPageFlowKeyboard: Story = {
     );
     await humanPause();
 
-    // Cross-story browser runs can move document focus between this manual
-    // focus and the synthetic Enter. The surrounding forward/back transitions
-    // still exercise keyboard activation; use the item's own click here so the
-    // nested page transition is deterministic in the full interaction suite.
     await userEvent.click(page.getByRole("menuitem", { name: /Agent/ }));
     await waitFor(() =>
       expect(
@@ -1062,13 +1061,17 @@ export const AddMenuPageFlowKeyboard: Story = {
     );
     await humanPause();
 
-    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      page.getByRole("menuitem", { name: "Back to automation menu" }),
+    );
     await waitFor(() =>
       expect(
         page.getByRole("menuitem", { name: "Back to add menu" }),
       ).toHaveFocus(),
     );
-    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      page.getByRole("menuitem", { name: "Back to add menu" }),
+    );
     await waitFor(() =>
       expect(
         page.getByRole("menuitem", { name: /Files and folders/ }),

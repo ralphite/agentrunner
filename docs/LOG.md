@@ -7781,3 +7781,10 @@ Escape 精确回 trigger、Tab 交接下一控件。三位 fresh design/interact
 给出 P0/P1=0；Composer Stories 90/90、定向 unit 28/28 与 production build 已通过。
 `components-input` 仍诚实保持 GAP，仅剩 async failure recovery UI 未收口。320–390
 截图与几何记录保留于 `qa/runs/2026-07-24-inc101-composer-mobile/`。
+
+首个远端 Storybook run `30101955749` 进一步暴露 Add menu page-flow Story 的
+focus race：手动 `.focus()` 与随后作用于 document 的 Enter 并非原子操作，并发
+Story 生命周期可在两步间切换 canvas。四个 nested transition 改为直接作用于具体
+menuitem 的 click，同时保留 ArrowDown 打开与每页自动 focus hand-off 断言；两位
+fresh reviewer 独立批准更新后的 `components-input` digest。ComposerParts 67/67
+连续五轮、全量 564/564 Story interaction 与完整 Web UI/repository gate 再次通过。
