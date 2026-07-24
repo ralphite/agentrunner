@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   newSession: vi.fn(),
   makeWorkspace: vi.fn(async () => ({ path: "/tmp/ws" })),
   gitBranches: vi.fn(async () => ({ isRepo: false, current: "", branches: [], dirty: 0 })),
+  upload: vi.fn(),
 }));
 
 vi.mock("../api", async () => ({
@@ -16,6 +17,7 @@ vi.mock("../api", async () => ({
     newSession: mocks.newSession,
     makeWorkspace: mocks.makeWorkspace,
     gitBranches: mocks.gitBranches,
+    upload: mocks.upload,
   },
 }));
 
@@ -54,6 +56,8 @@ beforeEach(() => {
   sessionStorage.clear();
   mocks.newSession.mockReset();
   mocks.newSession.mockResolvedValue({ sid: "20260723-000000-created" });
+  mocks.upload.mockReset();
+  mocks.upload.mockResolvedValue({ path: "/tmp/uploads/evidence.png", name: "evidence.png" });
 });
 afterEach(cleanup);
 
@@ -89,5 +93,22 @@ describe("New session creation lifecycle", () => {
     await waitFor(() => expect(mocks.newSession).toHaveBeenCalledOnce());
     resolveCreate({ sid: "20260723-000000-created" });
     await waitFor(() => expect(select).toHaveBeenCalledOnce());
+  });
+
+  it("keeps home attachments on the opening turn, including attachment-only starts", async () => {
+    const { container } = mount();
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const image = new File(["png"], "evidence.png", { type: "image/png" });
+
+    fireEvent.change(fileInput, { target: { files: [image] } });
+    await screen.findByRole("button", { name: "Remove attachment evidence.png" });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(mocks.newSession).toHaveBeenCalledOnce());
+    expect(mocks.newSession.mock.calls[0][0]).toMatchObject({
+      message: "Please review the attached file(s).",
+      images: ["/tmp/uploads/evidence.png"],
+      files: [],
+    });
   });
 });

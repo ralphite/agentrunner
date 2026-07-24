@@ -180,6 +180,62 @@ func TestHandleSessionsMapsJournalUpdatedAt(t *testing.T) {
 	}
 }
 
+func TestHandleNewSessionForwardsOpeningAttachments(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	workspace := filepath.Join(dir, "workspace")
+	if err := os.Mkdir(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	image := filepath.Join(dir, "evidence.png")
+	file := filepath.Join(dir, "trace.txt")
+	if err := os.WriteFile(image, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("trace"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{
+		arPath:     writeFakeAR(t, argsFile, "session 20260723-000000-opening-attachment"),
+		runtimeDir: filepath.Join(dir, "runtime"),
+		meta:       newMetaStore(filepath.Join(dir, "meta.json")),
+	}
+	body, err := json.Marshal(map[string]any{
+		"provider":  "gemini",
+		"model":     "gemini-flash-latest",
+		"effort":    "medium",
+		"spec":      "name: dev\nsystem_prompt: test\ntools: []\n",
+		"workspace": workspace,
+		"message":   "Inspect this evidence",
+		"mode":      "default",
+		"images":    []string{image},
+		"files":     []string{file},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("POST", "/api/sessions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	s.handleNewSession(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(args)
+	for _, want := range []string{
+		"new\n", "--detach\n", "--image\n" + image + "\n",
+		"--file\n" + file + "\n", workspace + "\n", "Inspect this evidence\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("args=%q, missing %q", got, want)
+		}
+	}
+}
+
 func TestHandleScheduleControlForwardsTypedAction(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	s := &server{arPath: writeFakeAR(t, argsFile, "pause recorded")}

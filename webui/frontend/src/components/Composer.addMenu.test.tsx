@@ -143,8 +143,8 @@ describe("Composer add and advanced menu", () => {
 
   it("opens the YAML editor with the persona currently selected in the composer", async () => {
     mount();
-    await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     openAddMenu();
+    await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("menuitem", { name: "Automation Dev" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Team Lead Drafts a team sharing one workspace/ }));

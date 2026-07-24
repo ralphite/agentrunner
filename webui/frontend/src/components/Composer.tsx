@@ -238,34 +238,25 @@ export function Composer(props: ComposerProps) {
   };
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
   const selectedAgent = agentById(agents, persona);
-  const requireSelectedAgent = async (): Promise<AgentCatalogEntry> => {
-    if (selectedAgent) return selectedAgent;
+  const loadAgentCatalog = async (): Promise<AgentCatalogEntry[]> => {
+    if (agents.length) return agents;
     const catalog = await api.agents();
     setAgents(catalog);
-    const entry = agentById(catalog, persona);
+    if (
+      catalog.length &&
+      !catalog.some((entry) => entry.name === persona)
+    ) {
+      setPersona(catalog[0].name);
+    }
+    return catalog;
+  };
+  const requireSelectedAgent = async (): Promise<AgentCatalogEntry> => {
+    if (selectedAgent) return selectedAgent;
+    const catalog = await loadAgentCatalog();
+    const entry = agentById(catalog, persona) || catalog[0];
     if (!entry) throw new Error("No Agents are configured");
     return entry;
   };
-
-  useEffect(() => {
-    let live = true;
-    api
-      .agents()
-      .then((catalog) => {
-        if (!live) return;
-        setAgents(catalog);
-        if (
-          catalog.length &&
-          !catalog.some((entry) => entry.name === persona)
-        ) {
-          setPersona(catalog[0].name);
-        }
-      })
-      .catch((error: Error) => props.onError(error.message));
-    return () => {
-      live = false;
-    };
-  }, []);
 
   // Narrow phones (≤480px) can't fit the full "…, or type / for commands"
   // placeholder — it wraps to a second line that the single-row textarea clips
@@ -768,6 +759,7 @@ export function Composer(props: ComposerProps) {
         const spec = buildSpec({ agent: activeAgent, access });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
+        const openingText = t || "Please review the attached file(s).";
         const r = await api.newSession({
           provider,
           model,
@@ -775,8 +767,10 @@ export function Composer(props: ComposerProps) {
           spec,
           extraSpecs: [],
           workspace,
-          message: t,
+          message: openingText,
           mode: accessById(access).mode,
+          images: imgs,
+          files,
         });
         rememberSpec(r.sid, spec, storage.local);
         rememberModel(r.sid, { provider, model, effort }, storage.local);
@@ -787,17 +781,6 @@ export function Composer(props: ComposerProps) {
         // strand the user on Home after their draft has been consumed.
         select(r.sid);
         await refreshSessions();
-        // The opening message (`ar new`) can't carry attachments (DESIGN §9.1);
-        // deliver a first-message attachment on an immediate follow-up so it
-        // still works from the landing composer.
-        if (imgs.length || files.length) {
-          const n = imgs.length + files.length;
-          try {
-            await api.send(r.sid, `(see attached file${n > 1 ? "s" : ""})`, imgs, files);
-          } catch (e: any) {
-            props.onError(e.message);
-          }
-        }
       } else {
         const activeAgent = await requireSelectedAgent();
         const workspace = await resolveHomeWorkspace();
@@ -1505,7 +1488,12 @@ export function Composer(props: ComposerProps) {
         kind,
         persona,
         agents,
-        onOpen: () => setAddMenuPage("root"),
+        onOpen: () => {
+          setAddMenuPage("root");
+          void loadAgentCatalog().catch((error: Error) =>
+            props.onError(error.message),
+          );
+        },
         onPageChange: setAddMenuPage,
         onPickFiles: () => anyRef.current?.click(),
         onToggleGoal: () =>

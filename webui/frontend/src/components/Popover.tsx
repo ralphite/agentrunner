@@ -84,7 +84,7 @@ export function Popover({
     focusTrigger();
     // A background browser tab may throttle requestAnimationFrame indefinitely,
     // leaving keyboard focus on <body> after a menu selection. A zero-delay
-    // task still runs after React commits the closed panel and works in both
+    // callback still runs after React commits the closed panel and works in both
     // visible product tabs and headless Storybook workers.
     window.setTimeout(focusTrigger, 0);
   };
@@ -150,7 +150,7 @@ export function Popover({
     if (document.activeElement === target) autoFocusedRef.current = true;
     // Testing-library completes its synthetic pointer sequence after React
     // layout effects and can restore focus to the trigger. Reassert once after
-    // the event task; the connected check makes this harmless if the popover
+    // the event callback; the connected check makes this harmless if the popover
     // closed in the meantime.
     window.setTimeout(() => {
       if (!target.isConnected || document.activeElement === target) return;

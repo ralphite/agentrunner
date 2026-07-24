@@ -189,7 +189,6 @@ describe("Composer model / effort menu mobile hierarchy", () => {
 
   it("sends effort explicitly without inserting model fields into Agent YAML", async () => {
     const { container } = mount();
-    await vi.waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     openMenu(container);
     fireEvent.click(item("Effort"));
     fireEvent.click(item("Extra High"));

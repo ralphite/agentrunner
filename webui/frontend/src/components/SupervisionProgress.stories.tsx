@@ -12,7 +12,7 @@ const progress: ProgressItem[] = [
   { id: "pending", title: "Record final QA evidence", status: "pending" },
   {
     id: "failed",
-    title: "An intentionally long failed task title that must truncate without hiding its status icon",
+    title: "An intentionally long failed run title that must truncate without hiding its status icon",
     status: "failed",
   },
 ];

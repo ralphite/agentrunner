@@ -573,6 +573,8 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		Workspace  string     `json:"workspace"`
 		Message    string     `json:"message"`
 		Mode       string     `json:"mode"`
+		Images     []string   `json:"images"`
+		Files      []string   `json:"files"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -592,6 +594,12 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, ferr)
 		return
 	}
+	for _, path := range append(append([]string(nil), req.Images...), req.Files...) {
+		if st, err := os.Stat(path); err != nil || st.IsDir() {
+			badRequest(w, "attachment not readable: "+path)
+			return
+		}
+	}
 	specDir, basePath, err := s.writeSpecDir(req.Spec, req.ExtraSpecs)
 	if err != nil {
 		badRequest(w, err.Error())
@@ -606,6 +614,12 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	args = append(args, modelArgs...)
 	if req.Mode != "" {
 		args = append(args, "--mode", req.Mode)
+	}
+	for _, path := range req.Images {
+		args = append(args, "--image", path)
+	}
+	for _, path := range req.Files {
+		args = append(args, "--file", path)
 	}
 	args = append(args, basePath, req.Message)
 	res := s.runAR(r.Context(), oneShotTimeout, args...)
