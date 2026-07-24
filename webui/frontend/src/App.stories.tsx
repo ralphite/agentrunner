@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { AppShell } from "./App";
+import { AppShell } from "./app/AppShell";
 import { StoryAppFrame } from "./storybook/StoryAppFrame";
 import type { Health, Session } from "./types";
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 // @ts-ignore -- vitest runs this contract from webui/frontend
-const src = readFileSync(`${process.cwd()}/src/App.tsx`, "utf8");
+const src = readFileSync(`${process.cwd()}/src/app/AppShell.tsx`, "utf8");
 // @ts-ignore -- vitest runs this contract from webui/frontend
 const css = readFileSync(`${process.cwd()}/src/tw.css`, "utf8");
 

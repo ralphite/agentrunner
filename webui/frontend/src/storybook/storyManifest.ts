@@ -588,7 +588,7 @@ export const globalStatePairs = [
 const baseStoryManifest = [
   {
     componentId: "AppShell",
-    source: "src/App.tsx",
+    source: "src/app/AppShell.tsx",
     exportName: "AppShell",
     cells: {
       "render:default": {
@@ -598,6 +598,29 @@ const baseStoryManifest = [
       "a11y:keyboard": {
         status: "covered",
         storyId: "pages-appshell--keyboard-navigation",
+      },
+    },
+  },
+  {
+    componentId: "PageHost",
+    source: "src/pages/PageHost.tsx",
+    exportName: "PageHost",
+    cells: {
+      "route:home": {
+        status: "covered",
+        storyId: "pages-pagehost--home-route",
+      },
+      "route:session": {
+        status: "covered",
+        storyId: "pages-pagehost--session-route",
+      },
+      "route:scheduled": {
+        status: "covered",
+        storyId: "pages-pagehost--scheduled-route",
+      },
+      "route:run": {
+        status: "covered",
+        storyId: "pages-pagehost--run-route",
       },
     },
   },

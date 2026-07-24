@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { AppShell } from "../../App";
+import { AppShell } from "../../app/AppShell";
 import { AppRuntime } from "../../app/AppRuntime";
 import { createAppStore, type AppStore } from "../../store";
 import {

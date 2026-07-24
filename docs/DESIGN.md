@@ -2070,19 +2070,28 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 ## 19. Web UI 组件体系与 Storybook 工作台
 
 Web UI 用同一套 production component 构建产品、Story 与 Demo，不维护第二套
-演示实现。`AppRuntime` 提供 transport/storage/navigation/clock 等可替换 service，
-`AppShell` 只负责 page composition；状态由 Story fixture、MSW 与 deterministic
-stream adapter 注入，禁止 Story 请求真实 `/api/**`。
+演示实现。`AppRuntime` 提供 transport/storage/navigation/clock 等可替换 service；
+`AppShell` 只拥有 application chrome、全局快捷键、mobile focus scope 与 overlay，
+`pages/PageHost` 拥有 route precedence 与 page-level error boundary。状态由 Story
+fixture、MSW 与 deterministic stream adapter 注入，禁止 Story 请求真实 `/api/**`。
 
 组件体系按以下层次组织：
 
 1. `ui/`：Button、IconButton、Field、Input、Select、Status、Empty/Error 等基础
    primitive；
 2. `components/`：SidebarProjectItem、SidebarSessionItem、Composer、
-   Timeline、Changes、Scheduled 等功能组件；
-3. `pages/`：Home、Session、Scheduled、Settings 与完整 AppShell；
-4. `CUJs/`：可快速自动验收的关键用户路径；
-5. `Demos/`：可人工观看、可 Play/Pause/Next/Reset/Replay 的完整演示。
+   Timeline、Changes、Scheduled 等稳定 public component 与展示组合；
+3. `features/`：Composer、Session、Timeline、Scheduled 等 controller/model/action
+   边界；API/store/polling/SSE/storage/scroll lifecycle 在这里，纯 view 不得反向读取
+   AppServices 或 store；
+4. `pages/`：`PageHost` 及 Home、Session、Run、Scheduled 的 page composition；
+5. `app/`：`AppRuntime` 与 `AppShell`，只负责 runtime 与 application shell；
+6. `CUJs/`：可快速自动验收的关键用户路径；
+7. `Demos/`：可人工观看、可 Play/Pause/Next/Reset/Replay 的完整演示。
+
+兼容 import 可以从旧 module re-export，但实现所有权必须落在上述真实层；禁止用
+re-export 或单纯移动文件冒充 controller/view 拆分。所有 exported visual component
+都进入 manifest；非视觉 controller hook 不创建无意义 Story。
 
 `storyManifest.ts` 是 component target、semantic interaction state、private visible
 exclusion 与 workbench Story 的唯一覆盖清单。状态覆盖包括 render、loading、empty、
