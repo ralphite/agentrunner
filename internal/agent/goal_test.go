@@ -644,3 +644,177 @@ func decodeGoalExhausted(t *testing.T, dir string) *event.GoalExhausted {
 	t.Fatal("no GoalExhausted event")
 	return nil
 }
+
+// TestGoalDeliveryHintModeAware (QA-0724-goal (goal×plan)): the completion-path hint
+// must reconcile with the plan-mode system suffix ("when your plan is ready,
+// call exit_plan_mode") instead of contradicting it — a real session burned
+// three turns requesting an exit nobody wanted because the goal (a plan) was
+// deliverable in-conversation.
+func TestGoalDeliveryHintModeAware(t *testing.T) {
+	cmd := []event.GoalVerifier{{Kind: "command", Command: "true"}}
+	judge := []event.GoalVerifier{{Kind: "llm_judge", Rubric: "r"}}
+	cases := []struct {
+		name, mode string
+		vs         []event.GoalVerifier
+		want       []string
+		wantNot    []string
+	}{
+		{"self-cert default", "default", nil,
+			[]string{"goal_complete", "workspace state"},
+			[]string{"plan (read-only) mode"}},
+		{"self-cert plan", "plan", nil,
+			[]string{"goal_complete", "do not call exit_plan_mode", "deliver it fully in the conversation"},
+			[]string{"workspace state"}},
+		{"command default", "default", cmd,
+			[]string{"sole judge"},
+			[]string{"plan"}},
+		{"command plan", "plan", cmd,
+			[]string{"cannot run", "exit_plan_mode"},
+			nil},
+		{"judge plan", "plan", judge,
+			[]string{"independent judge", "do not call exit_plan_mode"},
+			nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := goalDeliveryHint(c.mode, c.vs)
+			for _, w := range c.want {
+				if !strings.Contains(got, w) {
+					t.Fatalf("hint(%s) missing %q:\n%s", c.name, w, got)
+				}
+			}
+			for _, w := range c.wantNot {
+				if strings.Contains(got, w) {
+					t.Fatalf("hint(%s) must not contain %q:\n%s", c.name, w, got)
+				}
+			}
+		})
+	}
+}
+
+// TestGoalContinuationModeAware: the miss continuation must not point a
+// read-only session at "inspect the workspace state" — in plan mode the
+// evidence is the analysis delivered so far.
+func TestGoalContinuationModeAware(t *testing.T) {
+	g := &state.Goal{GoalID: "goal", Goal: "produce the plan", Budget: event.GoalBudget{MaxChecks: 5}}
+	planText := goalContinuation(g, 1, "no completion claim yet", "plan")
+	if strings.Contains(planText, "inspect the workspace state") {
+		t.Fatalf("plan-mode continuation still points at the workspace:\n%s", planText)
+	}
+	if !strings.Contains(planText, "do not call exit_plan_mode") {
+		t.Fatalf("plan-mode continuation lacks the exit_plan_mode reconciliation:\n%s", planText)
+	}
+	defText := goalContinuation(g, 1, "no completion claim yet", "default")
+	if !strings.Contains(defText, "inspect the workspace state") {
+		t.Fatalf("default continuation lost the workspace evidence discipline:\n%s", defText)
+	}
+}
+
+// TestGoalAttachDedupsOpeningPrompt (QA-0724-goal): the webui Home goal launcher
+// sends the goal text as the opening prompt AND attaches it as the goal —
+// the attach injection must reference that message instead of repeating the
+// full text into the context a second time.
+func TestGoalAttachDedupsOpeningPrompt(t *testing.T) {
+	newAttachDS := func(t *testing.T, lastUser string) (*Loop, *driveState, *store.EventStore) {
+		es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "s"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = es.Close() })
+		ds := &driveState{}
+		ds.s.Conversation.Messages = []provider.Message{
+			{Role: provider.RoleUser, Parts: []provider.Part{{Kind: provider.PartText, Text: lastUser}}},
+		}
+		return &Loop{Store: es, SessionID: "g"}, ds, es
+	}
+	attach := func(t *testing.T, l *Loop, ds *driveState, goal string) string {
+		t.Helper()
+		err := l.applyGoalControl(ds, l.appender(ds), protocol.Control{
+			Kind: protocol.ControlGoalAttach,
+			Goal: &protocol.GoalControl{GoalID: "goal", Goal: goal, Budget: &event.GoalBudget{MaxChecks: 5}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var injected string
+		for _, e := range readEvents(t, l.Store.Dir()) {
+			if e.Type == event.TypeInputReceived {
+				p, _ := event.DecodePayload(e)
+				injected = p.(*event.InputReceived).Text
+			}
+		}
+		if injected == "" {
+			t.Fatal("attach injected no program input")
+		}
+		return injected
+	}
+
+	t.Run("goal equals opening prompt", func(t *testing.T) {
+		l, ds, _ := newAttachDS(t, "build the widget")
+		text := attach(t, l, ds, "build the widget")
+		if strings.Contains(text, "<goal>") {
+			t.Fatalf("duplicate goal text re-injected:\n%s", text)
+		}
+		if !strings.Contains(text, "user message above") {
+			t.Fatalf("dedup injection must reference the user message:\n%s", text)
+		}
+		if !strings.Contains(text, "goal_complete") {
+			t.Fatalf("dedup injection lost the completion-path hint:\n%s", text)
+		}
+	})
+
+	t.Run("distinct goal keeps the full statement", func(t *testing.T) {
+		l, ds, _ := newAttachDS(t, "hello there")
+		text := attach(t, l, ds, "build the widget")
+		if !strings.Contains(text, "<goal>\nbuild the widget\n</goal>") {
+			t.Fatalf("distinct goal must inject its own text:\n%s", text)
+		}
+	})
+}
+
+// TestGoalVerifyPlanModeShortCircuit (QA-0724-goal (goal×plan)): plan mode's hard
+// floor denies every execute-class effect, so a command verifier could only
+// journal a deny per boundary until the budget burned out. The checkpoint
+// must miss with the human path instead — and journal no effect at all.
+func TestGoalVerifyPlanModeShortCircuit(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	ds := &driveState{s: state.State{Goal: &state.Goal{
+		GoalID: "g-plan", Goal: "make done.txt",
+		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "test -f done.txt"}},
+		Budget:    event.GoalBudget{MaxChecks: 3},
+	}}}
+	ds.s.Mode = "plan"
+	ds.s.Session.GenStep = 1
+	l := &Loop{
+		Spec: &AgentSpec{}, Exec: &tool.Executor{WS: ws}, Store: es,
+		Clock:     clock.NewFake(time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)),
+		SessionID: "goal-plan",
+		Pipeline:  &pipeline.Pipeline{Gates: []pipeline.Gate{&pipeline.PermissionGate{WS: ws}}},
+	}
+	reason := "completed"
+	if err := goalCheckpoint(context.Background(), l, ds, l.appender(ds), &reason); err != nil {
+		t.Fatal(err)
+	}
+	checks := decodeGoalCheckpoints(t, es.Dir())
+	if len(checks) != 1 || checks[0].Pass {
+		t.Fatalf("checkpoints = %+v, want one miss", checks)
+	}
+	if !strings.Contains(checks[0].Detail, "plan (read-only) mode") ||
+		!strings.Contains(checks[0].Detail, "exit_plan_mode") {
+		t.Fatalf("miss detail must state the plan-mode path, got %q", checks[0].Detail)
+	}
+	if n := countEvents(t, es.Dir(), event.TypeEffectRequested); n != 0 {
+		t.Fatalf("plan-mode verifier journaled %d effects, want 0 (short-circuit)", n)
+	}
+	if n := countEvents(t, es.Dir(), event.TypeActivityStarted); n != 0 {
+		t.Fatalf("plan-mode verifier started %d activities, want 0", n)
+	}
+}

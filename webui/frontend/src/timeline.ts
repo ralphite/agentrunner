@@ -1320,7 +1320,15 @@ export function foldEvents(events: Envelope[]): Folded {
         echoChip(seq, "goal cancelled", "warn", "goal", env.ts);
         break;
       case "goal_checkpoint":
-        workChip(seq, `Goal check ${p.check || "?"}${p.pass ? " · passed" : " · not met"}`, p.pass ? "good" : "warn");
+        // QA-0724-goal · a PASSING check is the same fact the achieved verdict
+        // (action-row "Goal achieved in N" / banner) states one line later —
+        // echo, so the chrome says it once. A miss carries its own info (why
+        // the goal continues) and stays a foldable work chip.
+        if (p.pass) {
+          echoChip(seq, `Goal check ${p.check || "?"} · passed`, "good", "goal", env.ts);
+        } else {
+          workChip(seq, `Goal check ${p.check || "?"} · not met`, "warn");
+        }
         break;
       case "goal_achieved":
         // reason=budget means the check budget ran out — a visible STOP,
@@ -1334,7 +1342,10 @@ export function foldEvents(events: Envelope[]): Folded {
         } else if (p.reason === "cancelled") {
           echoChip(seq, "goal detached · cancelled", "warn", "goal", env.ts);
         } else {
-          chip(seq, `Goal achieved · ${p.reason || "satisfied"} (${p.checks} check${p.checks === 1 ? "" : "s"})`, "good");
+          // QA-0724-goal · satisfied is stated by the action-row verdict ("Goal
+          // achieved in N") — an unmarked chip here was the fourth on-screen
+          // restatement of one fact. Echo like every other goal terminal.
+          echoChip(seq, `Goal achieved · ${p.reason || "satisfied"} (${p.checks} check${p.checks === 1 ? "" : "s"})`, "good", "goal", env.ts);
         }
         break;
       case "goal_exhausted":

@@ -530,8 +530,8 @@
   .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-normal; }
   .home-empty-cards { @apply grid w-full max-w-[720px] grid-cols-4 gap-4; }
   /* HOME-CARD-WRAP (R52) + HOME-CARD-LABEL-12PX (R92): Codex new-session cards
-     (real-pixel goldens codex-new-task-home / codex-crop-newtask-emptystate)
-     use a compact ~12px label. At 15px our longest card ("Build a new feature,
+     (real-pixel goldens in qa/codex-reference/: the new-session home and
+     empty-state crops) use a compact ~12px label. At 15px our longest card ("Build a new feature,
      app, or tool") ragged-wrapped to 3 lines; R52 dropped to 13px to even the
      grid. But at 13px the 4th card "Fix issues and failures" still wraps to 2
      lines, whereas Codex keeps it on ONE line (cards read 2/2/2/1). Live probe
@@ -567,6 +567,11 @@
     box-shadow: var(--shadow-composer);
   }
   .cx-session .cx-card { @apply max-w-[660px]; }
+  /* QA-0724-goal · the session composer sat flush against the viewport's bottom
+     edge at desktop widths — only the ≤500px container query carried any
+     bottom inset. Give the card its breathing room at every width (the
+     narrow query below still tightens it to pb-3). */
+  .cx-session { @apply px-[14px] pb-4; }
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
   /* HOME-CHIP-FLAT (R46): composer env/model/mode chips are borderless flat
      buttons (Codex reference home capture) — the top env strip drops its

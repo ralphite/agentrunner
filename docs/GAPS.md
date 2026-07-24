@@ -791,6 +791,16 @@ prompt、171h cadence、Coalesce、revision 3 与重锚 timer 均从共享 journ
 policy/schema/durable receipt，以及 paused/loading/error 与 dark theme，均未冒充已测。
 → UJ-14/UJ-24
 
+**G58 goal 终结后的残留交互回声 — ❌ 开放（QA-0724-goal 批量修复的余项，低）**
+QA-0724-goal 主修复（注入 mode-aware、达成单一陈述、骨架饿死、composer 留白，
+见 LOG 2026-07-24 QA-0724-goal 条）已落地；两个低危余项：① goal 已终结后，
+轮询延迟窗内旧 banner 的 Pause 点击得 daemon `no_op` 回执但前端无 toast
+反馈（后端幂等正确；achieved 已不渲染 banner，窗口只剩 stopped/cancelled
+的秒级延迟）；② `GoalLoopLauncher` 的 goal 分支已被 composer Goal chip
+形态（GoalOptions）取代，`launcher.mode !== "goal"` 使其成死路径，待
+清理防止双入口漂移。
+→ UJ-22/UJ-24
+
 **G57 当前 context window/compaction 状态的 backend projection 缺失 — ❌ 开放（INC-98.4k 主界面对照，中）**
 Codex 主 composer 的 context tooltip 会给当前上下文 `used / limit / remaining`；用户提供的
 reference 为 `72k / 258k tokens used`。AgentRunner journal/inspect 目前只有每次 generation

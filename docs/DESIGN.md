@@ -1650,6 +1650,23 @@ resume 永不重读 live default。
     同构（复用须走 judge verdict 的独立 JSON 解析，**禁**按 command
     exit code 兜底误读为 pass，INC-48）。claim 由
     checkpoint fold 消费、GoalUpdated 作废。
+    **goal × 运行模式组合语义（QA-0724-goal）**：goal 的注入文本（attach /
+    resume / update / miss continuation）与完成路径提示按注入时刻的
+    **当前 mode 动态渲染**（`goalDeliveryHint`），与 plan-mode 系统后缀
+    （"plan 就绪即调 exit_plan_mode"）**显式调和**——两条常驻指令不得
+    互相矛盾（实测矛盾指令让模型在一个真实会话里连烧三个 turn 申请
+    没人要的 exit）。plan（只读）模式下：自证/llm_judge goal 的交付物
+    若是分析/计划/回答本身，注入文本明示"在对话中交付并 `goal_complete`，
+    **勿为此调 exit_plan_mode**；仅当 goal 本身需要改文件/执行命令才申请
+    退出"；command verifier goal 在 plan 模式下 **verifier 不可运行**
+    （execute 类 hard floor，决策不动摇、不绕过）——`goalVerify` 在
+    checkpoint 处**短路 miss**（不产生 effect/deny journal 噪音），miss
+    detail 直陈人话路径（"present the plan and call exit_plan_mode"）；
+    mode 每边界重读，exit 批准落地后 verifier 立即恢复正常裁决。webui
+    在配置时刻同步警示（GoalOptions read-only + verifier 非空 →
+    内联提示）。另：goal 文本 == 最近一条 user 消息时（webui Home goal
+    直启、CLI new+attach 同文），attach 注入**引用该消息**而不再重复
+    全文（`goalEqualsLastUserInput`），杜绝同句双入 context。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
   尝试（从同一个 base snapshot 物化——merged-stream 默认形态 pin 在
   `SeriesStarted.BaseRef`（open 前快照，INC-80.2b③）,legacy 流钉在每条

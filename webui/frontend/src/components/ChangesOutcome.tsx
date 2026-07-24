@@ -345,10 +345,12 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   // INC-41 TH-7. The fetch used to have two outcomes — a summary, or null — so a
   // failed request was indistinguishable from "this turn changed nothing": one
   // flaky /diff and the whole "Edited N files" card vanished without a word, and
-  // the user read that as "the agent touched no files". The phase is now
-  // explicit: an in-flight fetch paints a skeleton, a failed one keeps the card
-  // shell and offers Retry, and only a backend that actually says "no changed
-  // files" renders nothing.
+  // the user read that as "the agent touched no files". The phase stays
+  // explicit — but the in-flight state renders NOTHING (QA-0724-goal): most turns
+  // change no files at all (a plan-mode session never can), and the skeleton
+  // amounted to a permanent "Loading changes…" card promising changes that
+  // don't exist. Only a failed fetch keeps the card shell (Retry), and only a
+  // backend that reports changed files renders the card.
   const [phase, setPhase] = useState<Phase>("loading");
   // "turn" = last-turn 快照有内容(标题 Edited N files);"workspace" =
   // 回退到 working-tree(标题 Changes in workspace,不谎称本 turn 编辑)。
@@ -358,20 +360,37 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   // Local bump re-fetches the summary after an Undo (or a Retry) without needing
   // the parent to change refreshKey (a reverted card should collapse to nothing).
   const [bump, setBump] = useState(0);
-  // refreshKey ticks on every streamed event, so a live turn re-fetches the diff
-  // constantly. Those refreshes must NOT drop back to the skeleton — the card
-  // would strobe. Only a new session (or an explicit Retry) re-arms it.
   const shownSid = useRef<string | null>(null);
+  // QA-0724-goal · single-flight with a trailing re-run. refreshKey ticks on EVERY
+  // streamed event, and the old effect cancelled its in-flight fetch on each
+  // tick — during a live turn the two serial /diff calls (~1.7s) never beat
+  // the next event, so no fetch ever landed and the phase sat on "loading"
+  // for the whole turn. Now a tick during a fetch only marks it stale; the
+  // fetch finishes, applies, and immediately re-runs once. `fetchGen` guards
+  // against a session switch mid-flight (stale results must not apply).
+  const fetchGen = useRef(0);
+  const inFlight = useRef(false);
+  const rerun = useRef(false);
+  const [trailing, setTrailing] = useState(0);
 
   useEffect(() => {
-    let alive = true;
     if (shownSid.current !== sid) {
       shownSid.current = sid;
+      fetchGen.current++; // any in-flight result is now stale
+      inFlight.current = false;
+      rerun.current = false;
       setPhase("loading");
       setSummary(null);
       setConflicts([]);
       setCanUndo(false);
     }
+    if (inFlight.current) {
+      rerun.current = true;
+      return;
+    }
+    const gen = ++fetchGen.current;
+    inFlight.current = true;
+    const fresh = () => gen === fetchGen.current;
     // QA-0718 用户实机(两张截图,两个方向的错):
     // 1. 无参 diff = working-tree 全量——新会话接手带历史未提交改动的
     //    workspace 时,旧脏货被谎称成"这个 turn 编辑的文件"。→ 先查
@@ -386,7 +405,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     // contract here instead of doubling /diff traffic on every streamed event.
     api.diff(sid, "last-turn")
       .then(async (data) => {
-        if (!alive) return;
+        if (!fresh()) return;
         setConflicts(data.conflicts || []);
         // A durable last-turn snapshot is already scoped to this session's
         // captured files, even when the workspace lives inside a parent repo.
@@ -404,7 +423,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
           return;
         }
         const wt = await api.diff(sid, "working-tree");
-        if (!alive) return;
+        if (!fresh()) return;
         setConflicts(wt.conflicts || data.conflicts || []);
         const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : dropGeneratedFiles(summarizeChanges(wt));
         setScope("workspace");
@@ -413,11 +432,18 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         setPhase("ready");
       })
       .catch(() => {
-        if (!alive) return;
+        if (!fresh()) return;
         setPhase("error");
+      })
+      .finally(() => {
+        if (!fresh()) return;
+        inFlight.current = false;
+        if (rerun.current) {
+          rerun.current = false;
+          setTrailing((t) => t + 1);
+        }
       });
-    return () => { alive = false; };
-  }, [sid, refreshKey, bump]);
+  }, [sid, refreshKey, bump, trailing]);
 
   const retry = () => {
     setPhase("loading");
@@ -457,17 +483,12 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     });
   };
 
-  if (phase === "loading") {
-    return (
-      <ChangesShell>
-        <div className="changes-outcome-skel" aria-label="Loading changes" role="status">
-          <div className="text-[12px] text-dim">Loading changes…</div>
-          <span />
-          <span />
-        </div>
-      </ChangesShell>
-    );
-  }
+  // QA-0724-goal · no skeleton: an in-flight fetch renders nothing. Most turns
+  // change no files (a plan/read-only session never can), so a placeholder
+  // card here promised "changes" that usually don't exist — and during a live
+  // turn it sat on screen for the turn's whole duration. The card appears
+  // when the backend reports changed files, exactly like Codex.
+  if (phase === "loading") return null;
 
   if (phase === "error") {
     return (

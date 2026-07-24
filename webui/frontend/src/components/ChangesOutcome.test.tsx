@@ -49,15 +49,16 @@ const renderCard = () =>
 beforeEach(() => { diffMock.mockReset(); });
 afterEach(cleanup);
 
-describe("ChangesOutcome phases (INC-41 TH-7)", () => {
-  it("paints a skeleton while the diff is in flight — never a blank slot", async () => {
+describe("ChangesOutcome phases (INC-41 TH-7 · QA-0724-goal no-skeleton)", () => {
+  it("renders nothing while the diff is in flight — most turns change no files", async () => {
     diffMock.mockReturnValue(new Promise(() => {})); // never settles
     const { container } = renderCard();
-    // the card SHELL is already there (so the thread doesn't reflow when it
-    // resolves), with placeholder bars instead of the title.
-    expect(screen.getByLabelText("Workspace changes")).toBeTruthy();
-    expect(screen.getByLabelText("Loading changes")).toBeTruthy();
-    expect(container.querySelector(".changes-outcome-icon svg")).toBeTruthy();
+    // QA-0724-goal: the skeleton promised "changes" that usually don't exist (a
+    // plan/read-only session never has any) and sat on screen for a live
+    // turn's whole duration. In-flight renders nothing; the card appears only
+    // once the backend reports changed files.
+    expect(container.querySelector(".changes-outcome")).toBeNull();
+    expect(screen.queryByLabelText("Loading changes")).toBeNull();
     expect(screen.queryByText(/Edited/)).toBeNull();
   });
 
@@ -123,6 +124,23 @@ describe("ChangesOutcome phases (INC-41 TH-7)", () => {
     rerender(<ChangesOutcome sid="s1" refreshKey={1} onReview={() => {}} />);
     expect(screen.getByText("Edited 2 files")).toBeTruthy();
     expect(screen.queryByLabelText("Loading changes")).toBeNull();
+  });
+
+  it("lands the in-flight fetch under an event storm — single-flight + one trailing re-run (QA-0724-goal)", async () => {
+    // The old effect cancelled its in-flight fetch on every refreshKey tick;
+    // with events streaming faster than the two serial /diff calls, no fetch
+    // ever applied and the card sat on "loading" for the whole turn.
+    let resolveFirst!: (v: unknown) => void;
+    diffMock.mockReturnValueOnce(new Promise((r) => { resolveFirst = r; }));
+    diffMock.mockResolvedValue(okDiff(1));
+    const { rerender } = render(<ChangesOutcome sid="s1" refreshKey={0} onReview={() => {}} />);
+    for (let k = 1; k <= 5; k++) rerender(<ChangesOutcome sid="s1" refreshKey={k} onReview={() => {}} />);
+    expect(diffMock).toHaveBeenCalledTimes(1); // ticks marked it stale, no cancel
+    resolveFirst(okDiff(2));
+    await screen.findByText("Edited 2 files"); // the in-flight fetch APPLIED
+    // …then exactly one trailing re-run catches the storm's final state.
+    await waitFor(() => expect(diffMock).toHaveBeenCalledTimes(2));
+    await screen.findByText("Edited 1 file");
   });
 });
 

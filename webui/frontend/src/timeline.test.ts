@@ -424,18 +424,23 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     expect((nodes[4] as any).children.map((c: any) => c.key)).toEqual(["t1", "c2", "t2"]);
   });
 
-  it("marks approval audit and goal check chips as fold-able in foldEvents, while compaction stays a divider", () => {
+  it("marks approval audit and missed goal checks fold-able; passing/terminal goal facts echo the chrome (QA-0724-goal)", () => {
     const folded = foldEvents([
       { seq: 1, type: "approval_responded", payload: { approval_id: "x", decision: "approve" } },
-      { seq: 2, type: "goal_checkpoint", payload: { check: 1, pass: true } },
-      { seq: 3, type: "goal_achieved", payload: { reason: "satisfied", checks: 1 } },
-      { seq: 4, type: "context_compacted", payload: { upto_gen_step: 3 } },
+      { seq: 2, type: "goal_checkpoint", payload: { check: 1, pass: false } },
+      { seq: 3, type: "goal_checkpoint", payload: { check: 2, pass: true } },
+      { seq: 4, type: "goal_achieved", payload: { reason: "satisfied", checks: 2 } },
+      { seq: 5, type: "context_compacted", payload: { upto_gen_step: 3 } },
     ]);
     const byKey = new Map(folded.items.map((i) => [i.key, i]));
     expect((byKey.get("c1") as any).fold).toBe(true);
+    // a miss explains why the goal continues — work detail, folds with the turn
     expect((byKey.get("c2") as any).fold).toBe(true);
-    expect((byKey.get("c3") as any).fold).toBeUndefined();
-    expect(byKey.get("c4")?.kind).toBe("compact");
+    expect((byKey.get("c2") as any).echo).toBeUndefined();
+    // a PASS is the same fact the achieved chrome states — echo, said once
+    expect((byKey.get("c3") as any).echo).toBe("goal");
+    expect((byKey.get("c4") as any).echo).toBe("goal");
+    expect(byKey.get("c5")?.kind).toBe("compact");
   });
 
   it("surfaces a DENIED approval inline — an approved call's command card is its trace, a denied call has none (QA-0719 S1)", () => {

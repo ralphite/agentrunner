@@ -1158,7 +1158,7 @@ export function TimelineTailActions({
   onContinue,
 }: {
   lastAssistant?: BubbleItem;
-  goalVerdict?: { elapsed: string } | null;
+  goalVerdict?: { elapsed: string; goal?: string; checks?: number } | null;
   onContinue?: (item: BubbleItem) => Promise<void>;
 }) {
   if (!lastAssistant && !goalVerdict) return null;
@@ -1178,7 +1178,13 @@ export function TimelineTailActions({
         <span className="h-4 w-px bg-line" aria-hidden />
       )}
       {goalVerdict && (
-        <div className="turn-footer">
+        <div
+          className="turn-footer"
+          title={
+            (goalVerdict.goal ? `${goalVerdict.goal}\n` : "") +
+            (goalVerdict.checks ? `${goalVerdict.checks} check${goalVerdict.checks === 1 ? "" : "s"}` : "")
+          }
+        >
           <CheckCircle size={15} /> Goal achieved in {goalVerdict.elapsed}
         </div>
       )}
@@ -1255,7 +1261,7 @@ export interface TimelineViewProps {
   /** When the run ended satisfied, the elapsed to show as an inline "Goal
    *  achieved in N" verdict on the final assistant answer's action row (fix 3).
    *  Undefined/null while the goal is unsettled or wasn't achieved. */
-  goalVerdict?: { elapsed: string } | null;
+  goalVerdict?: { elapsed: string; goal?: string; checks?: number } | null;
   /** The first events fetch for this session hasn't returned yet (INC-41 L1). */
   loading?: boolean;
   onContinue?: (item: BubbleItem) => Promise<void>;
@@ -1398,7 +1404,7 @@ interface TimelineContentViewProps {
   approvalSlot?: ReactNode;
   settled: boolean;
   outcomeSlot?: ReactNode;
-  goalVerdict?: { elapsed: string } | null;
+  goalVerdict?: { elapsed: string; goal?: string; checks?: number } | null;
   loading: boolean;
   blank: boolean;
   isEmpty: boolean;

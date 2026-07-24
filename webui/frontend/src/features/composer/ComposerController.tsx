@@ -1603,6 +1603,9 @@ export function Composer(props: ComposerProps) {
           ? {
               verifier: goalVerifier,
               rounds: goalRounds,
+              // QA-0724-goal (goal×plan): warn at configuration time that a command
+              // verifier cannot run while the session is read-only.
+              readOnly: isSession ? liveMode === "plan" : access === "plan",
               onVerifierChange: setGoalVerifier,
               onRoundsChange: setGoalRounds,
               onExit: () => setLauncher(null),

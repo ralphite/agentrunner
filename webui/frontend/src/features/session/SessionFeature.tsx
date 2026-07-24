@@ -256,7 +256,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // drives GoalBanner (formatElapsed over goalState.elapsedMs).
   const goalVerdict =
     !isSub && goalState && goalState.phase === "achieved" && goalState.elapsedMs !== undefined
-      ? { elapsed: formatElapsed(goalState.elapsedMs) }
+      ? { elapsed: formatElapsed(goalState.elapsedMs), goal: goalState.goal, checks: goalState.checks }
       : null;
   const [now, setNow] = useState(() => clock.now());
   const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
@@ -551,8 +551,17 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // than as a second bar. So: the goal has a banner of its OWN only when there
   // is no terminal alert to ride on.
   const goalLive = !isSub && !!goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt);
-  const goalBannerShown = goalLive && !terminalNotice;
+  // QA-0724-goal · "achieved" is a NORMAL ending with nothing to act on — Codex
+  // pins nothing for it; the action-row verdict ("Goal achieved in N") is its
+  // sole carrier and it scrolls away with the thread. Only the endings that
+  // stay actionable (paused/stopped/cancelled — and the live goal itself)
+  // earn the pinned banner above the composer.
+  const goalBannerShown = goalLive && !terminalNotice && !goalVerdict;
   const goalInAlert = goalLive && !!terminalNotice;
+  // The chrome that states the goal's terminal fact — the pinned banner OR
+  // the action-row verdict. Either one on screen suppresses the thread's
+  // echo chips (TH-12: a terminal fact is said once).
+  const goalChromeShown = goalBannerShown || goalInAlert || !!goalVerdict;
   // The goal's label + elapsed, folded into the terminal alert's meta segment.
   // The goal *text* stays on the tooltip (and in the thread + Environment rail):
   // a banner that ellipsizes a sentence it has no room for said nothing anyway.
@@ -568,11 +577,11 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
       }
     : null;
   const threadItems = useMemo(
-    // `goalLive` (not `goalBannerShown`): whether the goal rides in its own bar
-    // or inside the terminal alert, the chrome above the composer has said it —
-    // so the thread must not echo it a third time.
-    () => suppressEchoedChips(folded.items, { goalBanner: goalLive, terminalAlert: !!terminalNotice || !!failure }),
-    [folded.items, goalLive, terminalNotice, failure],
+    // `goalChromeShown`: whether the goal rides in its own bar, inside the
+    // terminal alert, or as the action-row verdict, the chrome has said it —
+    // so the thread must not echo it again.
+    () => suppressEchoedChips(folded.items, { goalBanner: goalChromeShown, terminalAlert: !!terminalNotice || !!failure }),
+    [folded.items, goalChromeShown, terminalNotice, failure],
   );
 
   // The inline approval card is the primary action. On roomy desktop layouts

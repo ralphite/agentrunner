@@ -7828,3 +7828,67 @@ shell 无 GEMINI_API_KEY 时重启出的 daemon 无法 host 唤醒(daemon.log
 既有契约为 false(pause 按钮不显——CLI/行菜单可 pause);面板 Model/Reasoning
 对 in-session 形态显 Not recorded/Off(未投影 spec)。均属可见性小项,待
 review 裁级。
+
+## 2026-07-24 · QA-0724-goal (goal×plan) 首用事故：runtime 指令冲突 + UI 四重陈述 + 骨架饿死，及流程固化
+
+用户首次真实使用 webui「Goal + Plan (read-only)」组合
+（`20260724-194450-…-af266b173beb1815`，自证 goal "create a plan to
+maximize the flexibility of the runtime"）即暴露五类问题，而此前所有
+goal QA（QA-16/17/48）只在 default mode 下跑过——组合矩阵空白。
+
+**根因与修复**（一批落地，不触不变量——裁决机制/边界纪律/hard floor 原样）：
+
+1. **常驻指令冲突（主因）**：plan 系统后缀说"plan 就绪即调
+   exit_plan_mode"，goal 注入说"keep going until met…against the current
+   workspace state"——模型忠实执行前者，连烧 3 turn 申请没人要的 exit，
+   用户在聊天里追问 "why exit? where is the plan?"。修：注入文本按注入
+   时刻的当前 mode 动态渲染（`goalDeliveryHint`，attach/resume/update/
+   continuation 四处共用）：plan 下明示"交付物是分析/计划本身就在对话里
+   交付并 goal_complete，勿为此调 exit_plan_mode；仅当 goal 需要改文件/
+   执行才申请退出"；continuation 的 evidence 句在 plan 下不再指向
+   workspace；goal_complete 工具 description 同步中性化。
+2. **plan × command verifier 必死组合**：execute 类 hard floor 让 verifier
+   每边界 deny，纯烧 check 预算。修：`goalVerify` 在 plan mode 短路 miss
+   （不产生 effect/deny journal 噪音），detail 直陈人话路径；mode 每边界
+   重读，exit 批准后 verifier 立即恢复。webui GoalOptions 配置时刻内联
+   警示（read-only + verifier 非空）。**不绕 floor**。
+3. **goal 文本双入 context**：webui Home goal 直启把同句作为 opening
+   prompt 和 attach 注入各发一次。修：`goalEqualsLastUserInput` —— goal
+   == 最近 user 消息时注入引用该消息不重复全文（CLI new+attach 同受益）。
+4. **达成后同屏四重陈述**：`Goal check 2 · passed` chip + `Goal
+   achieved · satisfied` chip + action-row `Goal achieved in 05:09` +
+   绿色 GOAL COMPLETE banner。修：achieved 是正常结束、无可操作项——
+   Codex 不钉任何东西；action-row verdict 成唯一承载（title 载 goal/
+   checks），achieved 不再渲染 banner；pass check/achieved chips 标
+   echo="goal" 由 chrome 抑制（TH-12 既有机制，satisfied 路径当初漏标）；
+   stopped/cancelled（可操作）保留可 dismiss banner 不变。
+5. **Loading changes 骨架饿死**：refreshKey 每个流事件 +1，effect 每次
+   重跑都作废 in-flight fetch（两个串行 /diff ~1.7s 永远跑不完），phase
+   卡 loading 整个 turn——在一个不可能有改动的 plan 会话里挂着
+   "Loading changes…"。修：单飞行槽 + trailing 重跑（fetch 必落地）；
+   in-flight 渲染 null（多数 turn 无改动，骨架是对不存在之物的承诺）；
+   error 卡保留（TH-7 初衷不丢）。另修 composer 桌面宽度贴边：
+   `.cx-session` 全宽度补 `px-[14px] pb-4`（窄容器 pb-3 覆盖不变）。
+
+**为什么多轮 QA 没发现（反思）**：① goal 场景全部只测 default mode，
+feature × mode 组合从未系统覆盖；② 黑盒 QA 验"元素在/无 console 错误"，
+从不审"同一事实说了几次"的信息架构；③ 骨架饿死需要 live 事件流才复现，
+截图 QA 都在会话结束后拍终态；④ 模型被冲突 prompt 诱导只有真 LLM 真组合
+下才发生，scripted 孪生构造上测不出 prompt 质量；⑤ 布局细节（贴边）无
+逐项 checklist，靠肉眼扫过。归纳：QA 偏"功能可用性验证"，缺"第一次
+真实使用的完整旅程审查"。
+
+**流程固化**（PROCESS.md §三新增 8/9 两条，硬性）：8. 首用旅程闸——
+新功能 ✅ 前必须真实首用旅程真跑 + turn 中/终态双截屏 + 终态四条清单
+（事实一屏一次/无永久骨架/无贴边/文案不说谎）；9. 组合矩阵与常驻注入
+纪律——feature × mode × 自身形态矩阵列全、格子有断言，常驻注入增改
+必须逐对检查与其它注入的指令冲突。QA.md 新增 QA-93（goal×plan
+first-run journey 回归菜单，场景 A/B）。SPEC in-session goal 行与 Web UI
+Supervision 行补语义与锚；DESIGN §13 补「goal × 运行模式组合语义」段。
+
+孪生锚：TestGoalDeliveryHintModeAware / TestGoalContinuationModeAware /
+TestGoalAttachDedupsOpeningPrompt / TestGoalVerifyPlanModeShortCircuit；
+前端 timeline.test QA-0724-goal echo 场景、ChangesOutcome.test
+no-skeleton/single-flight。残留小项（不阻塞）：goal 已终结后轮询延迟窗
+内 banner pause 点击得 no_op 无 toast 反馈；GoalLoopLauncher 的 goal
+分支已被 composer Goal chip 形态取代成死路径待清理——记 GAPS。

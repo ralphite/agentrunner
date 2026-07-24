@@ -1138,6 +1138,11 @@ function PickerBack({
 export interface GoalOptionsProps {
   verifier: string;
   rounds: number;
+  // QA-0724-goal (goal×plan): plan mode's hard floor blocks every execute-class
+  // effect, so a command verifier configured on a read-only session cannot
+  // run (each check misses) until an exit_plan_mode approval lands. Say so
+  // at configuration time instead of letting the checks burn silently.
+  readOnly?: boolean;
   onVerifierChange: (verifier: string) => void;
   onRoundsChange: (rounds: number) => void;
   onExit: () => void;
@@ -1146,6 +1151,7 @@ export interface GoalOptionsProps {
 export function GoalOptions({
   verifier,
   rounds,
+  readOnly,
   onVerifierChange,
   onRoundsChange,
   onExit,
@@ -1187,6 +1193,12 @@ export function GoalOptions({
               onChange={(event) => onVerifierChange(event.target.value)}
             />
           </label>
+          {readOnly && verifier.trim() !== "" && (
+            <div className="mt-1 text-[12px] leading-5 text-dim" role="note">
+              Plan (read-only) mode can't run commands — this check only
+              starts working after you approve leaving plan mode.
+            </div>
+          )}
           <label
             className="cx-launcher-field small"
             title="Safety cap on iterations"

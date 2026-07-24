@@ -2325,3 +2325,42 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 | 3 | 中途插话提问 | agent 凭记忆一句话列出全部 3 个已审文件 |
 | 4 | Scheduled 页 | 会话以 cadence/next-run 列出(kind session 投影);**行点击直接进对话**;菜单 "Schedule details…" 开 G56 面板;会话内 `/loop` 分支同验(同会话二次 attach) |
 | 5 | 旧 series 行 | 照常渲染(completed/paused/failed),兼容不回归 |
+
+---
+
+## QA-93 goal × plan 组合 first-run journey（QA-0724-goal 事故回归，UJ-22/24）
+
+**背景**：2026-07-24 用户首次真实使用 webui Home「Goal + Plan (read-only)」
+组合即暴露一串问题（`20260724-194450-…-af266b173beb1815`）：plan 系统后缀
+（"plan 就绪即调 exit_plan_mode"）与 goal 注入（"keep going…workspace
+state"）指令冲突，模型连烧 3 turn 申请没人要的 exit；goal 文本作为
+opening prompt 与 attach 注入同句双入 context；达成后同屏 4 处陈述同一
+事实（check chip / achieved chip / verdict row / GOAL COMPLETE banner）；
+无改动的 plan 会话挂永久 "Loading changes…" 骨架（事件风暴饿死 fetch）；
+composer 桌面宽度贴边无底部留白。多轮 QA 未发现——goal 场景（QA-16/17/48）
+全部只在 default mode 下跑，组合矩阵空白。
+
+**场景 A（自证 goal × plan，真实 Gemini，webui 全流程）**：
+
+| 步 | 动作 | 硬断言（runtime 红线） |
+|---|---|---|
+| 1 | webui Home：Add → Goal + Plan mode on，输入分析类目标（如 "create a plan to improve X"）直接 Send | journal：`mode_changed{to:plan,cause:startup}` + `goal_attached` + attach program input **引用 user 消息、不含重复 `<goal>` 全文**、含 "do not call exit_plan_mode" 调和句 |
+| 2 | 等 goal 达成（自证路径） | `goal_completion_claimed` + `goal_checkpoint{pass}` + `goal_achieved{satisfied}`；miss continuation（如有）不含 "inspect the workspace state" |
+| 3 | 终态截图（会话页全屏） | goal 完成**只有一处陈述**：action-row `⊘ Goal achieved in N`（title 载 goal/checks）；无 GOAL COMPLETE banner、无 `Goal check N · passed`/`Goal achieved · satisfied` 顶层 chips |
+| 4 | 同屏检查 Changes 卡 | 无改动 → **无** "Loading changes…" 骨架、无 Changes 卡；turn 进行中截图同样无骨架 |
+| 5 | composer 布局 | 桌面宽度下 composer 底边与视口间留白 ≥12px |
+| — | 观察记录（非硬断言） | 模型是否调用 exit_plan_mode（期望 0 次；模型措辞不钉） |
+
+**场景 B（command verifier × plan，scripted 已锚 + 真实抽验）**：
+attach 带 `--verify` 的 goal 于 plan 会话 → checkpoint miss detail 含
+"plan (read-only) mode" 与 exit_plan_mode 指引、**无** `effect_requested`/
+deny journal 噪音；webui GoalOptions 在 read-only + verifier 非空时显示
+内联警示。批准 exit 后 verifier 恢复正常裁决（mode 每边界重读）。
+
+**孪生（闸门 A，进 check.sh）**：TestGoalDeliveryHintModeAware /
+TestGoalContinuationModeAware / TestGoalAttachDedupsOpeningPrompt /
+TestGoalVerifyPlanModeShortCircuit；前端 timeline.test QA-0724-goal echo 场景 +
+ChangesOutcome.test no-skeleton/single-flight。
+
+**通过标准**：场景 A 五步硬断言全绿 + 场景 B 检查项全绿；证据归档
+`qa/runs/<日期>-QA-93/`。
