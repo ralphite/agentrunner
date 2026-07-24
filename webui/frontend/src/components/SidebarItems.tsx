@@ -20,6 +20,7 @@ import type { Session } from "../types";
 import { isManagedWorktreeWorkspace } from "../viewModels";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { sessionFriendlyStatus } from "./pill";
+import { IconButton } from "../ui/IconButton";
 
 export interface SidebarSessionItemProps {
   session: Session;
@@ -115,22 +116,26 @@ export function SidebarSessionItem({
         className="session-quick-actions"
         onMouseEnter={onDismissPreview}
       >
-        <button
+        <IconButton
+          size="sm"
+          variant="ghost"
           className="session-quick-action"
           aria-label={`${pinned ? "Unpin" : "Pin"} ${title}`}
           title={pinned ? "Unpin" : "Pin"}
           onClick={onTogglePin}
         >
           <PushPin size={17} weight={pinned ? "fill" : "regular"} />
-        </button>
-        <button
+        </IconButton>
+        <IconButton
+          size="sm"
+          variant="ghost"
           className="session-quick-action"
           aria-label={`${archived ? "Unarchive" : "Archive"} ${title}`}
           title={archived ? "Unarchive" : "Archive"}
           onClick={onToggleArchive}
         >
           <ArchiveBox size={17} />
-        </button>
+        </IconButton>
       </span>
     </div>
   );
@@ -303,14 +308,16 @@ export function SidebarProjectItem({
           >
             {actions}
           </Menu>
-          <button
+          <IconButton
+            size="sm"
+            variant="ghost"
             className="project-quick-action max-[900px]:hidden!"
             aria-label={`New chat in ${name}`}
             title="New chat"
             onClick={onNewChat}
           >
             <PencilSimple size={16} />
-          </button>
+          </IconButton>
         </span>
       </div>
       {children}

@@ -2,6 +2,7 @@ import { ArrowUpRight, Folder } from "@phosphor-icons/react";
 import type { Session } from "../types";
 import type { ProjectGroup } from "../viewModels";
 import { sessionFriendlyStatus } from "./pill";
+import { Button } from "../ui/Button";
 
 interface ArchivedSessionItemProps {
   session: Session;
@@ -43,13 +44,14 @@ export function ArchivedSessionItem({
           aria-hidden="true"
         />
       </button>
-      <button
-        type="button"
+      <Button
+        size="md"
+        variant="outline"
         className="rs-archive-restore shrink-0 self-center whitespace-nowrap rounded-[6px] border border-line bg-transparent px-2.5 py-1.5 text-[12px] text-ink-2 hover:bg-panel-2"
         onClick={() => onUnarchive(session.id)}
       >
         Unarchive
-      </button>
+      </Button>
     </div>
   );
 }

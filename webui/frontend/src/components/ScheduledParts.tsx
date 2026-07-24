@@ -17,6 +17,8 @@ import {
 import { cadenceText, type CadenceSpec } from "../runPreset";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
 
 export type ScheduledFilter = "all" | "active" | "paused";
 
@@ -203,7 +205,9 @@ export function ScheduledRunItem({
         </span>
       </button>
       {hasActions && (
-        <button
+        <IconButton
+          size="lg"
+          variant="ghost"
           className="sched-more absolute right-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg border-0 bg-transparent hover:bg-panel-2"
           aria-label={`Actions for ${row.title}`}
           aria-haspopup="menu"
@@ -215,7 +219,7 @@ export function ScheduledRunItem({
           }}
         >
           <DotsThree size={18} weight="bold" />
-        </button>
+        </IconButton>
       )}
     </div>
   );
@@ -348,13 +352,15 @@ export function ScheduledToolbar({
           ))}
         </div>
         {unreadCount > 0 && (
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
             className="sched-markread"
             onClick={onMarkAllRead}
             title="Mark all scheduled activity as read"
           >
             <Check size={14} /> Mark all as read
-          </button>
+          </Button>
         )}
       </div>
     </div>

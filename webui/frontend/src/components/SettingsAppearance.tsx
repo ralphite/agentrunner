@@ -12,6 +12,7 @@ import {
 import { matchesQuery } from "./SettingsSearch";
 import { useAppStoreApi } from "../store";
 import { useAppServices } from "../app/appServices";
+import { IconButton } from "../ui/IconButton";
 
 // SettingsAppearance is Codex's Settings → Appearance panel (INC-41 H2). Every
 // control writes through saveAppearance, which persists to localStorage and
@@ -219,15 +220,27 @@ export function FontRow({
         <div className="rs-row-desc">{desc}</div>
       </div>
       <div className="rs-slider mt-3 grid grid-cols-[32px_64px_32px] justify-end gap-1.5">
-        <button className="rs-step h-8 w-8 p-0" onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`}>
+        <IconButton
+          size="md"
+          variant="outline"
+          className="rs-step"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          aria-label={`Decrease ${label}`}
+        >
           −
-        </button>
+        </IconButton>
         <span className={"rs-fontpreview grid h-8 place-items-center p-0" + (mono ? " mono" : "")} style={mono ? { fontSize: value } : undefined}>
           {value}px
         </span>
-        <button className="rs-step h-8 w-8 p-0" onClick={() => onChange(Math.min(max, value + 1))} aria-label={`Increase ${label}`}>
+        <IconButton
+          size="md"
+          variant="outline"
+          className="rs-step"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          aria-label={`Increase ${label}`}
+        >
           +
-        </button>
+        </IconButton>
       </div>
     </section>
   );

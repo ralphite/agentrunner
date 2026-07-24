@@ -1,5 +1,6 @@
 import { Info, Warning, X } from "@phosphor-icons/react";
 import type { AppState } from "../store";
+import { IconButton } from "../ui/IconButton";
 
 export type ToastItemModel = AppState["toasts"][number];
 
@@ -38,8 +39,9 @@ export function ToastItem({ toast, onDismiss }: ToastItemProps) {
           </details>
         )}
       </span>
-      <button
-        type="button"
+      <IconButton
+        size="md"
+        variant="ghost"
         className="toast-close"
         aria-label="Dismiss notification"
         onClick={(event) => {
@@ -48,7 +50,7 @@ export function ToastItem({ toast, onDismiss }: ToastItemProps) {
         }}
       >
         <X size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 }

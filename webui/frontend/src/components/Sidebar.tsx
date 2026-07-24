@@ -41,6 +41,7 @@ import {
   SidebarSessionActions,
   SidebarSessionItem,
 } from "./SidebarItems";
+import { IconButton } from "../ui/IconButton";
 
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
@@ -449,17 +450,24 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
         <div className="flex items-center gap-[2px]">
-          <button
-            className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
+          <IconButton
+            variant="ghost"
+            className="max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
             onClick={onOpenPalette}
             title={`Search sessions (${keyLabel("mod")}K)`}
             aria-label="Search sessions"
           >
             <MagnifyingGlass size={16} />
-          </button>
-          <button className="sidebar-close max-[900px]:w-[44px]! max-[900px]:h-[44px]!" onClick={onHide} title="Close sidebar" aria-label="Close sidebar">
+          </IconButton>
+          <IconButton
+            variant="ghost"
+            className="sidebar-close max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
+            onClick={onHide}
+            title="Close sidebar"
+            aria-label="Close sidebar"
+          >
             <X size={17} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
