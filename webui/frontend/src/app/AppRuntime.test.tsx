@@ -43,7 +43,7 @@ describe("AppRuntimeController", () => {
     expect(stopListening).toHaveBeenCalledOnce();
   });
 
-  it("mounts AppShell without starting runtime I/O", () => {
+  it("mounts AppShell with one catalog read and no runtime polling", () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -81,7 +81,10 @@ describe("AppRuntimeController", () => {
       </AppServicesProvider>,
     );
 
-    expect(calls).toEqual([]);
+    // Home's Composer owns one feature-scoped catalog bootstrap. AppShell
+    // itself must not start RuntimeController's health/session/run/project
+    // polling or duplicate the catalog read.
+    expect(calls).toEqual(["agents"]);
     view.unmount();
   });
 });
