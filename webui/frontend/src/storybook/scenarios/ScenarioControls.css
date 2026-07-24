@@ -1,0 +1,43 @@
+.scenario-controls {
+  align-items: center;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.scenario-controls-actions,
+.scenario-controls-status {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scenario-controls-actions label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.scenario-controls-status {
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.scenario-controls-status b {
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
+.scenario-controls-status [role="alert"] {
+  color: var(--red);
+  max-width: min(520px, 80vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
