@@ -49,7 +49,7 @@ const meta = {
   component: Home,
   parameters: {
     fullHeight: true,
-    options: { showPanel: false },
+    options: { layout: { showPanel: false } },
   },
   render: () => (
     <StoryAppFrame initialState={initialState} services={{ api: noNetworkApi }}>

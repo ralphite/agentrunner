@@ -219,7 +219,7 @@ const meta = {
   parameters: {
     fullHeight: true,
     layout: "fullscreen",
-    options: { showPanel: false },
+    options: { layout: { showPanel: false } },
     msw: { handlers: defaultFixture.api.handlers },
   },
   render: () => renderFixture(defaultFixture),

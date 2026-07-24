@@ -34,7 +34,7 @@ const meta = {
   component: Settings,
   parameters: {
     fullHeight: true,
-    options: { showPanel: false },
+    options: { layout: { showPanel: false } },
   },
   args: {
     onClose: fn(),

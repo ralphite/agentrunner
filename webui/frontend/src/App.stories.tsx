@@ -34,7 +34,7 @@ const meta = {
   component: AppShell,
   parameters: {
     fullHeight: true,
-    options: { showNav: false, showPanel: false },
+    options: { layout: { showNav: false, showPanel: false } },
   },
   decorators: [
     (Story) => (

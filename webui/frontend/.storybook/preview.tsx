@@ -94,8 +94,10 @@ const preview: Preview = {
       // Page Stories deliberately hide manager chrome so the production shell
       // can use the full canvas. Storybook persists those option overrides
       // across navigation, so restate the normal component-story defaults here.
-      showNav: true,
-      showPanel: true,
+      layout: {
+        showNav: true,
+        showPanel: true,
+      },
       storySort: {
         order: [
           "Foundations",
