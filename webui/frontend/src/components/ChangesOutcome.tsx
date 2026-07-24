@@ -520,7 +520,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             <Button
               size="sm"
               variant="ghost"
-              tone="danger"
+              tone="neutral"
               type="button"
               className="shrink-0"
               onClick={undo}

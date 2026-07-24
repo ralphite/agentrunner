@@ -345,8 +345,15 @@
   .brand-main { @apply min-w-0 border-0 bg-transparent p-0 text-left hover:bg-transparent; }
   .sidebar-close { @apply hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-2 px-2 pb-2; }
+  /* SIDEBAR-NAV-RHYTHM (parity R82): Codex keeps the top nav rows (New session /
+     Scheduled) on the SAME row rhythm as the project/session rows below — same
+     13px type, same 32px pitch — distinguishing hierarchy by the leading icon,
+     not by an oversized row. The prior 15px/40px came from a generic
+     "increase typography" pass (7df967c3) with no parity basis and made the two
+     nav rows read a full size heavier than the rail beneath them. font-medium
+     stays as the nav's light emphasis. */
   .primary-nav button, .nav-row {
-    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[32px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
   .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
