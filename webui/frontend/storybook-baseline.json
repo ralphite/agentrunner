@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 56,
-    "lines": 19334,
+    "lines": 19359,
     "files": [
       {
         "source": "src/App.tsx",
@@ -40,7 +40,7 @@
       },
       {
         "source": "src/components/ChangesOutcome.tsx",
-        "lines": 598,
+        "lines": 597,
         "exports": [
           "ArtifactChips",
           "ArtifactRow",
@@ -125,7 +125,7 @@
       },
       {
         "source": "src/components/DiffParts.tsx",
-        "lines": 891,
+        "lines": 889,
         "exports": [
           "ChangedFilesMenu",
           "CommitPushMenu",
@@ -188,7 +188,7 @@
       },
       {
         "source": "src/components/Lightbox.tsx",
-        "lines": 190,
+        "lines": 202,
         "exports": [
           "Lightbox"
         ],
@@ -196,7 +196,7 @@
       },
       {
         "source": "src/components/Markdown.tsx",
-        "lines": 344,
+        "lines": 342,
         "exports": [
           "CodeBlock",
           "Markdown",
@@ -280,7 +280,7 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 924,
+        "lines": 923,
         "exports": [
           "ScheduleDetailPanel",
           "ScheduleEditDialog",
@@ -303,7 +303,7 @@
       },
       {
         "source": "src/components/SessionChrome.tsx",
-        "lines": 501,
+        "lines": 500,
         "exports": [
           "QueuedMessageItem",
           "QueuedMessageList",
@@ -316,7 +316,7 @@
       },
       {
         "source": "src/components/SessionView.tsx",
-        "lines": 1387,
+        "lines": 1388,
         "exports": [
           "GoalBanner",
           "ProgressSummary",
@@ -410,7 +410,7 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 751,
+        "lines": 752,
         "exports": [
           "Sidebar"
         ],
@@ -418,7 +418,7 @@
       },
       {
         "source": "src/components/SidebarItems.tsx",
-        "lines": 427,
+        "lines": 450,
         "exports": [
           "SidebarConnectionStatus",
           "SidebarPreviewCard",
@@ -440,7 +440,7 @@
       },
       {
         "source": "src/components/SupervisionPanel.tsx",
-        "lines": 787,
+        "lines": 783,
         "exports": [
           "EnvironmentSection",
           "SupervisionPanel"
@@ -449,7 +449,7 @@
       },
       {
         "source": "src/components/SupervisionParts.tsx",
-        "lines": 381,
+        "lines": 379,
         "exports": [
           "ArtifactItem",
           "ArtifactsSection",
@@ -470,7 +470,7 @@
       },
       {
         "source": "src/components/Timeline.tsx",
-        "lines": 1568,
+        "lines": 1569,
         "exports": [
           "ActivityGroup",
           "AskDetailView",
