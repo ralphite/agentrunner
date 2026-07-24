@@ -36,8 +36,10 @@ const SESSION_STREAM = `/api/sessions/${SESSION_SID}/stream`;
 const PROMPT =
   "Build a deterministic Storybook demo for the core Agent Runner session journey.";
 const IS_COMPONENT_TEST = String(import.meta.env.VITEST) === "true";
-const STEP_DELAY_MS = IS_COMPONENT_TEST ? 0 : 1300;
-const TYPE_CHUNK_DELAY_MS = IS_COMPONENT_TEST ? 0 : 45;
+const IS_AUTOMATED =
+  IS_COMPONENT_TEST || globalThis.navigator?.webdriver === true;
+const STEP_DELAY_MS = IS_AUTOMATED ? 0 : 1300;
+const TYPE_CHUNK_DELAY_MS = IS_AUTOMATED ? 0 : 45;
 const TYPE_CHUNK_SIZE = 3;
 
 const historySession = buildSession({
