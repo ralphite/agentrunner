@@ -49,7 +49,7 @@ const meta = {
   title: "Pages/Home",
   component: Home,
   parameters: {
-    fullHeight: true,
+    reviewSurface: "full-page",
     options: { layout: { showPanel: false } },
   },
   render: () => (

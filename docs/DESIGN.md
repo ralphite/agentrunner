@@ -2114,3 +2114,14 @@ Reset 必须重建隔离 context，Replay 不得复用陈旧 callback，最终�
 Gate A 由 manifest lint、Storybook browser test、a11y、production build 与 curated
 visual/CUJ 组成；涉及 route、polling、storage、page shell 的变更另走 QA-89 的真实
 shared-store Gate B，并保留 URL、session/project、console、截图与未测边界。
+
+Story 同时是 production visual conformance 的审计单元，但不是第二套设计实现。
+Codex 对照必须固定同一 state、viewport 与 theme；当前 Codex 证据缺失时只能记为
+`UNTESTED/GAP/INTENTIONAL`，不得凭印象补齐。typography、spacing、radius、border、
+color、focus 与 motion 优先通过语义 token、primitive 或 production component 收敛，
+Story-only override 仅用于表达 fixture/viewport，不用于掩盖产品实现差异。
+`running/done/waiting/idle/attention/failed` 使用同一 lifecycle primitive，并把
+visible copy 与 accessible label 分离；motion 必须服从 `prefers-reduced-motion`。
+Storybook manager 可以使用同一中性品牌、几何与密度，但不得隐藏 taxonomy、搜索、
+toolbar、addon panel 或失败信号。完成判据仍是 manifest/index 闭环、finding 有裁决、
+真实 shared-store 页面无回归；截图、Story 数与绿色测试只作证据。

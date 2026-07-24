@@ -15,6 +15,11 @@ const config: StorybookConfig = {
   },
   core: {
     disableTelemetry: true,
+    disableWhatsNewNotifications: true,
+  },
+  features: {
+    menuOnboardingChecklist: false,
+    sidebarOnboardingChecklist: false,
   },
   staticDirs: ["./public"],
   viteFinal: async (baseConfig) =>

@@ -36,7 +36,7 @@ const meta = {
   title: "Pages/AppShell",
   component: AppShell,
   parameters: {
-    fullHeight: true,
+    reviewSurface: "full-page",
     options: { layout: { showNav: false, showPanel: false } },
     msw: { handlers: appShellApi.handlers },
   },

@@ -20,9 +20,9 @@ export interface IconLinkProps
 }
 
 const SQUARE_SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: "w-6 !px-0",
-  md: "w-8 !px-0",
-  lg: "w-10 !px-0",
+  sm: "w-[var(--control-sm)] !px-0",
+  md: "w-[var(--control-md)] !px-0",
+  lg: "w-[var(--control-lg)] !px-0",
 };
 
 const LINK_INTERACTION_CLASSES: Record<

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 60,
-    "lines": 19220,
+    "count": 61,
+    "lines": 19398,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -225,7 +225,7 @@
       },
       {
         "source": "src/components/RunParts.tsx",
-        "lines": 120,
+        "lines": 112,
         "exports": [
           "RunHeader",
           "RunLogEmptyState",
@@ -243,7 +243,7 @@
       },
       {
         "source": "src/components/Scheduled.tsx",
-        "lines": 496,
+        "lines": 493,
         "exports": [
           "ScheduleDetailPanel",
           "ScheduleEditDialog",
@@ -255,7 +255,7 @@
       },
       {
         "source": "src/components/ScheduledParts.tsx",
-        "lines": 470,
+        "lines": 503,
         "exports": [
           "ScheduledEmptyState",
           "ScheduledRunActions",
@@ -365,7 +365,7 @@
       },
       {
         "source": "src/components/Sidebar.tsx",
-        "lines": 752,
+        "lines": 757,
         "exports": [
           "Sidebar"
         ],
@@ -373,7 +373,7 @@
       },
       {
         "source": "src/components/SidebarItems.tsx",
-        "lines": 450,
+        "lines": 467,
         "exports": [
           "SidebarConnectionStatus",
           "SidebarPreviewCard",
@@ -386,7 +386,7 @@
       },
       {
         "source": "src/components/Subagents.tsx",
-        "lines": 198,
+        "lines": 190,
         "exports": [
           "SubagentItem",
           "Subagents"
@@ -404,7 +404,7 @@
       },
       {
         "source": "src/components/SupervisionParts.tsx",
-        "lines": 379,
+        "lines": 390,
         "exports": [
           "ArtifactItem",
           "ArtifactsSection",
@@ -600,6 +600,14 @@
         "lines": 99,
         "exports": [
           "IconLink"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/LifecycleStatus.tsx",
+        "lines": 131,
+        "exports": [
+          "LifecycleStatus"
         ],
         "privateVisibleCandidates": []
       },

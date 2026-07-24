@@ -3,16 +3,11 @@ import {
   Bell,
   CalendarDots,
   Check,
-  CheckCircle,
-  Circle,
   DotsThree,
   FileMagnifyingGlass,
   MagnifyingGlass,
   Notebook,
-  PauseCircle,
-  PlayCircle,
   PushPin,
-  WarningCircle,
 } from "@phosphor-icons/react";
 import { cadenceText, type CadenceSpec } from "../runPreset";
 import { ContextMenu } from "./ContextMenu";
@@ -20,6 +15,10 @@ import { MenuItem, MenuLabel } from "./Menu";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { SearchField } from "../ui/Field";
+import {
+  LifecycleStatus,
+  type LifecycleStatusState,
+} from "../ui/LifecycleStatus";
 
 export type ScheduledFilter = "all" | "active" | "paused";
 
@@ -82,21 +81,44 @@ export interface ScheduledRunItemModel {
   onClick: (opener?: HTMLElement) => void;
 }
 
+export function scheduledRunLifecycleState(
+  row: Pick<
+    ScheduledRunItemModel,
+    "alert" | "running" | "settled" | "active" | "status"
+  >,
+): LifecycleStatusState {
+  if (row.status.cls === "crash") return "failed";
+  if (row.running) return "running";
+  if (row.settled) return "done";
+  if (row.status.cls === "appr" || row.status.cls === "stranded") {
+    return "attention";
+  }
+  if (row.alert) return "attention";
+  if (row.active) return "waiting";
+  return "idle";
+}
+
 export function scheduledRunGlyph(
-  row: Pick<ScheduledRunItemModel, "alert" | "running" | "settled" | "active">,
+  row: Pick<
+    ScheduledRunItemModel,
+    "alert" | "running" | "settled" | "active" | "status"
+  >,
 ) {
-  const size = 16;
-  if (row.alert) return <WarningCircle size={size} weight="regular" />;
-  if (row.running) return <PlayCircle size={size} weight="regular" />;
-  if (row.settled) return <CheckCircle size={size} weight="regular" />;
-  if (row.active) return <Circle size={size} weight="regular" />;
-  return <PauseCircle size={size} weight="regular" />;
+  return (
+    <LifecycleStatus
+      accessibleLabel={row.status.text}
+      size="md"
+      state={scheduledRunLifecycleState(row)}
+      aria-hidden="true"
+    />
+  );
 }
 
 export interface ScheduledRunItemProps {
   row: ScheduledRunItemModel;
   pinned?: boolean;
   archived?: boolean;
+  selected?: boolean;
   menuOpen?: boolean;
   showProjectHit?: boolean;
   onOpenMenu: (x: number, y: number) => void;
@@ -106,6 +128,7 @@ export function ScheduledRunItem({
   row,
   pinned = false,
   archived = false,
+  selected = false,
   menuOpen = false,
   showProjectHit = false,
   onOpenMenu,
@@ -118,6 +141,7 @@ export function ScheduledRunItem({
         "scheduled-row-wrap relative" +
         (row.unread ? " is-unread" : "") +
         (archived ? " is-archived" : "") +
+        (selected ? " is-selected" : "") +
         (menuOpen ? " menu-open" : "")
       }
       onContextMenu={(event) => {
@@ -133,6 +157,15 @@ export function ScheduledRunItem({
           (quiet ? " is-quiet" : "")
         }
         onClick={(event) => row.onClick(event.currentTarget)}
+        aria-label={[
+          row.title,
+          row.status.text,
+          row.cadence,
+          row.when,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        aria-current={selected ? "true" : undefined}
         onKeyDown={(event) => {
           if (
             !((event.shiftKey && event.key === "F10") ||
@@ -209,7 +242,7 @@ export function ScheduledRunItem({
         <IconButton
           size="lg"
           variant="ghost"
-          className="sched-more absolute right-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg border-0 bg-transparent hover:bg-panel-2"
+          className="sched-more !absolute right-1 top-1/2 z-10 grid !h-11 !w-11 -translate-y-1/2 place-items-center rounded-lg border-0 bg-transparent hover:bg-panel-2"
           aria-label={`Actions for ${row.title}`}
           aria-haspopup="menu"
           title="Run actions"

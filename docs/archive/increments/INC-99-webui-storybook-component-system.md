@@ -1,5 +1,9 @@
 # INC-99 Web UI 组件体系与 Storybook 工作台
 
+> 归档于 2026-07-23：Storybook 组件体系、manifest closure、CUJ/Demo 与
+> QA-89 已在 `origin/main` 落地并通过最终 WebUI gate。正文保留实施前方案原貌；
+> 后续视觉收敛由 INC-101 承接。
+
 **状态**：设计候选，已吸收 2026-07-23 两份独立实施前 review，等待实施裁决。
 本文只定义开发基础设施、组件边界、覆盖契约与迁移顺序；不改变当前产品行为，
 也不代表 Storybook/组件重构已经落地。

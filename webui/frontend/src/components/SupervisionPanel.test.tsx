@@ -158,8 +158,8 @@ describe("DF-D4 · no title bar that repeats the topbar pill", () => {
     expect(close.getAttribute("data-ui-icon-button")).toBe("");
     expect(close.getAttribute("data-size")).toBe("sm");
     expect(close.getAttribute("data-variant")).toBe("ghost");
-    expect(close.classList).toContain("h-6");
-    expect(close.classList).toContain("w-6");
+    expect(close.classList).toContain("h-[var(--control-sm)]");
+    expect(close.classList).toContain("w-[var(--control-sm)]");
 
     fireEvent.click(close);
     expect(onClose).toHaveBeenCalledTimes(1);

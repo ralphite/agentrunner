@@ -25,9 +25,9 @@ export interface ButtonProps
 }
 
 export const BUTTON_SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: "h-6 gap-1 px-2 py-0 text-[12px]",
-  md: "h-8 gap-1.5 px-3 py-0 text-[13px]",
-  lg: "h-10 gap-2 px-4 py-0 text-[14px]",
+  sm: "h-[var(--control-sm)] gap-1 px-2 py-0 text-[length:var(--type-meta)]",
+  md: "h-[var(--control-md)] gap-1.5 px-3 py-0 text-[length:var(--type-ui)]",
+  lg: "h-[var(--control-lg)] gap-2 px-4 py-0 text-[length:var(--type-body)]",
 };
 
 const SPINNER_SIZE: Record<ButtonSize, "sm" | "md" | "lg"> = {
@@ -78,7 +78,7 @@ export function buttonClassName({
   variant: ButtonVariant;
 }): string {
   return [
-    "relative m-0 inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[8px] border font-medium leading-none transition-[background-color,border-color,color,opacity,box-shadow] duration-100",
+    "relative m-0 inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[var(--radius-control)] border font-medium leading-none transition-[background-color,border-color,color,opacity,box-shadow] duration-100",
     BUTTON_SIZE_CLASSES[size],
     APPEARANCE_CLASSES[tone][variant],
     className,

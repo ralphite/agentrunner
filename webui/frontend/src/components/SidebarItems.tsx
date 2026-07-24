@@ -20,19 +20,11 @@ import { isManagedWorktreeWorkspace } from "../viewModels";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { sessionFriendlyStatus } from "./pill";
 import { IconButton } from "../ui/IconButton";
-import { Spinner } from "../ui/Spinner";
+import { StatusIndicator } from "../ui/StatusIndicator";
 import {
-  StatusIndicator,
-  type StatusIndicatorTone,
-} from "../ui/StatusIndicator";
-
-function statusTone(cls: string): StatusIndicatorTone {
-  if (cls === "run") return "success";
-  if (cls === "idle") return "info";
-  if (cls === "appr" || cls === "stranded") return "warning";
-  if (cls === "crash") return "danger";
-  return "neutral";
-}
+  LifecycleStatus,
+  lifecycleStateFromStatusClass,
+} from "../ui/LifecycleStatus";
 
 export interface SidebarSessionItemProps {
   session: Session;
@@ -99,20 +91,39 @@ export function SidebarSessionItem({
         onKeyDown={openContextFromKeyboard}
         title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
         aria-label={`${title} · ${unread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
+        aria-current={active ? "page" : undefined}
       >
         <span className="project-session-title">{title}</span>
         {(unread || ["appr", "stranded", "crash"].includes(status.cls)) && (
           actionCount > 1 && status.cls === "appr"
             ? <span className="status-count" title={status.text} aria-hidden="true">{actionCount}</span>
-            : (
-              <StatusIndicator
-                className={`status-dot ${unread && status.cls !== "appr" ? "unread" : status.cls}`}
-                label={unread && status.cls !== "appr" ? "New activity" : status.text}
-                tone={statusTone(unread && status.cls !== "appr" ? "run" : status.cls)}
-                title={unread && status.cls !== "appr" ? "New activity" : status.text}
-                aria-hidden="true"
-              />
-            )
+            : unread && status.cls !== "appr"
+              ? (
+                <StatusIndicator
+                  className="status-dot unread"
+                  label="New activity"
+                  tone="info"
+                  title="New activity"
+                  aria-hidden="true"
+                />
+              )
+              : (
+                <LifecycleStatus
+                  accessibleLabel={status.text}
+                  className={`status-dot ${status.cls}`}
+                  data-display="dot"
+                  data-tone={
+                    status.cls === "crash"
+                      ? "danger"
+                      : status.cls === "appr" || status.cls === "stranded"
+                        ? "warning"
+                        : "neutral"
+                  }
+                  state={lifecycleStateFromStatusClass(status.cls)}
+                  title={status.text}
+                  aria-hidden="true"
+                />
+              )
         )}
       </button>
       {(isWorktree || isRunning) && (
@@ -123,7 +134,13 @@ export function SidebarSessionItem({
             </span>
           )}
           {isRunning && (
-            <Spinner className="session-loading-icon" size="md" label="Session running" />
+            <LifecycleStatus
+              accessibleLabel="Session running"
+              className="session-loading-icon"
+              role="status"
+              size="md"
+              state="running"
+            />
           )}
         </span>
       )}
@@ -390,10 +407,10 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
       <div><Folder size={15} /><span>{props.project || "No project"}</span></div>
       <div><GitBranch size={15} /><span>{props.branch || "Local"}</span></div>
       <div>
-        <StatusIndicator
+        <LifecycleStatus
+          accessibleLabel={props.status.text}
           className={`status-dot ${props.status.cls}`}
-          label={props.status.text}
-          tone={statusTone(props.status.cls)}
+          state={lifecycleStateFromStatusClass(props.status.cls)}
           aria-hidden="true"
         />
         <span>{props.status.text}</span>

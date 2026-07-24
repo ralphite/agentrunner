@@ -2,11 +2,9 @@ import type { ReactNode } from "react";
 import {
   ArrowSquareIn,
   CaretRight,
-  CheckCircle,
   FileText,
   Info,
   Terminal,
-  WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { formatElapsed, type GoalDerived } from "../timeline";
@@ -16,6 +14,7 @@ import { IconButton } from "../ui/IconButton";
 import { Input } from "../ui/Field";
 import { Subagents, type InspectNode } from "./Subagents";
 import { Spinner } from "../ui/Spinner";
+import { LifecycleStatus } from "../ui/LifecycleStatus";
 
 export interface GoalState {
   goal: string;
@@ -211,17 +210,14 @@ export function GoalSection({
 }
 
 export function ProgressItemRow({ item }: { item: ProgressItem }) {
+  const state =
+    item.status === "pending" ? "waiting" : item.status;
   return (
     <div className={"progress-row " + item.status} title={item.title}>
-      {item.status === "running" ? (
-        <Spinner size="sm" aria-hidden="true" />
-      ) : item.status === "done" ? (
-        <CheckCircle size={13} weight="fill" />
-      ) : item.status === "failed" ? (
-        <WarningCircle size={13} weight="fill" />
-      ) : (
-        <CaretRight size={13} />
-      )}
+      <LifecycleStatus
+        accessibleLabel={`${item.title}: ${item.status}`}
+        state={state}
+      />
       <span className="progress-title">{item.title}</span>
     </div>
   );
@@ -323,7 +319,12 @@ export function AttentionItem({
         className="attention-row w-full text-left"
         onClick={() => onOpenChild(notice.targetSession!)}
       >
-        <span className="attention-dot" />
+        <LifecycleStatus
+          accessibleLabel="Needs attention"
+          className="attention-dot"
+          state="attention"
+          aria-hidden="true"
+        />
         <span className="min-w-0 flex-1 truncate">{notice.message}</span>
         <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-dim">
           Open <ArrowSquareIn size={12} />
@@ -333,7 +334,12 @@ export function AttentionItem({
   }
   return (
     <div className="attention-row">
-      <span className="attention-dot" /> {notice.message}
+      <LifecycleStatus
+        accessibleLabel="Needs attention"
+        className="attention-dot"
+        state="attention"
+        aria-hidden="true"
+      /> {notice.message}
     </div>
   );
 }
@@ -359,7 +365,12 @@ export function AttentionSection({
 export function SupervisionRestingState() {
   return (
     <div className="supervision-quiet">
-      <CheckCircle size={15} /> Nothing needs you
+      <LifecycleStatus
+        accessibleLabel="No attention needed"
+        size="md"
+        state="done"
+        aria-hidden="true"
+      /> Nothing needs you
     </div>
   );
 }

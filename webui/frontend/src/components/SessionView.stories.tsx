@@ -116,6 +116,7 @@ const meta = {
   component: SessionView,
   parameters: {
     layout: "fullscreen",
+    reviewSurface: "full-page",
     msw: { handlers: defaultFixture.api.handlers },
   },
   args: {

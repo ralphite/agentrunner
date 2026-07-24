@@ -239,6 +239,9 @@ function ModelFieldsFixture({
 const meta = {
   title: "Components/Overlays/Modals",
   component: Modals,
+  parameters: {
+    reviewSurface: "overlay",
+  },
   render: () => <ModalsFixture />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

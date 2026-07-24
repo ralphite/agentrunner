@@ -7,7 +7,10 @@ import { Modal } from "./Modals";
 import { Button } from "../ui/Button";
 import { Input, Select, Textarea } from "../ui/Field";
 import { Spinner } from "../ui/Spinner";
-import { StatusIndicator, type StatusIndicatorTone } from "../ui/StatusIndicator";
+import {
+  LifecycleStatus,
+  lifecycleStateFromStatusClass,
+} from "../ui/LifecycleStatus";
 import { IconButton } from "../ui/IconButton";
 import {
   ScheduledEmptyState,
@@ -30,14 +33,6 @@ export {
 
 const INITIAL_VISIBLE_ROWS = 5;
 const ROWS_PER_PAGE = 10;
-
-function statusTone(cls: string): StatusIndicatorTone {
-  if (cls === "run") return "success";
-  if (cls === "idle") return "info";
-  if (cls === "appr" || cls === "stranded") return "warning";
-  if (cls === "crash") return "danger";
-  return "neutral";
-}
 
 // Static template suggestions (Codex parity). Clicking one opens the existing
 // create-run modal prefilled for repeating work, with the description as the
@@ -176,11 +171,12 @@ export function ScheduleDetailPanel({
         <>
           <div className="schedule-detail-scroll">
             <div className="schedule-detail-title">
-              <StatusIndicator
+              <LifecycleStatus
+                accessibleLabel={`Schedule status: ${status.text}`}
                 className={`status ${status.cls}`}
-                display="pill"
-                label={status.text}
-                tone={statusTone(status.cls)}
+                role="status"
+                state={lifecycleStateFromStatusClass(status.cls)}
+                visibleLabel={status.text}
               />
               <h2>{title}</h2>
             </div>
@@ -408,6 +404,7 @@ function ScheduledView({ controller }: { controller: ScheduledController }) {
                 row={row}
                 pinned={controller.isPinned(row.id)}
                 archived={controller.isArchived(row.id)}
+                selected={controller.detail.sid === row.id}
                 menuOpen={controller.contextMenu?.key === row.key}
                 showProjectHit={controller.projectMatched(row)}
                 onOpenMenu={(x, y) =>

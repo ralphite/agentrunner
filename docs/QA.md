@@ -2291,3 +2291,22 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 | dismiss / focus | 显式关闭后 dialog count=0，焦点回 `Show sidebar` opener；reload 后 Home 可用，browser warning/error=`[]` |
 | 安全边界 | 部署前确认 daemon 无 running turn，再 graceful restart daemon/Web UI；health `daemonUp/versionMatch=true`；未创建、关闭或删除 shared session |
 | Gate | `Shortcuts.mobile.test.tsx`、frontend full unit/build/Storybook 与 `./scripts/check.sh`；最终结果见 evidence README |
+
+---
+
+## QA-92 Storybook / Codex 视觉收敛（INC-101，UJ-24）
+
+证据目录：
+`qa/runs/2026-07-23-QA-91-storybook-codex-visual-audit/`（改造前/当前 Codex）
+与 `qa/runs/2026-07-23-QA-92-storybook-codex-visual-convergence/`（改造后）。
+
+| 菜单 | 验收 |
+|---|---|
+| A 全 Story inventory | 实施前 66/562/176；新增 lifecycle primitive 后最终 67 个 Story 文件、567 个 Story、177 targets / 684 cells（618 covered、66 N/A）、13 semantic states、5 global pairs、12 exclusions；manifest/index 0 missing、0 orphan；tracked `storybook-review-ledger.json` 把 28 个三角色 family 裁决展开到每个 exact Story/target cell；computed digest 必须等于 manifest 中人工批准 digest，baseline update 无权改批准值，inventory 不自动生成 parity PASS |
+| B manager / foundations | AgentRunner 中性 manager，无 onboarding/what's-new 噪音；taxonomy/search/toolbar/addons 保留；centered Story 不再被全屏 wrapper 推到顶端 |
+| C production primitives | radius/control/type/shadow 使用语义 token；普通 button 无无差别 elevation；explicit light/dark/system 有正确 `color-scheme` |
+| D lifecycle / selection | running/done/waiting/idle/attention/failed 复用 `LifecycleStatus`；Sidebar icon-only running 不挤标题；Scheduled current row 使用安静选中态；Home 与 Codex fresh New chat 一样保持 chromeless，但保留 `aria-current="page"` |
+| E hard case | `SessionView/ApprovalRequired` 在 dark 390×844 下审批安全动作、timeline、composer、overflow 与 focus 可用；reduced-motion 保留静止 glyph |
+| F shared-store page | `http://127.0.0.1:5199/` current-source Vite 经现有 `http://127.0.0.1:8788/` backend 使用全局 daemon 与 `~/.local/share/agentrunner/`；已有 Home/Session/Scheduled/Settings 可达，Scheduled/Session direct reload 与导航交互通过；8809 仅作旧部署非空 spot check，不冒充当前 bundle |
+| G safety / evidence | 不 restart/kill daemon；不 close/delete/cleanup session/workspace/journal；Codex 无同态证据的 surface 继续 `UNTESTED/GAP/INTENTIONAL`；current-source Changes、shared-store mobile、真实 OS reduced-motion、storage 全 key 与 production 8809 deploy/restart 本批 `UNTESTED` |
+| H final gate | `./scripts/check-webui.sh --skip-install && ./scripts/check.sh` 在最新 `db2bdffc` baseline 上全绿：86 files / 832 unit、65 passed + 2 skipped files / 564 Story interaction、18 visual、production build、Storybook build/lint、Codex capture、Go lint/wiring/test/install；fresh visual/interaction/contract reviewer 均 PASS、P0/P1=0 |

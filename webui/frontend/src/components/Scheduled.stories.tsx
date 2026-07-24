@@ -217,7 +217,7 @@ const meta = {
   title: "Pages/Scheduled",
   component: Scheduled,
   parameters: {
-    fullHeight: true,
+    reviewSurface: "full-page",
     layout: "fullscreen",
     options: { layout: { showPanel: false } },
     msw: { handlers: defaultFixture.api.handlers },

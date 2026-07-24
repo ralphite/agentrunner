@@ -42,6 +42,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const sizePixels = {
+  sm: 24,
+  md: 32,
+  lg: 40,
+} as const;
+
 export const Default: Story = {
   render: () => (
     <div className="flex items-center gap-3">
@@ -67,7 +73,7 @@ export const ButtonSizesVariantsAndTones: Story = {
   render: () => (
     <div className="grid w-[560px] max-w-[calc(100vw-32px)] gap-5 p-2">
       {(["sm", "md", "lg"] as const).map((size) => (
-        <Section key={size} title={`${size} · 24 / 32 / 40px`}>
+        <Section key={size} title={`${size} · ${sizePixels[size]}px`}>
           <Button size={size} variant="ghost">
             Ghost
           </Button>
@@ -96,7 +102,7 @@ export const IconButtonSizesVariantsAndTones: Story = {
   render: () => (
     <div className="grid w-[560px] max-w-[calc(100vw-32px)] gap-5 p-2">
       {(["sm", "md", "lg"] as const).map((size) => (
-        <Section key={size} title={`${size} · 24 / 32 / 40px square`}>
+        <Section key={size} title={`${size} · ${sizePixels[size]}px square`}>
           <IconButton size={size} variant="ghost" aria-label={`Add ${size}`}>
             <Plus size={size === "sm" ? 14 : size === "md" ? 16 : 18} />
           </IconButton>

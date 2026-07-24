@@ -92,7 +92,7 @@ export function ApprovalCard({
       </div>
 
       <details className="approval-details mt-2 min-w-0 border-t border-line pt-2">
-        <summary className="inline-flex items-center gap-1 text-[12px] text-ink-2"><CaretRight size={12} /> Details</summary>
+        <summary className="inline-flex min-h-11 cursor-pointer items-center gap-1 text-[12px] text-ink-2 sm:min-h-0"><CaretRight size={12} /> Details</summary>
         <pre className="m-0 mt-2 max-h-48 max-w-full overflow-auto whitespace-pre-wrap rounded-[8px] bg-panel-2 p-2 text-[11px] [overflow-wrap:anywhere]">
           {pretty(approval.args)}
         </pre>
@@ -119,15 +119,15 @@ export function ApprovalCard({
                 placeholder="Reason (optional)"
               />
               <div className="flex shrink-0 justify-end gap-2">
-                <Button className="flex-1 sm:flex-none" variant="outline" disabled={busy} onClick={() => setDenying(false)}>Cancel</Button>
-                <Button className="flex-1 sm:flex-none" variant="outline" tone="danger" loading={busy} onClick={() => decide("deny")}>Deny</Button>
+                <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-none" variant="outline" disabled={busy} onClick={() => setDenying(false)}>Cancel</Button>
+                <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-none" variant="outline" tone="danger" loading={busy} onClick={() => decide("deny")}>Deny</Button>
               </div>
             </div>
           ) : (
             <>
               <Button
                 variant="solid"
-                className="flex-[1_1_100%] sm:flex-initial"
+                className="min-h-11 flex-[1_1_100%] sm:min-h-[var(--control-md)] sm:flex-initial"
                 loading={busy}
                 onClick={() => decide("approve")}
               >
@@ -135,14 +135,14 @@ export function ApprovalCard({
               </Button>
               <Button
                 variant="outline"
-                className="flex-1 sm:flex-initial"
+                className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-initial"
                 disabled={busy}
                 title="Approve AND save an exact allow rule to your user config, so this same call never asks again (any session)"
                 onClick={() => decide("approve", true)}
               >
                 Always allow
               </Button>
-              <Button className="flex-1 sm:flex-initial" variant="outline" tone="danger" disabled={busy} onClick={() => setDenying(true)}>Deny</Button>
+              <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-initial" variant="outline" tone="danger" disabled={busy} onClick={() => setDenying(true)}>Deny</Button>
               {/* 平台感知:mac 显示 ⌘,其余显示 Ctrl(QA-0718 实测 Linux 上显示 ⌘,与
                   sidebar 的 CtrlAltN 提示不一致)。 */}
               <span className="approval-shortcut ml-auto max-[680px]:hidden">{modLabel}↵ approve · {modLabel}⌫ deny</span>

@@ -52,7 +52,7 @@ const meta = {
   title: "Pages/AppRuntime",
   component: AppRuntime,
   parameters: {
-    fullHeight: true,
+    reviewSurface: "full-page",
     options: { layout: { showNav: false, showPanel: false } },
   },
   render: () => <RuntimeFixture />,

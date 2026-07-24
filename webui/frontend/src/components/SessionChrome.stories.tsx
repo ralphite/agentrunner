@@ -59,7 +59,7 @@ const topbarArgs: SessionTopbarProps = {
 const meta = {
   title: "Components/Sessions/SessionChrome",
   component: SessionTopbar,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", reviewSurface: "panel" },
   args: topbarArgs,
   render: (args) => (
     <ChromeFrame>

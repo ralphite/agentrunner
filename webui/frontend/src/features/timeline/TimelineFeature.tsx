@@ -968,7 +968,7 @@ export function Item({ it, sentImages, last, deferActions, onContinue }: { it: T
       ) : null;
       return (
         <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)} tabIndex={0}>
-          <span className="who">
+          <span className={`who${peer ? "" : " sr-only"}`}>
             {peer ? <>from {it.source} · <a href={"#" + it.peerSession}>open</a></> : it.source || "you"}
           </span>
           <div className="msg-col user">

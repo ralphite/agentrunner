@@ -384,9 +384,9 @@ describe("scheduled row hierarchy on narrow screens", () => {
     expect(row.classList).toContain("w-full");
     expect(row.classList).toContain("pr-14");
     expect(more.parentElement).toBe(wrap);
-    expect(more.classList).toContain("absolute");
-    expect(more.classList).toContain("h-11");
-    expect(more.classList).toContain("w-11");
+    expect(more.classList).toContain("!absolute");
+    expect(more.classList).toContain("!h-11");
+    expect(more.classList).toContain("!w-11");
   });
 });
 
@@ -639,6 +639,9 @@ describe("a configured limit is a finish, not a failure (SC-16)", () => {
       const glyph = row.querySelector(".sched-glyph")!;
       expect(glyph).toBeTruthy();
       expect(glyph.className).not.toContain("sched-warn");
+      expect(
+        glyph.querySelector("[data-lifecycle-state='done']"),
+      ).toBeTruthy();
       expect(row.className).toContain("is-quiet");
       expect(row.querySelector(".sched-sub")!.textContent).toMatch(/Ran .+ ago/);
     }

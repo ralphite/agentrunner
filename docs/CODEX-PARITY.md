@@ -306,6 +306,24 @@ PS-02 除 Remove 外的复杂 lifecycle，因此状态不虚升。PASS 中
 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
+**INC-101 Story 审计（2026-07-23）**：实施前 66 个 Story 文件、562 个 Story 与
+176 个 manifest target 已逐项进入 inventory，0 missing；新增 shared lifecycle 后
+最终为 67/567/177。同批 Codex/AgentRunner 截图发现
+工作台默认外壳、lifecycle 语义、Scheduled selected state 与 Foundations canvas
+wrapper 四类共享问题，并在 production token/primitive/component 层修复。Home
+保留 Codex fresh New chat 的 chromeless resting row；路由语义只由
+`aria-current="page"` 表达，不把可访问性 current 反推为视觉 selected parity。
+tracked `storybook-review-ledger.json` 将 28 个人工裁决 family 机械展开到全部
+67 个 Story 文件、567 个 Story、177 targets / 684 cells（618 covered、66 N/A）、
+13 个 semantic assertions、5 个 global pairs 与 12 个 exclusions；每个 Story
+保留 exact ID/source/target refs、八轴 review、Codex `UNTESTED/GAP/INTENTIONAL`
+理由与人工批准的 family source digest；baseline update 不能改批准 digest，
+新增/变更 Story 或关联源码必须 fresh review。inventory 只证明集合闭环，不自动生成
+parity PASS。
+QA-91/92 属单侧 visual regression 与 shared-store 回归证据，不足以把 GL-06、
+SC-06、AX-04 或 AX-06 升为 `PASS`；上述行继续等待同 state/viewport/theme 的
+Codex 双侧证据。
+
 ### 7.1 Global shell 与 Codex-only 主入口
 
 | ID | surface/state/action | 状态 | 最近证据 / 裁决 |

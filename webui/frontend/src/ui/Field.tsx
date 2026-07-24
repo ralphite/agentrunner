@@ -17,7 +17,7 @@ const CONTROL_BASE =
   "min-w-0 font-[inherit] text-ink placeholder:text-dim transition-[background-color,border-color,box-shadow,color,opacity] duration-100 focus-visible:outline-none";
 const CONTROL_VARIANTS: Record<FieldControlVariant, string> = {
   default:
-    "rounded-[8px] border border-line bg-panel px-[9px] py-[7px] hover:border-dim focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/30 aria-[invalid=true]:border-red aria-[invalid=true]:focus:border-red aria-[invalid=true]:focus:ring-red/30 read-only:bg-panel-2 read-only:text-ink-2 disabled:cursor-not-allowed disabled:bg-panel-2 disabled:text-ink-2 disabled:opacity-50",
+    "rounded-[var(--radius-control)] border border-line bg-panel px-[9px] py-[7px] hover:border-dim focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/30 aria-[invalid=true]:border-red aria-[invalid=true]:focus:border-red aria-[invalid=true]:focus:ring-red/30 read-only:bg-panel-2 read-only:text-ink-2 disabled:cursor-not-allowed disabled:bg-panel-2 disabled:text-ink-2 disabled:opacity-50",
   unstyled:
     "rounded-none border-0 bg-transparent p-0 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none disabled:bg-transparent",
 };
@@ -193,7 +193,7 @@ export type SearchFieldVariant = "default" | "flush" | "unstyled";
 
 const SEARCH_VARIANTS: Record<SearchFieldVariant, string> = {
   default:
-    "rounded-[8px] border border-line bg-panel px-[9px] py-[7px] hover:border-dim focus-within:border-blue focus-within:ring-2 focus-within:ring-blue/30",
+    "rounded-[var(--radius-control)] border border-line bg-panel px-[9px] py-[7px] hover:border-dim focus-within:border-blue focus-within:ring-2 focus-within:ring-blue/30",
   flush:
     "rounded-none border-x-0 border-t-0 border-b border-line bg-panel px-4 py-3 focus-within:border-blue focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue/30",
   unstyled: "",

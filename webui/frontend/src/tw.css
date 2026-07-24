@@ -16,6 +16,7 @@
 }
 
 :root {
+  color-scheme: light;
   --bg: #ffffff;
   --sidebar: #f7f7f8;
   --panel: #ffffff;
@@ -51,7 +52,25 @@
   --status-attention: var(--amber);
   --status-failed: var(--red);
   --status-terminal: var(--dim);
-  --radius: 10px;
+  /* Codex-aligned geometry and density scale. These semantic aliases let
+     primitives and production surfaces share one vocabulary instead of
+     growing another one-off radius/height/font value per Story. */
+  --radius-affordance: 6px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-overlay: 16px;
+  --radius-composer: 22px;
+  --control-sm: 24px;
+  --control-md: 32px;
+  --control-lg: 40px;
+  --type-caption: 11px;
+  --type-meta: 12px;
+  --type-ui: 13px;
+  --type-body: 14px;
+  --type-heading: 22px;
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 10%), 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-composer: 0 8px 24px rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 4%);
+  --radius: var(--radius-card);
   --ui-font-size: 14px;
   --code-font-size: 12px;
   --rs-accent: #0169cc;
@@ -77,6 +96,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    color-scheme: dark;
     --bg: #0f0f11;
     --sidebar: #141416;
     --panel: #17171a;
@@ -112,10 +132,13 @@
     --hl-fn: #56c7d6;
     --hl-com: #8a8a99;
     --hl-punc: #b4b4c0;
+    --shadow-float: 0 16px 40px rgb(0 0 0 / 38%), 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-composer: 0 10px 28px rgb(0 0 0 / 28%), 0 1px 2px rgb(0 0 0 / 24%);
   }
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0f0f11;
   --sidebar: #141416;
   --panel: #17171a;
@@ -151,9 +174,12 @@
   --hl-fn: #56c7d6;
   --hl-com: #8a8a99;
   --hl-punc: #b4b4c0;
+  --shadow-float: 0 16px 40px rgb(0 0 0 / 38%), 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-composer: 0 10px 28px rgb(0 0 0 / 28%), 0 1px 2px rgb(0 0 0 / 24%);
 }
 
 :root[data-theme="light"] {
+  color-scheme: light;
   --rs-accent: #0169cc;
   --rs-accent-soft: #e8f1fb;
   --hl-kw: #7528c7;
@@ -224,16 +250,23 @@
     line-height: 1.6;
   }
   button {
-    @apply rounded-[8px] border border-line bg-panel px-[11px] py-[5px] text-ink transition-all duration-100;
+    @apply border border-line bg-panel px-[11px] py-[5px] text-ink;
+    border-radius: var(--radius-control);
+    transition-duration: 100ms;
+    transition-property: background-color, border-color, color, opacity;
     font: inherit;
     cursor: pointer;
   }
-  button:hover { @apply border-dim bg-panel-2 shadow-sm; }
+  button:enabled:hover { @apply border-dim bg-panel-2; }
   button:disabled { @apply cursor-default opacity-50 text-ink-2; }
   input, textarea, select {
-    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-all duration-100 hover:border-dim;
+    @apply border border-line bg-panel px-[9px] py-[7px] text-ink hover:border-dim;
+    border-radius: var(--radius-control);
+    transition-duration: 100ms;
+    transition-property: background-color, border-color, color, opacity, box-shadow;
     font: inherit;
   }
+  input, select { accent-color: var(--blue); }
   input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-2 ring-blue/30 ring-offset-0; }
   input:disabled, textarea:disabled, select:disabled { @apply cursor-not-allowed bg-panel-2 opacity-50 text-ink-2; }
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
@@ -313,7 +346,7 @@
   .sidebar-close { @apply hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-2 px-2 pb-2; }
   .primary-nav button, .nav-row {
-    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
   .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
@@ -461,7 +494,7 @@
      wrapped to 3 lines while its neighbors stayed 2, breaking the even grid.
      Drop to 13px to match Codex density and even out the wrap. */
   .home-empty-card {
-    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-sm;
+    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium transition-colors duration-100 hover:border-dim hover:bg-panel-2;
   }
   .home-empty-card-icon { @apply grid h-[28px] w-[28px] shrink-0 place-items-center text-blue; }
   .home-empty-card-icon.teal { color: var(--teal); }
@@ -485,7 +518,9 @@
     container-type: inline-size;
   }
   .cx-card {
-    @apply relative mx-auto w-full max-w-[720px] overflow-visible rounded-[22px] border border-line bg-panel shadow-xl;
+    @apply relative mx-auto w-full max-w-[720px] overflow-visible border border-line bg-panel;
+    border-radius: var(--radius-composer);
+    box-shadow: var(--shadow-composer);
   }
   .cx-session .cx-card { @apply max-w-[660px]; }
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
@@ -501,10 +536,10 @@
   .cx-env-project-wrap .cx-env-control { @apply w-full; }
   .cx-env-control.environment { @apply shrink-0; }
   .cx-env-control, .cx-pill {
-    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border-0 bg-transparent px-[9px] py-[5px] text-[12px] text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border-0 bg-transparent px-[9px] py-[5px] text-[12px] text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .cx-deliv {
-    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .cx-env-control.active, .cx-pill.active { @apply bg-blue-soft text-ink; }
   .cx-deliv.on { @apply border-blue bg-blue-soft text-ink; }
@@ -1260,9 +1295,10 @@
      touch more vertical padding (py-3) so the un-ruled list reads airy, not
      cramped; .sched-suggest keeps its tighter py-2.5. */
   .scheduled-row, .sched-suggest {
-    @apply flex min-w-0 items-start gap-3 rounded-none border-0 bg-transparent px-2 py-2.5 text-left hover:bg-panel-2;
+    @apply flex min-w-0 items-start gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-2.5 text-left hover:bg-panel-2;
   }
   .scheduled-row { @apply py-3; }
+  .scheduled-row-wrap.is-selected .scheduled-row { @apply bg-panel-2; }
   .sched-glyph, .sched-suggest-icon { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full text-dim; }
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
   .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }

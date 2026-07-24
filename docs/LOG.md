@@ -7692,3 +7692,26 @@ Composer、Session default/running、Timeline、三个 ModelFields 状态及 Dem
 Reset/Next/Play/Pause；Demo 约 1.0s 仍在 Step 1、约 1.84s 才进入 Step 2，popover 与
 z-index transport control 均可人工操作。证据保留在 QA-89；完整自动门禁以其最终
 `commands.md` 为准。
+
+---
+
+## 2026-07-23 · INC-101 Storybook / Codex 视觉收敛
+
+Storybook manager、production tokens/primitives、review surface 与 lifecycle
+状态已统一为克制的 Codex 风格；Home 保持 fresh New chat 的 chromeless current
+row，Scheduled 状态优先级/选中态、移动审批 44px 动作、focus/reduced-motion 与
+accessible labels 同步收口。
+
+审计不再以 Story 数量冒充 review：28 个三角色人工批准 family 通过 digest 锁住
+全部 67 个 Story 文件 / 567 个 Story、177 targets / 684 cells、13 semantic
+assertions、5 global pairs 与 12 exclusions；tracked ledger 逐项展开 exact
+Story/target cell，任何 Story、target、classification 或源码漂移都会使 gate 失败，
+baseline update 不能自动批准变化。
+
+QA-92 在 current-source 5199 经既有 8788 backend 只读复验 shared-store
+Home/Session/Scheduled/Settings；production 8809 未重启，shared QA/runtime 数据全部
+保留。fresh contract、interaction、visual reviewer 均 PASS；最终
+`check-webui.sh --skip-install && check.sh` 同轮通过 832 unit、564 Story
+interaction、18 visual 及全部 build/lint/Go/install gate。未覆盖的 Changes、
+shared mobile、OS reduced-motion、全 storage key 与 8809 deploy/restart 继续明确
+记为 `UNTESTED`。

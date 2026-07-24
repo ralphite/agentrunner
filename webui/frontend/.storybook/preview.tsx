@@ -4,6 +4,23 @@ import { useEffect, type ReactNode } from "react";
 import { applyTheme, type Theme } from "../src/theme";
 import "../src/tw.css";
 
+type ReviewSurface =
+  | "component"
+  | "panel"
+  | "overlay"
+  | "full-page"
+  | "mobile-sheet";
+
+const REVIEW_SURFACE_CLASS: Record<ReviewSurface, string> = {
+  component: "contents",
+  panel: "min-h-[100dvh] bg-bg p-6 text-ink",
+  overlay:
+    "grid min-h-[100dvh] place-items-center bg-panel-2 p-6 text-ink",
+  "full-page": "h-[100dvh] min-h-0 overflow-clip bg-bg text-ink",
+  "mobile-sheet":
+    "mx-auto min-h-[100dvh] w-full max-w-[430px] border-x border-line bg-bg p-4 text-ink",
+};
+
 initialize({
   onUnhandledRequest(request, print) {
     if (new URL(request.url).pathname.startsWith("/api/")) {
@@ -14,11 +31,11 @@ initialize({
 
 function StorySurface({
   children,
-  fullHeight,
+  reviewSurface,
   theme,
 }: {
   children: ReactNode;
-  fullHeight: boolean;
+  reviewSurface: ReviewSurface;
   theme: Theme;
 }) {
   // Full-page Stories run production appearance effects that restore persisted
@@ -30,11 +47,8 @@ function StorySurface({
 
   return (
     <div
-      className={
-        fullHeight
-          ? "h-[100dvh] min-h-0 overflow-clip bg-bg text-ink"
-          : "min-h-screen bg-bg text-ink"
-      }
+      className={REVIEW_SURFACE_CLASS[reviewSurface]}
+      data-review-surface={reviewSurface}
     >
       {children}
       <div id="modal-root" />
@@ -65,10 +79,14 @@ const preview: Preview = {
   decorators: [
     (Story, context) => {
       const theme = (context.globals.theme as Theme | undefined) ?? "light";
+      const reviewSurface = (
+        context.parameters.reviewSurface ??
+        (context.parameters.fullHeight === true ? "full-page" : "component")
+      ) as ReviewSurface;
       applyTheme(theme);
       return (
         <StorySurface
-          fullHeight={context.parameters.fullHeight === true}
+          reviewSurface={reviewSurface}
           theme={theme}
         >
           <Story />

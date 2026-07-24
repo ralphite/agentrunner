@@ -12,6 +12,7 @@ const meta = {
   component: Popover,
   parameters: {
     layout: "centered",
+    reviewSurface: "overlay",
   },
   args: {
     trigger: () => null,

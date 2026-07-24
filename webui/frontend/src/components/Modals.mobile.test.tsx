@@ -42,8 +42,8 @@ describe("mobile modal shell", () => {
     expect(footer.className).toContain("max-[640px]:flex-wrap");
     expect(close.getAttribute("data-ui-icon-button")).toBe("");
     expect(close.getAttribute("data-size")).toBe("lg");
-    expect(close.className).toContain("h-10");
-    expect(close.className).toContain("w-10");
+    expect(close.className).toContain("h-[var(--control-lg)]");
+    expect(close.className).toContain("w-[var(--control-lg)]");
   });
 
   it("renders structured capability details inside the same scroll region", () => {

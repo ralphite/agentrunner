@@ -695,21 +695,20 @@ describe("New session shortcut discoverability (RH-4)", () => {
   });
 });
 
-describe("New session is chromeless on the home landing (NAV-NEWSESSION-ACTIVE-FILL)", () => {
+describe("New session represents the current home destination (NAV-NEWSESSION-CHROMELESS)", () => {
   const navButton = (container: HTMLElement, label: string) =>
     Array.from(
       container.querySelectorAll<HTMLButtonElement>(".primary-nav button"),
     ).find((b) => b.textContent?.includes(label))!;
 
-  it("does not paint the New session row active on the home page — only real pages get the fill", () => {
-    // Home is the New-session landing, not a selected destination: Codex keeps
-    // its new-session action chromeless there, so ours must carry no resting `active` fill.
+  it("keeps Codex's chromeless Home row while exposing current-page semantics", () => {
     useStore.setState({ sessions: [], currentSid: null, currentPage: "home" });
     const { container } = render(<Sidebar />);
 
     const newSession = navButton(container, "New session");
     expect(newSession).toBeTruthy();
     expect(newSession.className).not.toContain("active");
+    expect(newSession.getAttribute("aria-current")).toBe("page");
   });
 
   it("keeps the fill for a real destination like Scheduled", () => {

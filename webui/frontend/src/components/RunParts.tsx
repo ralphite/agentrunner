@@ -1,9 +1,9 @@
 import { Stop as StopIcon } from "@phosphor-icons/react";
 import { friendlyStatus } from "./pill";
 import {
-  StatusIndicator,
-  type StatusIndicatorTone,
-} from "../ui/StatusIndicator";
+  LifecycleStatus,
+  lifecycleStateFromStatusClass,
+} from "../ui/LifecycleStatus";
 import { Button } from "../ui/Button";
 
 export interface RunLogLine {
@@ -19,15 +19,6 @@ interface RunHeaderProps {
   status?: string;
   kind?: string;
   onStop?: () => void;
-}
-
-function runStatusTone(status: string): StatusIndicatorTone {
-  const cls = friendlyStatus(status).cls;
-  if (cls === "run") return "success";
-  if (cls === "idle") return "info";
-  if (cls === "appr" || cls === "stranded") return "warning";
-  if (cls === "crash") return "danger";
-  return "neutral";
 }
 
 export function RunHeader({
@@ -49,11 +40,12 @@ export function RunHeader({
         {title}
       </span>
       {status && (
-        <StatusIndicator
+        <LifecycleStatus
+          accessibleLabel={`Run status: ${status}`}
           className={`pill shrink-0 whitespace-nowrap ${status}`}
-          display="pill"
-          label={status}
-          tone={runStatusTone(status)}
+          role="status"
+          state={lifecycleStateFromStatusClass(friendlyStatus(status).cls)}
+          visibleLabel={status}
         />
       )}
       {kind && (

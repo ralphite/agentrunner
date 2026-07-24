@@ -7,6 +7,7 @@ const meta = {
   component: ApprovalCard,
   parameters: {
     layout: "centered",
+    reviewSurface: "mobile-sheet",
   },
   args: {
     approval: {

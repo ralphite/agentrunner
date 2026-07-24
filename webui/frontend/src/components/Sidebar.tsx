@@ -476,7 +476,12 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         {NAV_DESTINATIONS.map(({ key, label, icon: DestIcon, keys }) => (
           <button
             key={key}
-            className={!currentSid && currentPage === key && key !== "home" ? "active" : ""}
+            className={
+              key !== "home" && !currentSid && currentPage === key
+                ? "active"
+                : ""
+            }
+            aria-current={!currentSid && currentPage === key ? "page" : undefined}
             onClick={() => { showPage(key); onNavigate?.(); }}
             title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
           >

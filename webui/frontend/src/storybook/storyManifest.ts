@@ -43,6 +43,42 @@ export interface GlobalStatePair {
   owner: string;
 }
 
+export type StoryReviewAxis =
+  | "role-name-state"
+  | "keyboard-focus"
+  | "pointer-touch"
+  | "disabled-busy-error"
+  | "live-region"
+  | "motion"
+  | "contrast-theme"
+  | "zoom-overflow";
+
+export type StoryReviewVerdict = "ALIGNED" | "FIXED" | "INTENTIONAL";
+export type CodexParityVerdict =
+  | "PASS"
+  | "UNTESTED"
+  | "GAP"
+  | "INTENTIONAL";
+
+export interface StoryReviewFamily {
+  reviewId: string;
+  titlePrefix: string;
+  axes: readonly StoryReviewAxis[];
+  visualVerdict: StoryReviewVerdict;
+  codexParity: CodexParityVerdict;
+  decision: string;
+  codexEvidence: string;
+  agentEvidence: string;
+  reviewedBy: readonly (
+    | "visual-design"
+    | "interaction-a11y"
+    | "contract-evidence"
+  )[];
+  reviewedAt: string;
+  reviewedDigest: string;
+  owner: string;
+}
+
 export interface PrivateVisibleExclusion {
   source: string;
   declarationName: string;
@@ -613,6 +649,370 @@ export const globalStatePairs = [
   },
 ] satisfies readonly GlobalStatePair[];
 
+const ALL_STORY_REVIEW_AXES = [
+  "role-name-state",
+  "keyboard-focus",
+  "pointer-touch",
+  "disabled-busy-error",
+  "live-region",
+  "motion",
+  "contrast-theme",
+  "zoom-overflow",
+] as const satisfies readonly StoryReviewAxis[];
+
+// These digests are reviewer approvals, not generated baselines. The lint gate
+// computes the current family digest from the exact built Story entries, Story
+// sources, production sources, and shared visual foundations. Baseline update
+// never rewrites this map: any drift requires a fresh review and an explicit
+// digest edit.
+const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
+  "components-attention":
+    "f10c052274cf1a521e4ef7a27d679ca618e4130a0a42800b946cbaff528a781a",
+  "components-changes":
+    "19ea4b9f22892204414c9067240e7b272583836b05e1ba338a8c9d005531890f",
+  "components-content":
+    "46d819f19d10b9aeb38d0486b1054bb90dc7bc04a364ec58c01215409c0538e4",
+  "components-feedback":
+    "fbaeff7780ef346f576bc2e450c525346c4c45edf22d680d64dd453af8021897",
+  "components-home":
+    "185b48f2887973bffd37876a59e6b617cf150ff0034f6bc8bf701ba583d23434",
+  "components-input":
+    "0396a1474ce2878cc328bdac804b636babbfc3c92c12245477ea4c9d3fbc95ca",
+  "components-media":
+    "8c4e3c5047195658cc7707e93064ad33171d4c4d2f1af5877996d71b8a1fb033",
+  "components-navigation":
+    "73f3d9d856dd9343c876b36c36bafd837af1c921e21d9746639a00cc2afbbac9",
+  "components-overlays":
+    "9059e993b2be38a59fd862da5245ce4d391132dbd6fe2c48229f185278f19818",
+  "components-runs":
+    "fd27e026779c6209f19f882b735b423faf0a28d0c0b41e3d9bd60f771d5e285e",
+  "components-scheduled":
+    "3c8b9889844c39819894d24ac148c647549350c0bb4130329edaeaf16cd39ca2",
+  "components-sessions":
+    "a179e83640e8be87e252b768e471c8cb756fceff2abb1e1ea0edebd8ccc46a06",
+  "components-settings":
+    "bc7c0f3c9e6506cf4c3659a73efb937c7794df4ba0b2f26c354e691917c14918",
+  "components-supervision":
+    "1d0b7dc660f76d64117b27066fda22dcddf5fca22a0c24664a7a5518349245ae",
+  "components-timeline":
+    "5d6c272e074a1a388103051ddd6ab1f2533fc37b604c4c3b3452b15dba3ffff7",
+  "cujs-core-session":
+    "c7841a614e861ad19f0480f52fbdb265100e39595a74f1969cc64233f44d08db",
+  "demos-core-session":
+    "b4cbfaa9b1213d54008b8633dbb5a150b44491968b41897c555a98bd79a62a77",
+  "demos-scenario-controls":
+    "f49f0525881899f118ac7fa6c59ad0c2ec5a20269ce89468f9663ba2436b41c3",
+  "foundations-actions":
+    "9d2a8e00fb199ac7e254ef355c8ac04c8834a3d3c1b9926ba6b6f6fcf43c1857",
+  "foundations-behavior":
+    "b27535561d2f61014a046d253e81d867acbade5551a740d1dede826f065dd890",
+  "foundations-feedback":
+    "7959855cf1faeee969928c6bd080ab26bfc1c84add2272273b0d7a60cc4af33f",
+  "foundations-forms":
+    "4cd5d6971af302189260029544e0779fef934ee7c851c933442df58c5de563f3",
+  "pages-appruntime":
+    "efae6dffaa798f98fdcbe1a1608ccaccc333be5fef42aaa2d25c147947a2f983",
+  "pages-appshell":
+    "6eee4fa4ffc3cd320ea19d3ab277b02cbe56fb9aecef6c29bbca0c15f5200743",
+  "pages-home":
+    "30ec95c43a6ef6100f01dcdb2ae1b25526b1f34ef29f0a885998349f6d91636c",
+  "pages-pagehost":
+    "d9f1d94dad52d364ca5f2ff5f6b76ead0dfdbe66730245b84246e284cabd2849",
+  "pages-scheduled":
+    "6f1a4dcf2da6c4991109481d5e0993aa39842e487f874404709ca134c165de8d",
+  "pages-settings":
+    "7be59f31d294195812678229823f4f30372253b692404efedce371d11800f613",
+};
+
+function reviewedFamily(
+  reviewId: string,
+  titlePrefix: string,
+  visualVerdict: StoryReviewVerdict,
+  codexParity: CodexParityVerdict,
+  decision: string,
+  codexEvidence: string,
+  agentEvidence: string,
+): StoryReviewFamily {
+  return {
+    reviewId,
+    titlePrefix,
+    axes: ALL_STORY_REVIEW_AXES,
+    visualVerdict,
+    codexParity,
+    decision,
+    codexEvidence,
+    agentEvidence,
+    reviewedBy: [
+      "visual-design",
+      "interaction-a11y",
+      "contract-evidence",
+    ],
+    reviewedAt: "2026-07-23",
+    reviewedDigest: REVIEWED_FAMILY_DIGESTS[reviewId] ?? "",
+    owner: "webui",
+  };
+}
+
+// INC-101 review ledger. Each built Story must resolve to exactly one of these
+// manually decided families. The lint gate joins this catalogue with the built
+// index and every manifest cell, then writes the exact per-Story/per-target
+// ledger to storybook-missing-baseline.json. A new title cannot inherit a PASS:
+// it is an orphan until a reviewer deliberately assigns and decides its family.
+export const storyReviewFamilies = [
+  reviewedFamily(
+    "foundations-actions",
+    "Foundations/Actions",
+    "FIXED",
+    "UNTESTED",
+    "Buttons and icon actions now share semantic control geometry, quiet hover treatment, and one focus-visible contract; ordinary controls no longer gain elevation.",
+    "Codex has no public component-library state grid; exact component parity remains UNTESTED.",
+    "QA-92 Action primitives Stories plus production Button/IconButton/IconLink review.",
+  ),
+  reviewedFamily(
+    "foundations-forms",
+    "Foundations/Forms",
+    "ALIGNED",
+    "UNTESTED",
+    "Field, select, checkbox, helper, disabled, invalid, and focus states were reviewed against the shared control/type/radius tokens without adding Story-only styling.",
+    "No same-state Codex field matrix is available; parity remains UNTESTED.",
+    "QA-92 Field primitives family and final interaction/a11y review.",
+  ),
+  reviewedFamily(
+    "foundations-behavior",
+    "Foundations/Behavior",
+    "ALIGNED",
+    "UNTESTED",
+    "Focus containment, initial focus, tab order, Escape, restore, nested scope, and empty-scope fallbacks retain their production interaction contract.",
+    "Codex focus internals are not observable as a complete same-state matrix; parity remains UNTESTED.",
+    "FocusScope ten-state Story family and interaction/a11y review.",
+  ),
+  reviewedFamily(
+    "foundations-feedback",
+    "Foundations/Feedback",
+    "FIXED",
+    "UNTESTED",
+    "Lifecycle, spinner, progress, loading, and reduced-motion glyphs use one semantic status language with live-region ownership kept at composition boundaries.",
+    "Codex status glyphs informed the shared language, but no complete same-state matrix exists; parity remains UNTESTED.",
+    "QA-92 screenshots 04 and LifecycleStatus/Status primitives Story families.",
+  ),
+  reviewedFamily(
+    "components-attention",
+    "Components/Attention",
+    "FIXED",
+    "UNTESTED",
+    "Approval, structured question, and daemon attention surfaces preserve safety hierarchy, 44px mobile actions, readable dark contrast, and labelled status without changing decisions.",
+    "Approval evidence is not a complete same-state Codex matrix; parity remains UNTESTED.",
+    "QA-92 screenshots 18-19, measured phone targets, and Approval/AskForm/DaemonAlert Stories.",
+  ),
+  reviewedFamily(
+    "components-changes",
+    "Components/Changes",
+    "ALIGNED",
+    "GAP",
+    "Diff and artifact surfaces inherit the shared typography, border, focus, overflow, and action primitives; INC-101 deliberately avoids a second Story-only diff layout.",
+    "CODEX-PARITY G13/Changes rows retain product workflow GAP; current-source Changes is explicitly UNTESTED in QA-92.",
+    "ChangesOutcome, DiffParts, and DiffView Story families plus contract review.",
+  ),
+  reviewedFamily(
+    "components-navigation",
+    "Components/Navigation",
+    "FIXED",
+    "UNTESTED",
+    "Sidebar status is glyph-only, session current semantics use aria-current, Home stays chromeless like Codex fresh New chat, and menus/search retain keyboard and focus-return behavior.",
+    "CODEX-PARITY GL-03/GL-07 pass selected interactions, while GL-05/GL-06 remain UNTESTED; the family therefore remains UNTESTED.",
+    "QA-92 manager/AppShell evidence and navigation Story/interaction review.",
+  ),
+  reviewedFamily(
+    "components-input",
+    "Components/Input",
+    "ALIGNED",
+    "UNTESTED",
+    "Composer controls, pickers, attachments, delivery states, long content, disabled/busy/error, and touch geometry reuse production primitives with no workflow change.",
+    "CODEX-PARITY NS input rows contain mixed PASS/GAP/UNTESTED states; no family-wide PASS is claimed.",
+    "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+  ),
+  reviewedFamily(
+    "components-overlays",
+    "Components/Overlays",
+    "FIXED",
+    "UNTESTED",
+    "Menu, context menu, popover, and modal Stories use the shared overlay review surface while preserving trap, Escape, outside-dismiss, focus return, nesting, and short-viewport containment.",
+    "Only selected overlay journeys have same-state Codex evidence; family parity remains UNTESTED.",
+    "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+  ),
+  reviewedFamily(
+    "components-feedback",
+    "Components/Feedback",
+    "ALIGNED",
+    "UNTESTED",
+    "Error, not-found, toast, long-detail, busy, dismiss, and stacked states retain clear tone, role/name, focus, and overflow contracts under shared tokens.",
+    "No complete same-state Codex feedback grid exists; parity remains UNTESTED.",
+    "ErrorBoundary, SessionNotFound, ToastItem, and Toasts Story families.",
+  ),
+  reviewedFamily(
+    "components-home",
+    "Components/Home",
+    "FIXED",
+    "UNTESTED",
+    "Starter and suggestion surfaces use flat quiet cards, consistent spacing/type, keyboard clearing, and long-text containment without Story-only shadows.",
+    "CODEX-PARITY NS-01/NS-04 cover selected Home states, not every component variant; family parity remains UNTESTED.",
+    "Home component Stories and QA-92 current-source Home review.",
+  ),
+  reviewedFamily(
+    "components-media",
+    "Components/Media",
+    "ALIGNED",
+    "UNTESTED",
+    "Lightbox loading/error/image controls, zoom, keyboard dismissal, accessible naming, and viewport containment remain production-owned and token-consistent.",
+    "Codex media states lack a same-state evidence set; parity remains UNTESTED.",
+    "Lightbox six-state Story family and interaction/a11y review.",
+  ),
+  reviewedFamily(
+    "components-content",
+    "Components/Content",
+    "ALIGNED",
+    "UNTESTED",
+    "Markdown and Mermaid headings, code, links, media, long content, errors, roles, and overflow retain the production content hierarchy under shared tokens.",
+    "Codex content examples are not a complete same-state component matrix; parity remains UNTESTED.",
+    "Markdown and Mermaid Story families plus visual review.",
+  ),
+  reviewedFamily(
+    "components-runs",
+    "Components/Runs",
+    "FIXED",
+    "UNTESTED",
+    "Run header and log lifecycle states now use shared status semantics while loading, empty, long output, keyboard actions, and error containment remain unchanged.",
+    "No complete Codex run-log state matrix exists; parity remains UNTESTED.",
+    "RunHeader, RunLogItem, and RunView Story families plus LifecycleStatus review.",
+  ),
+  reviewedFamily(
+    "components-scheduled",
+    "Components/Scheduled",
+    "FIXED",
+    "UNTESTED",
+    "Scheduled rows use the shared lifecycle glyph, correct settled/crash precedence, 44px action geometry, labelled status/cadence, quiet current-row selection, and unchanged menu behavior.",
+    "CODEX-PARITY GL-11 passes the shell, but detailed scheduled states remain mixed; family parity remains UNTESTED.",
+    "QA-92 screenshot 06, Scheduled Parts Stories, and final contract/interaction review.",
+  ),
+  reviewedFamily(
+    "components-sessions",
+    "Components/Sessions",
+    "FIXED",
+    "UNTESTED",
+    "Session chrome and thread states share lifecycle semantics and review surfaces; approval dark-phone, loading, errors, goals, queue, keyboard, composer, and overflow were reviewed without changing session behavior.",
+    "CODEX-PARITY thread rows contain mixed PASS/UNTESTED evidence; family parity remains UNTESTED.",
+    "QA-92 screenshots 18-19 and SessionChrome/SessionView Story families.",
+  ),
+  reviewedFamily(
+    "components-settings",
+    "Components/Settings",
+    "ALIGNED",
+    "UNTESTED",
+    "Appearance, archived, configuration, general, Git, shortcuts, worktrees, toggles, disabled states, keyboard, and mobile overflow keep one calm settings hierarchy.",
+    "No complete same-state Codex settings matrix exists; parity remains UNTESTED.",
+    "QA-92 current-source Settings evidence and all component Settings Story families.",
+  ),
+  reviewedFamily(
+    "components-supervision",
+    "Components/Supervision",
+    "FIXED",
+    "UNTESTED",
+    "Agents, attention, artifacts, goal, progress, background, resting/loading, and panel states use shared lifecycle semantics and preserve labelled live updates and overflow.",
+    "Codex supervision internals lack a same-state evidence matrix; parity remains UNTESTED.",
+    "All Supervision Story families and LifecycleStatus composition review.",
+  ),
+  reviewedFamily(
+    "components-timeline",
+    "Components/Timeline",
+    "FIXED",
+    "UNTESTED",
+    "Timeline chrome, tools, activity, user/assistant content, lifecycle, hover/focus actions, pending/typing, long content, jump, and scroll states retain hierarchy; hidden speaker text avoids visual noise.",
+    "CODEX-PARITY thread evidence covers selected compositions, not every timeline state; family parity remains UNTESTED.",
+    "TimelineView/Timeline Chrome Story families plus visual and interaction review.",
+  ),
+  reviewedFamily(
+    "pages-appshell",
+    "Pages/AppShell",
+    "FIXED",
+    "UNTESTED",
+    "The composed shell uses chromeless Home current treatment, glyph-only running status, shared tokens, and unchanged keyboard navigation.",
+    "CODEX-PARITY GL-01/NS-01 cover clean shell states, but the keyboard Story has no same-state Codex capture; family parity remains UNTESTED.",
+    "QA-92 screenshot 05 and AppShell Stories.",
+  ),
+  reviewedFamily(
+    "pages-appruntime",
+    "Pages/AppRuntime",
+    "ALIGNED",
+    "UNTESTED",
+    "Runtime composition and keyboard states inherit the production shell without Story-only visual ownership or ambient service access.",
+    "Runtime wiring is not a visible Codex parity surface; visual parity remains UNTESTED.",
+    "AppRuntime Stories and AppServices boundary lint.",
+  ),
+  reviewedFamily(
+    "pages-home",
+    "Pages/Home",
+    "FIXED",
+    "UNTESTED",
+    "Home hierarchy, project-aware and long headline, draft, starters, keyboard, responsive overflow, and chromeless New session current semantics align with the production landing page.",
+    "CODEX-PARITY NS-01/NS-04/NS-12 pass selected Home states; remaining Story variants keep the family verdict UNTESTED.",
+    "QA-88 NS-01 evidence, QA-92 current-source Home, and Home Stories.",
+  ),
+  reviewedFamily(
+    "pages-scheduled",
+    "Pages/Scheduled",
+    "FIXED",
+    "UNTESTED",
+    "Scheduled list/detail/edit/loading/empty/search/filter/pagination/conflict/busy/error states share lifecycle, selection, touch, label, and responsive contracts.",
+    "CODEX-PARITY GL-11 passes the shell; detailed states and current-source mobile remain UNTESTED.",
+    "QA-92 screenshots 06/09/10, Scheduled Stories, and exact lifecycle tests.",
+  ),
+  reviewedFamily(
+    "pages-settings",
+    "Pages/Settings",
+    "ALIGNED",
+    "UNTESTED",
+    "Settings full-page composition, section navigation, initial appearance, keyboard, light/dark, and responsive containment preserve the production information architecture.",
+    "No complete same-state Codex Settings family evidence exists; parity remains UNTESTED.",
+    "QA-92 screenshots 12-13 and Settings Stories.",
+  ),
+  reviewedFamily(
+    "pages-pagehost",
+    "Pages/PageHost",
+    "ALIGNED",
+    "UNTESTED",
+    "Home, Scheduled, Run, and missing-session route projections use the production PageHost and remain visually governed by their reviewed page families.",
+    "Route precedence is an AgentRunner product contract; same-state Codex evidence is incomplete.",
+    "PageHost route Stories and current-source deep-link/reload QA-92 checks.",
+  ),
+  reviewedFamily(
+    "cujs-core-session",
+    "CUJs/Core Session Journeys",
+    "INTENTIONAL",
+    "INTENTIONAL",
+    "Five deterministic production journeys are audit/playback harnesses, not a second product surface; their visible steps inherit the reviewed Home, Session, Environment, and Changes families.",
+    "Codex has no equivalent public Storybook CUJ harness; direct harness parity is intentionally out of scope.",
+    "Core Session Journeys five Story IDs and Storybook interaction gate.",
+  ),
+  reviewedFamily(
+    "demos-core-session",
+    "Demos/Core Session Playback",
+    "INTENTIONAL",
+    "INTENTIONAL",
+    "The human-paced playback is a deterministic reviewer tool over production components; transport controls are intentionally workbench-only.",
+    "Codex has no equivalent public Storybook playback surface; direct harness parity is intentionally out of scope.",
+    "Core Session Playback Story and 19-step production-component journey.",
+  ),
+  reviewedFamily(
+    "demos-scenario-controls",
+    "Demos/Scenario Controls",
+    "INTENTIONAL",
+    "INTENTIONAL",
+    "Playback controls expose the deterministic scenario state machine for reviewers and do not define production UI.",
+    "Codex has no equivalent public Storybook scenario controller; direct harness parity is intentionally out of scope.",
+    "Scenario Controls default and all-playback-states Stories.",
+  ),
+] satisfies readonly StoryReviewFamily[];
+
 const baseStoryManifest = [
   {
     componentId: "AppShell",
@@ -912,6 +1312,41 @@ const baseStoryManifest = [
       "state:default-flush-unstyled": {
         status: "covered",
         storyId: "foundations-forms-field-primitives--control-variants",
+      },
+    },
+  },
+  {
+    componentId: "LifecycleStatus",
+    source: "src/ui/LifecycleStatus.tsx",
+    storySource: "src/ui/LifecycleStatus.stories.tsx",
+    exportName: "LifecycleStatus",
+    cells: {
+      "render:default": {
+        status: "covered",
+        storyId: "foundations-feedback-lifecycle-status--default",
+      },
+      "a11y:keyboard": {
+        status: "n-a",
+        reason: "LifecycleStatus is a non-interactive status glyph, not an input control.",
+        evidence:
+          "The default Story verifies separate visible copy, accessible name, and busy semantics.",
+        owner: "webui",
+      },
+      "state:lifecycle-matrix": {
+        status: "covered",
+        storyId: "foundations-feedback-lifecycle-status--lifecycle-matrix",
+      },
+      "state:icon-only": {
+        status: "covered",
+        storyId: "foundations-feedback-lifecycle-status--icon-only",
+      },
+      "boundary:long-label": {
+        status: "covered",
+        storyId: "foundations-feedback-lifecycle-status--long-visible-copy",
+      },
+      "a11y:reduced-motion": {
+        status: "covered",
+        storyId: "foundations-feedback-lifecycle-status--reduced-motion",
       },
     },
   },

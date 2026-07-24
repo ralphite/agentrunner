@@ -33,7 +33,7 @@ const meta = {
   title: "Pages/Settings",
   component: Settings,
   parameters: {
-    fullHeight: true,
+    reviewSurface: "full-page",
     options: { layout: { showPanel: false } },
   },
   args: {
