@@ -194,8 +194,15 @@ export type SearchFieldVariant = "default" | "flush" | "unstyled";
 const SEARCH_VARIANTS: Record<SearchFieldVariant, string> = {
   default:
     "rounded-[var(--radius-control)] border border-line bg-panel px-[9px] py-[7px] hover:border-dim focus-within:border-blue focus-within:ring-2 focus-within:ring-blue/30",
+  // CMDK-FIELD-SEAMLESS (R90): the flush search field (command-palette only) is a
+  // calm, borderless command bar in Codex's golden (codex-crop-command-palette.jpg)
+  // — placeholder text with a single hairline divider below, no blue accent. Ours
+  // flashed a `focus-within:border-blue + ring-2 ring-blue/30` inset ring the instant
+  // Cmd+K opened (the field auto-focuses), reading as a bordered form input rather
+  // than a seamless bar. Keep only the bottom hairline; the sole always-focused input
+  // (blinking caret) is unmistakably the target without a blue ring.
   flush:
-    "rounded-none border-x-0 border-t-0 border-b border-line bg-panel px-4 py-3 focus-within:border-blue focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue/30",
+    "rounded-none border-x-0 border-t-0 border-b border-line bg-panel px-4 py-3",
   unstyled: "",
 };
 

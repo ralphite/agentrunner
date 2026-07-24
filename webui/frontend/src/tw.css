@@ -699,7 +699,13 @@
   .cmdk { @apply mx-auto flex w-full max-w-[560px] flex-col overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
   .cmdk-search { @apply relative; }
   .cmdk-input { @apply w-full rounded-none border-0 border-b border-line bg-panel px-4 py-3 text-[15px] outline-none; }
-  .cmdk-close { @apply absolute right-2 top-1/2 -translate-y-1/2 hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-dim hover:bg-panel-2 hover:text-ink; }
+  /* CMDK-CLOSE-DESKTOP-HIDE (R90): the X close is a mobile-only affordance (base
+     hidden → `grid` at ≤680px below), matching Codex whose desktop command bar has
+     no in-field close (Esc / click-away). But the button is an <IconButton>, whose
+     Button base carries an `inline-flex` utility; utilities layer wins over this
+     components-layer `hidden`, so the X leaked onto desktop. `!hidden` (+ `!grid` in
+     the mobile block) forces the intended mobile-only visibility past that utility. */
+  .cmdk-close { @apply absolute right-2 top-1/2 -translate-y-1/2 !hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-dim hover:bg-panel-2 hover:text-ink; }
   .cmdk-list { @apply max-h-[60vh] overflow-y-auto p-2; }
   .cmdk-empty { @apply px-3 py-8 text-center text-dim; }
   /* CMDK-SECTION-CASE (R77): command-palette section labels match the .menu-label
@@ -1532,7 +1538,7 @@
     .cmdk-back { @apply p-3; padding-top: max(12px, env(safe-area-inset-top)); }
     .cmdk-list { max-height: calc(100dvh - 96px); }
     .cmdk-input { @apply pr-12 text-[16px]; }
-    .cmdk-close { @apply grid; }
+    .cmdk-close { @apply !grid; }
     .shortcuts .cmdk-list { max-height: calc(100dvh - 154px); }
     .sc-head { @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2; }
     .sc-title { @apply min-w-0 self-center; }
