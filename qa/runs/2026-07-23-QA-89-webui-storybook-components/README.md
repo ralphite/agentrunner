@@ -33,6 +33,23 @@ Web UI `http://127.0.0.1:5188/`
 | PageHost routes | Home/Session/Scheduled/Run 四个 route Story 均真实渲染；820×378 下 body `client=scroll`，无 overflow |
 | browser log | Web UI 与最终 Story 页面无 Vite/React/runtime crash；Storybook manager 仅有自身 `PopoverProvider ariaLabel` deprecation warning |
 
+## Final feature boundary browser recheck
+
+被测提交：`b40b169a`。本轮只做真实浏览器 QA，未运行 unit/full gate。
+
+| 场景 | 最新边界复验 |
+|---|---|
+| Web UI Home | `http://127.0.0.1:5188/` 使用共享 store 正常渲染；真实 sessions/projects 与 Composer 可见，`clientWidth=scrollWidth=1656`，无 crash overlay |
+| retained Session | `#20260723-225218-reply-with-exactly-inc96-brows-2aa84db75337d904` 正常渲染；Timeline 3 个可见 item、Composer 与 Environment 开/关交互均正常，无横溢出或 crash |
+| AppShell Default | hard reload 后 iframe `1576×1020`、sidebar `320px`、Composer 可见，body 无横溢出；`b40b169a` 后 fresh console 中 `/api/agents` unmatched handler 数量为 `0` |
+| Composer Running Queued | 仅用 Storybook toolbar 将 canonical Story 调为 `360px`；body `360/360`、composer `294px`、最右控件 `319px`、`escaped=[]`，未新增 Phone/Dark Story |
+| SessionView | Default 与 Running 均渲染；Default Timeline=2、Running Timeline=3；Running 的 Thinking、已输入 Queue 状态与 Composer 均可见，无 overflow/crash |
+| Timeline Default | Timeline 高度约 `443.7px`、3 个 item、2 个 Copy action，无 overflow/crash |
+| ModelFields | Default=`gemini/gemini-2.5-pro · high`；Custom=`custom/organization-specialist · high`；Keyboard Navigation 最终焦点在 Effort combobox |
+| Core Demo manual | `Reset→Next→Next`：Step 2 project picker 保持可见且 Next 可点击，随后自然进入 Step 3；Play 后约 `1.0s` 仍为 Step 1、约 `1.84s` 才到 Step 2 |
+| Core Demo popover/control | paused 时 model menu 保持打开；controls `z-index=100`、menu `z-index=50` 且几何不重叠；Next 可点击并从 paused Step 10 进入 Step 11 |
+| fresh console | 最终 Story fresh logs 无 product/Vite/React/MSW error，仅 Storybook 11 `PopoverProvider ariaLabel` deprecation；Web UI 只有 dev server HMR WebSocket reconnect error，不影响产品 API/runtime |
+
 ## 截图
 
 - `webui-home-desktop-light.png`
@@ -49,6 +66,18 @@ Web UI `http://127.0.0.1:5188/`
 - `storybook-pagehost-session-route.png`
 - `storybook-pagehost-scheduled-route.png`
 - `storybook-pagehost-run-route.png`
+- `webui-home-final-boundary-recheck.png`
+- `webui-retained-session-final-boundary-recheck.png`
+- `storybook-appshell-final-boundary-recheck.png`
+- `storybook-composer-running-queued-360-final-boundary-recheck.png`
+- `storybook-sessionview-default-final-boundary-recheck.png`
+- `storybook-sessionview-running-final-boundary-recheck.png`
+- `storybook-timeline-default-final-boundary-recheck.png`
+- `storybook-model-fields-default-final-boundary-recheck.png`
+- `storybook-model-fields-custom-model-final-boundary-recheck.png`
+- `storybook-model-fields-keyboard-navigation-final-boundary-recheck.png`
+- `storybook-demo-paused-popover-final-boundary-recheck.png`
+- `storybook-demo-paused-next-final-boundary-recheck.png`
 
 ## 诚实边界
 
