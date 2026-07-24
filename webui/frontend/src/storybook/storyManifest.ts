@@ -1338,14 +1338,10 @@ const baseStoryManifest = [
   ),
   ...[
     "AgentModal",
-    "ConfirmModal",
-    "ForkModal",
     "MainModal",
-    "NewSessionModal",
     "PromptModal",
     "RenameModal",
     "RunDetailsModal",
-    "RunModal",
     "TrustModal",
     "ViewerModal",
   ].map((componentId) =>
@@ -1353,6 +1349,30 @@ const baseStoryManifest = [
       componentId,
       "src/components/Modals.tsx",
       "components-overlays-modals",
+    ),
+  ),
+  ...[
+    ["ConfirmModal", "confirm-modal"],
+    ["ForkModal", "fork-modal"],
+    ["NewSessionModal", "new-session-modal"],
+    ["RunModal", "run-modal"],
+  ].map(([componentId, storyName]) =>
+    withCells(
+      coveredInteractiveLeafTarget(
+        componentId,
+        "src/components/Modals.tsx",
+        "components-overlays-modals",
+      ),
+      {
+        "state:busy": {
+          status: "covered",
+          storyId: `components-overlays-modals--${storyName}-busy`,
+        },
+        "failure:action": {
+          status: "covered",
+          storyId: `components-overlays-modals--${storyName}-failure`,
+        },
+      },
     ),
   ),
   withCells(

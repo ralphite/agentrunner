@@ -409,6 +409,49 @@ export const ConfirmModalKeyboardNavigation: Story = {
   },
 };
 
+export const ConfirmModalBusy: Story = {
+  render: () => (
+    <LeafFrame>
+      <ConfirmModal
+        modal={{
+          ...safeConfirmModal,
+          onConfirm: () => new Promise<void>(() => {}),
+        }}
+      />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Apply" }));
+    const apply = canvas.getByRole("button", { name: "Apply" });
+    await expect(apply).toBeDisabled();
+    await expect(apply).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const ConfirmModalFailure: Story = {
+  render: () => (
+    <LeafFrame>
+      <ConfirmModal
+        modal={{
+          ...safeConfirmModal,
+          onConfirm: async () => {
+            throw new Error("The reviewed patch could not be applied.");
+          },
+        }}
+      />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Apply" }));
+    await expect(
+      await canvas.findByText("The reviewed patch could not be applied."),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Apply" })).toBeEnabled();
+  },
+};
+
 export const ForkModalDefault: Story = {
   render: () => (
     <LeafFrame api={forkReadyApi}>
@@ -450,6 +493,53 @@ export const ForkModalKeyboardNavigation: Story = {
     await expect(
       canvas.getByRole("option", { name: "After agent step 3" }),
     ).toBeVisible();
+  },
+};
+
+export const ForkModalBusy: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        barriers: async () => ["bar-final"],
+        fork: () => new Promise<{ sid: string }>(() => {}),
+      })}
+    >
+      <ForkModal sid={storySession.id} />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const action = await canvas.findByRole("button", { name: "Continue" });
+    await userEvent.click(action);
+    await expect(action).toBeDisabled();
+    await expect(action).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const ForkModalFailure: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        barriers: async () => ["bar-final"],
+        fork: async () => {
+          throw new Error("The checkpoint could not be continued.");
+        },
+      })}
+    >
+      <ForkModal sid={storySession.id} />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Continue" }),
+    );
+    await expect(
+      await canvas.findByText("The checkpoint could not be continued."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Continue" }),
+    ).toBeEnabled();
   },
 };
 
@@ -523,6 +613,53 @@ export const NewSessionModalKeyboardNavigation: Story = {
     await expect(
       canvas.getByPlaceholderText("Leave blank for a new scratch workspace"),
     ).toHaveFocus();
+  },
+};
+
+export const NewSessionModalBusy: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        makeWorkspace: async () => ({ path: "/workspace/storybook" }),
+        newSession: () => new Promise<{ sid: string }>(() => {}),
+      })}
+    >
+      <NewSessionModal initialMessage="Start a deterministic busy session" />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const action = canvas.getByRole("button", { name: "Start session" });
+    await userEvent.click(action);
+    await expect(action).toBeDisabled();
+    await expect(action).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const NewSessionModalFailure: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        makeWorkspace: async () => ({ path: "/workspace/storybook" }),
+        newSession: async () => {
+          throw new Error("The session could not be created.");
+        },
+      })}
+    >
+      <NewSessionModal initialMessage="Start a deterministic failed session" />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Start session" }),
+    );
+    await expect(
+      await canvas.findByText("The session could not be created."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Start session" }),
+    ).toBeEnabled();
   },
 };
 
@@ -669,6 +806,51 @@ export const RunModalKeyboardNavigation: Story = {
     await expect(
       canvas.getByRole("textbox", { name: "Workspace" }),
     ).toHaveFocus();
+  },
+};
+
+export const RunModalBusy: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        makeWorkspace: async () => ({ path: "/workspace/storybook" }),
+        startRun: () => new Promise<{ runId: string }>(() => {}),
+      })}
+    >
+      <RunModal initialPrompt="Run deterministic browser checks" />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const action = canvas.getByRole("button", { name: "Start run" });
+    await userEvent.click(action);
+    await expect(action).toBeDisabled();
+    await expect(action).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const RunModalFailure: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        makeWorkspace: async () => ({ path: "/workspace/storybook" }),
+        startRun: async () => {
+          throw new Error("The run could not be started.");
+        },
+      })}
+    >
+      <RunModal initialPrompt="Run deterministic failed checks" />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Start run" }));
+    await expect(
+      await canvas.findByText("The run could not be started."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Start run" }),
+    ).toBeEnabled();
   },
 };
 
