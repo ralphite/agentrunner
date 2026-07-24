@@ -36,17 +36,9 @@ const SESSION_STREAM = `/api/sessions/${SESSION_SID}/stream`;
 const PROMPT =
   "Build a deterministic Storybook demo for the core Agent Runner session journey.";
 const IS_COMPONENT_TEST = String(import.meta.env.VITEST) === "true";
-const IS_BROWSER_AUTOMATION = globalThis.navigator?.webdriver === true;
-const IS_AUTOMATED = IS_COMPONENT_TEST || IS_BROWSER_AUTOMATION;
-// Component tests stay instant. Browser automation keeps a small observation
-// window so Pause is a real, reachable state instead of racing completion.
-// Interactive Storybook playback uses a human-readable cadence.
-const STEP_DELAY_MS = IS_COMPONENT_TEST
-  ? 0
-  : IS_BROWSER_AUTOMATION
-    ? 400
-    : 1300;
-const TYPE_CHUNK_DELAY_MS = IS_AUTOMATED ? 0 : 45;
+const HUMAN_STEP_DELAY_MS = 1600;
+const AUTOMATED_STEP_DELAY_MS = 400;
+const HUMAN_TYPE_CHUNK_DELAY_MS = 60;
 const TYPE_CHUNK_SIZE = 3;
 
 const historySession = buildSession({
@@ -82,6 +74,7 @@ interface DemoContext {
   api: StoryApiHarness;
   clock: ScenarioClock;
   controller: ScriptedStreamController;
+  typeChunkDelayMs: number;
   store: AppStore;
   services: ReturnType<typeof createStoryAppServices>["services"];
   root: HTMLElement | null;
@@ -190,9 +183,10 @@ function waitForPresentation(
 async function typePrompt(
   editor: HTMLTextAreaElement,
   value: string,
+  typeChunkDelayMs: number,
   signal: AbortSignal,
 ) {
-  if (TYPE_CHUNK_DELAY_MS === 0) {
+  if (typeChunkDelayMs === 0) {
     replaceText(editor, value);
     return;
   }
@@ -210,11 +204,14 @@ async function typePrompt(
     );
     previousEnd = nextEnd;
     if (nextEnd === value.length) return;
-    await waitForPresentation(TYPE_CHUNK_DELAY_MS, signal);
+    await waitForPresentation(typeChunkDelayMs, signal);
   }
 }
 
-function createDemoContext(api: StoryApiHarness): DemoContext {
+function createDemoContext(
+  api: StoryApiHarness,
+  typeChunkDelayMs: number,
+): DemoContext {
   api.reset();
   const clock = new ScenarioClock(Date.parse(fixtureDefaults.time));
   const controller = createScriptedStreamController({
@@ -261,6 +258,7 @@ function createDemoContext(api: StoryApiHarness): DemoContext {
     api,
     clock,
     controller,
+    typeChunkDelayMs,
     store,
     services: servicesHarness.services,
     root: null,
@@ -381,7 +379,7 @@ const steps: readonly DemoStep<DemoContext>[] = [
           ),
         signal,
       );
-      await typePrompt(editor, PROMPT, signal);
+      await typePrompt(editor, PROMPT, context.typeChunkDelayMs, signal);
     },
   },
   {
@@ -702,21 +700,35 @@ const steps: readonly DemoStep<DemoContext>[] = [
 export interface CoreSessionPlaybackProps {
   autoPlay: boolean;
   label?: string;
+  playbackPace?: "human" | "automated" | "instant";
   stepLimit?: number;
 }
 
 export function CoreSessionPlayback({
   autoPlay: initialAutoPlay,
   label = "Core session playback",
+  playbackPace = "human",
   stepLimit,
 }: CoreSessionPlaybackProps) {
+  const instantPlayback = playbackPace === "instant" || IS_COMPONENT_TEST;
+  const stepDelayMs = instantPlayback
+    ? 0
+    : playbackPace === "automated"
+      ? AUTOMATED_STEP_DELAY_MS
+      : HUMAN_STEP_DELAY_MS;
+  const typeChunkDelayMs = instantPlayback
+    ? 0
+    : playbackPace === "automated"
+      ? 0
+      : HUMAN_TYPE_CHUNK_DELAY_MS;
   const [runner] = useState(
     () =>
       new ScenarioRunner<DemoContext>({
-        context: createDemoContext(demoApi),
+        context: createDemoContext(demoApi, typeChunkDelayMs),
         steps: steps.slice(0, stepLimit ?? steps.length),
-        timing: createDemoScenarioTiming(STEP_DELAY_MS),
-        recreateContext: () => createDemoContext(demoApi),
+        timing: createDemoScenarioTiming(stepDelayMs),
+        recreateContext: () =>
+          createDemoContext(demoApi, typeChunkDelayMs),
         disposeContext: async (context) => {
           context.controller.reset();
           context.root = null;
@@ -793,11 +805,18 @@ const meta = {
   },
   args: {
     autoPlay: false,
+    playbackPace: "human",
   },
   argTypes: {
     autoPlay: {
       control: "boolean",
       description: "Start the deterministic journey automatically.",
+    },
+    playbackPace: {
+      control: "inline-radio",
+      options: ["human", "automated", "instant"],
+      description:
+        "Human-readable playback by default; faster modes are reserved for QA.",
     },
   },
 } satisfies Meta<typeof CoreSessionPlayback>;

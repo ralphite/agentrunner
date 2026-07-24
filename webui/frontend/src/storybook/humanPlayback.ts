@@ -1,4 +1,4 @@
-const DEFAULT_HUMAN_STEP_MS = 900;
+const DEFAULT_HUMAN_STEP_MS = 1600;
 
 // Story play functions are both executable QA and an in-browser explanation.
 // Keep CI/browser automation instant, but leave enough time between meaningful

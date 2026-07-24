@@ -21,7 +21,7 @@ test("Core Session Playback supports manual control, autoplay, and replay", asyn
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(
-    "/iframe.html?id=demos-core-session-playback--demo&viewMode=story",
+    "/iframe.html?id=demos-core-session-playback--demo&viewMode=story&args=playbackPace:automated",
     { waitUntil: "networkidle" },
   );
 
