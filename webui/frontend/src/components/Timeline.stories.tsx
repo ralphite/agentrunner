@@ -433,7 +433,7 @@ function TimelineFixture({
 }) {
   return (
     <StoryAppFrame>
-      <div className="session-view h-[720px] min-h-[520px]">
+      <div className="session-view h-screen min-h-0 overflow-clip">
         <main className="session-primary">
           <TimelineView
             sessionKey="story-timeline"
@@ -797,7 +797,7 @@ export const MessageActionsHoverAndFocus: Story = {
   },
   render: () => (
     <LeafFrame>
-      <div className="msg assistant" data-testid="middle-message" tabIndex={0}>
+      <div className="msg assistant pseudo-hover" data-testid="middle-message" tabIndex={0}>
         <div className="msg-col">
           <div className="bubble">An earlier assistant answer.</div>
           <MsgActionsLeaf

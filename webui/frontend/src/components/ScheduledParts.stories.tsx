@@ -226,7 +226,7 @@ export const RunItemActionVisibilityStates: Story = {
   },
   render: () => (
     <Matrix>
-      <div data-testid="interactive-row">
+      <div className="pseudo-hover" data-testid="interactive-row">
         <ScheduledRunItem
           row={row({
             id: "interactive",

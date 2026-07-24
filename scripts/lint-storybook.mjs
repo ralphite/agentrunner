@@ -93,12 +93,14 @@ function previousBaseline() {
 const {
   storyManifest,
   privateVisibleExclusions = [],
+  semanticStateRequirements = [],
   workbenchStories = [],
 } = await loadManifest();
 const storyIndex = JSON.parse(fs.readFileSync(storyIndexPath, "utf8"));
 const sourceBaseline = JSON.parse(fs.readFileSync(sourceBaselinePath, "utf8"));
 const entries = storyIndex.entries ?? {};
 const targetIds = new Set();
+const semanticStateIds = new Set();
 const sourceDeclarations = new Set();
 const availableExports = new Set(
   sourceBaseline.productionComponents.files.flatMap((file) =>
@@ -226,6 +228,45 @@ for (const target of storyManifest) {
   }
 }
 
+for (const requirement of semanticStateRequirements) {
+  const key = `${requirement.componentId}/${requirement.state}`;
+  if (semanticStateIds.has(key)) {
+    fail(`duplicate semantic state requirement: ${key}`);
+  }
+  semanticStateIds.add(key);
+  if (!targetIds.has(requirement.componentId)) {
+    fail(`${key}: component target does not exist`);
+  }
+  if (
+    !requirement.source ||
+    !requirement.evidenceSelector ||
+    !requirement.storyId ||
+    !requirement.evidence ||
+    !requirement.owner
+  ) {
+    fail(`${key}: source, evidenceSelector, storyId, evidence and owner are required`);
+    continue;
+  }
+  const evidencePath = path.join(frontendRoot, requirement.source);
+  if (!fs.existsSync(evidencePath)) {
+    fail(`${key}: semantic state source does not exist: ${requirement.source}`);
+    continue;
+  }
+  const evidenceSource = fs.readFileSync(evidencePath, "utf8");
+  if (!evidenceSource.includes(requirement.evidenceSelector)) {
+    fail(
+      `${key}: evidence selector not found in ${requirement.source}: ${requirement.evidenceSelector}`,
+    );
+  }
+  const entry = entries[requirement.storyId];
+  if (!entry || entry.type !== "story") {
+    fail(`${key}: storyId not found in built index: ${requirement.storyId}`);
+  }
+  if (!coveredStoryIds.has(requirement.storyId)) {
+    fail(`${key}: semantic state Story must also be referenced by a component coverage cell`);
+  }
+}
+
 const exclusionDeclarations = new Set();
 for (const exclusion of privateVisibleExclusions) {
   const key = `${exclusion.source}#${exclusion.declarationName}`;
@@ -325,5 +366,5 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `storybook lint: ${storyManifest.length} targets, ${privateVisibleExclusions.length} private exclusions, ${Object.keys(entries).length} stories, ${missing.length} missing`,
+  `storybook lint: ${storyManifest.length} targets, ${semanticStateRequirements.length} semantic states, ${privateVisibleExclusions.length} private exclusions, ${Object.keys(entries).length} stories, ${missing.length} missing`,
 );

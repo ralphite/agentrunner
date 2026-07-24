@@ -295,6 +295,8 @@
     @apply absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors duration-100;
   }
   .sidebar-resize-handle:hover::after,
+  .sidebar-resize-handle.pseudo-hover::after,
+  .pseudo-hover .sidebar-resize-handle::after,
   .sidebar-resize-handle:focus-visible::after,
   body.sidebar-resizing .sidebar-resize-handle::after { @apply bg-blue; }
   body.sidebar-resizing { @apply cursor-col-resize select-none; }
@@ -330,9 +332,12 @@
      actions, so hover/focus never stops before the icons. */
   .project-heading-row { @apply flex min-w-0 items-center rounded-[8px] transition-colors duration-100; }
   .project-heading-row:hover,
+  .pseudo-hover .project-heading-row,
   .project-heading-row:focus-within { @apply bg-panel-2; }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
+  .project-heading-row.pseudo-hover .project-heading-actions,
+  .pseudo-hover .project-heading-actions,
   .project-heading-row:focus-within .project-heading-actions { @apply flex; }
   .project-heading-actions .menu-trigger,
   .project-quick-action {
@@ -365,6 +370,7 @@
      selected state. */
   .project-session-wrap.current,
   .project-session-wrap:hover,
+  .pseudo-hover .project-session-wrap,
   .project-session-wrap:focus-within { @apply bg-panel-2; }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
@@ -379,10 +385,14 @@
     @apply grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
   }
   .project-session-wrap:hover .session-quick-actions,
+  .project-session-wrap.pseudo-hover .session-quick-actions,
+  .pseudo-hover .session-quick-actions,
   .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
   .project-session-wrap:hover .session-state-icons:not(.running),
+  .pseudo-hover .session-state-icons:not(.running),
   .project-session-wrap:focus-within .session-state-icons:not(.running),
   .project-session-wrap:hover .session-worktree-icon,
+  .pseudo-hover .session-worktree-icon,
   .project-session-wrap:focus-within .session-worktree-icon { @apply hidden; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running { @apply bg-status-running; }
@@ -1238,6 +1248,7 @@
   .sched-more { @apply shrink-0 opacity-0 transition-opacity; }
   .scheduled-row-wrap:hover .sched-more,
   .scheduled-row-wrap.pseudo-hover .sched-more,
+  .pseudo-hover .scheduled-row-wrap .sched-more,
   .scheduled-row-wrap:focus-within .sched-more,
   .scheduled-row-wrap.menu-open .sched-more { @apply opacity-100; }
   @media (hover: none) {
@@ -1665,8 +1676,10 @@
   .proj-icon-slot .proj-caret { @apply opacity-0; }
   .proj-icon-slot .proj-folder { @apply opacity-100; }
   .project-heading:hover .proj-caret,
+  .pseudo-hover .project-heading .proj-caret,
   .project-heading:focus-visible .proj-caret { @apply opacity-100; }
   .project-heading:hover .proj-folder,
+  .pseudo-hover .project-heading .proj-folder,
   .project-heading:focus-visible .proj-folder { @apply opacity-0; }
 
   /* Subagents 行:成员名优先于 status/meta——共享组给的 flex-1 在窄

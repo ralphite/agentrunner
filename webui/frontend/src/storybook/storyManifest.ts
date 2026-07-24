@@ -39,6 +39,172 @@ export interface PrivateVisibleExclusion {
   owner: string;
 }
 
+export interface SemanticStateRequirement {
+  componentId: string;
+  state: string;
+  source: string;
+  evidenceSelector: string;
+  storyId: string;
+  evidence: string;
+  owner: string;
+}
+
+// Semantic interaction states reveal, replace, or restructure visible UI.
+// Unlike generic color-only pseudo states (covered by Storybook's global
+// pseudo-state toolbar), each entry here must retain a deterministic Story.
+export const semanticStateRequirements: readonly SemanticStateRequirement[] = [
+  {
+    componentId: "SidebarSessionItem",
+    state: "hover-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector: ".project-session-wrap:hover .session-quick-actions",
+    storyId:
+      "components-navigation-sidebar-items--session-quick-actions-reveal",
+    evidence:
+      "Hover exposes Pin/Archive without hiding the running indicator.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarSessionItem",
+    state: "focus-within-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".project-session-wrap:focus-within .session-quick-actions",
+    storyId:
+      "components-navigation-sidebar-items--session-quick-actions-focus",
+    evidence:
+      "Keyboard focus exposes the same actions as pointer hover.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarSessionItem",
+    state: "hover-worktree-icon-replaced",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".project-session-wrap:hover .session-worktree-icon",
+    storyId:
+      "components-navigation-sidebar-items--session-quick-actions-reveal",
+    evidence:
+      "The secondary worktree icon yields its slot to quick actions while the running spinner remains.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarSessionItem",
+    state: "focus-worktree-icon-replaced",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".project-session-wrap:focus-within .session-worktree-icon",
+    storyId:
+      "components-navigation-sidebar-items--session-quick-actions-focus",
+    evidence:
+      "Keyboard focus performs the same worktree-to-actions slot replacement.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarProjectItem",
+    state: "hover-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".project-heading-row:hover .project-heading-actions",
+    storyId:
+      "components-navigation-sidebar-items--project-actions-hover",
+    evidence:
+      "Hover reveals the project menu and New chat actions.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarProjectItem",
+    state: "focus-within-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".project-heading-row:focus-within .project-heading-actions",
+    storyId:
+      "components-navigation-sidebar-items--project-actions-focus-and-menu-open",
+    evidence:
+      "Keyboard focus reveals actions and the open menu keeps the trigger visible.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarProjectItem",
+    state: "hover-folder-to-caret",
+    source: "src/tw.css",
+    evidenceSelector: ".project-heading:hover .proj-caret",
+    storyId:
+      "components-navigation-sidebar-items--project-actions-hover",
+    evidence:
+      "Hover replaces the folder glyph with the expansion caret in the same slot.",
+    owner: "webui",
+  },
+  {
+    componentId: "SidebarProjectItem",
+    state: "focus-folder-to-caret",
+    source: "src/tw.css",
+    evidenceSelector: ".project-heading:focus-visible .proj-caret",
+    storyId:
+      "components-navigation-sidebar-items--project-actions-focus-and-menu-open",
+    evidence:
+      "Focus-visible replaces the folder glyph with the expansion caret.",
+    owner: "webui",
+  },
+  {
+    componentId: "MsgActions",
+    state: "hover-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".timeline .tl-inner .msg:not(.msg-last):hover .msg-actions",
+    storyId:
+      "components-timeline-timelineview--message-actions-hover-and-focus",
+    evidence:
+      "Earlier messages reveal copy/time actions on hover while the final message remains visible at rest.",
+    owner: "webui",
+  },
+  {
+    componentId: "MsgActions",
+    state: "focus-within-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector:
+      ".timeline .tl-inner .msg:not(.msg-last):focus-within .msg-actions",
+    storyId:
+      "components-timeline-timelineview--message-actions-focus-within",
+    evidence:
+      "Keyboard focus exposes the same earlier-message actions.",
+    owner: "webui",
+  },
+  {
+    componentId: "ScheduledRunItem",
+    state: "hover-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector: ".scheduled-row-wrap:hover .sched-more",
+    storyId:
+      "components-scheduled-parts--run-item-action-visibility-states",
+    evidence:
+      "Hover exposes the scheduled-run action trigger.",
+    owner: "webui",
+  },
+  {
+    componentId: "ScheduledRunItem",
+    state: "focus-within-actions-revealed",
+    source: "src/tw.css",
+    evidenceSelector: ".scheduled-row-wrap:focus-within .sched-more",
+    storyId:
+      "components-scheduled-parts--run-item-focus-and-menu-open",
+    evidence:
+      "Keyboard focus exposes the scheduled-run action trigger.",
+    owner: "webui",
+  },
+  {
+    componentId: "ScheduledRunItem",
+    state: "menu-open-actions-persist",
+    source: "src/tw.css",
+    evidenceSelector: ".scheduled-row-wrap.menu-open .sched-more",
+    storyId:
+      "components-scheduled-parts--run-item-focus-and-menu-open",
+    evidence:
+      "The trigger remains visible while its context menu is open.",
+    owner: "webui",
+  },
+] satisfies readonly SemanticStateRequirement[];
+
 const BASE_CELLS = [
   "render:default",
   "a11y:keyboard",
@@ -304,7 +470,7 @@ export const workbenchStories = [
   },
 ] satisfies readonly WorkbenchStory[];
 
-export const storyManifest = [
+const baseStoryManifest = [
   {
     componentId: "AppShell",
     source: "src/App.tsx",
@@ -1713,3 +1879,242 @@ export const storyManifest = [
     ["single-session", "long-content"],
   ),
 ] satisfies StoryManifest;
+
+// State Stories added during the interaction/boundary audit stay attached to
+// the production component that owns the state. Keeping this delta separate
+// from the long-lived base inventory makes review straightforward while the
+// closure lint still treats every entry as a normal component coverage cell.
+const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
+  ApprovalCard: [
+    "components-attention-approvalcard--deny-reason-open",
+    "components-attention-approvalcard--busy-decision",
+    "components-attention-approvalcard--long-content-and-gates",
+  ],
+  AskForm: [
+    "components-attention-askform--free-text-only",
+    "components-attention-askform--busy-submitting",
+    "components-attention-askform--empty-questions",
+    "components-attention-askform--long-question-and-options",
+    "components-attention-askform--semantic-pseudo-states",
+  ],
+  ChangesOutcome: [
+    "components-changes-changesoutcome--image-lightbox-open",
+  ],
+  CommandPalette: [
+    "components-navigation-commandpalette--pointer-selection",
+    "components-navigation-commandpalette--keyboard-selection",
+    "components-navigation-commandpalette--search-results-with-archived",
+    "components-navigation-commandpalette--no-matches",
+    "components-navigation-commandpalette--attention-overflow",
+  ],
+  Composer: [
+    "components-input-composer--long-draft-and-attachments",
+    "components-input-composer--dragging-files",
+    "components-input-composer--busy-pending-send",
+    "components-input-composer--file-mention-keyboard",
+    "components-input-composer--slash-command-keyboard-wrap-and-escape",
+  ],
+  GoalLoopLauncher: [
+    "components-input-composer--goal-loop-mode-matrix",
+    "components-input-composer--goal-loop-invalid-interval",
+    "components-input-composer--goal-loop-empty-and-busy",
+  ],
+  ProjectPicker: [
+    "components-input-composer-parts--project-picker-page-flow-keyboard",
+    "components-input-composer-parts--project-picker-long-overflow",
+  ],
+  RunLocationPicker: [
+    "components-input-composer-parts--run-location-background-worktree",
+    "components-input-composer-parts--run-location-keyboard-selection",
+  ],
+  BranchPicker: [
+    "components-input-composer-parts--branch-picker-long-narrow-overflow",
+    "components-input-composer-parts--branch-picker-dialog-keyboard",
+  ],
+  AttachmentList: [
+    "components-input-composer-parts--attachment-long-and-wrapping",
+  ],
+  FileMentionMenu: [
+    "components-input-composer-parts--file-mention-pointer-and-overflow",
+  ],
+  SlashCommandMenu: [
+    "components-input-composer-parts--slash-command-pointer-and-overflow",
+  ],
+  AddMenu: [
+    "components-input-composer-parts--add-menu-goal-active",
+    "components-input-composer-parts--add-menu-selected-persona",
+    "components-input-composer-parts--add-menu-page-flow-keyboard",
+  ],
+  AccessPicker: [
+    "components-input-composer-parts--access-closed-state-matrix",
+    "components-input-composer-parts--access-home-keyboard-selection",
+  ],
+  ModelPicker: [
+    "components-input-composer-parts--model-picker-custom-long-summary",
+    "components-input-composer-parts--model-picker-page-flow-keyboard",
+  ],
+  GoalOptions: [
+    "components-input-composer-parts--goal-options-long-boundary",
+    "components-input-composer-parts--goal-options-exit-keyboard",
+  ],
+  AssistActions: [
+    "components-input-composer-parts--assist-listening",
+    "components-input-composer-parts--assist-hidden",
+  ],
+  DeliveryModeControl: [
+    "components-input-composer-parts--semantic-control-pseudo-states",
+  ],
+  SubmitButton: [
+    "components-input-composer-parts--submit-running-steer",
+    "components-input-composer-parts--semantic-control-pseudo-states",
+  ],
+  ContextMenu: [
+    "components-overlays-contextmenu--viewport-edge-long-content",
+  ],
+  ChangedFilesMenu: [
+    "components-changes-diffparts--changed-files-no-matches",
+  ],
+  DiffMoreActionsMenu: [
+    "components-changes-diffparts--more-actions-empty",
+  ],
+  CommitPushMenu: [
+    "components-changes-diffparts--commit-busy",
+  ],
+  UntrackedFile: [
+    "components-changes-diffview--untracked-file-loading",
+  ],
+  FileBody: [
+    "components-changes-diffview--file-body-context-loading",
+  ],
+  HomeStarterCard: [
+    "components-home-home-starter-card--semantic-pseudo-states",
+  ],
+  IntentSuggestionList: [
+    "components-home-intent-suggestion-list--many-suggestions",
+    "components-home-intent-suggestion-list--semantic-pseudo-states",
+  ],
+  Lightbox: [
+    "components-media-lightbox--single-image",
+    "components-media-lightbox--maximum-zoom",
+  ],
+  CodeBlock: [
+    "components-content-markdown--plain-code-block",
+  ],
+  MdImage: [
+    "components-content-markdown--md-image-failure",
+  ],
+  Menu: [
+    "components-overlays-menu--closed",
+    "components-overlays-menu--keyboard-wrap-and-selection-return",
+    "components-overlays-menu--long-overflow",
+    "components-overlays-menu--semantic-pseudo-states",
+  ],
+  Popover: [
+    "components-overlays-popover--keyboard-wrap-skip-and-selection-return",
+    "components-overlays-popover--dialog-autofocus",
+    "components-overlays-popover--downward-overflow",
+  ],
+  PopItem: [
+    "components-overlays-popover--pop-item-state-matrix",
+  ],
+  RunHeader: [
+    "components-runs-run-header--running-without-stop",
+  ],
+  RunLogItem: [
+    "components-runs-run-log-item--iteration-verdict",
+  ],
+  ScheduledRunItem: [
+    "components-scheduled-parts--run-item-action-visibility-states",
+    "components-scheduled-parts--run-item-focus-and-menu-open",
+  ],
+  SessionTopbar: [
+    "components-sessions-sessionchrome--topbar-read-only-sub-agent",
+  ],
+  TerminalAlert: [
+    "components-sessions-sessionchrome--terminal-tone-matrix",
+  ],
+  GoalBanner: [
+    "components-sessions-sessionview--goal-terminal-tone-matrix",
+    "components-sessions-sessionview--goal-update-pending",
+  ],
+  SettingsAppearance: [
+    "components-settings-appearance--diff-marker-selection",
+  ],
+  SettingsConfiguration: [
+    "components-settings-configuration--long-paths",
+  ],
+  SettingsWorktrees: [
+    "components-settings-worktrees--filtered-results",
+    "components-settings-worktrees--pagination-collapsed",
+  ],
+  Sidebar: [
+    "components-navigation-sidebar--resize-handle-keyboard",
+    "components-navigation-sidebar--resize-handle-hover",
+    "components-navigation-sidebar--resize-handle-focus-visible",
+    "components-navigation-sidebar--resize-handle-dragging",
+    "components-navigation-sidebar--scheduled-unread-notice",
+    "components-navigation-sidebar--folded-sections",
+    "components-navigation-sidebar--footer-menu-open",
+    "components-navigation-sidebar--session-context-menu-open",
+    "components-navigation-sidebar--archived-visibility",
+    "components-navigation-sidebar--history-loading",
+    "components-navigation-sidebar--project-group-overflow",
+    "components-navigation-sidebar--workspace-less-session-overflow",
+  ],
+  SidebarSessionItem: [
+    "components-navigation-sidebar-items--session-quick-actions-reveal",
+    "components-navigation-sidebar-items--session-quick-actions-focus",
+  ],
+  SidebarProjectItem: [
+    "components-navigation-sidebar-items--project-actions-hover",
+    "components-navigation-sidebar-items--project-actions-focus-and-menu-open",
+  ],
+  SidebarProjectActions: [
+    "components-navigation-sidebar-items--project-without-workspace-actions",
+  ],
+  MsgActions: [
+    "components-timeline-timelineview--message-actions-hover-and-focus",
+    "components-timeline-timelineview--message-actions-focus-within",
+    "components-timeline-timelineview--msg-actions-busy-and-error",
+  ],
+  ToolCard: [
+    "components-timeline-timelineview--tool-lifecycle-matrix",
+  ],
+  ToastItem: [
+    "components-feedback-toast-item--long-details-overflow",
+  ],
+  WorktreeCard: [
+    "components-settings-worktree-card--empty-sessions",
+  ],
+  Home: [
+    "pages-home--project-aware-long-headline",
+    "pages-home--draft-without-intent",
+  ],
+  Scheduled: [
+    "pages-scheduled--pagination",
+  ],
+  ScheduleDetailPanel: [
+    "pages-scheduled--schedule-detail-fallbacks",
+    "pages-scheduled--schedule-detail-saving",
+  ],
+  ScheduleEditDialog: [
+    "pages-scheduled--schedule-edit-cron-conflict",
+    "pages-scheduled--schedule-edit-busy",
+  ],
+  Settings: [
+    "pages-settings--initial-appearance-section",
+  ],
+};
+
+export const storyManifest = baseStoryManifest.map((component) => {
+  const stories = additionalStateStoriesByComponent[component.componentId] ?? [];
+  return withCells(
+    component,
+    Object.fromEntries(
+      stories.map((storyId) => [
+        `state:${storyId.split("--")[1]}`,
+        { status: "covered" as const, storyId },
+      ]),
+    ),
+  );
+}) satisfies StoryManifest;
