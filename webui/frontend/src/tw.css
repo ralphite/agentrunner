@@ -390,6 +390,10 @@
   .project-heading-row:hover,
   .pseudo-hover .project-heading-row,
   .project-heading-row:focus-within { @apply bg-panel-2; }
+  .project-heading:focus-visible { @apply outline-none; }
+  .project-heading-row:has(> .project-heading:focus-visible) {
+    @apply outline outline-2 outline-offset-2 outline-blue;
+  }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
   .project-heading-row.pseudo-hover .project-heading-actions,
@@ -397,7 +401,7 @@
   .project-heading-row:focus-within .project-heading-actions { @apply flex; }
   .project-heading-actions .menu-trigger,
   .project-quick-action {
-    @apply grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
+    @apply grid h-6 w-6 shrink-0 place-items-center rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 shadow-none hover:border-line hover:bg-panel-2 hover:text-ink;
   }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
      ("Pinned" / "Projects") in a quiet title-case label — regular weight, no
@@ -425,7 +429,7 @@
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
-  .project-session-wrap.nested { @apply ml-[23px]; }
+  .project-session-wrap.nested .project-session { @apply pl-[31px]; }
   /* Selection and hover/focus paint the same complete row, including trailing
      worktree/loading/action icons. Painting only `.project-session` left the
      icons visibly outside the highlight and made hover look narrower than the
@@ -437,6 +441,10 @@
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
     @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
+  }
+  .project-session:focus-visible { @apply outline-none; }
+  .project-session-wrap:has(> .project-session:focus-visible) {
+    @apply outline outline-2 outline-offset-2 outline-blue;
   }
   .project-session-title { @apply min-w-0 flex-1 truncate; }
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }

@@ -1,25 +1,49 @@
 import { Popover } from "./Popover";
+import { IconButton } from "../ui/IconButton";
 
 // Menu is a small click-to-open dropdown used to tuck the low-level /
 // developer actions (journal, inspect, fork, resume…) out of the primary UX,
 // the way Codex keeps a clean session surface and hides plumbing.
-export function Menu({ label, children, ariaLabel, triggerClassName = "" }: { label: React.ReactNode; children: React.ReactNode; ariaLabel?: string; triggerClassName?: string }) {
+export function Menu({
+  label,
+  children,
+  ariaLabel,
+  triggerClassName = "",
+  iconTrigger = false,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  ariaLabel?: string;
+  triggerClassName?: string;
+  iconTrigger?: boolean;
+}) {
   return (
     <div className="menu">
       <Popover
         align="right"
         panelClass="menu-pop"
-        trigger={(open, toggle) => (
-          <button
-            className={`menu-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
-            onClick={toggle}
-            aria-label={ariaLabel}
-            aria-haspopup="menu"
-            aria-expanded={open}
-          >
-            {label}
-          </button>
-        )}
+        trigger={(open, toggle) => {
+          const className = `menu-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`;
+          const triggerProps = {
+            className,
+            onClick: toggle,
+            "aria-label": ariaLabel,
+            "aria-haspopup": "menu" as const,
+            "aria-expanded": open,
+          };
+          return iconTrigger && ariaLabel ? (
+            <IconButton
+              {...triggerProps}
+              size="sm"
+              variant="ghost"
+              aria-label={ariaLabel}
+            >
+              {label}
+            </IconButton>
+          ) : (
+            <button {...triggerProps}>{label}</button>
+          );
+        }}
       >
         {(close) => <div className="contents" onClick={close}>{children}</div>}
       </Popover>

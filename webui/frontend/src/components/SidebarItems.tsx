@@ -370,8 +370,9 @@ export function SidebarProjectItem({
         </button>
         <span className="project-heading-actions" onClick={onDismissPreview}>
           <Menu
-            label={<DotsThree size={18} weight="bold" />}
+            label={<DotsThree size={16} />}
             ariaLabel={`More actions for ${name}`}
+            iconTrigger
           >
             {actions}
           </Menu>

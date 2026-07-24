@@ -675,6 +675,8 @@ describe("project hover and management controls (INC-87)", () => {
     const actions = headingRow.querySelector(".project-heading-actions")!;
     expect(actions.contains(screen.getByRole("button", { name: "More actions for app" }))).toBe(true);
     expect(actions.contains(screen.getByRole("button", { name: "New chat in app" }))).toBe(true);
+    expect(screen.getByRole("button", { name: "More actions for app" }).hasAttribute("data-ui-icon-button")).toBe(true);
+    expect(screen.getByRole("button", { name: "New chat in app" }).hasAttribute("data-ui-icon-button")).toBe(true);
   });
 
   it("renders the six requested project actions from the visible menu trigger", () => {
