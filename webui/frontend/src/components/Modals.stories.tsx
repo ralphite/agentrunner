@@ -4,6 +4,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import type { AppState, ModalKind } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import { Toasts } from "./Toasts";
 import {
   AgentModal,
@@ -100,7 +101,12 @@ const runDetails = {
   entries: [
     { kind: "llm", name: "complete" },
     { kind: "tool", name: "bash", detail: "npm test", verdict: "allow" },
-    { kind: "tool", name: "bash", detail: "git push origin main", verdict: "deny" },
+    {
+      kind: "tool",
+      name: "bash",
+      detail: "git push origin main",
+      verdict: "deny",
+    },
   ],
   children: [
     { session: "child-a", call_id: "review" },
@@ -154,10 +160,7 @@ function ModalsFixture({
   initialState?: Partial<AppState>;
 }) {
   return (
-    <StoryAppFrame
-      initialState={initialState}
-      services={{ api: noNetworkApi }}
-    >
+    <StoryAppFrame initialState={initialState} services={{ api: noNetworkApi }}>
       <Modals />
     </StoryAppFrame>
   );
@@ -189,10 +192,7 @@ function StandaloneModalFixture({ startOpen = true }: { startOpen?: boolean }) {
             <label className="field" htmlFor="story-modal-label">
               Label
             </label>
-            <input
-              id="story-modal-label"
-              defaultValue="Component demo"
-            />
+            <input id="story-modal-label" defaultValue="Component demo" />
           </Modal>
         )}
       </div>
@@ -211,8 +211,9 @@ const meta = {
     });
     await expect(dialog).toBeVisible();
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Close dialog" }))
-        .toHaveFocus()
+      expect(
+        canvas.getByRole("button", { name: "Close dialog" }),
+      ).toHaveFocus(),
     );
     await expect(canvas.getByText("Files stay on disk")).toBeVisible();
     await expect(canvas.getByText(/isolated in-memory state/)).toBeVisible();
@@ -228,13 +229,15 @@ export const KeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Close dialog" }))
-        .toHaveFocus()
+      expect(
+        canvas.getByRole("button", { name: "Close dialog" }),
+      ).toHaveFocus(),
     );
     await userEvent.tab();
     await expect(canvas.getByRole("button", { name: "Cancel" })).toHaveFocus();
     await userEvent.tab();
     await expect(canvas.getByRole("button", { name: "Remove" })).toHaveFocus();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(
       canvas.queryByRole("dialog", { name: "Remove demo project?" }),
@@ -293,7 +296,7 @@ export const StandaloneDefault: Story = {
       canvas.getByRole("dialog", { name: "Edit demo label" }),
     ).toBeVisible();
     await waitFor(() =>
-      expect(canvas.getByRole("textbox", { name: "Label" })).toHaveFocus()
+      expect(canvas.getByRole("textbox", { name: "Label" })).toHaveFocus(),
     );
   },
 };
@@ -314,6 +317,7 @@ export const StandaloneKeyboardNavigation: Story = {
       canvas.getByRole("button", { name: "Close dialog" }),
     ).toHaveFocus();
 
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(opener).toHaveFocus());
     await expect(
@@ -374,8 +378,9 @@ export const ConfirmModalDefault: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expectDialog(canvasElement, "Remove demo project?");
-    await expect(canvas.getByRole("button", { name: "Remove" }))
-      .toHaveClass("danger");
+    await expect(canvas.getByRole("button", { name: "Remove" })).toHaveClass(
+      "danger",
+    );
     await expect(canvas.getByText("Files stay on disk")).toBeVisible();
   },
 };
@@ -389,8 +394,9 @@ export const ConfirmModalKeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Close dialog" }))
-        .toHaveFocus()
+      expect(
+        canvas.getByRole("button", { name: "Close dialog" }),
+      ).toHaveFocus(),
     );
     await userEvent.tab();
     await expect(canvas.getByRole("button", { name: "Cancel" })).toHaveFocus();
@@ -415,7 +421,9 @@ export const ForkModalDefault: Story = {
     await expect(
       await canvas.findByText("Latest — end of the conversation"),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Continue" })).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Continue" }),
+    ).toBeEnabled();
   },
 };
 
@@ -474,8 +482,9 @@ export const MainModalKeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Close dialog" }))
-        .toHaveFocus()
+      expect(
+        canvas.getByRole("button", { name: "Close dialog" }),
+      ).toHaveFocus(),
     );
     await userEvent.tab();
     await expect(canvas.getByRole("button", { name: "Cancel" })).toHaveFocus();
@@ -623,12 +632,8 @@ export const RunDetailsModalKeyboardNavigation: Story = {
     raw.focus();
     await expect(raw).toHaveFocus();
     await userEvent.click(raw);
-    await waitFor(() =>
-      expect(raw.closest("details")).toHaveAttribute("open")
-    );
-    await expect(
-      canvas.getByText(/"release-reviewer"/),
-    ).toBeVisible();
+    await waitFor(() => expect(raw.closest("details")).toHaveAttribute("open"));
+    await expect(canvas.getByText(/"release-reviewer"/)).toBeVisible();
   },
 };
 
@@ -644,8 +649,9 @@ export const RunModalDefault: Story = {
     await expect(
       canvas.getByDisplayValue("Run the browser verification suite"),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Start run" }))
-      .toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Start run" }),
+    ).toBeEnabled();
   },
 };
 
@@ -711,9 +717,7 @@ export const ViewerModalDefault: Story = {
   ),
   play: async ({ canvasElement }) => {
     await expectDialog(canvasElement, "Generated plan");
-    await expect(
-      within(canvasElement).getByText(/Foundations/),
-    ).toBeVisible();
+    await expect(within(canvasElement).getByText(/Foundations/)).toBeVisible();
   },
 };
 
@@ -726,8 +730,9 @@ export const ViewerModalKeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Close dialog" }))
-        .toHaveFocus()
+      expect(
+        canvas.getByRole("button", { name: "Close dialog" }),
+      ).toHaveFocus(),
     );
     await userEvent.tab();
     await expect(

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Archive, PencilSimple, Trash } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { humanPause } from "../storybook/humanPlayback";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 
@@ -17,9 +18,15 @@ function ContextMenuFixture(props: React.ComponentProps<typeof ContextMenu>) {
   const children = props.children || (
     <>
       <MenuLabel>Session actions</MenuLabel>
-      <MenuItem onClick={() => {}}><PencilSimple size={16} /> Rename…</MenuItem>
-      <MenuItem onClick={() => {}}><Archive size={16} /> Archive</MenuItem>
-      <MenuItem onClick={() => {}} danger><Trash size={16} /> Delete</MenuItem>
+      <MenuItem onClick={() => {}}>
+        <PencilSimple size={16} /> Rename…
+      </MenuItem>
+      <MenuItem onClick={() => {}}>
+        <Archive size={16} /> Archive
+      </MenuItem>
+      <MenuItem onClick={() => {}} danger>
+        <Trash size={16} /> Delete
+      </MenuItem>
     </>
   );
   return (
@@ -63,14 +70,25 @@ export const Default: Story = {};
 export const KeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByRole("menuitem", { name: "Rename…" })).toHaveFocus());
+    await waitFor(() =>
+      expect(canvas.getByRole("menuitem", { name: "Rename…" })).toHaveFocus(),
+    );
     await userEvent.keyboard("{End}");
-    await expect(canvas.getByRole("menuitem", { name: "Delete" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("menuitem", { name: "Delete" }),
+    ).toHaveFocus();
     await userEvent.keyboard("{Home}");
-    await expect(canvas.getByRole("menuitem", { name: "Rename…" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("menuitem", { name: "Rename…" }),
+    ).toHaveFocus();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(onClose).toHaveBeenCalled();
-    await waitFor(() => expect(canvas.getByRole("button", { name: "Invoking session" })).toHaveFocus());
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Invoking session" }),
+      ).toHaveFocus(),
+    );
   },
 };
 
@@ -80,11 +98,17 @@ export const ViewportEdgeLongContent: Story = {
     y: 710,
     children: (
       <>
-        <MenuLabel>An exceptionally long session title that must remain inside the context menu</MenuLabel>
+        <MenuLabel>
+          An exceptionally long session title that must remain inside the
+          context menu
+        </MenuLabel>
         <MenuItem onClick={() => {}}>
-          <PencilSimple size={16} /> Rename a session with a very long action label…
+          <PencilSimple size={16} /> Rename a session with a very long action
+          label…
         </MenuItem>
-        <MenuItem onClick={() => {}} danger><Trash size={16} /> Remove permanently</MenuItem>
+        <MenuItem onClick={() => {}} danger>
+          <Trash size={16} /> Remove permanently
+        </MenuItem>
       </>
     ),
   },
@@ -94,6 +118,8 @@ export const ViewportEdgeLongContent: Story = {
     const rect = menu.getBoundingClientRect();
     await expect(rect.right).toBeLessThanOrEqual(window.innerWidth - 8);
     await expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight - 8);
-    await expect(within(menu).getByText(/exceptionally long session title/)).toBeVisible();
+    await expect(
+      within(menu).getByText(/exceptionally long session title/),
+    ).toBeVisible();
   },
 };

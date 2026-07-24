@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { FailureNotice } from "../timeline";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import {
   QueuedMessageList,
   SessionNotice,
@@ -79,8 +80,12 @@ export const TopbarDefault: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Build deterministic Storybook coverage")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Environment" })).toHaveClass("active");
+    await expect(
+      canvas.getByText("Build deterministic Storybook coverage"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Environment" }),
+    ).toHaveClass("active");
     await expect(canvas.getByText("3")).toBeVisible();
   },
 };
@@ -92,7 +97,9 @@ export const TopbarRecovery: Story = {
   },
   play: async ({ canvasElement }) => {
     topbarActions.onResume.mockClear();
-    const resume = within(canvasElement).getByRole("button", { name: "Resume session" });
+    const resume = within(canvasElement).getByRole("button", {
+      name: "Resume session",
+    });
     await expect(resume).toBeVisible();
     await userEvent.click(resume);
     await expect(topbarActions.onResume).toHaveBeenCalled();
@@ -106,7 +113,9 @@ export const TopbarRetry: Story = {
   },
   play: async ({ canvasElement }) => {
     topbarActions.onRetry.mockClear();
-    const retry = within(canvasElement).getByRole("button", { name: "Retry session" });
+    const retry = within(canvasElement).getByRole("button", {
+      name: "Retry session",
+    });
     retry.focus();
     await userEvent.keyboard("{Enter}");
     await expect(topbarActions.onRetry).toHaveBeenCalled();
@@ -124,7 +133,9 @@ export const TopbarSubAgent: Story = {
   play: async ({ canvasElement }) => {
     topbarActions.onBackToParent.mockClear();
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Sub-agent · answer requested")).toBeVisible();
+    await expect(
+      canvas.getByText("Sub-agent · answer requested"),
+    ).toBeVisible();
     const back = canvas.getByRole("button", { name: "Back to parent session" });
     back.focus();
     await userEvent.keyboard("{Enter}");
@@ -169,13 +180,18 @@ export const TopbarKeyboardMenu: Story = {
   play: async ({ canvasElement }) => {
     topbarActions.onShowChanges.mockClear();
     const canvas = within(canvasElement);
-    const trigger = canvas.getByRole("button", { name: "More session actions" });
+    const trigger = canvas.getByRole("button", {
+      name: "More session actions",
+    });
     trigger.focus();
     await userEvent.keyboard("{Enter}");
-    const firstItem = await canvas.findByRole("menuitem", { name: "Pin session" });
+    const firstItem = await canvas.findByRole("menuitem", {
+      name: "Pin session",
+    });
     await waitFor(() => expect(firstItem).toHaveFocus());
     const changes = canvas.getByRole("menuitem", { name: "Changes" });
     changes.focus();
+    await humanPause();
     await userEvent.keyboard("{Enter}");
     await expect(topbarActions.onShowChanges).toHaveBeenCalled();
   },
@@ -228,6 +244,7 @@ export const TopbarOverflowActions: Story = {
     });
     await expect(retry).toBeVisible();
     retry.focus();
+    await humanPause();
     await userEvent.keyboard("{Enter}");
     await expect(topbarActions.onRetry).toHaveBeenCalled();
   },
@@ -319,9 +336,7 @@ export const FailureWithoutHint: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("The step was cancelled")).toBeVisible();
-    await expect(
-      canvas.queryByText(providerFailure.hint as string),
-    ).toBeNull();
+    await expect(canvas.queryByText(providerFailure.hint as string)).toBeNull();
   },
 };
 
@@ -367,7 +382,9 @@ export const TerminalContinueWithGoal: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("alert")).toHaveTextContent("Goal cancelled");
     await expect(canvas.getByText("00:34")).toBeVisible();
-    await expect(canvas.getByTitle("Verify every Session chrome state")).toBeVisible();
+    await expect(
+      canvas.getByTitle("Verify every Session chrome state"),
+    ).toBeVisible();
   },
 };
 
@@ -388,7 +405,9 @@ export const TerminalRecovery: Story = {
   ),
   play: async ({ canvasElement }) => {
     terminalAction.mockClear();
-    const action = within(canvasElement).getByRole("button", { name: "Resume session" });
+    const action = within(canvasElement).getByRole("button", {
+      name: "Resume session",
+    });
     action.focus();
     await userEvent.keyboard("{Enter}");
     await expect(terminalAction).toHaveBeenCalled();
@@ -515,9 +534,15 @@ export const QueuedMessages: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Queued · from reviewer")).toBeVisible();
-    await expect(canvas.getByText("Check the terminal alert at narrow widths.")).toBeVisible();
-    await expect(canvas.queryByText("This withdrawn message must not be rendered.")).toBeNull();
-    await expect(canvas.getAllByRole("button", { name: "Withdraw" })).toHaveLength(2);
+    await expect(
+      canvas.getByText("Check the terminal alert at narrow widths."),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByText("This withdrawn message must not be rendered."),
+    ).toBeNull();
+    await expect(
+      canvas.getAllByRole("button", { name: "Withdraw" }),
+    ).toHaveLength(2);
   },
 };
 
@@ -532,7 +557,9 @@ export const QueuedKeyboard: Story = {
   ),
   play: async ({ canvasElement }) => {
     withdrawMessage.mockClear();
-    const withdraw = within(canvasElement).getByRole("button", { name: "Withdraw" });
+    const withdraw = within(canvasElement).getByRole("button", {
+      name: "Withdraw",
+    });
     withdraw.focus();
     await userEvent.keyboard("{Enter}");
     await expect(withdrawMessage).toHaveBeenCalledWith("queued-plain");
@@ -560,11 +587,13 @@ export const QueuedLongMessage: Story = {
   render: () => (
     <ChromeFrame>
       <QueuedMessageList
-        messages={[{
-          command_id: "queued-long",
-          text: "Review the complete Session chrome component contract, including the responsive terminal action, the technical-details disclosure, queued peer attribution, Environment actions, and keyboard focus restoration before accepting this queued turn.",
-          revoked: false,
-        }]}
+        messages={[
+          {
+            command_id: "queued-long",
+            text: "Review the complete Session chrome component contract, including the responsive terminal action, the technical-details disclosure, queued peer attribution, Environment actions, and keyboard focus restoration before accepting this queued turn.",
+            revoked: false,
+          },
+        ]}
         onWithdraw={withdrawMessage}
       />
     </ChromeFrame>
@@ -612,7 +641,9 @@ export const NoticeAction: Story = {
   ),
   play: async ({ canvasElement }) => {
     noticeAction.mockClear();
-    const action = within(canvasElement).getByRole("button", { name: "Apply winner" });
+    const action = within(canvasElement).getByRole("button", {
+      name: "Apply winner",
+    });
     action.focus();
     await userEvent.keyboard(" ");
     await expect(noticeAction).toHaveBeenCalled();

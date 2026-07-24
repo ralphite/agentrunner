@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import { SettingsGeneral } from "./SettingsGeneral";
 
 const healthyState = {
@@ -46,9 +47,15 @@ const meta = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "General" })).toBeVisible();
-    await expect(canvas.getByText("Connected to the daemon. 2 sessions loaded.")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Reset to defaults" })).toBeVisible();
+    await expect(
+      canvas.getByRole("heading", { name: "General" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText("Connected to the daemon. 2 sessions loaded."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Reset to defaults" }),
+    ).toBeVisible();
   },
 } satisfies Meta<typeof SettingsGeneral>;
 
@@ -66,9 +73,14 @@ export const KeyboardNavigation: Story = {
     (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
 
     await userEvent.tab();
-    await expect(canvas.getByRole("button", { name: "Reset to defaults" })).toHaveFocus();
+    await expect(
+      canvas.getByRole("button", { name: "Reset to defaults" }),
+    ).toHaveFocus();
     await userEvent.keyboard("{Enter}");
-    await expect(canvas.getByText("Reset all settings to defaults?")).toBeVisible();
+    await expect(
+      canvas.getByText("Reset all settings to defaults?"),
+    ).toBeVisible();
+    await humanPause();
 
     await userEvent.tab();
     await expect(canvas.getByRole("button", { name: "Reset" })).toHaveFocus();
@@ -76,7 +88,9 @@ export const KeyboardNavigation: Story = {
     const cancel = canvas.getByRole("button", { name: "Cancel" });
     await expect(cancel).toHaveFocus();
     await userEvent.keyboard("{Enter}");
-    await expect(canvas.queryByText("Reset all settings to defaults?")).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText("Reset all settings to defaults?"),
+    ).not.toBeInTheDocument();
   },
 };
 
@@ -100,8 +114,12 @@ export const DaemonUnavailable: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Daemon unavailable. 1 session loaded.")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Reset to defaults" })).toBeVisible();
+    await expect(
+      canvas.getByText("Daemon unavailable. 1 session loaded."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Reset to defaults" }),
+    ).toBeVisible();
   },
 };
 
@@ -111,7 +129,9 @@ export const NoMatches: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("No general settings match “audio output”.")).toBeVisible();
+    await expect(
+      canvas.getByText("No general settings match “audio output”."),
+    ).toBeVisible();
     await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
   },
 };

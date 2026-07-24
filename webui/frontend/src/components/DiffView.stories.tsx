@@ -4,6 +4,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import { parseFileDiff } from "../diffSummary";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import type { DiffResp, DiffScope } from "../types";
 import {
   DiffView,
@@ -156,11 +157,7 @@ function DiffViewFixture({
     >
       <div className="session-view h-screen min-h-0 overflow-clip">
         <aside className="changes-panel session-side">
-          <DiffView
-            sid={SID}
-            initialScope="working-tree"
-            onClose={onClose}
-          />
+          <DiffView sid={SID} initialScope="working-tree" onClose={onClose} />
         </aside>
       </div>
     </StoryAppFrame>
@@ -174,10 +171,7 @@ function LeafFrame({ children }: { children: ReactNode }) {
     }),
   );
   return (
-    <StoryAppFrame
-      initialState={{ currentSid: SID }}
-      services={{ api }}
-    >
+    <StoryAppFrame initialState={{ currentSid: SID }} services={{ api }}>
       <main className="mx-auto grid w-full max-w-[920px] gap-5 p-6">
         {children}
       </main>
@@ -226,8 +220,12 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.findByText("runtime.ts")).resolves.toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Changed files" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Close changes" })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Changed files" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Close changes" }),
+    ).toBeVisible();
   },
 };
 
@@ -245,6 +243,7 @@ export const KeyboardNavigation: Story = {
     await expect(scope).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     await expect(scope).toHaveAttribute("aria-expanded", "true");
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(scope).toHaveFocus();
 
@@ -267,7 +266,9 @@ export const RequestFailure: Story = {
     await expect(
       canvas.findByText("Couldn’t load changes"),
     ).resolves.toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Try again" }),
+    ).toBeVisible();
   },
 };
 
@@ -349,12 +350,16 @@ export const UntrackedFile: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByText("import { createServices } from './services';")).resolves.toBeVisible();
+    await expect(
+      canvas.findByText("import { createServices } from './services';"),
+    ).resolves.toBeVisible();
     await expect(
       canvas.getByText("Content isn’t shown — this file is binary."),
     ).toBeVisible();
     await expect(
-      canvas.getByText("Content isn’t shown — this file is too large to display."),
+      canvas.getByText(
+        "Content isn’t shown — this file is too large to display.",
+      ),
     ).toBeVisible();
     await expect(canvas.getByText("binary")).toBeVisible();
     await expect(canvas.getByText("large")).toBeVisible();
@@ -408,12 +413,22 @@ export const FileBody: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("region", { name: "Inline diff" })).toBeVisible();
-    await expect(canvas.getByRole("region", { name: "Split diff" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: /4 unmodified lines/ })).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: /4 unmodified lines/ }));
+    await expect(
+      canvas.getByRole("region", { name: "Inline diff" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("region", { name: "Split diff" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /4 unmodified lines/ }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: /4 unmodified lines/ }),
+    );
     await expect(canvas.getByText("export interface Runtime {")).toBeVisible();
-    await expect(canvas.getAllByText('return boot("storybook");')).toHaveLength(2);
+    await expect(canvas.getAllByText('return boot("storybook");')).toHaveLength(
+      2,
+    );
   },
 };
 

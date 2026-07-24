@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { createStoryApiHandlers } from "../storybook/handlers";
+import { humanPause } from "../storybook/humanPlayback";
 import type {
   BubbleItem,
   FoldRun,
@@ -47,11 +48,7 @@ const user = (key: string, text: string, seconds: number): BubbleItem => ({
   source: "you",
 });
 
-const assistant = (
-  key: string,
-  text: string,
-  seconds: number,
-): BubbleItem => ({
+const assistant = (key: string, text: string, seconds: number): BubbleItem => ({
   kind: "assistant",
   key,
   text,
@@ -92,12 +89,7 @@ const completedConversation: TimelineItem[] = [
     0,
   ),
   turn("turn-1", 1),
-  tool(
-    "read-1",
-    "Read",
-    { file_path: "src/components/SessionView.tsx" },
-    2,
-  ),
+  tool("read-1", "Read", { file_path: "src/components/SessionView.tsx" }, 2),
   {
     kind: "chip",
     key: "chip-1",
@@ -154,9 +146,7 @@ const failureConversation: TimelineItem[] = [
     "failure-tool",
     "future_provider_diagnostic",
     {
-      request:
-        "unknown-operation-" +
-        "x".repeat(180),
+      request: "unknown-operation-" + "x".repeat(180),
     },
     31,
     {
@@ -166,7 +156,8 @@ const failureConversation: TimelineItem[] = [
         "unknown backend state: provider returned a payload that the current UI has never classified; preserve this detail instead of silently dropping it",
       result: {
         stderr:
-          "The raw failure remains available for diagnosis. " + "trace ".repeat(40),
+          "The raw failure remains available for diagnosis. " +
+          "trace ".repeat(40),
         exit_code: 73,
       },
     },
@@ -187,7 +178,8 @@ const leafTools = {
     50,
     {
       result: {
-        content: "export function MiniDiff() {}\nexport function ReadDetailView() {}\n",
+        content:
+          "export function MiniDiff() {}\nexport function ReadDetailView() {}\n",
         truncated: true,
       },
     },
@@ -497,11 +489,7 @@ export const Default: Story = {
 
 export const KeyboardNavigation: Story = {
   render: (args) => (
-    <TimelineFixture
-      {...args}
-      items={keyboardConversation}
-      showSys={false}
-    />
+    <TimelineFixture {...args} items={keyboardConversation} showSys={false} />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -523,17 +511,11 @@ export const ActiveStreaming: Story = {
       items={[
         user("active-user", "Run the browser checks.", 40),
         turn("active-turn", 41),
-        tool(
-          "active-tool",
-          "Bash",
-          { command: "npm run test:storybook" },
-          42,
-          {
-            status: "running",
-            statusText: "running",
-            result: undefined,
-          },
-        ),
+        tool("active-tool", "Bash", { command: "npm run test:storybook" }, 42, {
+          status: "running",
+          statusText: "running",
+          result: undefined,
+        }),
       ]}
       pending={[
         {
@@ -557,7 +539,9 @@ export const ActiveStreaming: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("status", { name: "Thinking" })).toBeVisible();
+    await expect(
+      canvas.getByRole("status", { name: "Thinking" }),
+    ).toBeVisible();
     await expect(canvas.getByText("steering…")).toBeVisible();
     await expect(canvas.getByText("queued…")).toBeVisible();
   },
@@ -565,11 +549,7 @@ export const ActiveStreaming: Story = {
 
 export const FailureAndOverflow: Story = {
   render: (args) => (
-    <TimelineFixture
-      {...args}
-      items={failureConversation}
-      showSys
-    />
+    <TimelineFixture {...args} items={failureConversation} showSys />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -577,9 +557,7 @@ export const FailureAndOverflow: Story = {
       canvas.getByText("future_provider_diagnostic", { exact: false }),
     ).toBeVisible();
     await expect(
-      canvas.getByText(
-        "Unknown runtime state · future_provider_diagnostic",
-      ),
+      canvas.getByText("Unknown runtime state · future_provider_diagnostic"),
     ).toBeVisible();
   },
 };
@@ -641,9 +619,7 @@ export const CollapsibleUserText: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(
-        canvas.getByRole("button", { name: "Show more" }),
-      ).toBeVisible(),
+      expect(canvas.getByRole("button", { name: "Show more" })).toBeVisible(),
     );
     const toggle = canvas.getByRole("button", { name: "Show more" });
     toggle.focus();
@@ -662,9 +638,7 @@ export const EditDetailView: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByText("src/components/Timeline.tsx"),
-    ).toBeVisible();
+    await expect(canvas.getByText("src/components/Timeline.tsx")).toBeVisible();
     await expect(canvas.getAllByText("+")[0]).toBeVisible();
     await expect(canvas.getByText("Updated 3 lines")).toBeVisible();
   },
@@ -735,9 +709,7 @@ export const JSONDetail: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByText(/classify-next-runtime-state/),
-    ).toBeVisible();
+    await expect(canvas.getByText(/classify-next-runtime-state/)).toBeVisible();
     await expect(canvas.getByText(/trace-story-unknown/)).toBeVisible();
   },
 };
@@ -797,13 +769,14 @@ export const MessageActionsHoverAndFocus: Story = {
   },
   render: () => (
     <LeafFrame>
-      <div className="msg assistant pseudo-hover" data-testid="middle-message" tabIndex={0}>
+      <div
+        className="msg assistant pseudo-hover"
+        data-testid="middle-message"
+        tabIndex={0}
+      >
         <div className="msg-col">
           <div className="bubble">An earlier assistant answer.</div>
-          <MsgActionsLeaf
-            text="An earlier assistant answer."
-            ts={at(65)}
-          />
+          <MsgActionsLeaf text="An earlier assistant answer." ts={at(65)} />
         </div>
       </div>
     </LeafFrame>
@@ -812,14 +785,20 @@ export const MessageActionsHoverAndFocus: Story = {
     const canvas = within(canvasElement);
     const message = canvas.getByTestId("middle-message");
     const actions = message.querySelector(".msg-actions") as HTMLElement;
-    await waitFor(() => {
-      expect(message).toBeVisible();
-      expect(message).toHaveClass("pseudo-hover");
-    }, { timeout: 3_000 });
-    await waitFor(() => {
-      expect(getComputedStyle(actions).opacity).toBe("1");
-      expect(getComputedStyle(actions).pointerEvents).toBe("auto");
-    }, { timeout: 3_000 });
+    await waitFor(
+      () => {
+        expect(message).toBeVisible();
+        expect(message).toHaveClass("pseudo-hover");
+      },
+      { timeout: 3_000 },
+    );
+    await waitFor(
+      () => {
+        expect(getComputedStyle(actions).opacity).toBe("1");
+        expect(getComputedStyle(actions).pointerEvents).toBe("auto");
+      },
+      { timeout: 3_000 },
+    );
   },
 };
 
@@ -925,9 +904,7 @@ export const RetriedFold: Story = {
     ) as HTMLElement;
     await userEvent.click(toolSummary);
     await expect(
-      canvas.getByText(
-        "Unknown provider state was preserved for diagnosis.",
-      ),
+      canvas.getByText("Unknown provider state was preserved for diagnosis."),
     ).toBeVisible();
   },
 };
@@ -958,9 +935,9 @@ export const ShellDetail: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Exit 1")).toBeVisible();
-    await expect(
-      canvasElement.querySelector(".shell-out"),
-    ).toHaveTextContent("1 story failed accessibility checks");
+    await expect(canvasElement.querySelector(".shell-out")).toHaveTextContent(
+      "1 story failed accessibility checks",
+    );
     const copy = canvas.getByRole("button", {
       name: "Copy command and result",
     });
@@ -1009,6 +986,7 @@ export const Thumbs: Story = {
       await page.findByRole("dialog", { name: "Image viewer" }),
     ).toBeVisible();
     await expect(page.getByText("1 / 2")).toBeVisible();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(thumbs[0]).toHaveFocus();
   },
@@ -1029,9 +1007,7 @@ export const ToolCard: Story = {
     await expect(summary.parentElement).toHaveAttribute("open");
     await expect(canvas.getAllByText(/future_state/)[0]).toBeVisible();
     await expect(
-      canvas.getByText(
-        "Unknown provider state was preserved for diagnosis.",
-      ),
+      canvas.getByText("Unknown provider state was preserved for diagnosis."),
     ).toBeVisible();
   },
 };
@@ -1116,9 +1092,7 @@ export const ToolDetail: Story = {
     await expect(canvas.getByText(/trace-story-unknown/)).toBeVisible();
     await expect(canvas.getByText("Partial provider payload")).toBeVisible();
     await expect(
-      canvas.getByText(
-        "Unknown provider state was preserved for diagnosis.",
-      ),
+      canvas.getByText("Unknown provider state was preserved for diagnosis."),
     ).toBeVisible();
   },
 };
@@ -1154,11 +1128,7 @@ export const WorkedFold: Story = {
     toggle.focus();
     await userEvent.keyboard("{Enter}");
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(
-      canvasElement.querySelector(".worked-body"),
-    ).toBeVisible();
-    await expect(
-      canvas.getByText("Edited files"),
-    ).toBeVisible();
+    await expect(canvasElement.querySelector(".worked-body")).toBeVisible();
+    await expect(canvas.getByText("Edited files")).toBeVisible();
   },
 };

@@ -392,6 +392,7 @@ export const FilterAndNoResults: Story = {
     await expect(
       canvas.getByText('No results for "does-not-exist".'),
     ).toBeVisible();
+    await humanPause();
     await userEvent.clear(search);
     await userEvent.click(canvas.getByRole("tab", { name: "Paused" }));
     await expect(
@@ -440,6 +441,7 @@ export const Pagination: Story = {
     await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(
       7,
     );
+    await humanPause();
     await userEvent.click(
       canvas.getByRole("button", { name: "Show fewer · newest 5" }),
     );
@@ -614,6 +616,7 @@ export const ScheduleEditDialog: Story = {
     await userEvent.clear(interval);
     await userEvent.type(interval, "not-a-duration");
     await expect(canvas.getByRole("alert")).toBeVisible();
+    await humanPause();
     await userEvent.clear(interval);
     await userEvent.type(interval, "45m");
     await userEvent.click(canvas.getByRole("button", { name: "Save" }));
@@ -658,6 +661,7 @@ export const ScheduleEditCronConflict: Story = {
     await userEvent.clear(cron);
     await userEvent.type(cron, "not-a-cron");
     await expect(canvas.getByRole("alert")).toBeVisible();
+    await humanPause();
     await userEvent.clear(cron);
     await userEvent.type(cron, "0 8 * * 1-5");
     const prompt = canvas.getByLabelText("Prompt");

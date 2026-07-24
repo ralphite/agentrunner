@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { humanPause } from "../storybook/humanPlayback";
 import type { DiffScope } from "../types";
 import {
   ChangedFilesMenu,
@@ -292,7 +293,9 @@ export const ErrorRetry: Story = {
               onRetry: () => setRetried(true),
             }}
           />
-          <output className="block text-center">Retried: {String(retried)}</output>
+          <output className="block text-center">
+            Retried: {String(retried)}
+          </output>
         </Frame>
       );
     };
@@ -313,7 +316,8 @@ export const UnavailableStates: Story = {
           <DiffStateView
             state={{
               kind: "last-turn-unavailable",
-              reason: "The baseline was recorded before durable turn snapshots.",
+              reason:
+                "The baseline was recorded before durable turn snapshots.",
             }}
           />
         </section>
@@ -404,6 +408,7 @@ export const ChangedFilesLongPaths: Story = {
     await userEvent.click(filter);
     await userEvent.type(filter, "merge");
     await expect(canvas.getByText("1 of 4 files match")).toBeVisible();
+    await humanPause();
     await userEvent.click(
       canvas.getByRole("button", { name: /mergeDriver\.ts/ }),
     );
@@ -463,6 +468,7 @@ export const MoreActionsTightWorktree: Story = {
         canvas.getByRole("menuitem", { name: /Collapse all files/ }),
       ).toHaveFocus(),
     );
+    await humanPause();
     await userEvent.click(
       canvas.getByRole("menuitem", { name: /Apply to project/ }),
     );
@@ -520,6 +526,7 @@ export const CommitReady: Story = {
         canvas.getByRole("menuitem", { name: /^Commit git/ }),
       ).toHaveFocus(),
     );
+    await humanPause();
     await userEvent.keyboard("{Enter}");
     await expect(canvas.getByText("Action: commit")).toBeVisible();
   },
@@ -538,6 +545,7 @@ export const CommitConflict: Story = {
     await expect(
       canvas.getByRole("menuitem", { name: /^Commit & push Resolve/ }),
     ).toBeDisabled();
+    await humanPause();
     await userEvent.click(canvas.getByRole("menuitem", { name: /^Push/ }));
     await expect(canvas.getByText("Action: push")).toBeVisible();
   },

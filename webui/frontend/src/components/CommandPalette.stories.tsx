@@ -5,6 +5,7 @@ import type { AppServices } from "../app/appServices";
 import { useStore, type AppState } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { buildRun, buildSession } from "../storybook/fixtures";
+import { humanPause } from "../storybook/humanPlayback";
 import { CommandPalette } from "./CommandPalette";
 
 type StoryApi = AppServices["api"];
@@ -87,20 +88,14 @@ function PaletteFocusFixture({
   };
 
   return (
-    <StoryAppFrame
-      initialState={initialState}
-      services={{ api: noNetworkApi }}
-    >
+    <StoryAppFrame initialState={initialState} services={{ api: noNetworkApi }}>
       <div className="p-6">
         <button ref={opener} onClick={() => setOpen(true)}>
           Open command palette
         </button>
         <PaletteRouteProbe />
         {open && (
-          <CommandPalette
-            onClose={close}
-            onOpenSettings={onOpenSettings}
-          />
+          <CommandPalette onClose={close} onOpenSettings={onOpenSettings} />
         )}
       </div>
     </StoryAppFrame>
@@ -115,10 +110,7 @@ const meta = {
     onOpenSettings: fn(),
   },
   render: (args) => (
-    <StoryAppFrame
-      initialState={initialState}
-      services={{ api: noNetworkApi }}
-    >
+    <StoryAppFrame initialState={initialState} services={{ api: noNetworkApi }}>
       <CommandPalette {...args} />
     </StoryAppFrame>
   ),
@@ -130,7 +122,9 @@ const meta = {
     await expect(
       canvas.getByPlaceholderText("Search sessions or run a command"),
     ).toHaveFocus();
-    await expect(canvas.getByText("Review the Storybook migration")).toBeVisible();
+    await expect(
+      canvas.getByText("Review the Storybook migration"),
+    ).toBeVisible();
     await expect(canvas.queryByText("Archive the legacy UI")).toBeNull();
   },
 } satisfies Meta<typeof CommandPalette>;
@@ -159,15 +153,18 @@ export const KeyboardNavigation: Story = {
     await expect(input).toHaveFocus();
     await userEvent.type(input, "go to scheduled");
     await userEvent.keyboard("{Enter}");
-    await expect(canvas.getByRole("status", { name: "Current route" }))
-      .toHaveTextContent("scheduled");
+    await expect(
+      canvas.getByRole("status", { name: "Current route" }),
+    ).toHaveTextContent("scheduled");
     await expect(args.onClose).toHaveBeenLastCalledWith(false);
+    await humanPause();
 
     await userEvent.click(opener);
     const reopenedInput = canvas.getByPlaceholderText(
       "Search sessions or run a command",
     );
     await expect(reopenedInput).toHaveFocus();
+    await humanPause();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(opener).toHaveFocus());
     await expect(args.onClose).toHaveBeenLastCalledWith(true);
@@ -177,8 +174,12 @@ export const KeyboardNavigation: Story = {
 export const PointerSelection: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const first = canvas.getByRole("option", { name: /Review the Storybook migration/ });
-    const target = canvas.getByRole("option", { name: /Build reusable components/ });
+    const first = canvas.getByRole("option", {
+      name: /Review the Storybook migration/,
+    });
+    const target = canvas.getByRole("option", {
+      name: /Build reusable components/,
+    });
     await expect(first).toHaveAttribute("aria-selected", "true");
 
     await userEvent.hover(target);
@@ -191,11 +192,15 @@ export const PointerSelection: Story = {
 export const KeyboardSelection: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvas.getByPlaceholderText("Search sessions or run a command");
+    const input = canvas.getByPlaceholderText(
+      "Search sessions or run a command",
+    );
     await expect(input).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}{ArrowDown}");
 
-    const target = canvas.getByRole("option", { name: /Polish the interactive demo/ });
+    const target = canvas.getByRole("option", {
+      name: /Polish the interactive demo/,
+    });
     await expect(target).toHaveAttribute("aria-selected", "true");
     await expect(target).toHaveClass("sel");
   },
@@ -204,14 +209,20 @@ export const KeyboardSelection: Story = {
 export const SearchResultsWithArchived: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvas.getByPlaceholderText("Search sessions or run a command");
+    const input = canvas.getByPlaceholderText(
+      "Search sessions or run a command",
+    );
     await userEvent.type(input, "legacy");
 
     await expect(canvas.getByText("Archived")).toBeVisible();
-    const archived = canvas.getByRole("option", { name: /Archive the legacy UI/ });
+    const archived = canvas.getByRole("option", {
+      name: /Archive the legacy UI/,
+    });
     await expect(archived).toBeVisible();
     await expect(archived).toHaveAttribute("aria-selected", "true");
-    await expect(archived.querySelector(".status-dot")).toHaveStyle({ visibility: "hidden" });
+    await expect(archived.querySelector(".status-dot")).toHaveStyle({
+      visibility: "hidden",
+    });
   },
 };
 
@@ -227,13 +238,15 @@ export const NoMatches: Story = {
   },
 };
 
-const attentionSessions = Array.from({ length: 10 }, (_, index) => buildSession({
-  id: `attention-${String(index + 1).padStart(2, "0")}`,
-  title: `Attention session ${index + 1}`,
-  workspace: "/workspace/attention",
-  status: "waiting_approval",
-  attention: { approvals: 1, answers: 0 },
-}));
+const attentionSessions = Array.from({ length: 10 }, (_, index) =>
+  buildSession({
+    id: `attention-${String(index + 1).padStart(2, "0")}`,
+    title: `Attention session ${index + 1}`,
+    workspace: "/workspace/attention",
+    status: "waiting_approval",
+    attention: { approvals: 1, answers: 0 },
+  }),
+);
 
 export const AttentionOverflow: Story = {
   render: (args) => (
@@ -254,7 +267,9 @@ export const AttentionOverflow: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Needs attention")).toBeVisible();
-    await expect(canvas.getByRole("option", { name: /Attention session 1/ })).toBeVisible();
+    await expect(
+      canvas.getByRole("option", { name: /Attention session 1/ }),
+    ).toBeVisible();
     await expect(canvas.getAllByText("Commands")).toHaveLength(1);
   },
 };
