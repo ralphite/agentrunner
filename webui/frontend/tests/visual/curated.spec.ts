@@ -56,9 +56,11 @@ const goldenCases: GoldenCase[] = [
     storyId: "pages-scheduled--default",
     theme: "light",
     viewport: { width: 390, height: 844 },
-    // This text-dense view differs by ~3.5% between macOS and Linux system-font
-    // rasterization while preserving the same geometry and content.
-    maxDiffPixelRatio: 0.04,
+    // The production system font shifts suggestion wrapping between macOS and
+    // Linux. Keep the pixel allowance bounded, then separately assert the
+    // lifecycle semantics, touch geometry, compact row span and Suggestions
+    // position so the allowance cannot hide the previous sparse layout.
+    maxDiffPixelRatio: 0.06,
   },
   {
     name: "scheduled-detail-light-desktop",
@@ -131,6 +133,28 @@ for (const golden of goldenCases) {
     await page.setViewportSize(golden.viewport);
     await settleStory(page, golden);
     expect(runtimeIssues).toEqual([]);
+    if (golden.name === "scheduled-light-phone") {
+      const rows = page.locator(".scheduled-row");
+      await expect(rows).toHaveCount(5);
+      for (const state of ["running", "attention", "idle", "failed", "done"]) {
+        await expect(
+          rows.locator(`[data-lifecycle-state="${state}"]`),
+        ).toHaveCount(1);
+      }
+      const rowBoxes = await rows.evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return { top: box.top, bottom: box.bottom, height: box.height };
+        }),
+      );
+      expect(rowBoxes.every((box) => box.height >= 44)).toBe(true);
+      expect(rowBoxes.at(-1)!.bottom - rowBoxes[0]!.top).toBeLessThan(330);
+      const suggestionsBox = await page
+        .getByTestId("scheduled-suggestions")
+        .boundingBox();
+      expect(suggestionsBox).not.toBeNull();
+      expect(suggestionsBox!.y).toBeLessThan(700);
+    }
     await expect(page).toHaveScreenshot(`${golden.name}.png`, {
       animations: "disabled",
       caret: "hide",
