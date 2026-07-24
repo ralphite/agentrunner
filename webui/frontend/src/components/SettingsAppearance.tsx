@@ -130,18 +130,18 @@ export function SettingsAppearance({ query }: { query: string }) {
               <div className="rs-row-label">Diff markers</div>
               <div className="rs-row-desc mt-[3px] leading-[1.5]">How added and removed lines are distinguished.</div>
             </div>
-          </div>
-          <div className="rs-seg">
-            {(["color", "signs"] as DiffMarkers[]).map((m) => (
-              <button
-                key={m}
-                className={"rs-seg-btn" + (a.diffMarkers === m ? " on" : "")}
-                onClick={() => patch({ diffMarkers: m })}
-                aria-pressed={a.diffMarkers === m}
-              >
-                {m === "color" ? "Color" : "+ / −"}
-              </button>
-            ))}
+            <div className="rs-seg shrink-0">
+              {(["color", "signs"] as DiffMarkers[]).map((m) => (
+                <button
+                  key={m}
+                  className={"rs-seg-btn" + (a.diffMarkers === m ? " on" : "")}
+                  onClick={() => patch({ diffMarkers: m })}
+                  aria-pressed={a.diffMarkers === m}
+                >
+                  {m === "color" ? "Color" : "+ / −"}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -226,29 +226,29 @@ export function FontRow({
           <div className="rs-row-label">{label}</div>
           <div className="rs-row-desc mt-[3px] leading-[1.5]">{desc}</div>
         </div>
-      </div>
-      <div className="rs-slider mt-3 grid grid-cols-[32px_64px_32px] justify-end gap-1.5">
-        <IconButton
-          size="md"
-          variant="outline"
-          className="rs-step"
-          onClick={() => onChange(Math.max(min, value - 1))}
-          aria-label={`Decrease ${label}`}
-        >
-          −
-        </IconButton>
-        <span className={"rs-fontpreview grid h-8 place-items-center p-0" + (mono ? " mono" : "")} style={mono ? { fontSize: value } : undefined}>
-          {value}px
-        </span>
-        <IconButton
-          size="md"
-          variant="outline"
-          className="rs-step"
-          onClick={() => onChange(Math.min(max, value + 1))}
-          aria-label={`Increase ${label}`}
-        >
-          +
-        </IconButton>
+        <div className="rs-slider w-auto shrink-0 grid grid-cols-[32px_64px_32px] justify-end gap-1.5">
+          <IconButton
+            size="md"
+            variant="outline"
+            className="rs-step"
+            onClick={() => onChange(Math.max(min, value - 1))}
+            aria-label={`Decrease ${label}`}
+          >
+            −
+          </IconButton>
+          <span className={"rs-fontpreview grid h-8 place-items-center p-0" + (mono ? " mono" : "")} style={mono ? { fontSize: value } : undefined}>
+            {value}px
+          </span>
+          <IconButton
+            size="md"
+            variant="outline"
+            className="rs-step"
+            onClick={() => onChange(Math.min(max, value + 1))}
+            aria-label={`Increase ${label}`}
+          >
+            +
+          </IconButton>
+        </div>
       </div>
     </section>
   );
@@ -262,10 +262,10 @@ export function ToggleRow({ label, desc, checked, onChange }: { label: string; d
           <div className="rs-row-label">{label}</div>
           <div className="rs-row-desc mt-[3px] leading-[1.5]">{desc}</div>
         </div>
+        <button className={"rs-switch shrink-0 max-[500px]:absolute max-[500px]:right-2.5 max-[500px]:top-2.5" + (checked ? " on" : "")} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}>
+          <span className="rs-switch-knob" />
+        </button>
       </div>
-      <button className={"rs-switch max-[500px]:absolute max-[500px]:right-2.5 max-[500px]:top-2.5" + (checked ? " on" : "")} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}>
-        <span className="rs-switch-knob" />
-      </button>
     </section>
   );
 }
