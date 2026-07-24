@@ -157,7 +157,7 @@ function SupervisionFixture(
       initialState={{ currentSid: SID }}
       services={{ api }}
     >
-      <div className="session-view h-[720px] min-h-[520px]">
+      <div className="session-view h-screen min-h-0 overflow-clip">
         <div
           aria-hidden="true"
           className="mx-auto mt-20 w-full max-w-[720px] px-8 text-sm text-dim"

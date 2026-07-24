@@ -104,7 +104,7 @@ function renderFixture(fixture: RunFixture) {
       initialState={{ runs: [fixture.run] }}
       services={{ clock: storyClock, streams: fixture.controller }}
     >
-      <div className="flex h-[680px] min-h-[520px] flex-col">
+      <div className="flex h-screen min-h-0 flex-col overflow-clip">
         <RunView runId={fixture.run.id} />
       </div>
     </StoryAppFrame>

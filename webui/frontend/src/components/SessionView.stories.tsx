@@ -103,7 +103,7 @@ function renderFixture(fixture: SessionFixture) {
         local: { "arwebui.supervision": "0" },
       }}
     >
-      <div className="h-screen min-h-[660px]">
+      <div className="flex h-screen min-h-0 flex-col overflow-clip">
         <SessionView sid={fixture.session.id} />
       </div>
     </StoryAppFrame>

@@ -154,8 +154,8 @@ function DiffViewFixture({
         },
       }}
     >
-      <div className="session-view h-[720px] min-h-[520px]">
-        <aside className="changes-panel session-side flex h-full min-w-0 flex-col overflow-hidden">
+      <div className="session-view h-screen min-h-0 overflow-clip">
+        <aside className="changes-panel session-side">
           <DiffView
             sid={SID}
             initialScope="working-tree"
