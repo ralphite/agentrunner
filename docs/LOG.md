@@ -7531,3 +7531,13 @@ Changes/Review，最终关闭 Changes 返回 Session。
 route reload/Back/Forward、sidebar inert、light/dark/system 与 AppShell layout
 已验证。未获安全窗口的 daemon restart、WebKit 与 storage 全 key 字节对比诚实记
 未测，不用隔离 store 或 mock 冒充 Gate B。
+
+---
+
+## 2026-07-23 · INC-99.1 Storybook 人类可读播放节奏
+
+真实 Storybook 浏览器复查确认固定短 delay 会让交互与关键阅读态闪过。普通
+interaction Story 的共享停留改为 1.6s；Core Session Playback 按语义步骤分档：
+普通操作 1.2–1.8s，send/stream/completion/review 2.4–3.8s，输入 48ms/字符。
+CUJ/component test 继续即时，Playwright 使用独立 400ms 模式，避免以测试速度污染
+人工观看。播放控制仍保留 Play/Pause/Next/Reset/Replay/Autoplay/0.5×–2×。
