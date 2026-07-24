@@ -17,9 +17,9 @@ import { createStoryApiHandlers } from "../storybook/handlers";
 import { humanPause } from "../storybook/humanPlayback";
 import {
   Composer,
-  GoalLoopLauncher as GoalLoopLauncherView,
   type SessionActions,
 } from "./Composer";
+import { GoalLoopLauncher as GoalLoopLauncherView } from "../features/composer/GoalLoopLauncher";
 
 type StoryApi = AppServices["api"];
 

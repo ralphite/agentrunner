@@ -35,10 +35,8 @@ import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, r
 import { isScratchWorkspace, projectLabel, projectSubtitles } from "../viewModels";
 import { ComposerView } from "../features/composer/ComposerView";
 
-export {
-  ComposerView,
-  GoalLoopLauncher,
-} from "../features/composer/ComposerView";
+export { ComposerView } from "../features/composer/ComposerView";
+export { GoalLoopLauncher } from "../features/composer/GoalLoopLauncher";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
