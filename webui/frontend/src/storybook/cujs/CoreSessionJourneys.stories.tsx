@@ -15,6 +15,7 @@ const meta = {
   args: {
     autoPlay: true,
     label: "Core session journey",
+    playbackPace: "instant",
     stepLimit: 19,
   },
 } satisfies Meta<typeof CoreSessionPlayback>;
@@ -68,9 +69,14 @@ export const StartNewSession: Story = {
       11,
     );
     await expect(
-      canvasElement.querySelector(".session-topbar"),
-    ).not.toBeNull();
-    await expect(canvas.getByLabelText("Send message")).toBeVisible();
+      await canvas.findByText(
+        "Build a deterministic Storybook demo for the core Agent Runner session journey.",
+        { selector: ".tt-title" },
+      ),
+    ).toBeVisible();
+    await expect(
+      await canvas.findByLabelText("Stop active turn"),
+    ).toBeVisible();
   },
 };
 

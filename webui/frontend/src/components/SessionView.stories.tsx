@@ -161,6 +161,11 @@ export const Running: Story = {
     ).toBeVisible();
     await expect(canvas.getByRole("status", { name: "Thinking" })).toBeVisible();
     await expect(canvas.getByLabelText("Stop active turn")).toBeVisible();
+    await userEvent.type(
+      canvas.getByPlaceholderText("Ask for follow-up changes"),
+      "Steer the running session",
+    );
+    await expect(canvas.getByLabelText("Send message")).toBeVisible();
   },
 };
 
