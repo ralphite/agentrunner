@@ -70,7 +70,7 @@ export const StartNewSession: Story = {
     await expect(
       canvasElement.querySelector(".session-topbar"),
     ).not.toBeNull();
-    await expect(canvas.getByLabelText("Stop active turn")).toBeVisible();
+    await expect(canvas.getByLabelText("Send message")).toBeVisible();
   },
 };
 
