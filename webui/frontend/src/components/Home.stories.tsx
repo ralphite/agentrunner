@@ -14,6 +14,28 @@ const noNetworkApi = new Proxy({} as StoryApi, {
   },
 });
 
+const projectApi = new Proxy(
+  {
+    gitBranches: async () => ({
+      isRepo: true,
+      current: "main",
+      branches: ["main"],
+      dirty: 0,
+      hasCommits: true,
+    }),
+  } as Partial<StoryApi> as StoryApi,
+  {
+    get: (target, property, receiver) => {
+      if (Reflect.has(target, property)) {
+        return Reflect.get(target, property, receiver);
+      }
+      return () => {
+        throw new Error(`Unexpected Storybook API call: ${String(property)}`);
+      };
+    },
+  },
+);
+
 const initialState = {
   health: buildHealth(),
   sessions: [],
@@ -82,5 +104,60 @@ export const StarterIntentFlow: Story = {
     );
     await expect(textarea).toHaveValue("Build an internal tool");
     await expect(canvas.queryByLabelText("Build suggestions")).toBeNull();
+  },
+};
+
+const longProject =
+  "/workspace/platform/agentrunner-with-an-intentionally-long-project-name-for-headline-truncation";
+
+export const ProjectAwareLongHeadline: Story = {
+  render: () => (
+    <StoryAppFrame
+      initialState={initialState}
+      services={{
+        api: projectApi,
+        local: { "arwebui.lastProject": longProject },
+      }}
+    >
+      <Home />
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const heading = await canvas.findByRole("heading", {
+      name: /What should we build in/,
+    });
+    const repo = heading.querySelector<HTMLElement>(".home-empty-repo")!;
+    await expect(repo).toHaveTextContent(
+      "agentrunner-with-an-intentionally-long-project-name-for-headline-truncation",
+    );
+    await expect(repo.scrollWidth).toBeGreaterThan(repo.clientWidth);
+  },
+};
+
+export const DraftWithoutIntent: Story = {
+  render: () => (
+    <StoryAppFrame
+      initialState={initialState}
+      services={{
+        api: noNetworkApi,
+        session: {
+          "arwebui.draft.~home":
+            "Review the existing component states without choosing a starter",
+        },
+      }}
+    >
+      <Home />
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByPlaceholderText("Do anything")).toHaveValue(
+      "Review the existing component states without choosing a starter",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Explore and understand code" }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByLabelText(/suggestions$/)).not.toBeInTheDocument();
   },
 };

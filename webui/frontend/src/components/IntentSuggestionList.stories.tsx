@@ -5,7 +5,7 @@ import {
   MagnifyingGlass,
 } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   IntentSuggestionList,
   type HomeSuggestion,
@@ -125,5 +125,43 @@ export const KeyboardSelection: Story = {
     await expect(args.onSelect).toHaveBeenCalledWith(
       "Explore and learn how a feature works",
     );
+  },
+};
+
+export const ManySuggestions: Story = {
+  args: {
+    suggestion: {
+      ...suggestions[0],
+      seed: "Investigate",
+      followups: Array.from(
+        { length: 18 },
+        (_, index) =>
+          `Investigate component state ${index + 1} and document the visible outcome`,
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByRole("button")).toHaveLength(18);
+    const list = canvas.getByLabelText("Investigate suggestions");
+    await expect(list.getBoundingClientRect().height).toBeGreaterThan(500);
+  },
+};
+
+export const SemanticPseudoStates: Story = {
+  parameters: {
+    pseudo: {
+      hover: ".home-intent-suggestion:nth-of-type(1)",
+      focusVisible: ".home-intent-suggestion:nth-of-type(2)",
+      active: ".home-intent-suggestion:nth-of-type(3)",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const first = canvas.getByRole("button", {
+      name: "Explore and learn how a feature works",
+    });
+    await waitFor(() => expect(first).toBeVisible());
+    await expect(canvas.getAllByRole("button")).toHaveLength(4);
   },
 };

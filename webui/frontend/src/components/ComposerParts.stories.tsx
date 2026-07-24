@@ -79,24 +79,28 @@ function ProjectPickerHarness({
   initialPage = "projects",
   initialQuery = "",
   selected = true,
+  items = projects,
+  triggerLabel,
 }: {
   initialPage?: "projects" | "new";
   initialQuery?: string;
   selected?: boolean;
+  items?: typeof projects;
+  triggerLabel?: string;
 }) {
   const [page, setPage] = useState(initialPage);
   const [query, setQuery] = useState(initialQuery);
   const matches = useMemo(
     () =>
-      projects.filter((item) =>
+      items.filter((item) =>
         item.label.toLowerCase().includes(query.toLowerCase()),
       ),
-    [query],
+    [items, query],
   );
   return (
     <div className="cx-env-strip">
       <ProjectPicker
-        label={selected ? "agentrunner" : "Select project"}
+        label={selected ? triggerLabel || "agentrunner" : "Select project"}
         query={query}
         page={page}
         projects={matches}
@@ -187,6 +191,67 @@ export const ProjectPickerNoSelection: Story = {
   },
 };
 
+export const ProjectPickerPageFlowKeyboard: Story = {
+  render: () => (
+    <StorySurface>
+      <ProjectPickerHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "agentrunner" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(page.getByRole("textbox", { name: "Search projects" })).toHaveFocus(),
+    );
+
+    page.getByRole("button", { name: "New project" }).focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("button", { name: "Back to projects" })).toHaveFocus(),
+    );
+
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("textbox", { name: "Search projects" })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(trigger).toHaveFocus();
+  },
+};
+
+const longProjectLabel =
+  "agentrunner-with-an-intentionally-long-project-name-that-must-truncate";
+const manyProjects = Array.from({ length: 14 }, (_, index) => ({
+  workspace: `/workspace/very/deep/team/repository-${index}`,
+  label: index === 0 ? longProjectLabel : `repository-${index}`,
+  subtitle: "~/workspace/very/deep/team",
+  active: index === 0,
+}));
+
+export const ProjectPickerLongOverflow: Story = {
+  render: () => (
+    <StorySurface>
+      <ProjectPickerHarness
+        items={manyProjects}
+        triggerLabel={longProjectLabel}
+      />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await openPopover(canvasElement, longProjectLabel);
+    const page = body(canvasElement);
+    const dialog = page.getByRole("dialog", { name: "Project picker" });
+    const list = dialog.querySelector<HTMLElement>(".cx-project-list");
+    const title = within(dialog).getByText(longProjectLabel);
+    await expect(title).toBeVisible();
+    await waitFor(() => expect(list!.scrollHeight).toBeGreaterThan(list!.clientHeight));
+    await expect(title.scrollWidth).toBeGreaterThan(title.clientWidth);
+  },
+};
+
 function RunLocationHarness({
   kind = "chat",
   initial = "worktree",
@@ -253,6 +318,21 @@ export const RunLocationBackground: Story = {
   },
 };
 
+export const RunLocationBackgroundWorktree: Story = {
+  render: () => (
+    <StorySurface>
+      <RunLocationHarness kind="background" initial="worktree" />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: "Background · New worktree",
+      }),
+    ).toBeVisible();
+  },
+};
+
 export const RunLocationUnavailable: Story = {
   render: () => (
     <StorySurface>
@@ -272,16 +352,40 @@ export const RunLocationUnavailable: Story = {
   },
 };
 
+export const RunLocationKeyboardSelection: Story = {
+  render: () => (
+    <StorySurface>
+      <RunLocationHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "New worktree" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: /New worktree/ })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() =>
+      expect(canvas.getByRole("button", { name: "Local" })).toHaveFocus(),
+    );
+  },
+};
+
 function BranchPickerHarness({
   isRepo = true,
   location = "worktree",
   initialQuery = "",
   branches = ["main", "storybook/components", "release/v2"],
+  narrow = false,
 }: {
   isRepo?: boolean;
   location?: "worktree" | "local";
   initialQuery?: string;
   branches?: string[];
+  narrow?: boolean;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [label, setLabel] = useState("storybook/components");
@@ -292,6 +396,7 @@ function BranchPickerHarness({
     <div className="cx-env-strip">
       <BranchPicker
         label={isRepo ? label : "No branch"}
+        narrow={narrow}
         isRepo={isRepo}
         location={location}
         dirty={location === "local" ? 3 : 0}
@@ -375,6 +480,58 @@ export const BranchPickerDisabled: Story = {
   },
 };
 
+export const BranchPickerLongNarrowOverflow: Story = {
+  render: () => (
+    <StorySurface>
+      <BranchPickerHarness
+        narrow
+        branches={[
+          "storybook/components",
+          ...Array.from(
+            { length: 18 },
+            (_, index) =>
+              `feature/team/component-state-${index}-with-a-very-long-suffix-that-keeps-going-across-a-narrow-composer-control`,
+          ),
+        ]}
+      />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await openPopover(canvasElement, "storybook/components");
+    const page = body(canvasElement);
+    const panel = page.getByRole("dialog", { name: "Branch picker" });
+    const longBranch = page.getByText(
+      "feature/team/component-state-0-with-a-very-long-suffix-that-keeps-going-across-a-narrow-composer-control",
+    );
+    await expect(longBranch).toBeVisible();
+    await waitFor(() =>
+      expect(panel.scrollHeight).toBeGreaterThan(panel.clientHeight),
+    );
+  },
+};
+
+export const BranchPickerDialogKeyboard: Story = {
+  render: () => (
+    <StorySurface>
+      <BranchPickerHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "storybook/components" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(page.getByLabelText("Search branches")).toHaveFocus(),
+    );
+    await userEvent.tab();
+    await expect(page.getByRole("button", { name: /^main/ })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await expect(trigger).toHaveFocus();
+  },
+};
+
 const attachments: ComposerAttachment[] = [
   {
     path: "/runtime/storybook/screenshot.png",
@@ -439,6 +596,34 @@ export const AttachmentEmpty: Story = {
   },
 };
 
+export const AttachmentLongAndWrapping: Story = {
+  render: () => (
+    <StorySurface>
+      <AttachmentList
+        attachments={Array.from({ length: 8 }, (_, index) => ({
+          path: `/runtime/storybook/report-${index}.md`,
+          name:
+            index === 0
+              ? "an-extremely-long-review-artifact-filename-that-must-truncate.md"
+              : `report-${index}.md`,
+          isImage: false,
+        }))}
+        onRemove={fn()}
+      />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const group = canvas.getByRole("group", { name: "Attachments" });
+    const longName = canvas.getByText(
+      "an-extremely-long-review-artifact-filename-that-must-truncate.md",
+    );
+    await expect(canvas.getAllByTitle("Remove attachment")).toHaveLength(8);
+    await expect(longName.scrollWidth).toBeGreaterThan(longName.clientWidth);
+    await expect(group.getBoundingClientRect().height).toBeGreaterThan(40);
+  },
+};
+
 export const FileMentionResults: Story = {
   render: () => (
     <StorySurface>
@@ -500,6 +685,49 @@ export const FileMentionUnknownWorkspace: Story = {
   },
 };
 
+function FileMentionHarness({
+  files,
+}: {
+  files: string[];
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  return (
+    <FileMentionMenu
+      query="src"
+      known
+      files={files}
+      activeIndex={activeIndex}
+      onActiveIndexChange={setActiveIndex}
+      onSelect={fn()}
+    />
+  );
+}
+
+const longMentionFiles = Array.from(
+  { length: 14 },
+  (_, index) =>
+    `src/features/component-state-${index}/an-intentionally-long-file-name-for-overflow.tsx`,
+);
+
+export const FileMentionPointerAndOverflow: Story = {
+  render: () => (
+    <StorySurface>
+      <FileMentionHarness files={longMentionFiles} />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const listbox = canvas.getByRole("listbox", { name: "Workspace files" });
+    const second = canvas.getByRole("option", { name: longMentionFiles[1] });
+    await userEvent.hover(second);
+    await expect(second).toHaveAttribute("aria-selected", "true");
+    await waitFor(() =>
+      expect(listbox.scrollHeight).toBeGreaterThan(listbox.clientHeight),
+    );
+    await expect(second).toHaveTextContent(longMentionFiles[1]);
+  },
+};
+
 export const SlashCommandResults: Story = {
   render: () => (
     <StorySurface>
@@ -520,16 +748,50 @@ export const SlashCommandResults: Story = {
   },
 };
 
+function SlashCommandHarness() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  return (
+    <SlashCommandMenu
+      commands={SLASH}
+      activeIndex={activeIndex}
+      onActiveIndexChange={setActiveIndex}
+      onSelect={fn()}
+    />
+  );
+}
+
+export const SlashCommandPointerAndOverflow: Story = {
+  render: () => (
+    <StorySurface>
+      <SlashCommandHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const listbox = canvas.getByRole("listbox", { name: "Slash commands" });
+    const model = canvas.getByRole("option", { name: /\/model/ });
+    await userEvent.hover(model);
+    await expect(model).toHaveAttribute("aria-selected", "true");
+    await waitFor(() =>
+      expect(listbox.scrollHeight).toBeGreaterThan(listbox.clientHeight),
+    );
+  },
+};
+
 function AddMenuHarness({
   initialPage = "root",
   isSession = false,
+  goalMode = false,
   planMode = false,
   kind = "chat",
+  persona = "dev",
 }: {
   initialPage?: "root" | "advanced" | "agent";
   isSession?: boolean;
+  goalMode?: boolean;
   planMode?: boolean;
   kind?: "chat" | "background";
+  persona?: string;
 }) {
   const [page, setPage] = useState(initialPage);
   return (
@@ -537,10 +799,10 @@ function AddMenuHarness({
       <AddMenu
         page={page}
         isSession={isSession}
-        goalMode={false}
+        goalMode={goalMode}
         planMode={planMode}
         kind={kind}
-        persona="default"
+        persona={persona}
         onOpen={() => {}}
         onPageChange={setPage}
         onPickFiles={fn()}
@@ -595,6 +857,22 @@ export const AddMenuPlanActive: Story = {
   },
 };
 
+export const AddMenuGoalActive: Story = {
+  render: () => (
+    <StorySurface>
+      <AddMenuHarness goalMode />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await openPopover(canvasElement, "Add and advanced options");
+    await expect(
+      body(canvasElement).getByRole("menuitem", {
+        name: /Goal Turn goal mode off/,
+      }),
+    ).toBeVisible();
+  },
+};
+
 export const AddMenuSession: Story = {
   render: () => (
     <StorySurface>
@@ -636,6 +914,64 @@ export const AddMenuAgents: Story = {
     const page = body(canvasElement);
     await expect(page.getByText("Agent")).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /Edit agent spec/ })).toBeVisible();
+  },
+};
+
+export const AddMenuSelectedPersona: Story = {
+  render: () => (
+    <StorySurface>
+      <AddMenuHarness initialPage="agent" persona="reviewer" />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await openPopover(canvasElement, "Add and advanced options");
+    const reviewer = body(canvasElement).getByRole("menuitem", {
+      name: /Reviewer/,
+    });
+    await expect(reviewer.querySelector(".pop-check")).toBeVisible();
+  },
+};
+
+export const AddMenuPageFlowKeyboard: Story = {
+  render: () => (
+    <StorySurface>
+      <AddMenuHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByRole("button", {
+      name: "Add and advanced options",
+    });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: /Files and folders/ })).toHaveFocus(),
+    );
+
+    page.getByRole("menuitem", { name: /Automation/ }).focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: "Back to add menu" })).toHaveFocus(),
+    );
+
+    page.getByRole("menuitem", { name: /Agent/ }).focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(
+        page.getByRole("menuitem", { name: "Back to automation menu" }),
+      ).toHaveFocus(),
+    );
+
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: "Back to add menu" })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: /Files and folders/ })).toHaveFocus(),
+    );
   },
 };
 
@@ -740,18 +1076,84 @@ export const AccessSessionUnknown: Story = {
   },
 };
 
+export const AccessClosedStateMatrix: Story = {
+  render: () => (
+    <StorySurface>
+      <div className="cx-bar flex-wrap">
+        {(
+          [
+            ["ask", "Ask to approve", "low"],
+            ["acceptEdits", "Auto-accept edits", "med"],
+            ["full", "Full access", "high"],
+            ["plan", "Plan", "low"],
+          ] as const
+        ).map(([active, label, risk]) => (
+          <AccessPicker
+            key={active}
+            variant="home"
+            active={active}
+            label={label}
+            risk={risk}
+            onHomeSelect={fn()}
+          />
+        ))}
+      </div>
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Ask to approve" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Auto-accept edits" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Full access" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Plan" })).toBeVisible();
+  },
+};
+
+export const AccessHomeKeyboardSelection: Story = {
+  render: () => (
+    <StorySurface>
+      <AccessHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "Ask to approve" });
+    await userEvent.click(trigger);
+    await waitFor(() =>
+      expect(page.getByRole("menu")).toBeVisible(),
+    );
+    const ask = page.getByRole("menuitem", { name: /Ask to approve/ });
+    ask.focus();
+    await expect(ask).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(
+      page.getByRole("menuitem", { name: /Auto-accept edits/ }),
+    ).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Auto-accept edits" }),
+      ).toHaveFocus(),
+    );
+    await expect(page.queryByRole("menu")).not.toBeInTheDocument();
+  },
+};
+
 function ModelPickerHarness({
   initialPage = "root",
   budgetOverride = null,
+  initialModelLabel = "Gemini Flash",
 }: {
   initialPage?: "root" | "model" | "effort" | "advanced";
   budgetOverride?: number | null;
+  initialModelLabel?: string;
 }) {
   const [page, setPage] = useState(initialPage);
   const [model, setModel] = useState({
     provider: "gemini",
     id: "gemini-flash-latest",
-    label: "Gemini Flash",
+    label: initialModelLabel,
   });
   const [effort, setEffort] = useState<"light" | "medium" | "high" | "xhigh">(
     "medium",
@@ -833,6 +1235,57 @@ export const ModelPickerAdvanced: Story = {
   },
 };
 
+export const ModelPickerCustomLongSummary: Story = {
+  render: () => (
+    <StorySurface>
+      <ModelPickerHarness
+        initialModelLabel="provider/custom-model-with-an-intentionally-long-version-suffix"
+        budgetOverride={8192}
+      />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByTitle("Model & effort");
+    await expect(trigger).toHaveTextContent("Custom");
+    await expect(trigger).toHaveTextContent(
+      "provider/custom-model-with-an-intentionally-long-version-suffix",
+    );
+  },
+};
+
+export const ModelPickerPageFlowKeyboard: Story = {
+  render: () => (
+    <StorySurface>
+      <ModelPickerHarness />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByTitle("Model & effort");
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: /Model Gemini Flash/ })).toHaveFocus(),
+    );
+
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: "Back to model menu" })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: /Model Gemini Flash/ })).toHaveFocus(),
+    );
+
+    page.getByRole("menuitem", { name: /Effort Medium/ }).focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(page.getByRole("menuitem", { name: "Back to model menu" })).toHaveFocus(),
+    );
+  },
+};
+
 function GoalOptionsHarness({
   configured = false,
 }: {
@@ -884,6 +1337,55 @@ export const GoalOptionsVerifier: Story = {
     await waitFor(() =>
       expect(page.getByRole("spinbutton")).toHaveValue(20),
     );
+  },
+};
+
+export const GoalOptionsLongBoundary: Story = {
+  render: () => (
+    <StorySurface>
+      <div className="cx-bar">
+        <GoalOptions
+          verifier="npm run test:storybook -- --project chromium && npm run build-storybook"
+          rounds={1}
+          onVerifierChange={fn()}
+          onRoundsChange={fn()}
+          onExit={fn()}
+        />
+      </div>
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await openPopover(canvasElement, "Goal");
+    const page = body(canvasElement);
+    await expect(page.getByDisplayValue("1")).toHaveValue(1);
+    const command = page.getByPlaceholderText(/agent self-certifies/);
+    await expect(command).toHaveValue(
+      "npm run test:storybook -- --project chromium && npm run build-storybook",
+    );
+    await expect(command.scrollWidth).toBeGreaterThan(command.clientWidth);
+  },
+};
+
+export const GoalOptionsExitKeyboard: Story = {
+  render: () => (
+    <StorySurface>
+      <GoalOptionsHarness configured />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = body(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "Goal" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(page.getByPlaceholderText(/agent self-certifies/)).toBeVisible(),
+    );
+    page.getByPlaceholderText(/agent self-certifies/).focus();
+    await expect(page.getByPlaceholderText(/agent self-certifies/)).toHaveFocus();
+    page.getByRole("button", { name: "Exit Goal mode" }).focus();
+    await userEvent.keyboard("{Enter}");
+    await expect(trigger).toHaveFocus();
   },
 };
 
@@ -961,6 +1463,56 @@ export const AssistUndo: Story = {
         "Undo optimize — restore your original draft",
       ),
     ).toBeVisible();
+  },
+};
+
+export const AssistListening: Story = {
+  render: () => (
+    <StorySurface>
+      <div className="cx-bar justify-end">
+        <AssistActions
+          hasText={false}
+          canUndo={false}
+          optimizing={false}
+          micVisible
+          micActive
+          dictationBusy={false}
+          onOptimize={fn()}
+          onUndo={fn()}
+          onToggleMic={fn()}
+        />
+      </div>
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const mic = within(canvasElement).getByTitle("Stop dictation");
+    await expect(mic).toHaveClass("listening");
+    await expect(mic).toBeEnabled();
+  },
+};
+
+export const AssistHidden: Story = {
+  render: () => (
+    <StorySurface>
+      <div className="cx-bar justify-end">
+        <AssistActions
+          hasText={false}
+          canUndo={false}
+          optimizing={false}
+          micVisible={false}
+          micActive={false}
+          dictationBusy={false}
+          onOptimize={fn()}
+          onUndo={fn()}
+          onToggleMic={fn()}
+        />
+      </div>
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByRole("button"),
+    ).not.toBeInTheDocument();
   },
 };
 
@@ -1060,6 +1612,26 @@ export const SubmitRunningQueue: Story = {
   },
 };
 
+export const SubmitRunningSteer: Story = {
+  render: () => (
+    <StorySurface>
+      <div className="cx-bar justify-end">
+        <SubmitButton
+          mode="send"
+          running
+          deliveryMode="steer"
+          onSubmit={fn()}
+        />
+      </div>
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByTitle("Send · steer (⌘⏎ to queue)"),
+    ).toBeVisible();
+  },
+};
+
 export const SubmitStop: Story = {
   render: () => (
     <StorySurface>
@@ -1074,5 +1646,43 @@ export const SubmitStop: Story = {
         name: "Stop active turn",
       }),
     ).toBeVisible();
+  },
+};
+
+export const SemanticControlPseudoStates: Story = {
+  parameters: {
+    pseudo: {
+      hover: ".story-hover .cx-send",
+      focusVisible: ".story-focus .cx-deliv",
+      active: ".story-active .cx-send",
+    },
+  },
+  render: () => (
+    <StorySurface>
+      <div className="cx-bar justify-end">
+        <span className="story-hover">
+          <SubmitButton mode="send" onSubmit={fn()} />
+        </span>
+        <span className="story-focus">
+          <DeliveryModeControl mode="queue" onChange={fn()} />
+        </span>
+        <span className="story-active">
+          <SubmitButton mode="stop" onSubmit={fn()} />
+        </span>
+        <SubmitButton mode="send" disabled onSubmit={fn()} />
+      </div>
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const ready = canvas.getAllByRole("button", { name: "Send message" })[0];
+    await waitFor(() => expect(ready).toBeVisible());
+    await expect(canvas.getAllByRole("button", { name: "Send message" })).toHaveLength(2);
+    await expect(canvas.getByRole("button", { name: "Queue" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(canvas.getByRole("button", { name: "Stop active turn" })).toBeVisible();
+    await expect(canvas.getAllByRole("button", { name: "Send message" })[1]).toBeDisabled();
   },
 };

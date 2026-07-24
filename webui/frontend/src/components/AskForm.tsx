@@ -90,7 +90,12 @@ export function AskForm({
   };
 
   return (
-    <div className="ask-form" role="group" aria-label="Question from the agent">
+    <div
+      className="ask-form"
+      role="group"
+      aria-label="Question from the agent"
+      aria-busy={busy}
+    >
       <div className="ask-form-head">
         <Question size={16} weight="bold" /> The agent is asking
       </div>
@@ -118,6 +123,7 @@ export function AskForm({
                     key={oi}
                     onClick={() => toggle(qi, on, !!q.multi_select)}
                     title={o.description || o.label}
+                    aria-pressed={isSel}
                   >
                     {isSel ? (
                       <CheckCircle className="mt-[1px] shrink-0 text-blue" size={16} weight="fill" />

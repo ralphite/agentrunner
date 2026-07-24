@@ -5,7 +5,7 @@ import {
   MagnifyingGlass,
 } from "@phosphor-icons/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   HomeStarterCard,
   type HomeSuggestion,
@@ -108,5 +108,39 @@ export const KeyboardSelection: Story = {
     await expect(card).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     await expect(args.onSelect).toHaveBeenCalledWith(args.suggestion);
+  },
+};
+
+export const SemanticPseudoStates: Story = {
+  parameters: {
+    pseudo: {
+      hover: ".story-card-hover .home-empty-card",
+      focusVisible: ".story-card-focus .home-empty-card",
+      active: ".story-card-active .home-empty-card",
+    },
+  },
+  render: (args) => (
+    <>
+      <div className="contents story-card-hover">
+        <HomeStarterCard {...args} suggestion={suggestions[0]} />
+      </div>
+      <div className="contents story-card-focus">
+        <HomeStarterCard {...args} suggestion={suggestions[1]} />
+      </div>
+      <div className="contents story-card-active">
+        <HomeStarterCard {...args} suggestion={suggestions[2]} />
+      </div>
+      <HomeStarterCard {...args} suggestion={suggestions[3]} disabled />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const hover = canvas.getByRole("button", {
+      name: "Explore and understand code",
+    });
+    await waitFor(() => expect(hover).toBeVisible());
+    await expect(
+      canvas.getByRole("button", { name: "Fix issues and failures" }),
+    ).toBeDisabled();
   },
 };

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AskForm } from "./AskForm";
 
 const questions = [
@@ -84,5 +84,120 @@ export const MultipleAnswers: Story = {
     await expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
     await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
     await expect(args.onSubmit).toHaveBeenCalledWith(["1:2", "2:1,2"]);
+  },
+};
+
+export const FreeTextOnly: Story = {
+  args: {
+    questions: [
+      {
+        question: "What should the agent verify before continuing?",
+      },
+    ],
+    onSubmit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const answer = canvas.getByRole("textbox", {
+      name: "What should the agent verify before continuing?",
+    });
+    await userEvent.type(answer, "Verify the focused Storybook interactions");
+    await expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onSubmit).toHaveBeenCalledWith([
+      "1:text=Verify the focused Storybook interactions",
+    ]);
+  },
+};
+
+const pendingSubmit = fn(() => new Promise<void>(() => {}));
+
+export const BusySubmitting: Story = {
+  args: {
+    questions: [
+      {
+        question: "How should the review be run?",
+        options: [{ label: "Fast review" }],
+      },
+    ],
+    onSubmit: pendingSubmit,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Fast review" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
+    await waitFor(() =>
+      expect(canvas.getByRole("button", { name: "Submit" })).toBeDisabled(),
+    );
+    await expect(canvas.getByRole("button", { name: "Skip" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Fast review" })).toHaveClass(
+      "sel",
+    );
+    await expect(
+      canvas.getByRole("group", { name: "Question from the agent" }),
+    ).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const EmptyQuestions: Story = {
+  args: {
+    questions: [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("group", { name: "Question from the agent" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
+    await expect(canvas.queryByText("How should the review be run?")).not.toBeInTheDocument();
+  },
+};
+
+export const LongQuestionAndOptions: Story = {
+  args: {
+    questions: [
+      {
+        question:
+          "Which verification strategy should be used for an unusually large component migration with several independent visual and keyboard interaction surfaces?",
+        options: [
+          {
+            label:
+              "Run the focused component Stories and preserve every deterministic interaction state",
+            description:
+              "This deliberately long option description must wrap inside the card without widening the question surface or displacing the selection glyph.",
+          },
+          {
+            label: "Skip visual verification",
+          },
+        ],
+        allow_free_text: true,
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const longOption = canvas.getByRole("button", {
+      name: /Run the focused component Stories/,
+    });
+    await expect(longOption.getBoundingClientRect().height).toBeGreaterThan(60);
+    await expect(canvas.getByPlaceholderText("…or type an answer")).toBeVisible();
+  },
+};
+
+export const SemanticPseudoStates: Story = {
+  parameters: {
+    pseudo: {
+      hover: ".ask-opt:nth-of-type(1)",
+      focusVisible: ".ask-opt:nth-of-type(2)",
+      active: ".ask-actions .primary",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const first = canvas.getByRole("button", { name: /Fast review/ });
+    await waitFor(() => expect(first).toBeVisible());
+    await userEvent.click(canvas.getByRole("button", { name: /Thorough review/ }));
+    await expect(
+      canvas.getByRole("button", { name: /Thorough review/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("button", { name: "Submit" })).toBeDisabled();
   },
 };

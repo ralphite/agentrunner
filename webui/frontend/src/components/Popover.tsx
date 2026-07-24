@@ -63,10 +63,14 @@ export function Popover({
   const [place, setPlace] = useState<Place | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const autoFocusedRef = useRef(false);
+  const keyboardOpenRef = useRef(false);
+  const placed = place !== null;
   // An item selection is a completed visit to this temporary surface. Return
   // keyboard focus to the trigger after React removes the chosen row; outside
-  // clicks and anchor-loss use setOpen directly so they keep their own target.
+  // clicks and anchor-loss keep their own target.
   const close = () => {
+    setPlace(null);
     setOpen(false);
     requestAnimationFrame(() => {
       wrapRef.current?.querySelector<HTMLElement>(":scope > button, :scope > * > button")?.focus();
@@ -106,15 +110,42 @@ export function Popover({
 
   useLayoutEffect(() => {
     if (!open) {
-      setPlace((p) => (p ? null : p));
+      autoFocusedRef.current = false;
+      keyboardOpenRef.current = false;
       return;
     }
     warnIfClipped(wrapRef.current);
     position();
-    requestAnimationFrame(() => {
-      wrapRef.current?.querySelector<HTMLElement>("[data-popover-autofocus]")?.focus();
-    });
   }, [open, position]);
+
+  useLayoutEffect(() => {
+    // Before placement the panel is visibility:hidden, and browsers refuse to
+    // focus descendants of a hidden box. `placed` flips in the positioning
+    // layout effect; on that commit, focus synchronously before paint. Never
+    // steal focus again during scroll/resize re-measures.
+    if (!open || !placed || autoFocusedRef.current) return;
+    const target =
+      wrapRef.current?.querySelector<HTMLElement>(
+        "[data-popover-autofocus]",
+      ) ||
+      (keyboardOpenRef.current
+        ? wrapRef.current?.querySelector<HTMLElement>(
+            '[role="menuitem"]:not([disabled])',
+          )
+        : null);
+    if (!target) return;
+    target.focus();
+    if (document.activeElement === target) autoFocusedRef.current = true;
+    // Testing-library completes its synthetic pointer sequence after React
+    // layout effects and can restore focus to the trigger. Reassert once after
+    // the event task; the connected check makes this harmless if the popover
+    // closed in the meantime.
+    window.setTimeout(() => {
+      if (!target.isConnected || document.activeElement === target) return;
+      target.focus();
+      if (document.activeElement === target) autoFocusedRef.current = true;
+    }, 50);
+  }, [open, placed]);
 
   // A viewport-pinned panel does not ride its scroller, so re-measure whenever
   // anything moves (capture phase: the scroll may be an inner pane, not the
@@ -129,7 +160,10 @@ export function Popover({
         raf = 0;
         const rect = wrapRef.current?.getBoundingClientRect();
         if (!rect) return;
-        if (rect.bottom < 0 || rect.top > window.innerHeight) setOpen(false);
+        if (rect.bottom < 0 || rect.top > window.innerHeight) {
+          setPlace(null);
+          setOpen(false);
+        }
         else position();
       });
     };
@@ -143,17 +177,28 @@ export function Popover({
   }, [open, position]);
 
   const toggle = () => {
-    if (!open) onOpen?.();
-    setOpen((value) => !value);
+    if (open) {
+      setPlace(null);
+      setOpen(false);
+      return;
+    }
+    onOpen?.();
+    keyboardOpenRef.current = false;
+    setPlace(null);
+    setOpen(true);
   };
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setPlace(null);
+        setOpen(false);
+      }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        setPlace(null);
         setOpen(false);
         wrapRef.current?.querySelector<HTMLElement>(":scope > button, :scope > * > button")?.focus();
         return;
@@ -185,12 +230,9 @@ export function Popover({
     if (!target.closest("button")) return;
     event.preventDefault();
     onOpen?.();
+    keyboardOpenRef.current = true;
+    setPlace(null);
     setOpen(true);
-    requestAnimationFrame(() => {
-      const auto = wrapRef.current?.querySelector<HTMLElement>("[data-popover-autofocus]");
-      const first = wrapRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])');
-      (auto || first)?.focus();
-    });
   };
 
   return (
@@ -290,7 +332,6 @@ export function PopItem({
   desc,
   right,
   danger,
-  highlight,
   disabled,
 }: {
   onClick?: () => void;
@@ -300,17 +341,17 @@ export function PopItem({
   desc?: React.ReactNode;
   right?: React.ReactNode;
   danger?: boolean;
-  highlight?: boolean;
   disabled?: boolean;
 }) {
   const inMenu = useContext(PopoverMenuContext);
   return (
     <button
       type="button"
-      className={"pop-item" + (danger ? " danger" : "") + (highlight ? " hl" : "") + (disabled ? " disabled" : "")}
+      className={"pop-item" + (active ? " active" : "") + (danger ? " danger" : "") + (disabled ? " disabled" : "")}
       onClick={onClick}
       disabled={disabled}
       role={inMenu ? "menuitem" : undefined}
+      aria-current={active ? "true" : undefined}
     >
       {icon !== undefined && <span className="pop-ico">{icon}</span>}
       <span className="pop-body">

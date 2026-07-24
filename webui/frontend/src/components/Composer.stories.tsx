@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import type { ForkDraft } from "../api";
 import type { AppServices } from "../app/appServices";
 import type { AppState } from "../store";
@@ -381,6 +381,82 @@ export const ForkDraftWithAttachments: Story = {
   },
 };
 
+const longAttachmentSeed: ForkDraft = {
+  draft_id: "story-long-attachment-draft",
+  text:
+    "Review this intentionally long multiline draft.\nConfirm that the composer grows without pushing its primary controls outside the card.\nThen summarize every attached artifact.",
+  content: Array.from({ length: 9 }, (_, index) => ({
+    kind: "file" as const,
+    ref: `story-long-file-${index}`,
+    media_type: "text/markdown",
+    name:
+      index === 0
+        ? "an-extremely-long-review-artifact-filename-that-must-truncate-inside-the-composer.md"
+        : `review-artifact-${index}.md`,
+    part_id: `story-long-part-${index}`,
+  })),
+};
+
+export const LongDraftAndAttachments: Story = {
+  render: () => (
+    <ComposerFixture
+      variant="session"
+      seed={longAttachmentSeed}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByPlaceholderText("Ask for follow-up changes");
+    await waitFor(() => expect(input).toHaveValue(longAttachmentSeed.text));
+    const attachments = canvas.getByRole("group", { name: "Attachments" });
+    const longName = canvas.getByText(
+      "an-extremely-long-review-artifact-filename-that-must-truncate-inside-the-composer.md",
+    );
+    await expect(canvas.getAllByTitle("Remove attachment")).toHaveLength(9);
+    await expect(longName.scrollWidth).toBeGreaterThan(longName.clientWidth);
+    await expect(attachments.getBoundingClientRect().height).toBeGreaterThan(40);
+  },
+};
+
+export const DraggingFiles: Story = {
+  play: async ({ canvasElement }) => {
+    const card = canvasElement.querySelector<HTMLElement>(".cx-card")!;
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(
+      new File(["storybook"], "component-state.txt", {
+        type: "text/plain",
+      }),
+    );
+    Object.defineProperty(dataTransfer, "types", { value: ["Files"] });
+    fireEvent.dragEnter(card, { dataTransfer });
+    const overlay = within(canvasElement).getByText("Drop files to attach");
+    await expect(overlay).toBeVisible();
+    await expect(card).toHaveClass("dropping");
+  },
+};
+
+const pendingSend = fn(() => new Promise<void>(() => {}));
+
+export const BusyPendingSend: Story = {
+  render: () => (
+    <ComposerFixture
+      variant="session"
+      sessionDraft="Hold this draft while the send request is pending"
+      onSend={pendingSend}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByPlaceholderText("Ask for follow-up changes");
+    const send = canvas.getByRole("button", { name: "Send message" });
+    await userEvent.click(send);
+    await waitFor(() => expect(send).toBeDisabled());
+    await expect(input).toHaveValue(
+      "Hold this draft while the send request is pending",
+    );
+  },
+};
+
 export const ProjectPicker: Story = {
   render: () => <ComposerFixture selectedProject="" />,
   play: async ({ canvasElement }) => {
@@ -502,6 +578,126 @@ export const GoalLoopLauncher: Story = {
   },
 };
 
+export const GoalLoopModeMatrix: Story = {
+  render: () => (
+    <StoryAppFrame>
+      <div className="mx-auto grid max-w-[760px] gap-4 p-6">
+        <GoalLoopLauncherView
+          mode="goal"
+          initialPrompt="Keep improving coverage until every visible state is represented"
+          busy={false}
+          onCancel={fn()}
+          onStart={fn()}
+        />
+        <GoalLoopLauncherView
+          mode="loop"
+          initialPrompt="Repeat the focused Storybook checks"
+          busy={false}
+          onCancel={fn()}
+          onStart={fn()}
+        />
+        <GoalLoopLauncherView
+          mode="best"
+          initialPrompt="Try several fixture designs and keep the clearest result"
+          busy={false}
+          onCancel={fn()}
+          onStart={fn()}
+        />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Start goal" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Start loop" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Start best-of-N" })).toBeEnabled();
+    await expect(canvas.getByText("Attempts")).toBeVisible();
+    await expect(canvas.getAllByText("Max rounds")).toHaveLength(2);
+  },
+};
+
+export const GoalLoopInvalidInterval: Story = {
+  render: () => (
+    <StoryAppFrame>
+      <div className="mx-auto max-w-[760px] p-6">
+        <GoalLoopLauncherView
+          mode="loop"
+          initialPrompt="Repeat the focused Storybook checks"
+          busy={false}
+          onCancel={fn()}
+          onStart={fn()}
+        />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const cadence = canvas.getByRole("textbox", { name: "Every" });
+    await userEvent.clear(cadence);
+    await userEvent.type(cadence, "not-a-duration");
+    await expect(canvas.getByRole("alert")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Start loop" })).toBeDisabled();
+  },
+};
+
+export const GoalLoopEmptyAndBusy: Story = {
+  render: () => (
+    <StoryAppFrame>
+      <div className="mx-auto grid max-w-[760px] gap-4 p-6">
+        <GoalLoopLauncherView
+          mode="goal"
+          initialPrompt=""
+          busy={false}
+          onCancel={fn()}
+          onStart={fn()}
+        />
+        <GoalLoopLauncherView
+          mode="best"
+          initialPrompt="Compare three complete attempts"
+          busy
+          onCancel={fn()}
+          onStart={fn()}
+        />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Start goal" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Start best-of-N" })).toBeDisabled();
+  },
+};
+
+export const FileMentionKeyboard: Story = {
+  render: () => <ComposerFixture variant="session" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByPlaceholderText("Ask for follow-up changes");
+    await userEvent.type(input, "@");
+    const first = await canvas.findByRole("option", {
+      name: "src/components/Composer.tsx",
+    });
+    const second = canvas.getByRole("option", {
+      name: "src/components/Composer.stories.tsx",
+    });
+    await expect(first).toHaveAttribute("aria-selected", "true");
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(second).toHaveAttribute("aria-selected", "true");
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      canvas.queryByRole("listbox", { name: "Workspace files" }),
+    ).not.toBeInTheDocument();
+    await expect(input).toHaveFocus();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "@Comp");
+    await canvas.findByRole("option", { name: "src/components/Composer.tsx" });
+    await userEvent.keyboard("{ArrowDown}{Tab}");
+    await expect(input).toHaveValue("src/components/Composer.stories.tsx ");
+    await expect(input).toHaveFocus();
+  },
+};
+
 export const SlashCommands: Story = {
   render: () => <ComposerFixture variant="session" />,
   play: async ({ canvasElement }) => {
@@ -515,6 +711,32 @@ export const SlashCommands: Story = {
     await expect(canvas.getByText("/mode")).toBeVisible();
     await expect(canvas.getByText("/model")).toBeVisible();
     await userEvent.keyboard("{ArrowDown}{Enter}");
+    await expect(input).toHaveValue("/model ");
+  },
+};
+
+export const SlashCommandKeyboardWrapAndEscape: Story = {
+  render: () => <ComposerFixture variant="session" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByPlaceholderText("Ask for follow-up changes");
+    await userEvent.type(input, "/");
+    const options = await canvas.findAllByRole("option");
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(options[options.length - 1]).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      canvas.queryByRole("listbox", { name: "Slash commands" }),
+    ).not.toBeInTheDocument();
+    await expect(input).toHaveFocus();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "/mo");
+    await canvas.findByText("/mode");
+    await userEvent.keyboard("{ArrowDown}{Tab}");
     await expect(input).toHaveValue("/model ");
   },
 };

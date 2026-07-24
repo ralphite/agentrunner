@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import { useEffect, useRef, type Ref } from "react";
 import {
   ArrowClockwise,
   ArrowUUpLeft,
@@ -42,6 +42,21 @@ import {
 import type { AgentCatalogEntry } from "../types";
 import type { SlashCmd } from "./slash";
 import { Popover, PopItem, PopSection } from "./Popover";
+
+function usePickerPageFocus(page: string) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      ref.current
+        ?.querySelector<HTMLElement>(
+          "[data-popover-autofocus], button:not([disabled])",
+        )
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [page]);
+  return ref;
+}
 
 export interface ComposerAttachment {
   path: string;
@@ -90,6 +105,7 @@ export function ProjectPicker({
   onUseExisting,
   onClear,
 }: ProjectPickerProps) {
+  const pageRef = usePickerPageFocus(page);
   return (
     <Popover
       align="left"
@@ -114,7 +130,7 @@ export function ProjectPicker({
       onOpen={onOpen}
     >
       {(close) => (
-        <div className="cx-menu project-menu">
+        <div className="cx-menu project-menu" ref={pageRef}>
           {page === "projects" ? (
             <>
               <label className="cx-project-search">
@@ -573,6 +589,7 @@ export function AddMenu({
   onSelectPersona,
   onEditSpec,
 }: AddMenuProps) {
+  const pageRef = usePickerPageFocus(page);
   return (
     <Popover
       align="left"
@@ -599,6 +616,7 @@ export function AddMenu({
             "[&_.pop-title]:shrink-0 [&_.pop-desc]:min-w-0 [&_.pop-desc]:truncate" +
             (page === "agent" ? " cx-add-agent" : "")
           }
+          ref={pageRef}
           style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
           onClick={(event) => event.preventDefault()}
         >
@@ -912,6 +930,7 @@ export function ModelPicker({
   onSelectEffort,
   onCustomModel,
 }: ModelPickerProps) {
+  const pageRef = usePickerPageFocus(page);
   return (
     <Popover
       align="right"
@@ -937,6 +956,7 @@ export function ModelPicker({
       {(close) => (
         <div
           className="cx-menu wide cx-model-menu"
+          ref={pageRef}
           style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
           onClick={(event) => event.preventDefault()}
         >
