@@ -1337,6 +1337,8 @@
     transform: scale(var(--lb-scale, 1));
     transform-origin: center;
   }
+  .lb-error { @apply grid max-w-[360px] place-items-center gap-1 rounded-xl border border-white/20 bg-white/10 p-6 text-center text-white; }
+  .lb-error small { @apply max-w-full truncate text-[12px] text-white/70; }
   .lb-nav { @apply absolute top-1/2 -translate-y-1/2; }
   .lb-nav.prev { @apply left-3; }
   .lb-nav.next { @apply right-3; }

@@ -36,6 +36,7 @@ export function Lightbox({
   resolve?: (path: string) => string;
 }) {
   const [zoom, setZoom] = useState(100);
+  const [failed, setFailed] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
   const multi = images.length > 1;
   const src = images[index] ? resolve(images[index]) : "";
@@ -53,7 +54,10 @@ export function Lightbox({
 
   // Reset zoom whenever the shown image changes — a 300% zoom on one photo
   // shouldn't carry over to the next.
-  useEffect(() => setZoom(100), [index]);
+  useEffect(() => {
+    setZoom(100);
+    setFailed(false);
+  }, [index, src]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -125,12 +129,20 @@ export function Lightbox({
         tabIndex={0}
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <img
-          className={`lb-img ${zoom > 100 ? "is-zoomed" : ""}`}
-          src={src}
-          alt={name}
-          style={imageStyle}
-        />
+        {failed ? (
+          <div className="lb-error" role="alert">
+            <span>Image unavailable</span>
+            <small>{name}</small>
+          </div>
+        ) : (
+          <img
+            className={`lb-img ${zoom > 100 ? "is-zoomed" : ""}`}
+            src={src}
+            alt={name}
+            style={imageStyle}
+            onError={() => setFailed(true)}
+          />
+        )}
       </div>
 
       <div className="lb-controls" onClick={(e) => e.stopPropagation()}>
@@ -153,7 +165,7 @@ export function Lightbox({
             tone="inverse"
             variant="outline"
             onClick={() => zoomBy(-ZOOM_STEP)}
-            disabled={zoom <= ZOOM_MIN}
+            disabled={failed || zoom <= ZOOM_MIN}
             aria-label="Zoom out"
           >
             <MagnifyingGlassMinus size={17} />
@@ -164,7 +176,7 @@ export function Lightbox({
             tone="inverse"
             variant="outline"
             onClick={() => zoomBy(ZOOM_STEP)}
-            disabled={zoom >= ZOOM_MAX}
+            disabled={failed || zoom >= ZOOM_MAX}
             aria-label="Zoom in"
           >
             <MagnifyingGlassPlus size={17} />
