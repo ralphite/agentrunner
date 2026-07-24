@@ -71,9 +71,10 @@ describe("ApprovalCard mobile decision flow", () => {
     const buttons = Array.from(actions?.querySelectorAll("button") || []);
 
     expect(buttons.map((button) => button.textContent)).toEqual(["Approve once", "Always allow", "Deny"]);
-    expect(buttons[0].classList.contains("primary")).toBe(true);
+    expect(buttons[0].getAttribute("data-variant")).toBe("solid");
     expect(buttons[0].classList.contains("flex-[1_1_100%]")).toBe(true);
-    expect(buttons[1].classList.contains("subtle")).toBe(true);
+    expect(buttons[1].getAttribute("data-variant")).toBe("outline");
+    expect(buttons[2].getAttribute("data-tone")).toBe("danger");
   });
 
   it("stacks the denial reason above reachable secondary and destructive actions", async () => {

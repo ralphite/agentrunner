@@ -107,13 +107,13 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     const trigger = screen.getByLabelText("Changed files");
-    expect(trigger.className).not.toMatch(/active/);
+    expect(trigger.getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.click(trigger);
     fireEvent.change(screen.getByPlaceholderText("Filter files…"), { target: { value: "notes" } });
     // Closing the popover must not make a filtered review look like a full one.
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByLabelText("Changed files").className).toMatch(/active/);
+    expect(screen.getByLabelText("Changed files").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("moves Expand / Collapse-all into the … overflow", async () => {

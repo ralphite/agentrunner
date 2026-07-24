@@ -155,7 +155,9 @@ describe("DF-D4 · no title bar that repeats the topbar pill", () => {
     // Mobile: the close control shares the first section's heading line at the
     // panel's right edge instead of consuming a blank 40px row on the left.
     const close = screen.getByRole("button", { name: /hide environment/i });
-    expect(close.classList).toContain("icon-only");
+    expect(close.getAttribute("data-ui-icon-button")).toBe("");
+    expect(close.getAttribute("data-size")).toBe("sm");
+    expect(close.getAttribute("data-variant")).toBe("ghost");
     expect(close.classList).toContain("h-6");
     expect(close.classList).toContain("w-6");
 

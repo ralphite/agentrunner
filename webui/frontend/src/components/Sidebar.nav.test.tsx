@@ -830,7 +830,10 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     expect(answer.getAttribute("aria-label")).toContain("Needs answer");
     expect(answer.querySelector(".status-dot")!.getAttribute("title")).toBe("Needs answer");
     expect(failed.getAttribute("aria-label")).toContain("Failed");
-    expect(failed.querySelector(".status-dot")!.className).toBe("status-dot crash");
+    const failedStatus = failed.querySelector(".status-dot")!;
+    expect(failedStatus.classList).toContain("crash");
+    expect(failedStatus.getAttribute("data-display")).toBe("dot");
+    expect(failedStatus.getAttribute("data-tone")).toBe("danger");
     expect(failed.querySelector(".status-count")).toBeNull();
   });
 

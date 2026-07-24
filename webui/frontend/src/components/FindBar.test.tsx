@@ -41,11 +41,12 @@ describe("FindBar focus return (A11Y-3)", () => {
   it("keeps the input and controls in one compact utility surface", () => {
     render(<FindBar scope={() => null} onClose={() => {}} />);
     const input = screen.getByPlaceholderText("Search chat…");
-    const bar = input.closest(".findbar");
+    const bar = input.closest("[data-ui-search-field]");
 
-    expect(input.parentElement).toBe(bar);
-    expect(screen.getByTitle("Previous (⇧Enter)").closest(".fb-nav")?.parentElement).toBe(bar);
-    expect(screen.getByLabelText("Close find").parentElement).toBe(bar);
+    expect(bar?.classList).toContain("findbar");
+    expect(bar?.contains(input)).toBe(true);
+    expect(bar?.contains(screen.getByTitle("Previous (⇧Enter)"))).toBe(true);
+    expect(bar?.contains(screen.getByLabelText("Close find"))).toBe(true);
   });
 
   it("returns focus to the pre-open element on Escape", () => {

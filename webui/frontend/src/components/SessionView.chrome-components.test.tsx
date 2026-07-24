@@ -138,11 +138,9 @@ describe("TurnFailureCard", () => {
       screen.getByRole("button", { name: "Technical details" }),
     );
     expect(onToggleDetails).toHaveBeenCalledOnce();
-    expect(
-      (screen.getByRole("button", {
-        name: "Retrying…",
-      }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    const retry = screen.getByRole("button", { name: "Retry" }) as HTMLButtonElement;
+    expect(retry.disabled).toBe(true);
+    expect(retry.getAttribute("aria-busy")).toBe("true");
   });
 
   it("renders the untouched technical string when expanded", () => {

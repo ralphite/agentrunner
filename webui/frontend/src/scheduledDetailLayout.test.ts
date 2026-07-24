@@ -21,8 +21,9 @@ describe("Scheduled detail responsive geometry (G56)", () => {
     const narrow = css.match(/@container scheduled-shell \(max-width: 760px\) \{[\s\S]*?\n  \}/)?.[0];
     expect(narrow).toContain(".scheduled-shell.has-detail > .scheduled-page { @apply hidden; }");
     expect(narrow).toContain(".schedule-detail { @apply border-l-0; }");
-    expect(narrow).toContain(".schedule-detail-back span { @apply inline; }");
-    expect(narrow).toContain(".schedule-detail-close { @apply hidden; }");
+    expect(narrow).toContain(".schedule-detail-back-icon { display: none !important; }");
+    expect(narrow).toContain(".schedule-detail-back-label { display: inline-flex !important; }");
+    expect(narrow).toContain(".schedule-detail-close { display: none !important; }");
   });
 
   it("gives long prompt/config content its own vertical scroll surface", () => {

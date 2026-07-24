@@ -40,8 +40,10 @@ describe("mobile modal shell", () => {
     expect(body.className).toContain("min-h-0");
     expect(footer.className).toContain("shrink-0");
     expect(footer.className).toContain("max-[640px]:flex-wrap");
-    expect(close.className).toContain("h-11");
-    expect(close.className).toContain("w-11");
+    expect(close.getAttribute("data-ui-icon-button")).toBe("");
+    expect(close.getAttribute("data-size")).toBe("lg");
+    expect(close.className).toContain("h-10");
+    expect(close.className).toContain("w-10");
   });
 
   it("renders structured capability details inside the same scroll region", () => {
