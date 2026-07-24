@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowsInLineVertical,
   ArrowSquareOut,
@@ -57,6 +57,10 @@ import { copyText } from "../clipboard";
 import { sessionImageURL, uploadURL } from "../api";
 import { IconButton } from "../ui/IconButton";
 import { Lightbox } from "./Lightbox";
+import {
+  useTimelineScrollController,
+  type TimelineScrollController,
+} from "../features/timeline/useTimelineScrollController";
 
 // absTime renders an event timestamp for hover titles: local, second-precise.
 function absTime(ts?: string): string | undefined {
@@ -1250,21 +1254,7 @@ export function TimelineEmptyState() {
   );
 }
 
-export function TimelineView({
-  sessionKey,
-  items,
-  pending,
-  typing,
-  showSys,
-  sentImages,
-  statusLine,
-  approvalSlot,
-  active = false,
-  outcomeSlot,
-  goalVerdict,
-  loading = false,
-  onContinue,
-}: {
+export interface TimelineViewProps {
   sessionKey?: string;
   items: TimelineItem[];
   pending: TimelinePendingMessageModel[];
@@ -1282,8 +1272,23 @@ export function TimelineView({
   /** The first events fetch for this session hasn't returned yet (INC-41 L1). */
   loading?: boolean;
   onContinue?: (item: BubbleItem) => Promise<void>;
-}) {
-  const { storage } = useAppServices();
+}
+
+export function TimelineView({
+  sessionKey,
+  items,
+  pending,
+  typing,
+  showSys,
+  sentImages,
+  statusLine,
+  approvalSlot,
+  active = false,
+  outcomeSlot,
+  goalVerdict,
+  loading = false,
+  onContinue,
+}: TimelineViewProps) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
   const visible = showSys
@@ -1297,24 +1302,14 @@ export function TimelineView({
   const foldInput = showSys
     ? visible
     : items.filter((it) => it.kind !== "sys" && it.kind !== "runtime");
-  const ref = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
-  const [showJump, setShowJump] = useState(false);
-  const [unseen, setUnseen] = useState(0);
-  const restored = useRef(!sessionKey);
-  const restoredSessionKey = useRef<string>();
-  const activityReady = useRef(false);
   const activityCount = visible.length + pending.length;
-  const prevActivityCount = useRef(activityCount);
-  const scrollStorageKey = sessionKey ? `arwebui.timelineScroll.${sessionKey}` : "";
-  const clearSavedPosition = () => {
-    if (!scrollStorageKey) return;
-    try {
-      storage.session.removeItem(scrollStorageKey);
-    } catch {
-      // Storage can be unavailable in hardened/private browser contexts.
-    }
-  };
+  const pendingCount = pending.length;
+  const scroll = useTimelineScrollController({
+    sessionKey,
+    activityCount,
+    pendingCount,
+    loading,
+  });
   // A7: fold open state lives here (not inside WorkedFold) keyed by a stable
   // content id, so a poll that reshuffles fold render keys never collapses a
   // fold the reader already opened.
@@ -1360,108 +1355,6 @@ export function TimelineView({
   const settled = !active && !typing && pending.length === 0;
   const deferLastActions = settled && !!lastAssistant;
 
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (restoredSessionKey.current !== sessionKey) {
-      restoredSessionKey.current = sessionKey;
-      restored.current = !sessionKey;
-      stick.current = true;
-      activityReady.current = false;
-      prevActivityCount.current = activityCount;
-      prevPendingCount.current = pendingCount;
-      setShowJump(false);
-      setUnseen(0);
-    }
-    if (!restored.current) {
-      if (loading) return;
-      restored.current = true;
-      let savedTop: number | null = null;
-      try {
-        const raw = storage.session.getItem(scrollStorageKey);
-        if (raw !== null) {
-          const parsed = Number(raw);
-          if (Number.isFinite(parsed) && parsed >= 0) savedTop = parsed;
-        }
-      } catch {
-        // Fall through to the normal latest position.
-      }
-      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-      if (savedTop !== null && maxTop - savedTop >= 80) {
-        stick.current = false;
-        el.scrollTop = Math.min(savedTop, maxTop);
-        setShowJump(true);
-      } else {
-        clearSavedPosition();
-        el.scrollTop = el.scrollHeight;
-      }
-      prevActivityCount.current = activityCount;
-      activityReady.current = true;
-      return;
-    }
-    if (stick.current) el.scrollTop = el.scrollHeight;
-  });
-
-  // QA-0718: sending re-sticks the feed. Codex jumps to your own new message
-  // even when you had scrolled up into history; without this the send lands
-  // below the fold and the thread looks unresponsive.
-  const pendingCount = pending.length;
-  const prevPendingCount = useRef(pendingCount);
-  useEffect(() => {
-    if (pendingCount > prevPendingCount.current) {
-      stick.current = true;
-      setShowJump(false);
-      setUnseen(0);
-      clearSavedPosition();
-      const el = ref.current;
-      if (el) el.scrollTop = el.scrollHeight;
-    }
-    prevPendingCount.current = pendingCount;
-  }, [pendingCount]);
-
-  useEffect(() => {
-    if (!restored.current || loading) {
-      prevActivityCount.current = activityCount;
-      return;
-    }
-    if (!activityReady.current) {
-      prevActivityCount.current = activityCount;
-      activityReady.current = true;
-      return;
-    }
-    const added = activityCount - prevActivityCount.current;
-    if (added > 0 && !stick.current) setUnseen((count) => count + added);
-    prevActivityCount.current = activityCount;
-  }, [activityCount, loading]);
-
-  const onScroll = () => {
-    const el = ref.current;
-    if (!el || !restored.current) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    stick.current = nearBottom;
-    setShowJump(!nearBottom);
-    if (nearBottom) {
-      setUnseen(0);
-      clearSavedPosition();
-    } else if (scrollStorageKey) {
-      try {
-        storage.session.setItem(scrollStorageKey, String(el.scrollTop));
-      } catch {
-        // The in-memory interaction remains correct when storage is unavailable.
-      }
-    }
-  };
-
-  const jumpToBottom = () => {
-    const el = ref.current;
-    if (!el) return;
-    stick.current = true;
-    setShowJump(false);
-    setUnseen(0);
-    clearSavedPosition();
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  };
-
   // Nothing to show yet — but WHY decides what we render (INC-41 L1): while the
   // first fetch is still in flight the timeline is merely unknown, so claiming
   // "No messages yet" on a session with a long history is a lie the reader sees
@@ -1470,13 +1363,91 @@ export function TimelineView({
   const blank = nodes.length === 0 && !typing && pending.length === 0 && !statusLine && !approvalSlot;
   const isEmpty = blank && !loading;
 
+  return (
+    <TimelineContentView
+      scroll={scroll}
+      nodes={nodes}
+      pending={pending}
+      typing={typing}
+      showSys={showSys}
+      sentImages={sentImages}
+      statusLine={statusLine}
+      approvalSlot={approvalSlot}
+      settled={settled}
+      outcomeSlot={outcomeSlot}
+      goalVerdict={goalVerdict}
+      loading={loading}
+      blank={blank}
+      isEmpty={isEmpty}
+      durations={durations}
+      lastAssistant={lastAssistant}
+      lastAssistantKey={lastAssistantKey}
+      deferLastActions={deferLastActions}
+      openFolds={openFolds}
+      onToggleFold={toggleFold}
+      onContinue={onContinue}
+    />
+  );
+}
+
+interface TimelineContentViewProps {
+  scroll: TimelineScrollController;
+  nodes: RenderNode[];
+  pending: TimelinePendingMessageModel[];
+  typing: string;
+  showSys: boolean;
+  sentImages?: Map<number, string[]>;
+  statusLine?: ReactNode;
+  approvalSlot?: ReactNode;
+  settled: boolean;
+  outcomeSlot?: ReactNode;
+  goalVerdict?: { elapsed: string } | null;
+  loading: boolean;
+  blank: boolean;
+  isEmpty: boolean;
+  durations: Map<string, number>;
+  lastAssistant?: BubbleItem;
+  lastAssistantKey?: string;
+  deferLastActions: boolean;
+  openFolds: ReadonlySet<string>;
+  onToggleFold: (id: string) => void;
+  onContinue?: (item: BubbleItem) => Promise<void>;
+}
+
+function TimelineContentView({
+  scroll,
+  nodes,
+  pending,
+  typing,
+  showSys,
+  sentImages,
+  statusLine,
+  approvalSlot,
+  settled,
+  outcomeSlot,
+  goalVerdict,
+  loading,
+  blank,
+  isEmpty,
+  durations,
+  lastAssistant,
+  lastAssistantKey,
+  deferLastActions,
+  openFolds,
+  onToggleFold,
+  onContinue,
+}: TimelineContentViewProps) {
   // TR-1: has a user message already opened a turn above this one? Re-derived on
   // every render (the map below is a fresh closure), so it never carries state
   // across renders — it's a cursor over `nodes`, not view state.
   let seenUser = false;
 
   return (
-    <div className="timeline" ref={ref} onScroll={onScroll}>
+    <div
+      className="timeline"
+      ref={scroll.viewportRef}
+      onScroll={scroll.onScroll}
+    >
       <div className="tl-inner">
         {blank && loading && (
           <TimelineLoadingState />
@@ -1499,7 +1470,7 @@ export function TimelineView({
                 fold={it}
                 sentImages={sentImages}
                 open={openFolds.has(it.key)}
-                onToggle={() => toggleFold(it.key)}
+                onToggle={() => onToggleFold(it.key)}
                 onContinue={onContinue}
                 key={it.key}
               />
@@ -1512,7 +1483,7 @@ export function TimelineView({
                 fold={it}
                 sentImages={sentImages}
                 open={openFolds.has(foldId)}
-                onToggle={() => toggleFold(foldId)}
+                onToggle={() => onToggleFold(foldId)}
                 onContinue={onContinue}
                 key={it.key}
               />
@@ -1561,8 +1532,11 @@ export function TimelineView({
           />
         )}
       </div>
-      {showJump && (
-        <TimelineJumpToLatest unseen={unseen} onJump={jumpToBottom} />
+      {scroll.showJump && (
+        <TimelineJumpToLatest
+          unseen={scroll.unseen}
+          onJump={scroll.jumpToBottom}
+        />
       )}
     </div>
   );
