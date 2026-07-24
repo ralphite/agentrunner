@@ -1130,6 +1130,12 @@
      (18px marker + 5ch 号 + 2×px-2),label 从代码列起。 */
   .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: calc(5ch + 18px) minmax(0, 1fr); }
   .fd-gap:hover { @apply bg-panel-2; }
+  /* DIFF-SPLIT-FOLD-BAND: in the split (side-by-side) grid the fold band is a
+     direct grid child, so it must span all five column tracks (marker + two
+     number/code pairs) to keep its own gutter+label geometry; without this it
+     collapses into the single marker column. The revealed `.dls` rows keep
+     `display:contents` and fall into the shared tracks unchanged. */
+  .fd-split .fd-gap { grid-column: 1 / -1; }
   /* DIFF-FOLD-BAND-WEIGHT: caret 从属、安静(text-dim,去 font-medium);
      count label 才是信息、可读(见 .fd-gap-label 的 text-ink-2)。修正原先
      count 最淡 / caret 最重的强调倒置。 */

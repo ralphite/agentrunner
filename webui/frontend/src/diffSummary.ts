@@ -190,6 +190,11 @@ export function splitDiff(diff: string): FileDiffSummary[] {
 // replacement lines its old/new halves up the way GitHub's split view does.
 export interface SplitRow {
   hunk?: string;
+  // DIFF-SPLIT-FOLD-BAND · the hunk row's index in the original `rows`, so the
+  // split view can key it back to the same `hunkGaps` map the inline view uses
+  // and render the same collapsible "N unmodified lines" band (which is keyed by
+  // that index). Only set on hunk rows.
+  idx?: number;
   left?: DiffRow;
   right?: DiffRow;
 }
@@ -204,10 +209,11 @@ export function splitRows(rows: DiffRow[]): SplitRow[] {
     dels = [];
     adds = [];
   };
-  for (const r of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
     if (r.kind === "hunk") {
       flush();
-      out.push({ hunk: r.text });
+      out.push({ hunk: r.text, idx: i });
     } else if (r.kind === "del") {
       dels.push(r);
     } else if (r.kind === "add") {

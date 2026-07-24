@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   CaretRight,
   CaretUp,
@@ -1152,17 +1152,58 @@ export function FileBody({
   // renders single-sided files as one column; we fall back to the inline
   // (single-column) path below so the content is visible from the left even when
   // the user has split selected. Modified files still take the split branch.
+  // DIFF-SPLIT-FOLD-BAND · one revealed unmodified line, rendered as a split row
+  // (both columns identical — a context line has no old/new divergence). Reuses
+  // the same `.dls` grid cells as the paired rows so the revealed run lines up
+  // under the band exactly the way it does in the inline view.
+  const splitCtxRow = (r: DiffRow, key: string) => (
+    <div className="dls" key={key}>
+      <span className="dls-marker" />
+      <span className="dl-no">{r.oldNo ?? ""}</span>
+      <span className="dls-half">
+        <span className="dl-sign"> </span>
+        {renderCode(r.text, lang)}
+      </span>
+      <span className="dl-no">{r.newNo ?? ""}</span>
+      <span className="dls-half">
+        <span className="dl-sign"> </span>
+        {renderCode(r.text, lang)}
+      </span>
+    </div>
+  );
+
   if (effView === "split" && parsed.status !== "added" && parsed.status !== "deleted") {
     return (
       <div className="fd-body fd-split">
-        {splitRows(parsed.rows).map((sr, i) =>
-          sr.hunk !== undefined ? (
-            sr.hunk ? (
+        {splitRows(parsed.rows).map((sr, i) => {
+          if (sr.hunk !== undefined) {
+            // DIFF-SPLIT-FOLD-BAND · a hunk boundary in split view gets the same
+            // collapsible "N unmodified lines" band the inline view shows, keyed
+            // by the hunk's original row index (sr.idx) into the shared gap map —
+            // split view used to drop the count and the expand control entirely,
+            // so the reader could neither see how much was folded nor open it.
+            const gap = sr.idx !== undefined ? gaps.get(sr.idx) : undefined;
+            const bandEl = gap ? band(sr.idx!, gap, gap.start === 1 ? "leading" : "interior", sr.hunk || undefined) : null;
+            if (bandEl) {
+              // The band and its revealed rows must be *direct* children of the
+              // `.fd-split` grid (a keyed Fragment adds no DOM), so `.dls`'s
+              // `display:contents` cells land in the shared column tracks and the
+              // `.fd-gap` band spans all of them (grid-column:1/-1 in tw.css).
+              const revealed = open.has(sr.idx!) ? revealedRows(gap!).map((cr, k) => splitCtxRow(cr, i + ":rv:" + k)) : null;
+              return (
+                <Fragment key={i}>
+                  {bandEl}
+                  {revealed}
+                </Fragment>
+              );
+            }
+            return sr.hunk ? (
               <div className="dl-hunk dl-hunk-span" key={i}>{sr.hunk}</div>
             ) : hunkCount > 1 ? (
               <div className="dl-hunk dl-hunk-span dl-hunk-blank" key={i} aria-hidden="true" />
-            ) : null
-          ) : (
+            ) : null;
+          }
+          return (
             <div className="dls" key={i}>
               <span className={"dls-marker" + (sr.left?.kind === "add" || sr.right?.kind === "add" ? " add" : sr.left?.kind === "del" || sr.right?.kind === "del" ? " del" : "")} />
               <span className="dl-no">{sr.left?.oldNo ?? ""}</span>
@@ -1176,7 +1217,15 @@ export function FileBody({
                 {sr.right && renderCode(sr.right.text, lang)}
               </span>
             </div>
-          ),
+          );
+        })}
+        {/* DIFF-SPLIT-FOLD-BAND · the tail (last hunk → EOF), matching the inline
+            view's trailing band so split view can also reveal end-of-file context. */}
+        {trailGap && (
+          <Fragment>
+            {band(trailKey, trailGap, "trailing")}
+            {open.has(trailKey) && revealedRows(trailGap).map((cr, k) => splitCtxRow(cr, trailKey + ":rv:" + k))}
+          </Fragment>
         )}
       </div>
     );

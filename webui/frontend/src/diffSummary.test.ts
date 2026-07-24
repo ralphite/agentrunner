@@ -137,7 +137,9 @@ describe("splitRows (INC-41 D4, side-by-side pairing)", () => {
 
   it("pairs del/add runs by index and mirrors context on both sides", () => {
     const out = splitRows(rows());
-    expect(out[0]).toEqual({ hunk: "ctx" });
+    // DIFF-SPLIT-FOLD-BAND · hunk rows now carry their original row index so the
+    // split view can key them back to the shared fold-band gap map.
+    expect(out[0]).toEqual({ hunk: "ctx", idx: 0 });
     expect(out[1].left?.text).toBe("keep");
     expect(out[1].right?.text).toBe("keep");
     // two dels, one add → row a pairs, row b is delete-only (no right)
