@@ -19,6 +19,9 @@ Web UI `http://127.0.0.1:5188/`
 |---|---|
 | Home desktop light | 真实 project/session 数据可见，daemon connected，无页面空白或 crash overlay |
 | Session desktop light | deep link 进入保留 session，timeline、Environment、composer 均可见 |
+| Changes | 从真实 retained session 的 More session actions 打开；显示 Last Turn、close/action controls 与真实 “No changes this turn” 空态 |
+| Scheduled | `#scheduled` 载入共享 store 的 27 条真实 scheduled records，All/Active/Paused、failed/running/limit states 与 suggestions 可见 |
+| Settings | 从 sidebar More options 打开真实 Settings dialog；General、Appearance、Keyboard、Git、Worktrees、Configuration、Archived 导航可见 |
 | route / reload | reload 保持同一 hash/session；Back 回 Home；Forward 恢复同一 session |
 | mobile 390×844 | `clientWidth = scrollWidth = 390`，无横向溢出 |
 | mobile sidebar | 打开时 main 为 `inert` 且 `aria-hidden=true`；关闭后恢复 |
