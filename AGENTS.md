@@ -3,6 +3,13 @@
 ## Git 规则（硬性）
 
 - **只用 main 分支。** 不创建任何其他分支；不在其他分支上工作。
+- **本地 `main` 只由 canonical checkout
+  `/Users/yadong/dev2/agentrunner` 占用。** Codex / 工具创建的其他
+  worktree 必须基于最新 `origin/main` 保持 detached HEAD；不要在其中
+  `git switch main`（Git 不允许同一 local branch 同时被多个 worktree
+  checkout）。在 detached worktree 完成后直接 commit，并用
+  `git push origin HEAD:main` 收敛到远端；若远端已推进，先 fetch 并把
+  当前改动 rebase / cherry-pick 到最新 `origin/main`。
 - **每次改动完成后立即 commit 并 push 到 `origin/main`。** 不留未推送
   的本地提交，不留未提交的工作区改动。单人原型项目——分叉和滞后的
   代价远大于中间态提交的噪音。
