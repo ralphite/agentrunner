@@ -37,6 +37,20 @@ function hasExport(node) {
   return node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false;
 }
 
+function componentInitializer(initializer) {
+  if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
+    return true;
+  }
+  if (!ts.isCallExpression(initializer)) return false;
+  const callee = initializer.expression;
+  const wrapper = ts.isIdentifier(callee)
+    ? callee.text
+    : ts.isPropertyAccessExpression(callee)
+      ? callee.name.text
+      : "";
+  return wrapper === "forwardRef" || wrapper === "memo";
+}
+
 function componentNames(sourceFile) {
   const exported = [];
   const privateVisible = [];
@@ -56,8 +70,7 @@ function componentNames(sourceFile) {
       if (
         ts.isIdentifier(declaration.name) &&
         declaration.initializer &&
-        (ts.isArrowFunction(declaration.initializer) ||
-          ts.isFunctionExpression(declaration.initializer))
+        componentInitializer(declaration.initializer)
       ) {
         record(declaration.name.text, isExported);
       }

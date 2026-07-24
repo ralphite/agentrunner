@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 50,
-    "lines": 18617,
+    "count": 56,
+    "lines": 19334,
     "files": [
       {
         "source": "src/App.tsx",
@@ -529,10 +529,62 @@
         "privateVisibleCandidates": []
       },
       {
+        "source": "src/ui/Button.tsx",
+        "lines": 142,
+        "exports": [
+          "Button"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
         "source": "src/ui/Field.tsx",
         "lines": 265,
         "exports": [
-          "Field"
+          "Field",
+          "Input",
+          "SearchField",
+          "Select",
+          "Textarea"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/FocusScope.tsx",
+        "lines": 247,
+        "exports": [
+          "FocusScope"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/IconButton.tsx",
+        "lines": 50,
+        "exports": [
+          "IconButton"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/IconLink.tsx",
+        "lines": 99,
+        "exports": [
+          "IconLink"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/Spinner.tsx",
+        "lines": 79,
+        "exports": [
+          "Spinner"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/ui/StatusIndicator.tsx",
+        "lines": 100,
+        "exports": [
+          "StatusIndicator"
         ],
         "privateVisibleCandidates": []
       }
