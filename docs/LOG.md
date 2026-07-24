@@ -7511,3 +7511,23 @@ Chat/Light → create/reply/reload、session 内 Agent/model 分别切换、旧 
 均通过，浏览器 warning/error 为空。guarded deploy 后版本一致；第二次 daemon restart
 因两个 shared running session 被安全门拒绝，未 force，改做无中断的 Web UI restart
 验证。证据 `qa/runs/2026-07-23-INC96-agent-catalog/`；A 闸全绿，无新增 GAPS。
+---
+
+## 2026-07-23 · INC-99 Web UI Storybook 组件体系
+
+Web UI 已建立 production component → direct Story → typed manifest 的工作台：
+基础 primitive、Sidebar project/session item、Composer、Timeline、Changes、
+Scheduled、完整 page 与 deterministic Demo 共 535 个 Story，lint 为 0 missing。
+hover/focus reveal 等会改变结构的 semantic state 单独登记；theme、viewport 与普通
+pseudo-state 统一走 toolbar/global，不复制 Phone/Dark Story。
+
+Core Session Playback 使用真实 `AppRuntime`/`AppShell`、MSW 与 scripted stream，
+人工播放为 1.3s step + 45ms chunk typing；component test 即时，browser automation
+保留可 Pause 窗口。journey 从 Home 配置、发送、stream、Environment、completion、
+Changes/Review，最终关闭 Changes 返回 Session。
+
+真实 shared-store 浏览器 QA 保留在
+`qa/runs/2026-07-23-QA-89-webui-storybook-components/`：desktop/mobile、
+route reload/Back/Forward、sidebar inert、light/dark/system 与 AppShell layout
+已验证。未获安全窗口的 daemon restart、WebKit 与 storage 全 key 字节对比诚实记
+未测，不用隔离 store 或 mock 冒充 Gate B。

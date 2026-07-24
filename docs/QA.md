@@ -2235,3 +2235,24 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 | restart / legacy | guarded production deploy 重启 daemon/Web UI 后，既有 parent/child session 仍由 CLI/API 恢复；随后 Web UI restart 后 catalog、新 session、deep-link reload 均恢复；browser warning/error=`[]` |
 | 安全边界 | 第二次 daemon restart 因两个 shared running session 被 guard 拒绝，未 force、未中断用户工作；测试 session/workspace/journal/screenshots 全保留 |
 | Gate | Go targeted/full、Web UI Go、frontend 75 files/776 tests、production build、`./scripts/check.sh` 全绿 |
+---
+
+## QA-89 Web UI 组件体系与 Storybook（INC-99，UJ-24）
+
+证据目录：`qa/runs/2026-07-23-QA-89-webui-storybook-components/`。
+
+| 菜单 | 验收 |
+|---|---|
+| A manifest/state matrix | target、visible export/private exclusion、semantic state 与 Storybook index 闭环；0 missing；render/a11y/keyboard 状态通过 |
+| B CUJ/ScenarioRunner | 关键 journey 可确定性执行；Play/Pause/Next/Reset/Replay、Abort、recreate context 与 stale callback 有硬断言 |
+| C curated golden | canonical Story 复用 theme/viewport global；至少 Home、running/completed/attention Session、Changes、Scheduled list/detail、Settings 与 short viewport |
+| D shared-store page | 真实 Home/Session/Changes/Scheduled/Settings 非空、无 crash overlay，保留 session/workspace/journal |
+| E route/recovery | list→detail、direct hash、Back/Forward、reload；Web UI restart 在安全时执行 |
+| F storage compatibility | local/session storage manifest 逐 key 对比；未改 schema 也须记录 spot check 与未测项 |
+| G environment matrix | desktop、touch/mobile、short viewport、light/dark/system、reduced-motion；WebKit/真机风险路径单列 |
+| H Demo | 人类可读节奏与自动化节奏分离；autoplay/manual/Pause/Next/Reset/Replay；最终返回稳定产品页 |
+| I production boundary | production bundle 不含 Story/mock；Story `/api/**` 不漏到真实 origin |
+
+本次真实浏览器证据覆盖 Home/Session、route/reload/Back/Forward、desktop/mobile、
+sidebar focus containment、light/dark/system 与 AppShell layout。daemon restart、
+WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测，不以隔离 store 冒充。

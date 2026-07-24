@@ -2064,3 +2064,37 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **mailbox** | ① kernel actor 的 channel mailbox（ephemeral）② durable mailbox（inbox.jsonl，持久）——持久性完全不同。 |
 | **barrier** | 指 CheckpointBarrier（时间旅行锚点），不是并发同步原语。 |
 | **loop** | ① agentic loop（= turn 的过程视角，§18.1）② loop mode（IterationDriver 的定时系列 schedule，§13）——裸词避免，写全称。 |
+
+---
+
+## 19. Web UI 组件体系与 Storybook 工作台
+
+Web UI 用同一套 production component 构建产品、Story 与 Demo，不维护第二套
+演示实现。`AppRuntime` 提供 transport/storage/navigation/clock 等可替换 service，
+`AppShell` 只负责 page composition；状态由 Story fixture、MSW 与 deterministic
+stream adapter 注入，禁止 Story 请求真实 `/api/**`。
+
+组件体系按以下层次组织：
+
+1. `ui/`：Button、IconButton、Field、Input、Select、Status、Empty/Error 等基础
+   primitive；
+2. `components/`：SidebarProjectItem、SidebarSessionItem、Composer、
+   Timeline、Changes、Scheduled 等功能组件；
+3. `pages/`：Home、Session、Scheduled、Settings 与完整 AppShell；
+4. `CUJs/`：可快速自动验收的关键用户路径；
+5. `Demos/`：可人工观看、可 Play/Pause/Next/Reset/Replay 的完整演示。
+
+`storyManifest.ts` 是 component target、semantic interaction state、private visible
+exclusion 与 workbench Story 的唯一覆盖清单。状态覆盖包括 render、loading、empty、
+error、disabled、selected、expanded、busy、keyboard、focus、hover/reveal、overflow
+及可组合的业务状态；纯 theme/viewport/pseudo-state 通过 Storybook toolbar/global
+和参数化 Playwright 复用 canonical Story，禁止复制 Phone/Dark Story。
+
+Demo 与自动化使用同一 `ScenarioRunner` 状态机但不同节奏：人工播放每步保留正常
+观察时间并模拟输入；component test 可即时完成；browser automation 保留最短可暂停
+窗口。Reset 必须重建隔离 context，Replay 不得复用陈旧 callback，最终步骤必须返回
+稳定产品页面而非停在临时 overlay。
+
+Gate A 由 manifest lint、Storybook browser test、a11y、production build 与 curated
+visual/CUJ 组成；涉及 route、polling、storage、page shell 的变更另走 QA-89 的真实
+shared-store Gate B，并保留 URL、session/project、console、截图与未测边界。
