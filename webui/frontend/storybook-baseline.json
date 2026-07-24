@@ -1,17 +1,9 @@
 {
   "schemaVersion": 1,
   "productionComponents": {
-    "count": 56,
-    "lines": 19388,
+    "count": 59,
+    "lines": 19247,
     "files": [
-      {
-        "source": "src/App.tsx",
-        "lines": 311,
-        "exports": [
-          "AppShell"
-        ],
-        "privateVisibleCandidates": []
-      },
       {
         "source": "src/app/AppRuntime.tsx",
         "lines": 117,
@@ -21,6 +13,14 @@
         "privateVisibleCandidates": [
           "RuntimeController"
         ]
+      },
+      {
+        "source": "src/app/AppShell.tsx",
+        "lines": 298,
+        "exports": [
+          "AppShell"
+        ],
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/ApprovalCard.tsx",
@@ -71,16 +71,11 @@
       },
       {
         "source": "src/components/Composer.tsx",
-        "lines": 1724,
+        "lines": 1585,
         "exports": [
-          "Composer",
-          "GoalLoopLauncher"
+          "Composer"
         ],
-        "privateVisibleCandidates": [
-          "BestIcon",
-          "GoalIcon",
-          "LoopIcon"
-        ]
+        "privateVisibleCandidates": []
       },
       {
         "source": "src/components/ComposerParts.tsx",
@@ -316,7 +311,7 @@
       },
       {
         "source": "src/components/SessionView.tsx",
-        "lines": 1388,
+        "lines": 1067,
         "exports": [
           "GoalBanner",
           "ProgressSummary",
@@ -470,7 +465,7 @@
       },
       {
         "source": "src/components/Timeline.tsx",
-        "lines": 1569,
+        "lines": 1543,
         "exports": [
           "ActivityGroup",
           "AskDetailView",
@@ -501,7 +496,8 @@
         ],
         "privateVisibleCandidates": [
           "CategoryIcon",
-          "StepIcon"
+          "StepIcon",
+          "TimelineContentView"
         ]
       },
       {
@@ -525,6 +521,30 @@
         "lines": 45,
         "exports": [
           "WorktreeCard"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/features/composer/ComposerView.tsx",
+        "lines": 136,
+        "exports": [
+          "ComposerView"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/features/composer/GoalLoopLauncher.tsx",
+        "lines": 175,
+        "exports": [
+          "GoalLoopLauncher"
+        ],
+        "privateVisibleCandidates": []
+      },
+      {
+        "source": "src/pages/PageHost.tsx",
+        "lines": 47,
+        "exports": [
+          "PageHost"
         ],
         "privateVisibleCandidates": []
       },

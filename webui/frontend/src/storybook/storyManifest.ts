@@ -413,15 +413,6 @@ export const privateVisibleExclusions = [
       "DiffToolbar Ready, Tight, and State Stories render the close action in both production toolbar variants.",
     owner: "webui",
   },
-  ...["BestIcon", "GoalIcon", "LoopIcon"].map((declarationName) => ({
-    source: "src/components/Composer.tsx",
-    declarationName,
-    reason:
-      "Decorative icon adapter; not an independently operable UI surface.",
-    evidence:
-      "Its semantics and state belong to the Composer control that supplies the accessible name.",
-    owner: "webui",
-  })),
   ...["AccessIcon", "RiskGlyph"].map((declarationName) => ({
     source: "src/components/ComposerParts.tsx",
     declarationName,
@@ -456,6 +447,15 @@ export const privateVisibleExclusions = [
       "Tool/Activity Stories cover each status through the complete labelled row.",
     owner: "webui",
   })),
+  {
+    source: "src/components/Timeline.tsx",
+    declarationName: "TimelineContentView",
+    reason:
+      "Private render half of TimelineView; it has no state or product contract outside its controller composition.",
+    evidence:
+      "TimelineView Stories exercise loading, empty, activity, pending, typing, outcome, hover/focus actions, scroll restore and jump states through this exact view.",
+    owner: "webui",
+  },
 ] satisfies readonly PrivateVisibleExclusion[];
 
 // CUJs and Demos exercise multiple production targets at once. They belong to
@@ -589,6 +589,7 @@ const baseStoryManifest = [
   {
     componentId: "AppShell",
     source: "src/app/AppShell.tsx",
+    storySource: "src/App.stories.tsx",
     exportName: "AppShell",
     cells: {
       "render:default": {
@@ -1121,12 +1122,19 @@ const baseStoryManifest = [
       },
     },
   ),
-  coveredDirectLeafTarget(
-    "GoalLoopLauncher",
-    "src/components/Composer.tsx",
-    "components-input-composer--goal-loop-launcher",
-    "Composer direct and keyboard Stories exercise the launcher in its production composition; theme and viewport are verified with Storybook controls.",
-  ),
+  coveredStateTarget({
+    componentId: "ComposerView",
+    source: "src/features/composer/ComposerView.tsx",
+    renderStory: "components-input-composerview--default",
+    keyboardStory: "components-input-composerview--keyboard-navigation",
+  }),
+  coveredStateTarget({
+    componentId: "GoalLoopLauncher",
+    source: "src/features/composer/GoalLoopLauncher.tsx",
+    storySource: "src/components/Composer.stories.tsx",
+    renderStory: "components-input-composer--goal-loop-launcher",
+    keyboardStory: "components-input-composer--goal-loop-launcher",
+  }),
   coveredBaseTarget(
     "ContextMenu",
     "src/components/ContextMenu.tsx",
