@@ -23,7 +23,9 @@ export default defineConfig({
   webServer: {
     command:
       "vite preview --host 127.0.0.1 --port 6010 --strictPort --outDir storybook-static --logLevel error",
-    url: "http://127.0.0.1:6010/index.html",
+    // Wait for the document used by every visual case, not only the manager.
+    // The manager can answer while iframe.html is still cold under five workers.
+    url: "http://127.0.0.1:6010/iframe.html",
     reuseExistingServer: false,
     timeout: 30_000,
   },

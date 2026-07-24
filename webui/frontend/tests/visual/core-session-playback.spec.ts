@@ -46,7 +46,13 @@ test("Core Session Playback supports manual control, autoplay, and replay", asyn
   await expect(status.locator("b")).toHaveText("idle");
   await expect(status).toContainText("Step 1 / 19");
 
-  await controls.getByRole("checkbox", { name: "Autoplay" }).check();
+  const autoplay = controls.getByRole("checkbox", { name: "Autoplay" });
+  // Reset publishes `idle` before React paints the recreated fixture. A real
+  // person cannot click between those two frames; keep automation on the same
+  // observable boundary instead of targeting the pre-paint control.
+  await page.evaluate(() => new Promise<void>(requestAnimationFrame));
+  await autoplay.click();
+  await expect(autoplay).toBeChecked();
   await expect(status.locator("b")).toHaveText("completed", {
     timeout: 20_000,
   });
