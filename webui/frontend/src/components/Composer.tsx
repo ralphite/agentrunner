@@ -1,68 +1,60 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowClockwise,
-  ArrowUp,
-  ArrowUUpLeft,
-  CaretDown,
   ChartBar,
-  Code,
-  Cpu,
-  Desktop,
-  Eye,
-  File,
-  Folder,
-  GitBranch,
-  GitFork,
-  Lightning,
-  ListChecks,
-  LockOpen,
-  MagnifyingGlass,
-  Microphone,
-  Paperclip,
-  PencilSimple,
-  Plus,
-  ShieldCheck,
-  Sparkle,
-  Stop as StopIcon,
   Target,
-  UserCircle,
-  WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { sessionImageURL, uploadURL, type ForkDraft } from "../api";
+import { sessionImageURL, type ForkDraft } from "../api";
 import { useAppServices } from "../app/appServices";
 import { scheduleFieldError } from "../scheduleValidate";
 import { useAppStoreApi, useStore, type NewSessionProject } from "../store";
 import {
   ACCESS_LEVELS,
   accessById,
-  agentById,
-  agentLabel,
   buildBestOfNDriver,
+  buildDriverAgent,
   buildLoopDriver,
   buildSpec,
   DEFAULT_ACCESS,
   DEFAULT_EFFORT,
   DEFAULT_MODEL,
   DEFAULT_PERSONA,
+  DEFAULT_WORKER,
   EFFORT_LEVELS,
   effortById,
-  legacyModelFromSpec,
+  effortFromSpec,
   MODELS,
   modelById,
+  modelFromSpec,
+  personaById,
   personaFromSpec,
-  runtimeModeTarget,
+  replaceModel,
   type AccessId,
   type EffortId,
 } from "../specs";
-import { Popover, PopItem, PopSection } from "./Popover";
+import {
+  AccessPicker,
+  AddMenu,
+  AssistActions,
+  AttachmentList,
+  BranchPicker,
+  DeliveryModeControl,
+  FileMentionMenu,
+  GoalOptions,
+  ModelPicker,
+  ProjectPicker,
+  RunLocationPicker,
+  SlashCommandMenu,
+  SubmitButton,
+  type ComposerAttachment,
+} from "./ComposerParts";
 import { useVoice } from "./useVoice";
 import { useDictation } from "./useDictation";
 import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
 import { parseSlash, SLASH, type SlashCmd } from "./slash";
-import { recallAccess, recallDraft, recallModel, recallSpec, rememberAccess, rememberDraft, rememberModel, rememberSpec } from "./sessionSpecs";
+import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
 import { isScratchWorkspace, projectLabel, projectSubtitles } from "../viewModels";
-import type { AgentCatalogEntry } from "../types";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -98,15 +90,6 @@ type ComposerProps =
       actions?: SessionActions;
       onError: (m: string) => void;
     };
-
-interface Attachment {
-  path: string;
-  name: string;
-  isImage: boolean;
-  ref?: string;
-  partId?: string;
-  draftOrdinal?: number;
-}
 
 function forkSendRequestID(
   storage: Storage,
@@ -157,12 +140,6 @@ function rememberProject(storage: Storage, workspace: string) {
   }
 }
 
-const riskDot = (risk: string) => <span className={"risk-dot w-[7px] h-[7px] rounded-full shrink-0 inline-block " + risk} />;
-// High-risk (Full access) reads as an amber warning glyph rather than a dot —
-// Codex parity; low/med keep the quieter colored dot.
-const riskGlyph = (risk: string) =>
-  risk === "high" ? <WarningCircle size={15} weight="regular" className="shrink-0" style={{ color: "var(--amber)" }} /> : riskDot(risk);
-
 export function Composer(props: ComposerProps) {
   const { api, clock, ids, storage } = useAppServices();
   const store = useAppStoreApi();
@@ -200,7 +177,7 @@ export function Composer(props: ComposerProps) {
     ? (props as Extract<ComposerProps, { variant: "home" }>).onDraftChange
     : undefined;
   useEffect(() => onHomeDraftChange?.(text), [onHomeDraftChange, text]);
-  const [atts, setAtts] = useState<Attachment[]>([]);
+  const [atts, setAtts] = useState<ComposerAttachment[]>([]);
   const forkSeeded = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -215,6 +192,9 @@ export function Composer(props: ComposerProps) {
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
   const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
+  // Advanced → thinking-budget override: an exact budget the effort presets
+  // don't cover. null = use the effort preset. Chosen effort clears it.
+  const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
   // The compact root mirrors Codex's Model / Effort / Advanced summary. Each
   // dimension swaps to its own page, so short phones never have to scroll past
   // the full model list just to reach effort or advanced settings.
@@ -224,7 +204,6 @@ export function Composer(props: ComposerProps) {
   // editor, which is the same subject) live one level down, reusing the model
   // menu's page-swap pattern.
   const [addMenuPage, setAddMenuPage] = useState<"root" | "advanced" | "agent">("root");
-  const [agents, setAgents] = useState<AgentCatalogEntry[]>([]);
   // The home composer remembers the last chosen access level (W15); session
   // composers show the session's fixed posture instead and never read this.
   const [access, setAccessState] = useState<AccessId>(() => {
@@ -271,30 +250,6 @@ export function Composer(props: ComposerProps) {
     close();
   };
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
-  const selectedAgent = agentById(agents, persona);
-  const selectedAgentLabel = agentLabel(selectedAgent?.name || persona);
-  const requireSelectedAgent = async (): Promise<AgentCatalogEntry> => {
-    if (selectedAgent) return selectedAgent;
-    const catalog = await api.agents();
-    setAgents(catalog);
-    const entry = agentById(catalog, persona);
-    if (!entry) throw new Error("No Agents are configured");
-    return entry;
-  };
-
-  useEffect(() => {
-    let live = true;
-    api.agents()
-      .then((catalog) => {
-        if (!live) return;
-        setAgents(catalog);
-        if (catalog.length && !catalog.some((entry) => entry.name === persona)) {
-          setPersona(catalog[0].name);
-        }
-      })
-      .catch((error: Error) => props.onError(error.message));
-    return () => { live = false; };
-  }, []);
 
   // Narrow phones (≤480px) can't fit the full "…, or type / for commands"
   // placeholder — it wraps to a second line that the single-row textarea clips
@@ -439,23 +394,18 @@ export function Composer(props: ComposerProps) {
     taRef.current?.focus();
   };
 
-  // Seed Agent and model pills from the independent values this UI submitted.
+  // Seed model + persona pills from the session's remembered spec (if we made it).
   useEffect(() => {
     if (!isSession) return;
-    const sessionID = (props as any).sid as string;
-    const sp = recallSpec(sessionID, storage.local);
-    const m =
-      recallModel(sessionID, storage.local) ||
-      (sp ? legacyModelFromSpec(sp) : null);
+    const sp = recallSpec((props as any).sid, storage.local);
+    const m = sp ? modelFromSpec(sp) : null;
     if (m) {
       setProvider(m.provider);
-      setModel(m.model);
-      if (EFFORT_LEVELS.some((level) => level.id === m.effort)) {
-        setEffort(m.effort as EffortId);
-      }
+      setModel(m.id);
     }
     const p = sp ? personaFromSpec(sp) : null;
     if (p) setPersona(p);
+    if (sp) setEffort(effortFromSpec(sp));
   }, [isSession, isSession ? (props as any).sid : ""]);
 
   // Cold start (nothing remembered yet): seed the project from the most recent
@@ -792,23 +742,18 @@ export function Composer(props: ComposerProps) {
         );
         resetInput();
       } else if (kind === "chat") {
-        const activeAgent = await requireSelectedAgent();
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ agent: activeAgent, access });
+        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await api.newSession({
-          provider,
-          model,
-          effort,
           spec,
-          extraSpecs: [],
+          extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
           workspace,
           message: t,
           mode: accessById(access).mode,
         });
         rememberSpec(r.sid, spec, storage.local);
-        rememberModel(r.sid, { provider, model, effort }, storage.local);
         rememberAccess(r.sid, access, storage.local);
         resetInput();
         // The create response is already the durable navigation fact. Route to
@@ -828,14 +773,9 @@ export function Composer(props: ComposerProps) {
           }
         }
       } else {
-        const activeAgent = await requireSelectedAgent();
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ agent: activeAgent, access });
-        const r = await api.startRun({
-          provider, model, effort,
-          kind: "submit", spec, extraSpecs: [], prompt: t, workspace,
-          mode: accessById(access).mode, idem: "",
-        });
+        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
+        const r = await api.startRun({ kind: "submit", spec, extraSpecs: [], prompt: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
         await refreshRuns();
         selectRun(r.runId);
@@ -848,29 +788,17 @@ export function Composer(props: ComposerProps) {
   };
 
   // ---- model / effort switch ----
-  // The Web UI always sends the visible model choice explicitly. Agent YAML
-  // stays unchanged; `ar agent --model/--effort` freezes both values together.
-  const applyModelSpec = async (p: string, id: string, eff: EffortId) => {
+  // Model and reasoning effort both live in the spec's model block, so a change
+  // to either rebuilds that block (replaceModel) and, mid-session, re-agents the
+  // session (the conversation carries over; it takes effect on the next message).
+  const applyModelSpec = async (p: string, id: string, eff: EffortId, budget: number | null = budgetOverride) => {
     if (!isSession) return;
     const sid = (props as any).sid as string;
     try {
-      const base =
-        recallSpec(sid, storage.local) ||
-        buildSpec({
-          agent: await requireSelectedAgent(),
-          access: "full",
-        });
-      await api.switchAgent(sid, base, [], {
-        provider: p,
-        model: id,
-        effort: eff,
-      });
-      rememberSpec(sid, base, storage.local);
-      rememberModel(
-        sid,
-        { provider: p, model: id, effort: eff },
-        storage.local,
-      );
+      const base = recallSpec(sid, storage.local) || buildSpec({ provider: p, model: id, access: "full", persona, effort: eff, budgetOverride: budget });
+      const spec = replaceModel(base, p, id, eff, budget);
+      await api.switchAgent(sid, spec, personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : []);
+      rememberSpec(sid, spec, storage.local);
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -885,8 +813,19 @@ export function Composer(props: ComposerProps) {
 
   const chooseEffort = async (eff: EffortId) => {
     setEffort(eff);
-    await applyModelSpec(provider, model, eff);
+    // Picking a preset effort clears any custom thinking-budget override — the
+    // two feed the same budget and the explicit choice should win.
+    setBudgetOverride(null);
+    await applyModelSpec(provider, model, eff, null);
     if (isSession) toast(`Reasoning → ${effortById(eff).label} (from your next message)`, "info");
+  };
+
+  // Advanced → thinking-budget override: an exact budget (0 / empty ⇒ back to
+  // the effort preset). Rebuilds the model block just like an effort switch.
+  const chooseBudgetOverride = async (budget: number | null) => {
+    setBudgetOverride(budget);
+    await applyModelSpec(provider, model, effort, budget);
+    if (isSession) toast(budget ? `Thinking budget → ${budget} tokens (from your next message)` : "Thinking budget → effort preset", "info");
   };
 
   // ---- persona (agent template) switch ----
@@ -898,13 +837,11 @@ export function Composer(props: ComposerProps) {
     const sid = (props as any).sid as string;
     try {
       const acc = (recallAccess(sid, storage.local) as AccessId) || "full";
-      const next = agentById(agents, id);
-      if (!next) throw new Error(`Unknown Agent ${id}`);
-      const spec = buildSpec({ agent: next, access: acc });
-      await api.switchAgent(sid, spec, [], { provider, model, effort });
+      const spec = buildSpec({ provider, model, access: acc, persona: id, effort, budgetOverride });
+      const sib = personaById(id).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [];
+      await api.switchAgent(sid, spec, sib);
       rememberSpec(sid, spec, storage.local);
-      rememberModel(sid, { provider, model, effort }, storage.local);
-      toast(`Agent → ${agentLabel(id)} (from your next message)`, "info");
+      toast(`Agent → ${personaById(id).label} (from your next message)`, "info");
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -923,22 +860,17 @@ export function Composer(props: ComposerProps) {
       if (isSession) {
         sid = (props as any).sid as string;
       } else {
-        const activeAgent = await requireSelectedAgent();
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
-        const spec = buildSpec({ agent: activeAgent, access });
+        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
         const r = await api.newSession({
-          provider,
-          model,
-          effort,
           spec,
-          extraSpecs: [],
+          extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
           workspace,
           message: goalText,
           mode: accessById(access).mode,
         });
         rememberSpec(r.sid, spec, storage.local);
-        rememberModel(r.sid, { provider, model, effort }, storage.local);
         rememberAccess(r.sid, access, storage.local);
         sid = r.sid;
       }
@@ -995,12 +927,9 @@ export function Composer(props: ComposerProps) {
     setBusy(true);
     try {
       const r = await api.startRun({
-        provider,
-        model,
-        effort,
         kind: "drive",
-        spec: buildLoopDriver({ prompt, interval, maxIterations: iterations }),
-        extraSpecs: [],
+        spec: buildLoopDriver({ prompt, interval, maxIterations: iterations, provider, model }),
+        extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
         prompt: "",
         workspace,
         mode: "",
@@ -1025,12 +954,9 @@ export function Composer(props: ComposerProps) {
     setBusy(true);
     try {
       const r = await api.startRun({
-        provider,
-        model,
-        effort,
         kind: "drive",
-        spec: buildBestOfNDriver({ prompt, n: attempts, verifier }),
-        extraSpecs: [],
+        spec: buildBestOfNDriver({ prompt, n: attempts, verifier, provider, model }),
+        extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
         prompt: "",
         workspace,
         mode: "",
@@ -1358,72 +1284,50 @@ export function Composer(props: ComposerProps) {
             re-add one only when an environment concept actually exists.) */}
         {!isSession && (
           <div className="cx-env-strip">
-          <Popover
-            align="left"
-            wrapClass="cx-env-project-wrap"
-            trigger={(open, toggle) => (
-              <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project" aria-haspopup="menu" aria-expanded={open}>
-                <FolderIcon size={17} />
-                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{ws ? wsShort : "Select project"}</span>
-              </button>
-            )}
-            panelClass="cx-project-popover"
+          <ProjectPicker
+            label={ws ? wsShort : "Select project"}
+            query={projectQuery}
+            page={projectMenuPage}
+            selected={!!ws}
+            projects={filteredProjects.map((workspace) => ({
+              workspace,
+              label: projectLabel(workspace),
+              subtitle: projectSubs.get(workspace),
+              active: workspace === normalizedWs,
+            }))}
             onOpen={() => {
               setProjectQuery("");
               setProjectMenuPage("projects");
             }}
-          >
-            {(close) => (
-              <div className="cx-menu project-menu">
-                {projectMenuPage === "projects" ? (
-                  <>
-                    <label className="cx-project-search">
-                      <MagnifyingGlass size={16} />
-                      <input
-                        data-popover-autofocus
-                        aria-label="Search projects"
-                        placeholder="Search projects"
-                        value={projectQuery}
-                        onChange={(event) => setProjectQuery(event.target.value)}
-                      />
-                    </label>
-                    <div className="cx-project-list max-h-[180px] overflow-y-auto pb-[4px] border-b border-line-2">
-                      {filteredProjects.map((workspace) => (
-                        <PopItem
-                          key={workspace}
-                          icon={<FolderIcon />}
-                          title={projectLabel(workspace)}
-                          desc={projectSubs.get(workspace)}
-                          active={workspace === normalizedWs}
-                          onClick={() => { chooseProject(workspace); close(); }}
-                        />
-                      ))}
-                      {filteredProjects.length === 0 && <div className="pop-empty">No projects found</div>}
-                    </div>
-                    <PopSection>
-                      <PopItem icon={<PlusIcon />} title="New project" right={<span aria-hidden>›</span>} onClick={() => setProjectMenuPage("new")} />
-                      <PopItem icon={<X size={15} />} title="Don't work in a project" active={!ws} onClick={() => { setWs(""); rememberProject(storage.local, ""); seeded.current = true; setBranchInfo(null); setStartingBranch(""); setRunLocation("local"); close(); }} />
-                    </PopSection>
-                  </>
-                ) : (
-                  <>
-                    <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setProjectMenuPage("projects")} aria-label="Back to projects">‹</button>
-                      <b>New project</b>
-                    </div>
-                    <PopItem icon={<Sparkle size={15} />} title="Start from scratch" desc="Create a fresh local workspace" onClick={async () => {
-                      try { chooseProject((await api.makeWorkspace()).path); } catch (error: any) { props.onError(error.message); }
-                      close();
-                    }} />
-                    <PopItem icon={<FolderIcon />} title="Use an existing folder" desc="Choose an absolute local path" onClick={() => {
-                      close();
-                      openPrompt({ title: "Add project", label: "absolute folder path", initial: ws, placeholder: "/path/to/project", onSubmit: chooseProject });
-                    }} />
-                  </>
-                )}
-              </div>
-            )}
-          </Popover>
+            onQueryChange={setProjectQuery}
+            onSelect={chooseProject}
+            onShowNew={() => setProjectMenuPage("new")}
+            onBack={() => setProjectMenuPage("projects")}
+            onStartScratch={async () => {
+              try {
+                chooseProject((await api.makeWorkspace()).path);
+              } catch (error: any) {
+                props.onError(error.message);
+              }
+            }}
+            onUseExisting={() =>
+              openPrompt({
+                title: "Add project",
+                label: "absolute folder path",
+                initial: ws,
+                placeholder: "/path/to/project",
+                onSubmit: chooseProject,
+              })
+            }
+            onClear={() => {
+              setWs("");
+              rememberProject(storage.local, "");
+              seeded.current = true;
+              setBranchInfo(null);
+              setStartingBranch("");
+              setRunLocation("local");
+            }}
+          />
 
           {ws && (<>
           {/* Start-in chip (INC-41 CP-4): ONE meaning — where the session runs.
@@ -1432,35 +1336,37 @@ export function Composer(props: ComposerProps) {
               left the chip lying: picking Background changed nothing here, so a
               headless run looked like a chat session. Session type now lives in the
               `+` menu's Advanced options, and the chip names the background state. */}
-          <Popover
-            align="left"
-            trigger={(open, toggle) => (
-              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title={kind === "background" ? "Runs in the background — choose where it runs" : "Choose where this session runs"} aria-haspopup="menu" aria-expanded={open}>
-                {kind === "background" ? <Lightning size={17} /> : runLocation === "local" ? <Desktop size={17} /> : <GitFork size={17} />}
-                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">
-                  {(kind === "background" ? "Background · " : "") + (runLocation === "local" ? "Local" : "New worktree")}
-                </span>
-              </button>
-            )}
-          >
-            {(close) => (
-              <div className="cx-menu">
-                <PopSection label="Start in">
-                  <PopItem icon={<GitBranch size={15} />} title="New worktree" desc={!branchInfo?.isRepo ? "Select a Git project first" : branchInfo.hasCommits === false ? "Repo has no commits yet — commit one first" : "Isolated checkout; your project stays untouched"} active={runLocation === "worktree"} onClick={() => {
-                    if (!branchInfo?.isRepo) { props.onError("New worktree needs a Git project."); return; }
-                    if (branchInfo.hasCommits === false) { props.onError("This repo has no commits yet — a worktree needs a starting commit."); return; }
-                    setRunLocation("worktree"); close();
-                  }} />
-                  <PopItem icon={<Desktop size={15} />} title="Local" desc="Work directly in the selected project" active={runLocation === "local"} onClick={() => { setRunLocation("local"); close(); }} />
-                </PopSection>
-              </div>
-            )}
-          </Popover>
+          <RunLocationPicker
+            kind={kind}
+            location={runLocation}
+            worktreeUnavailableReason={
+              !branchInfo?.isRepo
+                ? "Select a Git project first"
+                : branchInfo.hasCommits === false
+                  ? "Repo has no commits yet — commit one first"
+                  : undefined
+            }
+            onSelect={setRunLocation}
+            onUnavailableWorktree={() => {
+              if (!branchInfo?.isRepo) {
+                props.onError("New worktree needs a Git project.");
+              } else {
+                props.onError(
+                  "This repo has no commits yet — a worktree needs a starting commit.",
+                );
+              }
+            }}
+          />
 
-          <Popover
-            align="left"
-            wrapClass={narrow ? "min-w-0 flex-1" : ""}
-            panelClass="cx-branch-popover"
+          <BranchPicker
+            label={branchLabel}
+            narrow={narrow}
+            isRepo={!!branchInfo?.isRepo}
+            location={runLocation}
+            dirty={branchInfo?.dirty}
+            query={branchQuery}
+            branches={filteredBranches}
+            totalBranches={branchInfo?.branches.length || 0}
             onOpen={() => {
               setBranchQuery("");
               if (ws.trim()) api.gitBranches(ws.trim()).then((info) => {
@@ -1468,50 +1374,26 @@ export function Composer(props: ComposerProps) {
                 if (!startingBranch) setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
               }).catch(() => {});
             }}
-            trigger={(open, toggle) => (
-              <button className={"cx-env-control branch" + (narrow ? " w-full" : "") + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
-                <BranchIcon size={17} />
-                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis [direction:rtl] text-left">{branchLabel}</span>
-              </button>
-            )}
-          >
-            {(close) => (
-              <div className="cx-menu branch-menu">
-                <label className="cx-project-search cx-branch-search">
-                  <MagnifyingGlass size={16} />
-                  <input
-                    data-popover-autofocus
-                    aria-label="Search branches"
-                    placeholder="Search branches"
-                    value={branchQuery}
-                    onChange={(event) => setBranchQuery(event.target.value)}
-                  />
-                </label>
-                <PopSection label={runLocation === "worktree" ? "Start worktree from" : `Local branch${branchInfo?.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
-                  {filteredBranches.map((branch) => (
-                    <PopItem key={branch} icon={<BranchIcon />} title={branch} active={branch === branchLabel} onClick={async () => {
-                      if (runLocation === "worktree") {
-                        setStartingBranch(branch);
-                        close();
-                        return;
-                      }
-                      try {
-                        await api.gitCheckout(ws.trim(), branch, false);
-                        setBranchInfo((current) => current ? { ...current, current: branch } : current);
-                        setStartingBranch(branch);
-                        toast(`Switched to ${branch}`, "info");
-                        close();
-                      } catch (error: any) {
-                        props.onError(error.message);
-                      }
-                    }} />
-                  ))}
-                  {branchInfo?.branches.length === 0 && <div className="pop-empty">No branches yet</div>}
-                  {(branchInfo?.branches.length || 0) > 0 && filteredBranches.length === 0 && <div className="pop-empty">No branches found</div>}
-                </PopSection>
-              </div>
-            )}
-          </Popover>
+            onQueryChange={setBranchQuery}
+            onSelect={async (branch, close) => {
+              if (runLocation === "worktree") {
+                setStartingBranch(branch);
+                close();
+                return;
+              }
+              try {
+                await api.gitCheckout(ws.trim(), branch, false);
+                setBranchInfo((current) =>
+                  current ? { ...current, current: branch } : current,
+                );
+                setStartingBranch(branch);
+                toast(`Switched to ${branch}`, "info");
+                close();
+              } catch (error: any) {
+                props.onError(error.message);
+              }
+            }}
+          />
           </>)}
         </div>
         )}
@@ -1521,21 +1403,14 @@ export function Composer(props: ComposerProps) {
             <span>Drop files to attach</span>
           </div>
         )}
-        {atts.length > 0 && (
-          <div className="cx-atts flex flex-wrap gap-[6px] pt-[12px] px-[14px]">
-            {atts.map((a, i) => (
-              <span className="cx-att cx-att-codex" key={i} onClick={() => setAtts((p) => p.filter((_, j) => j !== i))} title="Remove attachment">
-                {a.isImage ? (
-                  <img className="cx-att-thumb" src={uploadURL(a.path)} alt={a.name} />
-                ) : (
-                  <span className="cx-att-ico"><File size={14} /></span>
-                )}
-                <span className="cx-att-name">{a.name}</span>
-                <span className="cx-att-x" aria-hidden><X size={11} weight="bold" /></span>
-              </span>
-            ))}
-          </div>
-        )}
+        <AttachmentList
+          attachments={atts}
+          onRemove={(index) =>
+            setAtts((current) =>
+              current.filter((_, itemIndex) => itemIndex !== index),
+            )
+          }
+        />
 
         <div className="cx-input-wrap">
           <textarea
@@ -1554,41 +1429,23 @@ export function Composer(props: ComposerProps) {
         </div>
 
         {atQuery !== null && (
-          <div className="cx-slash cx-at">
-            <div className="cx-slash-hd">{atKnown ? "Files · @" + atQuery : "Workspace unknown"}</div>
-            {!atKnown && <div className="cx-at-empty">This session's workspace isn't known to arwebui, so files can't be listed.</div>}
-            {atKnown && atFiles.length === 0 && <div className="cx-at-empty">No matching files</div>}
-            {atFiles.map((f, i) => (
-              <button
-                key={f}
-                className={"cx-slash-item" + (i === atIdx ? " on" : "")}
-                onMouseEnter={() => setAtIdx(i)}
-                onClick={() => applyAt(f)}
-              >
-                <span className="cx-slash-name mono">{f}</span>
-              </button>
-            ))}
-          </div>
+          <FileMentionMenu
+            query={atQuery}
+            known={atKnown}
+            files={atFiles}
+            activeIndex={atIdx}
+            onActiveIndexChange={setAtIdx}
+            onSelect={applyAt}
+          />
         )}
 
         {slashOpen && filteredSlash.length > 0 && (
-          <div className="cx-slash cx-slash-codex">
-            <div className="cx-slash-hd">Commands</div>
-            {filteredSlash.map((c, i) => (
-              <button
-                key={c.name}
-                className={"cx-slash-item" + (i === slashIdx ? " on" : "")}
-                onMouseEnter={() => setSlashIdx(i)}
-                onClick={() => applySlash(c)}
-              >
-                <span className="cx-slash-text">
-                  <span className="cx-slash-name">/{c.name}</span>
-                  <span className="cx-slash-desc">{c.desc}</span>
-                </span>
-                {c.arg && <span className="cx-slash-hint">{c.arg}</span>}
-              </button>
-            ))}
-          </div>
+          <SlashCommandMenu
+            commands={filteredSlash}
+            activeIndex={slashIdx}
+            onActiveIndexChange={setSlashIdx}
+            onSelect={applySlash}
+          />
         )}
 
         {/* ---- control bar ---- */}
@@ -1596,438 +1453,172 @@ export function Composer(props: ComposerProps) {
           {/* Codex-style `+`: root stays about adding context or switching the
               immediate mode. AgentRunner-specific automation remains available,
               but one level down so the first screen matches Codex's Add menu. */}
-          <Popover
-            align="left"
-            panelClass="cx-pop-codex"
+          <AddMenu
+            page={addMenuPage}
+            isSession={isSession}
+            goalMode={goalMode}
+            planMode={access === "plan"}
+            kind={kind}
+            persona={persona}
             onOpen={() => setAddMenuPage("root")}
-            trigger={(open, toggle) => (
-              <button type="button" className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & advanced options" aria-label="Add and advanced options" aria-haspopup="menu" aria-expanded={open}>
-                <PlusIcon />
-              </button>
-            )}
-          >
-            {(close) => (
-              <div
-                className={
-                  "cx-menu cx-add-menu [&_.pop-body]:flex-row [&_.pop-body]:items-baseline [&_.pop-body]:gap-2 " +
-                  "[&_.pop-title]:shrink-0 [&_.pop-desc]:min-w-0 [&_.pop-desc]:truncate" +
-                  (addMenuPage === "agent" ? " cx-add-agent" : "")
-                }
-                style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
-                onClick={(event) => event.preventDefault()}
-              >
-                {addMenuPage === "root" ? (
-                  <>
-                    <PopSection label="Add">
-                      <PopItem icon={<Paperclip size={16} />} title="Files and folders" onClick={() => { close(); anyRef.current?.click(); }} />
-                      <PopItem
-                        icon={<GoalIcon />}
-                        title="Goal"
-                        desc={goalMode ? "Turn goal mode off" : "Set a goal to keep pursuing"}
-                        active={goalMode}
-                        onClick={() => {
-                          close();
-                          setLauncher(goalMode ? null : { mode: "goal", prompt: text.trim() });
-                        }}
-                      />
-                      <PopItem
-                        icon={<PlanIcon />}
-                        title="Plan mode"
-                        desc={access === "plan" ? "Turn plan mode off" : "Turn plan mode on"}
-                        active={!isSession && access === "plan"}
-                        disabled={isSession}
-                        onClick={!isSession ? () => { close(); togglePlanMode(); } : undefined}
-                      />
-                    </PopSection>
-                    <PopSection label="Advanced">
-                      <PopItem
-                        icon={<Lightning size={16} />}
-                        title="Automation"
-                        desc={kind === "background" ? "Background run" : selectedAgentLabel}
-                        right={<span aria-hidden>›</span>}
-                        onClick={() => setAddMenuPage("advanced")}
-                      />
-                    </PopSection>
-                  </>
-                ) : addMenuPage === "advanced" ? (
-                  <>
-                    <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setAddMenuPage("root")} aria-label="Back to add menu">‹</button>
-                      <b>Automation</b>
-                    </div>
-                    <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a cadence" onClick={() => { close(); setLauncher({ mode: "loop", prompt: text.trim() }); }} />
-                    <PopItem icon={<BestIcon />} title="Best of N" desc="Keep the best of N tries" onClick={() => { close(); setLauncher({ mode: "best", prompt: text.trim() }); }} />
-                    {!isSession && (
-                      <PopItem
-                        icon={<Lightning size={16} />}
-                        title="Background run"
-                        desc="Run headless, no chat"
-                        active={kind === "background"}
-                        onClick={() => { setKind(kind === "background" ? "chat" : "background"); close(); }}
-                      />
-                    )}
-                    <PopItem
-                      icon={<PersonaIcon />}
-                      title="Agent"
-                      desc={selectedAgentLabel}
-                      right={<span aria-hidden>›</span>}
-                      onClick={() => setAddMenuPage("agent")}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setAddMenuPage("advanced")} aria-label="Back to automation menu">‹</button>
-                      <b>Agent</b>
-                    </div>
-                    {agents.map((item) => (
-                      <PopItem
-                        key={item.name}
-                        icon={<PersonaIcon />}
-                        title={agentLabel(item.name)}
-                        desc={`${item.description || "Custom Agent"} · ${item.source}`}
-                        active={persona === item.name}
-                        onClick={() => { choosePersona(item.name); close(); }}
-                      />
-                    ))}
-                    <PopSection>
-                      <PopItem
-                        icon={<Code size={16} />}
-                        title="Edit agent spec (YAML)…"
-                        onClick={() => {
-                          close();
-                          openModal(isSession
-                            ? { kind: "agent", sid: (props as any).sid, provider, model, effort }
-                            : {
-                              kind: "new",
-                              message: text,
-                              spec: selectedAgent ? buildSpec({ agent: selectedAgent, access }) : "",
-                              provider,
-                              model,
-                              effort,
-                            });
-                        }}
-                      />
-                    </PopSection>
-                  </>
-                )}
-              </div>
-            )}
-          </Popover>
+            onPageChange={setAddMenuPage}
+            onPickFiles={() => anyRef.current?.click()}
+            onToggleGoal={() =>
+              setLauncher(
+                goalMode ? null : { mode: "goal", prompt: text.trim() },
+              )
+            }
+            onTogglePlan={togglePlanMode}
+            onStartLoop={() =>
+              setLauncher({ mode: "loop", prompt: text.trim() })
+            }
+            onStartBest={() =>
+              setLauncher({ mode: "best", prompt: text.trim() })
+            }
+            onToggleBackground={() =>
+              setKind(kind === "background" ? "chat" : "background")
+            }
+            onSelectPersona={choosePersona}
+            onEditSpec={() =>
+              openModal(
+                isSession
+                  ? { kind: "agent", sid: (props as any).sid }
+                  : {
+                      kind: "new",
+                      message: text,
+                      spec: buildSpec({
+                        provider,
+                        model,
+                        access,
+                        persona,
+                        effort,
+                        budgetOverride,
+                      }),
+                      worker: personaById(persona).withWorker
+                        ? DEFAULT_WORKER
+                        : "",
+                    },
+              )
+            }
+          />
 
           {/* permission mode pill */}
-          {isSession ? (
-            /* Session mode switch (INC-54): the live approval-mode pill is a
-               click-to-switch selector, not a read-only badge. Only the two
-               runtime transitions the daemon accepts (Ask↔Auto-accept edits,
-               INC-42 ValidTransition) are clickable; Full access and Plan are
-               listed disabled with the reason so the menu structure matches
-               Home's while staying honest about what's switchable at runtime.
-               Every switch runs the same ControlMode command chain as `/mode`,
-               so live folds, rejected receipts and toasts are identical. The
-               active row follows the pill's truth-ordered value (live >
-               non-contradicting remembered > honest unknown); when the live
-               mode is unknown, nothing is highlighted. */
-            <Popover
-              align="left"
-              panelClass="cx-pop-codex"
-              trigger={(open, toggle) => (
-                <button
-                  type="button"
-                  className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown") + (open ? " active" : "")}
-                  onClick={toggle}
-                  aria-label={sessionAccess?.label || "Access: set by agent spec"}
-                  aria-haspopup="menu"
-                  aria-expanded={open}
-                  title={
-                    sessionAccess
-                      ? "The session's live approval mode — click to switch Ask ↔ Auto-accept edits"
-                      : "This session's approval posture comes from its spec's permission rules; switch Ask ↔ Auto-accept edits here, and approvals surface when a gate asks"
-                  }
-                >
-                  {riskGlyph(sessionAccess?.risk || "unknown")}
-                  <span className="cx-mode-label">{sessionAccess?.label || "Access: set by agent spec"}</span>
-                </button>
-              )}
-            >
-              {(close) => (
-                <div className="cx-menu wide cx-access-menu">
-                  <PopSection label="Switch approval mode">
-                    {ACCESS_LEVELS.map((a) => {
-                      const target = runtimeModeTarget(a.id);
-                      const desc =
-                        a.id === "full"
-                          ? "Set at launch — mid-session switching only toggles Ask ↔ Auto-accept edits"
-                          : a.id === "plan"
-                            ? "Plan mode exits through an approval, not this switch"
-                            : a.desc;
-                      return (
-                        <PopItem
-                          key={a.id}
-                          icon={<AccessIcon id={a.id} risk={a.risk} />}
-                          title={a.label}
-                          desc={desc}
-                          active={sessionAccess?.id === a.id}
-                          disabled={target === null}
-                          onClick={target ? () => { switchMode(target); close(); } : undefined}
-                        />
-                      );
-                    })}
-                  </PopSection>
-                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks. Full access and Plan are fixed once the session starts.</div>
-                </div>
-              )}
-            </Popover>
-          ) : (
-            <Popover
-              align="left"
-              panelClass="cx-pop-codex"
-              trigger={(open, toggle) => (
-                <button type="button" ref={homeAccessTriggerRef} className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved" aria-haspopup="menu" aria-expanded={open}>
-                  {riskGlyph(accessLevel?.risk || "low")}
-                  {accessLevel?.label}
-                </button>
-              )}
-            >
-              {(close) => (
-                <div className="cx-menu wide cx-access-menu">
-                  <PopSection label="How should actions be approved?">
-                    {ACCESS_LEVELS.map((a) => (
-                      <PopItem
-                        key={a.id}
-                        icon={<AccessIcon id={a.id} risk={a.risk} />}
-                        title={a.label}
-                        desc={a.desc}
-                        active={access === a.id}
-                        onClick={() => chooseHomeAccess(a.id, close)}
-                      />
-                    ))}
-                  </PopSection>
-                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks; the posture is fixed once the session starts.</div>
-                </div>
-              )}
-            </Popover>
-          )}
+          <AccessPicker
+            variant={isSession ? "session" : "home"}
+            active={isSession ? sessionAccess?.id : access}
+            label={
+              isSession
+                ? sessionAccess?.label || "Access: set by agent spec"
+                : accessLevel?.label
+            }
+            risk={
+              isSession
+                ? sessionAccess?.risk || "unknown"
+                : accessLevel?.risk || "low"
+            }
+            triggerRef={!isSession ? homeAccessTriggerRef : undefined}
+            onHomeSelect={chooseHomeAccess}
+            onSessionSelect={(target, close) => {
+              switchMode(target);
+              close();
+            }}
+          />
 
           {goalMode && (
-            <Popover
-              align="left"
-              panelClass="cx-pop-codex"
-              trigger={(open, toggle) => (
-                <button
-                  type="button"
-                  className={"cx-pill cx-goal-mode" + (open ? " active" : "")}
-                  onClick={toggle}
-                  aria-haspopup="menu"
-                  aria-expanded={open}
-                  title="Goal mode — configure completion checks or exit"
-                >
-                  <GoalIcon />
-                  Goal
-                </button>
-              )}
-            >
-              {(close) => (
-                <div className="cx-menu wide cx-goal-options">
-                  <div className="pop-menu-title"><b>Goal options</b></div>
-                  <label className="cx-launcher-field" title="Optional shell command that must exit 0 for the goal to count as met">
-                    <span>Done when (command)</span>
-                    <input
-                      placeholder="e.g. go test ./…  (empty = agent self-certifies)"
-                      value={goalVerifier}
-                      onChange={(event) => setGoalVerifier(event.target.value)}
-                    />
-                  </label>
-                  <label className="cx-launcher-field small" title="Safety cap on iterations">
-                    <span>Max rounds</span>
-                    <input type="number" min={1} value={goalRounds} onChange={(event) => setGoalRounds(Math.max(1, Number(event.target.value) || 1))} />
-                  </label>
-                  <PopItem title="Exit Goal mode" onClick={() => { setLauncher(null); close(); }} />
-                </div>
-              )}
-            </Popover>
+            <GoalOptions
+              verifier={goalVerifier}
+              rounds={goalRounds}
+              onVerifierChange={setGoalVerifier}
+              onRoundsChange={setGoalRounds}
+              onExit={() => setLauncher(null)}
+            />
           )}
 
           <span className="cx-spacer" />
 
           {/* model pill — shows "<model> <effort>" like Codex's "5.6 Sol Extra High"
               (effort "Off" stays unwritten: the default posture is not news). */}
-          <Popover
-            align="right"
-            panelClass="cx-pop-codex"
+          <ModelPicker
+            provider={provider}
+            model={model}
+            modelLabel={modelLabel}
+            effort={effort}
+            effortLabel={effortLevel.label}
+            budgetOverride={budgetOverride}
+            page={modelMenuPage}
             onOpen={() => setModelMenuPage("root")}
-            trigger={(open, toggle) => (
-              <button type="button" className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & effort" aria-haspopup="menu" aria-expanded={open}>
-                <span className="cx-model-name">{modelLabel}</span>
-                <span className="cx-pill-sub">{effortLevel.label}</span>
-                <Caret />
-              </button>
-            )}
-          >
-            {(close) => (
-              <div
-                className="cx-menu wide cx-model-menu"
-                style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
-                onClick={(event) => event.preventDefault()}
-              >
-                {modelMenuPage === "root" ? (
-                  <>
-                    <div className="cx-model-roots">
-                      <PopItem
-                        title="Model"
-                        right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{modelLabel}</span><span aria-hidden>›</span></span>}
-                        onClick={() => setModelMenuPage("model")}
-                      />
-                      <PopItem
-                        title="Effort"
-                        right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{effortLevel.label}</span><span aria-hidden>›</span></span>}
-                        onClick={() => setModelMenuPage("effort")}
-                      />
-                    </div>
-                    <div className="cx-model-advanced">
-                      <PopItem title={<span className="inline-flex items-center gap-1">Advanced <CaretDown size={14} className="cx-model-adv-chev open" aria-hidden="true" /></span>} onClick={() => setModelMenuPage("advanced")} />
-                    </div>
-                  </>
-                ) : modelMenuPage === "model" ? (
-                  <>
-                    <div className="pop-menu-title">
-                      <button type="button" className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back to model menu">‹</button>
-                      <b>Model</b>
-                    </div>
-                    <div className="cx-model-list">
-                      {MODELS.map((m) => (
-                        <PopItem
-                          key={m.provider + m.id}
-                          icon={<ModelIcon provider={m.provider} />}
-                          title={m.label}
-                          desc={m.sub}
-                          active={provider === m.provider && model === m.id}
-                          onClick={() => { chooseModel(m.provider, m.id); close(); }}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : modelMenuPage === "effort" ? (
-                  <>
-                    <div className="pop-menu-title">
-                      <button type="button" className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back to model menu">‹</button>
-                      <b>Effort</b>
-                    </div>
-                    {EFFORT_LEVELS.map((level) => (
-                      <PopItem
-                        key={level.id}
-                        title={level.label}
-                        desc={level.desc}
-                        active={effort === level.id}
-                        onClick={() => { chooseEffort(level.id); close(); }}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <div className="pop-menu-title">
-                      <button type="button" className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back to model menu">‹</button>
-                      <b>Advanced</b>
-                    </div>
-                    <PopItem
-                      icon={<Code size={15} />}
-                      title="Custom model id…"
-                      desc={`provider stays ${provider}`}
-                      onClick={() => {
-                        close();
-                        openPrompt({
-                          title: "Custom model id",
-                          label: "model id (provider stays " + provider + ")",
-                          initial: model,
-                          onSubmit: (id) => chooseModel(provider, id),
-                        });
-                      }}
-                    />
-                  </>
-                )}
-              </div>
-            )}
-          </Popover>
+            onPageChange={setModelMenuPage}
+            onSelectModel={chooseModel}
+            onSelectEffort={chooseEffort}
+            onCustomModel={() =>
+              openPrompt({
+                title: "Custom model id",
+                label: "model id (provider stays " + provider + ")",
+                initial: model,
+                onSubmit: (id) => chooseModel(provider, id),
+              })
+            }
+            onCustomBudget={() =>
+              openPrompt({
+                title: "Thinking budget override",
+                label:
+                  "budget tokens (0 or empty = use the effort preset)",
+                initial:
+                  budgetOverride != null ? String(budgetOverride) : "",
+                onSubmit: (value) => {
+                  const next = Number(value.trim());
+                  chooseBudgetOverride(
+                    Number.isFinite(next) && next > 0
+                      ? Math.floor(next)
+                      : null,
+                  );
+                },
+              })
+            }
+          />
 
           {/* optimize (INC-56 · HANDA #19): rewrite the draft via `ar optimize`.
               After a rewrite an Undo button restores the original draft in one
               step. Both are hidden when there's nothing to act on. */}
-          {undoDraft !== null ? (
-            <button className="cx-icon cx-undo" onClick={undoOptimizeNow} title="Undo optimize — restore your original draft">
-              <UndoIcon />
-            </button>
-          ) : (
-            text.trim() && (
-              <button
-                className={"cx-icon cx-optimize" + (optimizing ? " working" : "")}
-                onClick={() => doOptimize(text, text)}
-                disabled={optimizing}
-                title="Optimize prompt — rewrite this draft to be clearer"
-              >
-                <Sparkle size={15} weight={optimizing ? "fill" : "regular"} />
-              </button>
-            )
-          )}
-
-          {/* dictation (INC-56 · HANDA #18): server-side `ar dictate` when the
-              browser can record+upload, else browser SpeechRecognition. */}
-          {micVisible && (
-            <button
-              className={"cx-icon cx-mic" + (micActive ? " listening" : "") + (dictation.busy ? " working" : "")}
-              onClick={toggleMic}
-              disabled={dictation.busy}
-              title={dictation.busy ? "Transcribing…" : micActive ? "Stop dictation" : "Dictate"}
-            >
-              <MicIcon />
-            </button>
-          )}
+          <AssistActions
+            hasText={!!text.trim()}
+            canUndo={undoDraft !== null}
+            optimizing={optimizing}
+            micVisible={micVisible}
+            micActive={micActive}
+            dictationBusy={dictation.busy}
+            onOptimize={() => doOptimize(text, text)}
+            onUndo={undoOptimizeNow}
+            onToggleMic={toggleMic}
+          />
 
           {/* delivery mode (INC-43, Codex parity): while a turn is running, choose
               whether this message steers the current turn or queues for the next.
               ⌘⏎ sends with the opposite mode for one message. */}
           {running && (
-            <div className="cx-delivery" role="group" aria-label="Delivery mode">
-              <button
-                type="button"
-                className={"cx-deliv" + (deliveryMode === "queue" ? " on" : "")}
-                onClick={() => setDeliveryMode("queue")}
-                title="Queue: deliver after the current turn ends (⌘⏎ to steer this one)"
-              >
-                <ListChecks size={14} />
-                <span className="cx-deliv-label">Queue</span>
-              </button>
-              <button
-                type="button"
-                className={"cx-deliv" + (deliveryMode === "steer" ? " on" : "")}
-                onClick={() => setDeliveryMode("steer")}
-                title="Steer: fold into the current turn at its next safe boundary (⌘⏎ to queue this one)"
-              >
-                <Lightning size={14} />
-                <span className="cx-deliv-label">Steer</span>
-              </button>
-            </div>
+            <DeliveryModeControl
+              mode={deliveryMode}
+              onChange={setDeliveryMode}
+            />
           )}
 
           {/* send — or Stop while a turn is running and nothing is typed
               (W30: stopping shouldn't require finding the topbar button) */}
           {isSession && (props as { running?: boolean }).running && !text.trim() && atts.length === 0 ? (
-            <button
-              className="cx-send cx-stop"
-              onClick={() => (props as { actions?: SessionActions }).actions?.interrupt?.()}
-              aria-label="Stop active turn"
-              title="Stop the active turn"
-            >
-              <StopIcon size={15} weight="fill" />
-            </button>
+            <SubmitButton
+              mode="stop"
+              onSubmit={() =>
+                (props as { actions?: SessionActions }).actions?.interrupt?.()
+              }
+            />
           ) : (
-            <button
-              className="cx-send"
-              onClick={() => doSubmit()}
+            <SubmitButton
+              mode="send"
+              onSubmit={() => doSubmit()}
               disabled={busy || (!text.trim() && atts.length === 0)}
-              title={running ? `Send · ${deliveryMode} (⌘⏎ to ${deliveryMode === "queue" ? "steer" : "queue"})` : "Send (Enter)"}
-            >
-              <ArrowUp />
-            </button>
+              running={running}
+              deliveryMode={deliveryMode}
+            />
           )}
         </div>
 
@@ -2043,7 +1634,7 @@ export function Composer(props: ComposerProps) {
 }
 
 // ---- goal / loop / best-of-N launcher ---------------------------------------
-function GoalLoopLauncher({
+export function GoalLoopLauncher({
   mode,
   initialPrompt,
   busy,
@@ -2120,35 +1711,6 @@ function accessByMode(mode?: string) {
   return undefined;
 }
 
-// Phosphor's regular weight is the closest match to Codex's quiet line icons.
-const Caret = () => <CaretDown className="cx-caret text-dim shrink-0" size={10} />;
-const PlusIcon = () => <Plus size={16} />;
-const MicIcon = () => <Microphone size={15} />;
-const UndoIcon = () => <ArrowUUpLeft size={15} />;
-// Provider-aware model glyph: Gemini (primary) gets the sparkle, Anthropic the
-// chip — a quiet family cue in the pill and the model menu.
-const ModelIcon = ({ provider }: { provider?: string }) => (provider === "anthropic" ? <Cpu size={14} /> : <Sparkle size={14} />);
-const FolderIcon = ({ size = 13 }: { size?: number }) => <Folder size={size} />;
-const BranchIcon = ({ size = 13 }: { size?: number }) => <GitBranch size={size} />;
 const GoalIcon = () => <Target size={14} />;
 const LoopIcon = () => <ArrowClockwise size={14} />;
-const PlanIcon = () => <ListChecks size={14} />;
 const BestIcon = () => <ChartBar size={14} />;
-const PersonaIcon = () => <UserCircle size={13} />;
-
-// Access-mode icons (C2): each approval posture gets a distinct Codex-style
-// line icon, tinted by its risk so the menu keeps the pill's risk language.
-const ACCESS_ICONS: Record<AccessId, typeof LockOpen> = {
-  full: LockOpen,
-  ask: ShieldCheck,
-  acceptEdits: PencilSimple,
-  plan: Eye,
-};
-const AccessIcon = ({ id, risk }: { id: AccessId; risk: string }) => {
-  const I = ACCESS_ICONS[id] || ShieldCheck;
-  return (
-    <span className={"cx-access-ico " + risk}>
-      <I size={16} />
-    </span>
-  );
-};

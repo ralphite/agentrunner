@@ -163,7 +163,7 @@ const THEME_CARDS: { id: Theme; label: string; icon: typeof Monitor }[] = [
 
 // ThemePreview draws a tiny fixed-color window mock so each card previews its
 // theme regardless of the app's current one; "system" is split down the middle.
-function ThemePreview({ id }: { id: Theme }) {
+export function ThemePreview({ id }: { id: Theme }) {
   const light = { bg: "#ffffff", side: "#f4f4f4", ink: "#0d0d0d", line: "#e7e7e7", accent: "#0169cc" };
   const dark = { bg: "#17171a", side: "#141416", ink: "#ececf1", line: "#2a2a30", accent: "#6f9bff" };
   const half = (p: typeof light, side: "l" | "r") => (
@@ -190,7 +190,7 @@ function ThemePreview({ id }: { id: Theme }) {
   );
 }
 
-function FontRow({
+export function FontRow({
   label,
   desc,
   value,
@@ -228,7 +228,7 @@ function FontRow({
   );
 }
 
-function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <section className="rs-row max-[500px]:relative max-[500px]:rounded-[8px] max-[500px]:p-2.5">
       <div className="rs-row-head max-[500px]:grid max-[500px]:grid-cols-1 max-[500px]:gap-0.5 max-[500px]:pr-12">

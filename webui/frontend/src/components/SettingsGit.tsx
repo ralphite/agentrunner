@@ -37,6 +37,7 @@ export function SettingsGit({ query }: { query: string }) {
           </div>
           <textarea
             className="rs-textarea mt-3 min-w-0 max-w-full resize-y"
+            aria-label="Commit message template"
             rows={2}
             value={g.commitTemplate}
             placeholder="changes from agent session"

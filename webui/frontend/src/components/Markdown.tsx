@@ -28,7 +28,7 @@ import { rehypeHighlight } from "./highlight";
 // code body. `raw` is the verbatim source used for copying; `children` are the
 // already-highlighted <span> nodes from rehypeHighlight. The Wrap toggle flips
 // the body between horizontal scroll (default) and soft-wrapping long lines.
-function CodeBlock({ raw, lang, className, children }: { raw: string; lang?: string; className?: string; children: ReactNode }) {
+export function CodeBlock({ raw, lang, className, children }: { raw: string; lang?: string; className?: string; children: ReactNode }) {
   const { clock } = useAppServices();
   const [copied, setCopied] = useState(false);
   const [wrap, setWrap] = useState(false);
@@ -71,7 +71,11 @@ function CodeBlock({ raw, lang, className, children }: { raw: string; lang?: str
           </button>
         </div>
       </div>
-      <pre className={"md-hljs m-0 px-[12px] py-[10px] font-mono text-[12.5px] leading-[1.5] text-ink" + (wrap ? " whitespace-pre-wrap break-words" : " whitespace-pre overflow-x-auto")}>
+      <pre
+        className={"md-hljs m-0 px-[12px] py-[10px] font-mono text-[12.5px] leading-[1.5] text-ink" + (wrap ? " whitespace-pre-wrap break-words" : " whitespace-pre overflow-x-auto")}
+        aria-label={`${lang || "Text"} code block`}
+        tabIndex={0}
+      >
         <code className={className}>{children}</code>
       </pre>
     </div>
@@ -220,7 +224,7 @@ export function inlinedImagePaths(sid: string): Set<string> {
 // link rather than leaving a broken-image glyph in the middle of the answer —
 // the agent may have referenced a path it never actually wrote, or the file may
 // have been moved since the turn ended, and the reader deserves to see which.
-function MdImage({ sid, src, alt, onOpen }: { sid: string; src: string; alt: string; onOpen: (src: string) => void }) {
+export function MdImage({ sid, src, alt, onOpen }: { sid: string; src: string; alt: string; onOpen: (src: string) => void }) {
   const { api } = useAppServices();
   const [failed, setFailed] = useState(false);
   const url = resolveSrc(sid, src, api.fileURL);

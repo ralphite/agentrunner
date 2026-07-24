@@ -110,7 +110,7 @@ export function shortTime(ts?: string, now: Date = new Date()): string | null {
 // glyph is worse than nothing); when they ALL fail, `fallback` — the honest
 // "×N attached" note — takes the group's place. So the text stub is now the
 // last resort it was always meant to be, not the default.
-function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) {
+export function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) {
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [broken, setBroken] = useState<Set<number>>(() => new Set());
   const ok = paths.filter((_, i) => !broken.has(i));
@@ -123,10 +123,11 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
             className="thumb"
             key={i}
             src={uploadURL(p)}
-            alt=""
+            alt={`Attachment ${i + 1}`}
             role="button"
             tabIndex={0}
             title="View image"
+            aria-label={`View image ${i + 1} of ${paths.length}`}
             onError={() => setBroken((prev) => new Set(prev).add(i))}
             onClick={() => setLightbox(i)}
             onKeyDown={(e) => {
@@ -159,7 +160,7 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 // So one row shape is rendered for every message and the sheet decides what of
 // it is visible where — no branchy JSX, and the tier ladder (shortTime) keeps
 // producing a real label on the rows that do show one (the hover-revealed ones).
-function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onContinue?: () => Promise<void> }) {
+export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onContinue?: () => Promise<void> }) {
   const { clock } = useAppServices();
   const [copied, setCopied] = useState(false);
   const [continuing, setContinuing] = useState(false);
@@ -200,7 +201,7 @@ function StepIcon({ status }: { status: ToolItem["status"] }) {
 // ShellDetail renders a bash activity as a compact Codex-style transcript.
 // The outer summary already carries a short one-line command, so the detail
 // repeats only long/multiline commands, then output + terminal state + Copy.
-function ShellDetail({ t }: { t: ToolItem }) {
+export function ShellDetail({ t }: { t: ToolItem }) {
   const { clock } = useAppServices();
   const [copied, setCopied] = useState(false);
   const parse = (raw: any) => {
@@ -264,8 +265,8 @@ function ShellDetail({ t }: { t: ToolItem }) {
             type="button"
             className="msg-copy icon-only"
             onClick={copy}
-            title="Copy command and result"
-            aria-label="Copy command and result"
+            title={copied ? "Copied command and result" : "Copy command and result"}
+            aria-label={copied ? "Copied command and result" : "Copy command and result"}
           >
             {copied ? <Check size={15} /> : <Copy size={15} />}
           </button>
@@ -320,7 +321,7 @@ const STRUCTURED_TOOLS = new Set([
   "ask_user",
 ]);
 
-function MiniDiff({ rows, more }: { rows: DiffLine[]; more: number }) {
+export function MiniDiff({ rows, more }: { rows: DiffLine[]; more: number }) {
   return (
     <div className="cx-minidiff">
       {rows.map((r, i) => (
@@ -338,7 +339,7 @@ function MiniDiff({ rows, more }: { rows: DiffLine[]; more: number }) {
   );
 }
 
-function ReadDetailView({ t }: { t: ToolItem }) {
+export function ReadDetailView({ t }: { t: ToolItem }) {
   const d = readDetail(t.args, t.result);
   return (
     <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
@@ -357,7 +358,7 @@ function ReadDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function EditDetailView({ t }: { t: ToolItem }) {
+export function EditDetailView({ t }: { t: ToolItem }) {
   const d = editDetail(t.name, t.args, t.result);
   return (
     <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
@@ -371,7 +372,7 @@ function EditDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function GrepDetailView({ t }: { t: ToolItem }) {
+export function GrepDetailView({ t }: { t: ToolItem }) {
   const d = grepDetail(t.args, t.result);
   return (
     <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
@@ -404,7 +405,7 @@ function GrepDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function GlobDetailView({ t }: { t: ToolItem }) {
+export function GlobDetailView({ t }: { t: ToolItem }) {
   const d = globDetail(t.args, t.result);
   const shown = d.paths.slice(0, 40);
   return (
@@ -431,7 +432,7 @@ function GlobDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function SemanticDetailView({ t }: { t: ToolItem }) {
+export function SemanticDetailView({ t }: { t: ToolItem }) {
   const d = semanticDetail(t.args, t.result);
   const shown = d.hits.slice(0, 12);
   return (
@@ -455,7 +456,7 @@ function SemanticDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function SpawnDetailView({ t }: { t: ToolItem }) {
+export function SpawnDetailView({ t }: { t: ToolItem }) {
   const d = spawnDetail(t.args, t.result);
   return (
     <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
@@ -474,7 +475,7 @@ function SpawnDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function WebDetailView({ t }: { t: ToolItem }) {
+export function WebDetailView({ t }: { t: ToolItem }) {
   const d = webFetchDetail(t.args, t.result);
   return (
     <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
@@ -501,7 +502,7 @@ function WebDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function AskDetailView({ t }: { t: ToolItem }) {
+export function AskDetailView({ t }: { t: ToolItem }) {
   const d = askUserDetail(t.args);
   return (
     <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
@@ -513,7 +514,7 @@ function AskDetailView({ t }: { t: ToolItem }) {
   );
 }
 
-function JSONDetail({ t, body }: { t: ToolItem; body: string }) {
+export function JSONDetail({ t, body }: { t: ToolItem; body: string }) {
   return (
     <>
       {!body && t.args !== undefined && <pre>{pretty(t.args)}</pre>}
@@ -525,7 +526,7 @@ function JSONDetail({ t, body }: { t: ToolItem; body: string }) {
 // ToolDetail routes a tool activity to its Codex-style detail renderer. bash
 // keeps the Shell block; the rest use structured views; unknown tools fall back
 // to pretty JSON. An error/partial footer is appended for the non-bash paths.
-function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
+export function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
   if (t.name === "bash") return <ShellDetail t={t} />;
   let view: ReactNode;
   switch (t.name) {
@@ -568,7 +569,7 @@ function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
   );
 }
 
-function ToolCard({ t }: { t: ToolItem }) {
+export function ToolCard({ t }: { t: ToolItem }) {
   const { verb, body, mono } = toolLabel(t.name, t.args);
   const firstLine = body.trim().split("\n", 1)[0] || "";
   const summaryBody = firstLine.length > 160 ? `${firstLine.slice(0, 159).trimEnd()}…` : firstLine;
@@ -693,7 +694,7 @@ export function groupLabel(tools: ToolItem[]): string {
 // part of the step list, not separators of it (RT-4) — and so does the planning
 // narration the model spoke while doing this work (FOLD-RUN). The summary counts
 // and labels the TOOLS: "Ran commands ×3", never "×3" over a pile of approvals.
-function ActivityGroup({ run, sentImages, onContinue }: { run: FoldRun; sentImages?: Map<number, string[]>; onContinue?: (item: BubbleItem) => Promise<void> }) {
+export function ActivityGroup({ run, sentImages, onContinue }: { run: FoldRun; sentImages?: Map<number, string[]>; onContinue?: (item: BubbleItem) => Promise<void> }) {
   const { tools, members } = run;
   const failed = tools.some((t) => t.status === "error" || t.status === "failed");
   return (
@@ -782,7 +783,7 @@ export function workedLabel(fold: WorkFold): string {
 // WorkedFold: the turn-level "Worked for N ⌄" disclosure holding all work
 // detail of a settled turn (W2/W3). Consecutive tool calls aggregate into
 // ActivityGroups; chips and planning narration render between them.
-function WorkedFold({
+export function WorkedFold({
   fold,
   sentImages,
   open,
@@ -841,7 +842,7 @@ function WorkedFold({
 // its failed turn — as one collapsed, expandable row. Mirrors WorkedFold's
 // chrome; sys/turn markers inside the buried block stay hidden even expanded
 // (they are journal plumbing, not content).
-function RetriedFold({
+export function RetriedFold({
   fold,
   sentImages,
   open,
@@ -896,7 +897,7 @@ function runtimeLabel(source: string, text: string): string {
 // a ResizeObserver re-checks when the column width changes. Folding is view
 // state only — MsgActions copy always gets the full text.
 const COLLAPSE_TOLERANCE_PX = 4; // don't offer a toggle that reveals one clipped pixel
-function CollapsibleUserText({ text }: { text: string }) {
+export function CollapsibleUserText({ text }: { text: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [tall, setTall] = useState(false);
   const [open, setOpen] = useState(false);
@@ -922,7 +923,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, last, deferActions, onContinue }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void> }) {
+export function Item({ it, sentImages, last, deferActions, onContinue }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void> }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -1096,6 +1097,130 @@ function baseChipText(text: string): string {
   return text.replace(/ ×\d+$/, "");
 }
 
+export interface TimelinePendingMessageModel {
+  id: number;
+  text: string;
+  imgs: string[];
+  files: number;
+  delivery?: "steer" | "queue";
+}
+
+export function TimelinePendingMessage({
+  message,
+}: {
+  message: TimelinePendingMessageModel;
+}) {
+  return (
+    <div className="msg user">
+      <div
+        className={`bubble pending${
+          message.delivery === "steer" ? " steer" : ""
+        }`}
+      >
+        <CollapsibleUserText text={message.text} />
+        {message.imgs.length ? <Thumbs paths={message.imgs} /> : null}
+        {message.files ? (
+          <div className="imgnote">
+            <File size={13} /> ×{message.files} attached
+          </div>
+        ) : null}
+      </div>
+      <span className="who">
+        {message.delivery === "steer" ? "steering…" : "queued…"}
+      </span>
+    </div>
+  );
+}
+
+export function TimelineTailActions({
+  lastAssistant,
+  goalVerdict,
+  onContinue,
+}: {
+  lastAssistant?: BubbleItem;
+  goalVerdict?: { elapsed: string } | null;
+  onContinue?: (item: BubbleItem) => Promise<void>;
+}) {
+  if (!lastAssistant && !goalVerdict) return null;
+  return (
+    <div className="tl-tail-row mt-3 flex flex-wrap items-center gap-3 [&_.msg-actions]:mt-0 [&_.turn-footer]:mt-0">
+      {lastAssistant && (
+        <MsgActions
+          text={lastAssistant.text}
+          onContinue={
+            lastAssistant.continueSide && onContinue
+              ? () => onContinue(lastAssistant)
+              : undefined
+          }
+        />
+      )}
+      {lastAssistant && goalVerdict && (
+        <span className="h-4 w-px bg-line" aria-hidden />
+      )}
+      {goalVerdict && (
+        <div className="turn-footer">
+          <CheckCircle size={15} /> Goal achieved in {goalVerdict.elapsed}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TimelineJumpToLatest({
+  unseen,
+  onJump,
+}: {
+  unseen: number;
+  onJump: () => void;
+}) {
+  const label =
+    unseen > 0
+      ? `${unseen} new update${unseen === 1 ? "" : "s"}`
+      : "Jump to latest";
+  return (
+    <button
+      type="button"
+      className={`tl-jump${unseen > 0 ? " has-updates" : ""}`}
+      onClick={onJump}
+      title={unseen > 0 ? `${label} · Jump to latest` : label}
+      aria-label={unseen > 0 ? `${label}; jump to latest` : label}
+    >
+      {unseen > 0 && (
+        <span className="tl-jump-count">{unseen > 99 ? "99+" : unseen}</span>
+      )}
+      <CaretDown size={16} />
+    </button>
+  );
+}
+
+export function TimelineLoadingState() {
+  return (
+    <div className="tl-skeleton" role="status" aria-label="Loading conversation">
+      <div className="tl-skel-row user">
+        <span className="tl-skel-bubble" />
+      </div>
+      <div className="tl-skel-row">
+        <span className="tl-skel-avatar" />
+        <span className="tl-skel-bubble" />
+      </div>
+      <div className="tl-skel-row">
+        <span className="tl-skel-avatar" />
+        <span className="tl-skel-bubble" />
+      </div>
+    </div>
+  );
+}
+
+export function TimelineEmptyState() {
+  return (
+    <div className="tl-empty">
+      <ChatCircle size={26} weight="light" />
+      <b>No messages yet</b>
+      <span>This session hasn't started. Send a message below to begin.</span>
+    </div>
+  );
+}
+
 export function TimelineView({
   sessionKey,
   items,
@@ -1113,7 +1238,7 @@ export function TimelineView({
 }: {
   sessionKey?: string;
   items: TimelineItem[];
-  pending: { id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[];
+  pending: TimelinePendingMessageModel[];
   typing: string;
   showSys: boolean;
   sentImages?: Map<number, string[]>;
@@ -1325,27 +1450,9 @@ export function TimelineView({
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
         {blank && loading && (
-          <div className="tl-skeleton" role="status" aria-label="Loading conversation">
-            <div className="tl-skel-row user">
-              <span className="tl-skel-bubble" />
-            </div>
-            <div className="tl-skel-row">
-              <span className="tl-skel-avatar" />
-              <span className="tl-skel-bubble" />
-            </div>
-            <div className="tl-skel-row">
-              <span className="tl-skel-avatar" />
-              <span className="tl-skel-bubble" />
-            </div>
-          </div>
+          <TimelineLoadingState />
         )}
-        {isEmpty && (
-          <div className="tl-empty">
-            <ChatCircle size={26} weight="light" />
-            <b>No messages yet</b>
-            <span>This session hasn't started. Send a message below to begin.</span>
-          </div>
-        )}
+        {isEmpty && <TimelineEmptyState />}
         {nodes.map((it) => {
           // TR-1: a 1px rule across the full prose column closes each turn.
           // Codex draws it, and without it an 86-turn thread is one undifferen-
@@ -1407,14 +1514,7 @@ export function TimelineView({
           </div>
         )}
         {pending.map((p) => (
-          <div className="msg user" key={"p" + p.id}>
-            <div className={"bubble pending" + (p.delivery === "steer" ? " steer" : "")}>
-              <CollapsibleUserText text={p.text} />
-              {p.imgs.length ? <Thumbs paths={p.imgs} /> : null}
-              {p.files ? <div className="imgnote"><File size={13} /> ×{p.files} attached</div> : null}
-            </div>
-            <span className="who">{p.delivery === "steer" ? "steering…" : "queued…"}</span>
-          </div>
+          <TimelinePendingMessage message={p} key={`p${p.id}`} />
         ))}
         {settled && outcomeSlot}
         {/* TAIL-ROW: the final answer's Copy action is hoisted out of the bubble
@@ -1425,30 +1525,15 @@ export function TimelineView({
             If the turn hasn't been judged, the action row still renders here at
             the bottom, just without the goal badge. */}
         {settled && (lastAssistant || goalVerdict) && (
-          <div className="tl-tail-row mt-3 flex items-center gap-3 flex-wrap [&_.msg-actions]:mt-0 [&_.turn-footer]:mt-0">
-            {lastAssistant && (
-              <MsgActions text={lastAssistant.text} onContinue={lastAssistant.continueSide && onContinue ? () => onContinue(lastAssistant) : undefined} />
-            )}
-            {lastAssistant && goalVerdict && <span className="h-4 w-px bg-line" aria-hidden />}
-            {goalVerdict && (
-              <div className="turn-footer">
-                <CheckCircle size={15} /> Goal achieved in {goalVerdict.elapsed}
-              </div>
-            )}
-          </div>
+          <TimelineTailActions
+            lastAssistant={lastAssistant}
+            goalVerdict={goalVerdict}
+            onContinue={onContinue}
+          />
         )}
       </div>
       {showJump && (
-        <button
-          type="button"
-          className={`tl-jump${unseen > 0 ? " has-updates" : ""}`}
-          onClick={jumpToBottom}
-          title={unseen > 0 ? `${unseen} new update${unseen === 1 ? "" : "s"} · Jump to latest` : "Jump to latest"}
-          aria-label={unseen > 0 ? `${unseen} new update${unseen === 1 ? "" : "s"}; jump to latest` : "Jump to latest"}
-        >
-          {unseen > 0 && <span className="tl-jump-count">{unseen > 99 ? "99+" : unseen}</span>}
-          <CaretDown size={16} />
-        </button>
+        <TimelineJumpToLatest unseen={unseen} onJump={jumpToBottom} />
       )}
     </div>
   );

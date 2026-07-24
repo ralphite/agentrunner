@@ -157,6 +157,7 @@ export function FindBar({ scope, onClose }: { scope: () => HTMLElement | null; o
       <input
         ref={inputRef}
         className="fb-input"
+        aria-label="Search conversation"
         placeholder="Search chat…"
         value={q}
         onChange={(e) => setQ(e.target.value)}

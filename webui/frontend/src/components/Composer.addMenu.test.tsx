@@ -130,12 +130,12 @@ describe("Composer add and advanced menu", () => {
 
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("menuitem", { name: /Automation/ }));
-    expect(screen.getByRole("button", { name: "Back to add menu" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Loop Repeat on a cadence" })).toBeTruthy();
     await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
 
-    expect(screen.getByRole("button", { name: "Back to automation menu" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Back to automation menu" })).toBeTruthy();
     expect(container.querySelector(".cx-add-agent")).toBeTruthy();
     expect(onSubmit).not.toHaveBeenCalled();
     expect(mocks.newSession).not.toHaveBeenCalled();
@@ -182,7 +182,7 @@ describe("Composer add and advanced menu", () => {
     expect(screen.getByRole("textbox", { name: "Done when (command)" })).toBeTruthy();
     expect((screen.getByRole("spinbutton", { name: "Max rounds" }) as HTMLInputElement).value).toBe("10");
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Exit Goal mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Goal mode" }));
     expect(screen.getByPlaceholderText("Do anything")).toBeTruthy();
     expect(mocks.newSession).not.toHaveBeenCalled();
   });

@@ -136,7 +136,7 @@ describe("project picker searches every project (HM-9)", () => {
     expect(container.textContent).not.toContain("No branch");
 
     fireEvent.click(chip(container));
-    fireEvent.click(within(list()).getByRole("menuitem", { name: /proj10/ }));
+    fireEvent.click(within(list()).getByRole("button", { name: /proj10/ }));
     await vi.waitFor(() => expect(container.querySelectorAll(".cx-env-control")).toHaveLength(3));
     expect(container.querySelector(".cx-env-control.branch")).not.toBeNull();
   });
@@ -232,7 +232,7 @@ describe("project picker searches every project (HM-9)", () => {
 
     fireEvent.click(chip(container));
     type("proj3");
-    fireEvent.click(within(list()).getByRole("menuitem", { name: /proj3/ }));
+    fireEvent.click(within(list()).getByRole("button", { name: /proj3/ }));
 
     await vi.waitFor(() => expect(chip(container).textContent).toContain("proj3"));
     expect(localStorage.getItem("arwebui.lastProject")).toBe("/repos/proj3");

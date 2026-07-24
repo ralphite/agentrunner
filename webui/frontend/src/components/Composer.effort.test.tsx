@@ -132,7 +132,7 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     openMenu(container);
 
     fireEvent.click(item("Model"));
-    expect(screen.getByRole("button", { name: "Back to model menu" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Back to model menu" })).toBeTruthy();
     expect(item("Gemini Flash").querySelector(".pop-check")).toBeTruthy();
     fireEvent.click(item("Gemini Pro"));
 
@@ -158,13 +158,13 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     openMenu(container);
     fireEvent.click(item("Advanced"));
 
-    expect(screen.getByRole("button", { name: "Back to model menu" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Back to model menu" })).toBeTruthy();
     expect(item("Custom model id…")).toBeTruthy();
     expect(item("Thinking budget override…")).toBeFalsy();
     expect(item("Model")).toBeFalsy();
     expect(item("Effort")).toBeFalsy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to model menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Back to model menu" }));
     expect(item("Model")).toBeTruthy();
     expect(item("Effort")).toBeTruthy();
     expect(item("Speed")).toBeFalsy();
@@ -178,7 +178,7 @@ describe("Composer model / effort menu mobile hierarchy", () => {
 
     openMenu(container);
     fireEvent.click(item("Effort"));
-    fireEvent.click(screen.getByRole("button", { name: "Back to model menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Back to model menu" }));
     fireEvent.click(item("Effort"));
     fireEvent.click(item("High"));
 

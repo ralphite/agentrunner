@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 
 // @ts-ignore -- `process` is a vitest-only reference (vitest runs from webui/frontend)
 const src: string = readFileSync(`${process.cwd()}/src/components/Home.tsx`, "utf8");
+const partsSrc: string = readFileSync(`${process.cwd()}/src/components/HomeParts.tsx`, "utf8");
 
 describe("home greeting structure", () => {
   it("keeps the compact empty-state chain that Tailwind styles", () => {
@@ -17,7 +18,7 @@ describe("home greeting structure", () => {
 
   it("keeps suggestion cards and the project-aware repository span", () => {
     expect(src).toContain('className="home-empty-cards max-[680px]:gap-1.5"');
-    expect(src).toContain(
+    expect(partsSrc).toContain(
       'className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"',
     );
     expect(src).toContain('home-empty-repo');
@@ -32,7 +33,7 @@ describe("home greeting structure", () => {
   it("uses Codex's two-stage starter intent instead of keeping cards beside a long canned prompt", () => {
     expect(src).toContain('seed: "Explore"');
     expect(src).toContain('"Explore and learn how a feature works"');
-    expect(src).toContain('className="home-intent-suggestion"');
+    expect(partsSrc).toContain('className="home-intent-suggestion"');
     expect(src).toContain("const showStarterCards = !draft.trim() && !activeSuggestion");
     expect(src).toContain("onDraftChange={handleDraftChange}");
   });

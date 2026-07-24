@@ -248,6 +248,32 @@ describe("Popover plumbing survives the reposition", () => {
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Push" }));
   });
 
+  it("uses dialog semantics for form popovers without leaking menuitem roles", () => {
+    render(
+      <Popover
+        panelRole="dialog"
+        ariaLabel="Project picker"
+        trigger={(_open, toggle) => <button onClick={toggle}>Choose project</button>}
+      >
+        {() => (
+          <>
+            <label>
+              Search
+              <input />
+            </label>
+            <PopItem title="Storybook Demo" onClick={() => {}} />
+          </>
+        )}
+      </Popover>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
+    expect(screen.getByRole("dialog", { name: "Project picker" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Search" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Storybook Demo" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem")).toBeNull();
+  });
+
   it("hands every git action a clickable row — the bug was that two of three were not", () => {
     const clicked: string[] = [];
     render(

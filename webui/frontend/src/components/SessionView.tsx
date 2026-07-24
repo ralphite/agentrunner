@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, CaretRight, ChatCircle, CheckCircle, CircleNotch, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle, CircleNotch, Crosshair, Pause, PencilSimple, Play, Prohibit, Trash, WarningCircle, X } from "@phosphor-icons/react";
 import { type ForkDraft } from "../api";
 import { useAppServices, type AppEventStream } from "../app/appServices";
 import { useAppStoreApi, useStore } from "../store";
@@ -10,7 +10,6 @@ import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
 import { AskForm } from "./AskForm";
 import { DiffView } from "./DiffView";
-import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { childAnswerRequests, type InspectDelegation, type InspectNode } from "./Subagents";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
@@ -21,6 +20,13 @@ import { ChangesOutcome } from "./ChangesOutcome";
 import { DaemonAlert } from "./DaemonAlert";
 import { SessionNotFound } from "./NotFound";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import {
+  QueuedMessageList,
+  SessionNotice,
+  SessionTopbar,
+  TerminalAlert,
+  TurnFailureCard,
+} from "./SessionChrome";
 
 interface SSEApproval {
   id: string;
@@ -934,127 +940,49 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   return (
     <div className="session-view">
       <DaemonAlert />
-      <header className="session-topbar">
-        {/* Mobile navigation is an overlay owned by App. Reserve its 36px slot
-            so it cannot cover the beginning of the session title. */}
-        {(bp.compact || bp.tablet) && <span className="session-topbar-nav-slot h-9 w-9 shrink-0" aria-hidden="true" />}
-        {isSub && (
-          <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent session">
-            <ArrowLeft size={16} />
-          </button>
-        )}
-        <div className="tt-left">
-          {/* N-parity: the session title is prose, no leading file icon (weight
-              change is handled in tw.css). */}
-          <div className="tt-title" title={`${visibleTitle}${visibleTitle !== title ? `\n${title}` : ""}\n${sid}`}>{visibleTitle}</div>
-          {isSub && (
-            <span className="readonly-tag">
-              {askQuestions.length > 0 ? "Sub-agent · answer requested" : "Read-only sub-agent"}
-            </span>
-          )}
-        </div>
-        <span className="spacer" />
-        {!isSub && needsRecovery && (
-          <button className="topbar-tool recovery" onClick={act.resume} title="Resume this session from its last durable checkpoint" aria-label="Resume session">
-            <ArrowClockwise size={15} /> <span className="topbar-tool-label">Resume</span>
-          </button>
-        )}
-        {!isSub && canRetry && ((bp.desktop || bp.wide) || !needsRecovery) && (
-          <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry session">
-            <ArrowClockwise size={15} /> <span className="topbar-tool-label">Retry</span>
-          </button>
-        )}
-        {/* INC-41 TH-15 · ONE rail, ONE name, ONE door. The topbar used to carry
-            two tool pills — `Changes` and `Supervision` — for what is a single
-            mental object: the pill said "Supervision", the panel it opened was
-            titled "Environment", and that panel's FIRST row was itself called
-            "Changes". Three names, two doors, one thing. Codex names the rail
-            `Environment` everywhere and keeps `Changes` as a row *inside* it;
-            its topbar carries neither pill. So the Changes pill is gone (the
-            rail's Changes row is the primary door, and `···` → Changes is the
-            keyboard-free fallback), and the surviving pill wears the rail's own
-            name and icon — click it and the label you land on is the label you
-            clicked. */}
-        <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={(event) => {
+      <SessionTopbar
+        sid={sid}
+        title={visibleTitle}
+        durableTitle={title}
+        isSub={isSub}
+        subAnswerRequested={askQuestions.length > 0}
+        reserveNavigationSlot={bp.compact || bp.tablet}
+        needsRecovery={needsRecovery}
+        canRetry={canRetry}
+        showPrimaryRetry={(bp.desktop || bp.wide) || !needsRecovery}
+        showCompactRetry={canRetry && (bp.compact || bp.tablet)}
+        environmentOpen={showSupervision}
+        environmentAttention={attentionCount}
+        pinned={pinned.includes(sid)}
+        archived={archived.includes(sid)}
+        view={view}
+        supervisionOpen={supervisionOpen}
+        showSystemEvents={showSys}
+        onBackToParent={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))}
+        onResume={act.resume}
+        onRetry={act.retry}
+        onToggleEnvironment={(opener) => {
           if (view === "diff") setView("chat");
           if (showSupervision) closeSupervision();
-          else openSupervision(event.currentTarget);
-        }} title={showSupervision ? "Hide the Environment rail" : "Show the Environment rail — workspace changes, worktree, git, goal"}
-          aria-label="Environment">
-          <SlidersHorizontal size={16} /> <span className="topbar-tool-label">Environment</span>
-          {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
-        </button>
-        <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More session actions">
-          {/* Session organization leads; view and advanced actions follow. */}
-          <MenuItem
-            title="keep this session in a Pinned section at the top of the sidebar"
-            onClick={() => {
-              togglePin(sid);
-              toast(pinned.includes(sid) ? "unpinned" : "pinned", "info");
-            }}
-          >
-            <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} />{pinned.includes(sid) ? "Unpin session" : "Pin session"}
-          </MenuItem>
-          <MenuItem
-            title="give this session a custom name in the sidebar (stored in your browser)"
-            onClick={() => openModal({ kind: "rename", sid })}
-          >
-            <PencilSimple size={16} />Rename session…
-          </MenuItem>
-          <MenuItem
-            title="hide this session from the sidebar list (it stays on disk; toggle 'Show archived' to see it again)"
-            onClick={() => {
-              toggleArchive(sid);
-              toast(archived.includes(sid) ? "unarchived" : "archived", "info");
-            }}
-          >
-            <Archive size={16} />{archived.includes(sid) ? "Unarchive session" : "Archive session"}
-          </MenuItem>
-          <MenuLabel>View</MenuLabel>
-          {view === "diff" ? (
-            <MenuItem onClick={() => setView("chat")}><ChatCircle size={16} />Conversation</MenuItem>
-          ) : (
-            <MenuItem onClick={() => openDiff()}><Files size={16} />Changes</MenuItem>
-          )}
-          <MenuItem onClick={() => supervisionOpen ? closeSupervision() : openSupervision(null)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} Environment</MenuItem>
-          <MenuItem
-            title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
-            onClick={toggleSys}
-          >
-            <Code size={16} />{showSys ? "Hide" : "Show"} system events
-          </MenuItem>
-          {!isSub && (
-            <>
-              <MenuLabel>Advanced</MenuLabel>
-              <MenuItem
-                title="checkpoint the session right now (ar barrier) so you can fork from this exact point later"
-                onClick={act.barrier}
-              >
-                <Flag size={16} />Create checkpoint
-              </MenuItem>
-              <MenuItem
-                title="continue from a checkpoint in a new session and worktree; this session is untouched"
-                onClick={() => openModal({ kind: "fork", sid })}
-              >
-                <GitFork size={16} />Continue in new session…
-              </MenuItem>
-              <MenuItem
-                title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
-                onClick={() => openModal({ kind: "agent", sid })}
-              >
-                <Robot size={16} />Switch agent…
-              </MenuItem>
-              {((canRetry && (bp.compact || bp.tablet)) || needsRecovery) && (
-                <>
-                  <MenuLabel>Run</MenuLabel>
-                  {canRetry && (bp.compact || bp.tablet) && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
-                  {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
-                </>
-              )}
-            </>
-          )}
-        </Menu>
-      </header>
+          else openSupervision(opener);
+        }}
+        onPin={() => {
+          togglePin(sid);
+          toast(pinned.includes(sid) ? "unpinned" : "pinned", "info");
+        }}
+        onRename={() => openModal({ kind: "rename", sid })}
+        onArchive={() => {
+          toggleArchive(sid);
+          toast(archived.includes(sid) ? "unarchived" : "archived", "info");
+        }}
+        onShowConversation={() => setView("chat")}
+        onShowChanges={() => openDiff()}
+        onToggleSupervision={() => supervisionOpen ? closeSupervision() : openSupervision(null)}
+        onToggleSystemEvents={toggleSys}
+        onCreateCheckpoint={act.barrier}
+        onContinueInNewSession={() => openModal({ kind: "fork", sid })}
+        onSwitchAgent={() => openModal({ kind: "agent", sid })}
+      />
 
       {findOpen && (
         <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
@@ -1116,95 +1044,20 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 ) : undefined}
               />
               {failure && (
-                <div className="turn-error" role="alert">
-                  <span className="turn-error-ic">
-                    <WarningCircle size={17} weight="fill" />
-                  </span>
-                  <div className="turn-error-body">
-                    <b>{failure.title}</b>
-                    {failure.hint && <span className="turn-error-hint">{failure.hint}</span>}
-                    <button
-                      type="button"
-                      className="turn-error-toggle"
-                      aria-expanded={failureRawOpen}
-                      onClick={() => setFailureRawOpen((v) => !v)}
-                    >
-                      {failureRawOpen ? "Hide technical details" : "Technical details"}
-                    </button>
-                    {failureRawOpen && <pre className="turn-error-raw">{failure.raw}</pre>}
-                  </div>
-                  <button
-                    type="button"
-                    className="turn-error-action"
-                    disabled={failureRetrying}
-                    onClick={runFailureRetry}
-                    title="Re-send your last message as a new turn; double-clicks are idempotent"
-                  >
-                    <ArrowClockwise size={14} /> {failureRetrying ? "Retrying…" : "Retry"}
-                  </button>
-                </div>
+                <TurnFailureCard
+                  failure={failure}
+                  detailsOpen={failureRawOpen}
+                  retrying={failureRetrying}
+                  onToggleDetails={() => setFailureRawOpen((value) => !value)}
+                  onRetry={runFailureRetry}
+                />
               )}
-              {terminalNotice?.action === "resume" && (
-                <div
-                  className={`terminal-alert ${terminalNotice.tone} grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]`}
-                  role="alert"
-                >
-                  <span className="terminal-alert-ic">
-                    <WarningCircle size={17} weight="fill" />
-                  </span>
-                  <div className="min-w-0">
-                    <b className="block leading-5">{terminalNotice.title}</b>
-                    <span className="mt-1 block text-[12px] leading-[1.5] text-dim">{terminalNotice.body}</span>
-                    {goalAlertMeta && (
-                      <span className="terminal-alert-meta mt-2 flex gap-2" title={goalAlertMeta.goal}>
-                        <span className="tam-label">{goalAlertMeta.label}</span>
-                        {goalAlertMeta.elapsedMs !== undefined && <span>{formatElapsed(goalAlertMeta.elapsedMs)}</span>}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="terminal-alert-action col-span-2 flex w-full items-center justify-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:self-center sm:w-auto"
-                    onClick={runTerminalAction}
-                  >
-                    <ArrowClockwise size={14} />
-                    {terminalNotice.actionLabel}
-                  </button>
-                </div>
-              )}
-              {terminalNotice && terminalNotice.action !== "resume" && (
-                /* Same responsive grid as the resume variant above: icon + text
-                   columns, the action full-width on its own row below sm. The
-                   old flex row let the intrinsic-width button (+ meta tail)
-                   crush the text column to 4px on a 390px phone — one word per
-                   line, title bleeding under the meta (QA v2sim). */
-                <div
-                  className={`terminal-alert ${terminalNotice.tone} grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]`}
-                  role="alert"
-                >
-                  <span className="terminal-alert-ic">
-                    {terminalNotice.tone === "danger" ? <XCircle size={17} weight="fill" /> : <WarningCircle size={17} weight="fill" />}
-                  </span>
-                  <div className="terminal-alert-text" title={`${terminalNotice.title} — ${terminalNotice.body}`}>
-                    <b>{terminalNotice.title}</b>
-                    <span>{terminalNotice.body}</span>
-                    {/* TH-14: the goal's ending rides HERE — inside the card, as
-                        a meta tail — instead of as a second pinned bar. */}
-                    {goalAlertMeta && (
-                      <span className="terminal-alert-meta mt-2 flex gap-2" title={goalAlertMeta.goal}>
-                        <span className="tam-label">{goalAlertMeta.label}</span>
-                        {goalAlertMeta.elapsedMs !== undefined && <span>{formatElapsed(goalAlertMeta.elapsedMs)}</span>}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="terminal-alert-action col-span-2 flex w-full items-center justify-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:self-center sm:w-auto"
-                    onClick={runTerminalAction}
-                  >
-                    {terminalNotice.actionLabel}
-                  </button>
-                </div>
+              {terminalNotice && (
+                <TerminalAlert
+                  notice={terminalNotice}
+                  goalMeta={goalAlertMeta}
+                  onAction={runTerminalAction}
+                />
               )}
               {goalBannerShown && goalState && !goalTerminal && progress.length > 0 && (
                 <ProgressSummary progress={progress} onOpenDetails={openSupervision} />
@@ -1224,54 +1077,42 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   onDismiss={() => setGoalDismissedAt(goalState.endedAt ?? -1)}
                 />
               )}
-              {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
+              {isDriver && (
+                <SessionNotice>
+                  This scheduled run manages its own iterations and does not accept follow-up messages.
+                </SessionNotice>
+              )}
               {!live && folded.bestIter ? (
-                <div className="driver-note">
-                  {isBestOfN ? "Best-of-N winner" : "Selected iteration"}: #{folded.bestIter}.{" "}
-                  <button
-                    className="ghost"
-                    onClick={async () => {
+                <SessionNotice
+                  action={{
+                    label: isBestOfN ? "Apply winner" : "Apply selected iteration",
+                    title: `Apply the ${isBestOfN ? "winning attempt's" : "selected iteration's"} changes onto the project workspace (clean-or-nothing, lands unstaged)`,
+                    onClick: async () => {
                       try {
                         const r = await api.promote(sid);
                         toast(r.status || "winner applied", "info");
                       } catch (e: any) {
                         toast(String(e?.message || e), "error");
                       }
-                    }}
-                    title={`Apply the ${isBestOfN ? "winning attempt's" : "selected iteration's"} changes onto the project workspace (clean-or-nothing, lands unstaged)`}
-                  >
-                    {isBestOfN ? "Apply winner" : "Apply selected iteration"}
-                  </button>
-                </div>
+                    },
+                  }}
+                >
+                  {isBestOfN ? "Best-of-N winner" : "Selected iteration"}: #{folded.bestIter}.
+                </SessionNotice>
               ) : null}
               {!isSub && !isDriver && isClosed && (
-                <div className="driver-note">This conversation is idle — send a message to continue it.</div>
+                <SessionNotice>
+                  This conversation is idle — send a message to continue it.
+                </SessionNotice>
               )}
               {askQuestions.length > 0 && (
                 <AskForm questions={askQuestions} onSubmit={answerAsk} onSkip={skipAsk} />
               )}
-              {!isSub && queued.filter((m) => !m.revoked).length > 0 && (
-                <div className="queued-list">
-                  {queued.filter((m) => !m.revoked).map((m) => {
-                    // A child→parent mail arrives framed as
-                    // "[message from <agent> (<child session id>)] body…" — the
-                    // sender matters to a human, the internal session id does
-                    // not (QA-0719 review #9). Named senders get a "from X"
-                    // kicker; the raw frame stays in the title tooltip.
-                    const framed = /^\[message from ([^\s(]+)[^\]]*\]\s*/.exec(m.text);
-                    const body = framed ? m.text.slice(framed[0].length) : m.text;
-                    return (
-                      <div className="queued-row" key={m.command_id}>
-                        <ClockCountdown size={15} className="queued-ic" aria-hidden="true" />
-                        <span className="queued-kicker">{framed ? `Queued · from ${framed[1]}` : "Queued"}</span>
-                        <span className="queued-text" title={m.text}>{body}</span>
-                        <button className="queued-drop" onClick={() => withdrawQueued(m.command_id)} title="Withdraw this queued message before it runs">
-                          Withdraw
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+              {!isSub && (
+                <QueuedMessageList
+                  messages={queued}
+                  onWithdraw={withdrawQueued}
+                />
               )}
               {!isSub && !isDriver && (
                 <Composer
@@ -1371,7 +1212,7 @@ const GOAL_TERMINAL_META: Record<string, { cls: string; label: string; sub?: str
   cancelled: { cls: "cancelled", label: "Goal cancelled" },
 };
 
-function ProgressSummary({
+export function ProgressSummary({
   progress,
   onOpenDetails,
 }: {
@@ -1412,7 +1253,7 @@ function ProgressSummary({
   );
 }
 
-function GoalBanner({
+export function GoalBanner({
   state,
   elapsedMs,
   editing,
@@ -1473,6 +1314,7 @@ function GoalBanner({
       ) : (
         <input
           className="gbar-input"
+          aria-label="Goal"
           autoFocus
           value={editing}
           onChange={(e) => onEditChange(e.target.value)}

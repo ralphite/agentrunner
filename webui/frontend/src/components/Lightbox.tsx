@@ -112,7 +112,13 @@ export function Lightbox({
         </button>
       </div>
 
-      <div className="lb-stage" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div
+        className="lb-stage"
+        role="region"
+        aria-label="Zoomed image"
+        tabIndex={0}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
         <img
           className={`lb-img ${zoom > 100 ? "is-zoomed" : ""}`}
           src={src}

@@ -53,7 +53,7 @@ function docKind(path: string): { ext: string; label: string } | null {
 // One preview card: the image itself over its filename. A file that can't be
 // decoded (a corrupt write, or an .svg the browser refuses) degrades to a
 // broken-image placeholder card that still names + links the file.
-function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: () => void }) {
+export function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: () => void }) {
   const { api } = useAppServices();
   const [failed, setFailed] = useState(false);
   const { base } = splitPath(path);
@@ -74,7 +74,9 @@ function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: (
         <img
           className="w-full h-[104px] object-cover bg-panel-2"
           src={url}
-          alt={base}
+          // The button and visible caption already name the file. Repeating the
+          // basename as image alt makes assistive tech announce it three times.
+          alt=""
           loading="lazy"
           onError={() => setFailed(true)}
         />
@@ -91,7 +93,7 @@ function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: (
 // ~600px of a 723px thread viewport before the reader reached the summary. Only
 // an image the prose never mentioned still earns a card; when every produced
 // image is already inline the whole row renders nothing (no empty shell).
-function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
+export function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
   const { api } = useAppServices();
   const [expanded, setExpanded] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -136,7 +138,7 @@ function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] 
 // One artifact row inside the shared bordered container. The two former
 // controls (Open in a new tab + Download) fold behind a single "Open in ⌄"
 // caret menu (Codex parity), so the row keeps a single trailing control.
-function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: FileDiffSummary; ext: string; label: string; divider: boolean }) {
+export function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: FileDiffSummary; ext: string; label: string; divider: boolean }) {
   const { api } = useAppServices();
   const [open, setOpen] = useState(false);
   // INC-41 ART-SCRIM — the menu is anchored to the VIEWPORT, not to the row.
@@ -239,7 +241,7 @@ function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: Fi
   );
 }
 
-function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
+export function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
   const [expanded, setExpanded] = useState(false);
   const docs: { file: FileDiffSummary; ext: string; label: string }[] = [];
   for (const file of files) {
@@ -311,7 +313,7 @@ function PlusMinusSquare({ size = 18 }: { size?: number }) {
 // The card shell: the ± badge plus whatever the current phase puts next to it.
 // Loading, error and loaded all render through it, so the header keeps the same
 // 64px box in every phase and the thread never reflows underneath (INC-41 TH-7).
-function ChangesShell({ children }: { children: ReactNode }) {
+export function ChangesShell({ children }: { children: ReactNode }) {
   return (
     <section className="changes-outcome overflow-hidden" aria-label="Workspace changes">
       <header className="flex min-w-0 items-center gap-[11px]">

@@ -2,22 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowSquareIn,
   CaretDown,
-  CaretRight,
   CaretUp,
-  CheckCircle,
   Code,
   Copy,
-  FileText,
   GitBranch,
   GitCommit,
-  Hourglass,
-  Info,
   PlusMinus,
-  Terminal,
   Trash,
   TreeStructure,
-  WarningCircle,
-  X,
 } from "@phosphor-icons/react";
 import { pushErrorMessage } from "../api";
 import { useAppServices } from "../app/appServices";
@@ -27,69 +19,32 @@ import { loadGitPrefs } from "../theme";
 import { isGeneratedPath, splitDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
-import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from "../timeline";
+import { deriveGoalState, isGoalTerminal, type GoalDerived } from "../timeline";
 import type { BackgroundWork } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
-import { Subagents, type ChildAnswerRequest, type InspectNode } from "./Subagents";
+import type { ChildAnswerRequest, InspectNode } from "./Subagents";
+import {
+  ArtifactsSection,
+  AttentionSection,
+  BackgroundProcessesSection,
+  GoalSection,
+  ProgressSection,
+  SupervisionAgentsSection,
+  SupervisionCloseButton,
+  SupervisionLoadingState,
+  SupervisionRestingState,
+  SupervisionRunDetailsButton,
+  type AttentionNotice,
+  type GoalState,
+  type ProgressItem,
+} from "./SupervisionParts";
 
-// backgroundLabel turns a raw `ar ps` row ("spawn_agent" +
-// "running agent=worker prompt=…") into a person-readable line.
-export function backgroundLabel(work: BackgroundWork): string {
-  const detail = work.detail || "";
-  const agent = /agent=([^\s]+)/.exec(detail)?.[1];
-  const prompt = /prompt=(.*)$/.exec(detail)?.[1]?.trim();
-  if (work.tool === "spawn_agent") {
-    const who = agent ? `agent “${agent}”` : "a sub-agent";
-    return prompt ? `${who} — ${prompt}` : `${who} is working in the background`;
-  }
-  return `${work.tool}${detail ? " · " + detail : ""}`;
-}
-
-export interface GoalState {
-  goal: string;
-  checks: number;
-  max_checks?: number;
-  paused?: boolean;
-  verifiers?: number;
-  claimed?: boolean;
-}
-
-// ProgressItem mirrors inspect's `progress` rows (INC-37): the checklist the
-// model maintains via progress_update, statuses already normalized.
-export interface ProgressItem {
-  id: string;
-  title: string;
-  status: "pending" | "running" | "done" | "failed";
-}
-
-// Panel labels for a settled goal's terminal phase — kept short for the GOAL
-// section's meta pill (the composer's GoalBanner carries the longer "Goal
-// complete/stopped/cancelled" strings).
-const GOAL_PANEL_LABEL: Record<string, string> = {
-  achieved: "Completed",
-  stopped: "Stopped",
-  cancelled: "Cancelled",
-};
-
-function artifactDisplayName(stream: string): string {
-  return stream.replace(/\\/g, "/").split("/").pop() || stream;
-}
-
-function artifactType(stream: string): string {
-  const name = artifactDisplayName(stream);
-  const dot = name.lastIndexOf(".");
-  if (dot <= 0 || dot === name.length - 1) return "Artifact";
-
-  const extension = name.slice(dot + 1).toUpperCase();
-  if (["PNG", "JPG", "JPEG", "GIF", "WEBP", "AVIF", "SVG"].includes(extension)) {
-    return `Image · ${extension}`;
-  }
-  if (["MD", "MDX", "TXT", "PDF", "DOC", "DOCX", "RTF"].includes(extension)) {
-    return `Document · ${extension}`;
-  }
-  return `File · ${extension}`;
-}
+export {
+  backgroundLabel,
+  type GoalState,
+  type ProgressItem,
+} from "./SupervisionParts";
 
 // useSettledGoal recovers a *finished* goal for the GOAL section (R1-4). The
 // live `goal` prop comes from inspect, which drops a goal the moment it settles
@@ -132,7 +87,7 @@ function useSettledGoal(active: boolean, loading: boolean): GoalDerived | null {
 // abandoned-reviewer case: 195k tokens spent after "done"). Lifted out of the
 // JSX (TH-3) so the panel can *know* whether Attention has anything to say
 // before deciding whether to render the section at all.
-function attentionRows(
+function attentionNotices(
   children: InspectNode[],
   backgroundWork: BackgroundWork[],
   approvals: number,
@@ -140,74 +95,50 @@ function attentionRows(
   childAnswers: ChildAnswerRequest[],
   recovery: boolean,
   sessionIdle: boolean,
-  onOpenChild: (sid: string) => void,
-): React.ReactNode[] {
-  const rows: React.ReactNode[] = [];
+): AttentionNotice[] {
+  const rows: AttentionNotice[] = [];
   if (approvals > 0) {
-    rows.push(
-      <div className="attention-row" key="appr">
-        <span className="attention-dot" /> Approval requested <b>{approvals}</b>
-      </div>,
-    );
+    rows.push({ id: "appr", message: <>Approval requested <b>{approvals}</b></> });
   }
   if (answers > 0) {
-    rows.push(
-      <div className="attention-row" key="answer">
-        <span className="attention-dot" /> Answer requested
-      </div>,
-    );
+    rows.push({ id: "answer", message: "Answer requested" });
   }
   for (const request of childAnswers) {
-    rows.push(
-      <button
-        type="button"
-        className="attention-row w-full text-left"
-        key={"child-answer-" + request.session}
-        onClick={() => onOpenChild(request.session)}
-      >
-        <span className="attention-dot" />
-        <span className="min-w-0 flex-1 truncate">{request.agent} — answer requested</span>
-        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-dim">
-          Open <ArrowSquareIn size={12} />
-        </span>
-      </button>,
-    );
+    rows.push({
+      id: "child-answer-" + request.session,
+      message: `${request.agent} — answer requested`,
+      targetSession: request.session,
+    });
   }
   if (recovery) {
-    rows.push(
-      <div className="attention-row" key="recovery">
-        <span className="attention-dot" /> Session needs recovery
-      </div>,
-    );
+    rows.push({ id: "recovery", message: "Session needs recovery" });
   }
   for (const node of dedupeInspectNodes(children)) {
     const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
     if (st.cls === "crash" || st.cls === "stranded") {
-      rows.push(
-        <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
-          <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
-        </div>,
-      );
+      rows.push({
+        id: "agent-" + (node.call_id || node.session),
+        message: `${node.agent || "agent"} — ${st.text}`,
+      });
     }
     // G39: a child parked on an approval is the invisible-approval deadlock —
     // name the member so the human knows WHO is waiting (the approval card
     // itself renders in the thread's approval stack).
     if (node.report?.waiting?.kind === "approval") {
-      rows.push(
-        <div className="attention-row" key={"child-appr-" + (node.session || node.call_id)}>
-          <span className="attention-dot" /> {node.agent || "agent"} — waiting for approval
-          {node.report.waiting.tool ? ` (${node.report.waiting.tool})` : ""}
-        </div>,
-      );
+      rows.push({
+        id: "child-appr-" + (node.session || node.call_id),
+        message: `${node.agent || "agent"} — waiting for approval${
+          node.report.waiting.tool ? ` (${node.report.waiting.tool})` : ""
+        }`,
+      });
     }
   }
   if (backgroundWork.length > 0 && sessionIdle) {
-    rows.push(
-      <div className="attention-row" key="bg-idle">
-        <span className="attention-dot" /> Background work still running — it keeps
-        spending tokens; stop it below if it's no longer needed
-      </div>,
-    );
+    rows.push({
+      id: "bg-idle",
+      message:
+        "Background work still running — it keeps spending tokens; stop it below if it's no longer needed",
+    });
   }
   return rows;
 }
@@ -287,7 +218,7 @@ export function SupervisionPanel({
   // carrying real data. So: each of the three renders only when it has
   // something, and when none of them does they collapse into the single dim
   // line below (a resting panel must still read as "fine", not as "broken").
-  const attention = attentionRows(
+  const attention = attentionNotices(
     children,
     backgroundWork,
     approvals,
@@ -295,7 +226,6 @@ export function SupervisionPanel({
     childAnswers,
     recovery,
     sessionIdle,
-    onOpenChild,
   );
   const hasGoal = !!goal || !!settledGoal;
   const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
@@ -317,16 +247,7 @@ export function SupervisionPanel({
           workspace-less session — a panel you couldn't close would be a worse
           bug than the one we're fixing. Height 0 ⇒ Environment gains the whole
           40px back; sticky ⇒ ✕ stays reachable in a long, scrolled panel. */}
-      <div className="supervision-close-slot sticky top-0 z-10 flex h-0 justify-end">
-        <button
-          className="supervision-close icon-only h-6 w-6 shrink-0"
-          onClick={onClose}
-          title="Hide Environment"
-          aria-label="Hide Environment"
-        >
-          <X size={15} />
-        </button>
-      </div>
+      <SupervisionCloseButton onClose={onClose} />
 
       <EnvironmentSection onOpenChanges={onOpenChanges} refreshKey={refreshKey} />
 
@@ -337,177 +258,40 @@ export function SupervisionPanel({
           scrolling past five quieter ones. Codex puts `Background processes`
           second, right beneath the Environment rows, for the same reason: what's
           running *right now* outranks the standing description of the run. */}
-      {backgroundWork.length > 0 && (
-        <section className="supervision-section">
-          <div className="supervision-label">Background processes</div>
-          {backgroundWork.map((work) => (
-            <div className="background-row" key={work.handle}>
-              <Terminal size={14} />
-              <span title={work.detail || work.handle}>{backgroundLabel(work)}</span>
-
-            </div>
-          ))}
-        </section>
-      )}
+      <BackgroundProcessesSection work={backgroundWork} />
 
       {/* One indeterminate line while inspect is in flight — not three titled
           "Checking…" blocks that then collapse into nothing (TH-3): the panel
           keeps the same height from load to rest, so it never flashes a hole. */}
-      {loading && (
-        <div className="supervision-quiet supervision-loading">
-          <Hourglass size={14} className="spin" /> Checking…
-        </div>
-      )}
+      {loading && <SupervisionLoadingState />}
 
       {/* TH-14 · a settled goal whose outcome is ALREADY on screen above the
           composer gets one line here, not a titled 123px block that repeats the
           banner's own "Cancelled · 00:34 · 0 checks" word for word. The goal text
           is the thing the rail can add (the banner has no room for it), so that's
           what the line carries, behind the phase chip. */}
-      {!loading && !goal && settledGoal && goalEchoed && (
-        <section className="supervision-section">
-          <div className="goal-settled-line" title={settledGoal.goal}>
-            <span className={"goal-outcome " + settledGoal.phase}>
-              {GOAL_PANEL_LABEL[settledGoal.phase] || "Ended"}
-            </span>
-            <span className="goal-settled-copy">{settledGoal.goal}</span>
-          </div>
-        </section>
-      )}
+      <GoalSection
+        loading={loading}
+        goal={goal}
+        goalEdit={goalEdit}
+        settledGoal={settledGoal}
+        goalEchoed={goalEchoed}
+        onGoalEdit={onGoalEdit}
+        onGoalSave={onGoalSave}
+        onGoalDiscard={onGoalDiscard}
+        onGoalAction={onGoalAction}
+      />
 
-      {!loading && hasGoal && !(!goal && settledGoal && goalEchoed) && (
-      <section className="supervision-section">
-        <div className="supervision-label">Goal</div>
-        {goal ? (
-          <>
-            {goalEdit === null ? (
-              <div className="goal-copy">{goal.goal}</div>
-            ) : (
-              <input className="goal-input" autoFocus value={goalEdit} onChange={(event) => onGoalEdit(event.target.value)} onKeyDown={(event) => {
-                if (event.key === "Enter") onGoalSave();
-                if (event.key === "Escape") onGoalDiscard();
-              }} />
-            )}
-            <div className="goal-meta">
-              <span>{goal.checks}{goal.max_checks ? `/${goal.max_checks}` : ""} checks</span>
-              {goal.paused && <span>Paused</span>}
-              {goal.verifiers === 0 && <span>Self-certified</span>}
-            </div>
-            <div className="goal-actions">
-              {goalEdit === null ? (
-                <>
-                  <button onClick={() => onGoalEdit(goal.goal)}>Edit</button>
-                  <button onClick={() => onGoalAction(goal.paused ? "resume" : "pause")}>{goal.paused ? "Resume" : "Pause"}</button>
-                  <button className="danger" onClick={() => onGoalAction("cancel")}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  <button className="primary" onClick={onGoalSave}>Save</button>
-                  <button onClick={onGoalDiscard}>Discard</button>
-                </>
-              )}
-            </div>
-          </>
-        ) : settledGoal ? (
-          // No active goal, but the journal carries a finished one — show its
-          // outcome (Completed · elapsed · N checks) so the panel agrees with
-          // the composer's goal banner instead of going silent.
-          <>
-            <div className="goal-copy">{settledGoal.goal}</div>
-            <div className="goal-meta goal-meta-settled">
-              <span className={"goal-outcome " + settledGoal.phase}>
-                {GOAL_PANEL_LABEL[settledGoal.phase] || "Ended"}
-              </span>
-              {settledGoal.elapsedMs !== undefined && <span>{formatElapsed(settledGoal.elapsedMs)}</span>}
-              <span>{settledGoal.checks} check{settledGoal.checks === 1 ? "" : "s"}</span>
-            </div>
-          </>
-        ) : null}
-      </section>
-      )}
+      <ProgressSection progress={progress} />
 
-      {progress.length > 0 && (
-        <section className="supervision-section">
-          {/* The model-maintained checklist (INC-37). Rendered only when the
-              model actually keeps one — an empty permanent section would be
-              exactly the W5 dead-weight this panel was purged of. */}
-          <div className="supervision-label">
-            Progress
-            <span className="progress-count">
-              {progress.filter((it) => it.status === "done").length}/{progress.length}
-            </span>
-          </div>
-          <div className="progress-list">
-            {progress.map((it) => (
-              <div className={"progress-row " + it.status} key={it.id} title={it.title}>
-                {it.status === "running" ? (
-                  <Hourglass size={13} className="spin" />
-                ) : it.status === "done" ? (
-                  <CheckCircle size={13} weight="fill" />
-                ) : it.status === "failed" ? (
-                  <WarningCircle size={13} weight="fill" />
-                ) : (
-                  <CaretRight size={13} />
-                )}
-                <span className="progress-title">{it.title}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <ArtifactsSection artifacts={artifacts} onOpen={onOpenArtifact} />
 
-      {artifacts.length > 0 && (
-        <section className="supervision-section">
-          {/* Published artifacts (INC-40): latest version per stream, click
-              to read. Rendered only when something was actually published
-              (the W5 no-dead-weight rule). */}
-          <div className="supervision-label">Artifacts</div>
-          <div className="artifact-list">
-            {artifacts.map((a) => (
-              <button
-                type="button"
-                className="artifact-row w-full text-left"
-                key={a.stream}
-                title={`Read ${a.stream} (latest v${a.version})`}
-                aria-label={`Open ${a.stream} version ${a.version}`}
-                onClick={() => onOpenArtifact(a.stream, a.version)}
-              >
-                <FileText size={15} className="shrink-0" />
-                <span className="artifact-copy min-w-0 flex-1 text-left">
-                  <span className="artifact-name block truncate text-[13px] text-ink" title={a.stream}>
-                    {artifactDisplayName(a.stream)}
-                  </span>
-                  <span className="artifact-meta mt-0.5 block truncate text-[11px] text-dim">
-                    {artifactType(a.stream)} · v{a.version}
-                  </span>
-                </span>
-                <span className="artifact-open shrink-0 text-[12px] font-medium text-ink">Open</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      {!loading && <SupervisionAgentsSection children={children} onOpen={onOpenChild} />}
 
-      {!loading && children.length > 0 && (
-        <section className="supervision-section supervision-agents">
-          <div className="supervision-label">Agents</div>
-          <Subagents nodes={children} onOpen={onOpenChild} />
-        </section>
-      )}
-
-      {!loading && attention.length > 0 && (
-        <section className="supervision-section">
-          <div className="supervision-label">Attention</div>
-          {attention}
-        </section>
-      )}
+      {!loading && <AttentionSection notices={attention} onOpenChild={onOpenChild} />}
 
       {/* The resting panel: one dim line instead of three empty blocks (TH-3). */}
-      {resting && (
-        <div className="supervision-quiet">
-          <CheckCircle size={15} /> Nothing needs you
-        </div>
-      )}
+      {resting && <SupervisionRestingState />}
 
       {/* INC-41 ENV-4 · the panel's footer row. It used to be the *heaviest*
           text on the panel (weight 550, --ink-2) and the only line with no leading
@@ -524,11 +308,7 @@ export function SupervisionPanel({
           floating card now, so there is no void left to frame: the row simply
           follows the last section, exactly like Codex's `View all` sits one line
           under `Sources`. */}
-      <button className="supervision-details" onClick={onInspect} title="Review this run's status, usage, activity, and provider capabilities">
-        <Info size={14} />
-        <span className="supervision-details-label">Run details</span>
-        <span className="supervision-details-caret"><CaretRight size={12} /></span>
-      </button>
+      <SupervisionRunDetailsButton onInspect={onInspect} />
     </aside>
   );
 }
@@ -577,7 +357,7 @@ export function workspaceName(path: string): string {
 // that and stays untouched), so we read the current session from the store and
 // fetch our own diff + branch. The section as a whole is still hidden for
 // non-repo / workspace-less sessions, where git means nothing.
-function EnvironmentSection({
+export function EnvironmentSection({
   onOpenChanges,
   refreshKey = 0,
 }: {
@@ -834,7 +614,7 @@ function EnvironmentSection({
         >
           <TreeStructure size={14} />
           <span className="env-row-label">Worktree</span>
-          <span className="env-row-val">
+          <span className="env-row-val min-w-0 max-w-[65%]">
             <span className="dim env-row-name">{workspace ? workspaceName(workspace) : "—"}</span>
           </span>
           {/* Down-caret collapsed / up-caret open: the drawer unfolds inline
@@ -935,7 +715,7 @@ function EnvironmentSection({
               one; a detached / branchless workspace says nothing rather than
               shouting "No branch yet" at the same weight as the action. */}
           {branch && (
-            <span className="env-row-val">
+            <span className="env-row-val min-w-0 max-w-[65%]">
               <span className="dim env-row-name">{branch}</span>
             </span>
           )}

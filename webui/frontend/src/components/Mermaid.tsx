@@ -58,5 +58,13 @@ export function MermaidBlock({ raw, fallback }: { raw: string; fallback: ReactNo
   // Loading and failure both show the source as a normal code block — honest,
   // and stable while an answer is still streaming the fence.
   if (svg === null) return <>{fallback}</>;
-  return <div className="md-mermaid my-[2px] max-w-full overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return (
+    <div
+      className="md-mermaid my-[2px] max-w-full overflow-x-auto"
+      role="img"
+      aria-label="Mermaid diagram"
+      tabIndex={0}
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
 }

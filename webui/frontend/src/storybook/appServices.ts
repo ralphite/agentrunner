@@ -79,6 +79,9 @@ export interface StoryAppServicesHarness {
 
 export interface StoryAppServicesOptions {
   api?: AppServices["api"];
+  streams?: AppServices["streams"];
+  clock?: AppServices["clock"];
+  ids?: AppServices["ids"];
   local?: Record<string, string>;
   session?: Record<string, string>;
   hash?: string;
@@ -107,7 +110,7 @@ export function createStoryAppServices(
 
   const services: AppServices = {
     api: options.api ?? AR,
-    streams: {
+    streams: options.streams ?? {
       open: () => {
         const stream = new StoryEventStream();
         streams.push(stream);
@@ -124,14 +127,14 @@ export function createStoryAppServices(
         return () => listeners.delete(listener);
       },
     },
-    clock: {
+    clock: options.clock ?? {
       now: () => Date.now(),
       setTimeout: (callback, delay) => globalThis.setTimeout(callback, delay),
       clearTimeout: (handle) => globalThis.clearTimeout(handle),
       setInterval: (callback, delay) => globalThis.setInterval(callback, delay),
       clearInterval: (handle) => globalThis.clearInterval(handle),
     },
-    ids: {
+    ids: options.ids ?? {
       next: (namespace) => {
         const next = (sequences.get(namespace) ?? 0) + 1;
         sequences.set(namespace, next);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { CheckCircle, Circle, Question } from "@phosphor-icons/react";
 
 // AskForm renders a structured ask_user park (INC-47.2): the questions the
@@ -30,6 +30,7 @@ export function AskForm({
   const [selected, setSelected] = useState<Record<number, Set<number>>>({});
   const [text, setText] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(false);
+  const formId = useId();
 
   const toggle = (q: number, opt: number, multi: boolean) => {
     setSelected((prev) => {
@@ -95,7 +96,12 @@ export function AskForm({
       </div>
       {questions.map((q, qi) => (
         <div className="ask-q mt-2 min-w-0" key={qi}>
-          <div className="ask-q-text mb-1.5 text-[13px] leading-[1.4] text-ink">{q.question}</div>
+          <div
+            className="ask-q-text mb-1.5 text-[13px] leading-[1.4] text-ink"
+            id={`${formId}-question-${qi}`}
+          >
+            {q.question}
+          </div>
           {q.options && q.options.length > 0 && (
             <div className="ask-opts flex min-w-0 flex-col gap-1.5">
               {q.options.map((o, oi) => {
@@ -134,6 +140,7 @@ export function AskForm({
           {(q.allow_free_text || !q.options?.length) && (
             <input
               className="ask-free"
+              aria-labelledby={`${formId}-question-${qi}`}
               placeholder={q.options?.length ? "…or type an answer" : "Type your answer"}
               value={text[qi] || ""}
               onChange={(e) => setText((prev) => ({ ...prev, [qi]: e.target.value }))}

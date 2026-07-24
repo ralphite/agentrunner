@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Check } from "@phosphor-icons/react";
+
+const PopoverMenuContext = createContext(true);
 
 // Popover is the drop-up menu primitive the composer controls hang off of. It
 // anchors a panel to a trigger button, opens *upward* (the composer sits at the
@@ -36,6 +46,8 @@ export function Popover({
   align = "left",
   panelClass = "",
   wrapClass = "",
+  panelRole = "menu",
+  ariaLabel,
   onOpen,
 }: {
   trigger: (open: boolean, toggle: () => void) => React.ReactNode;
@@ -43,6 +55,8 @@ export function Popover({
   align?: "left" | "right";
   panelClass?: string;
   wrapClass?: string;
+  panelRole?: "menu" | "dialog";
+  ariaLabel?: string;
   onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -183,31 +197,34 @@ export function Popover({
     <div className={`pop-wrap${wrapClass ? ` ${wrapClass}` : ""}`} ref={wrapRef} onKeyDownCapture={onKeyDownCapture}>
       {trigger(open, toggle)}
       {open && (
-        <div
-          ref={panelRef}
-          className={`pop-panel pop-${align} pop-${place?.drop ?? "up"} ${panelClass}`}
-          role="menu"
-          style={{
-            // Every offset is stated, none inherited: the stylesheet's
-            // `.pop-up { bottom: calc(100% + 8px) }` / `.pop-right { right: 0 }`
-            // are written for an absolute panel and would mean *the viewport's*
-            // edge once the panel is fixed. The classes stay (they still carry
-            // the animation and are what the CSS hooks read); the geometry is
-            // ours. The first render has nothing to measure yet — it is hidden,
-            // laid out at its static position, measured, and placed inside the
-            // same layout pass, so it never paints in the wrong spot.
-            position: "fixed",
-            left: place?.left,
-            right: "auto",
-            top: place?.drop === "down" ? place.top : "auto",
-            bottom: place?.drop === "up" ? place.bottom : "auto",
-            maxHeight: place?.maxH,
-            maxWidth: `calc(100vw - ${PAD * 2}px)`,
-            visibility: place ? undefined : "hidden",
-          }}
-        >
-          {children(close)}
-        </div>
+        <PopoverMenuContext.Provider value={panelRole === "menu"}>
+          <div
+            ref={panelRef}
+            className={`pop-panel pop-${align} pop-${place?.drop ?? "up"} ${panelClass}`}
+            role={panelRole}
+            aria-label={ariaLabel}
+            style={{
+              // Every offset is stated, none inherited: the stylesheet's
+              // `.pop-up { bottom: calc(100% + 8px) }` / `.pop-right { right: 0 }`
+              // are written for an absolute panel and would mean *the viewport's*
+              // edge once the panel is fixed. The classes stay (they still carry
+              // the animation and are what the CSS hooks read); the geometry is
+              // ours. The first render has nothing to measure yet — it is hidden,
+              // laid out at its static position, measured, and placed inside the
+              // same layout pass, so it never paints in the wrong spot.
+              position: "fixed",
+              left: place?.left,
+              right: "auto",
+              top: place?.drop === "down" ? place.top : "auto",
+              bottom: place?.drop === "up" ? place.bottom : "auto",
+              maxHeight: place?.maxH,
+              maxWidth: `calc(100vw - ${PAD * 2}px)`,
+              visibility: place ? undefined : "hidden",
+            }}
+          >
+            {children(close)}
+          </div>
+        </PopoverMenuContext.Provider>
       )}
     </div>
   );
@@ -286,13 +303,14 @@ export function PopItem({
   highlight?: boolean;
   disabled?: boolean;
 }) {
+  const inMenu = useContext(PopoverMenuContext);
   return (
     <button
       type="button"
       className={"pop-item" + (danger ? " danger" : "") + (highlight ? " hl" : "") + (disabled ? " disabled" : "")}
       onClick={onClick}
       disabled={disabled}
-      role="menuitem"
+      role={inMenu ? "menuitem" : undefined}
     >
       {icon !== undefined && <span className="pop-ico">{icon}</span>}
       <span className="pop-body">

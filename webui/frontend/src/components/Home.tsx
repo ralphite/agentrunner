@@ -3,6 +3,11 @@ import { ArrowsClockwise, Bug, Hammer } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { Composer } from "./Composer";
 import { DaemonAlert } from "./DaemonAlert";
+import {
+  HomeStarterCard,
+  IntentSuggestionList,
+  type HomeSuggestion,
+} from "./HomeParts";
 
 // Codex's Explore card uses a telescope, not binoculars — but Phosphor (our
 // icon set) has no telescope glyph, so we inline the line-drawn telescope path
@@ -69,16 +74,7 @@ function CloudMark({ size = 24 }: { size?: number }) {
 
 // One suggestion card: a colored line icon, a short label, and the starter
 // prompt it drops into the composer draft when clicked.
-interface Suggestion {
-  key: string;
-  tone: "blue" | "teal" | "violet" | "green" | "orange";
-  icon: React.ReactNode;
-  label: string;
-  seed: string;
-  followups: string[];
-}
-
-const SUGGESTIONS: Suggestion[] = [
+const SUGGESTIONS: HomeSuggestion[] = [
   {
     key: "explore",
     tone: "blue",
@@ -182,43 +178,26 @@ export function Home() {
             {showStarterCards && (
               <div className="home-empty-cards max-[680px]:gap-1.5">
                 {SUGGESTIONS.map((s) => (
-                  <button
+                  <HomeStarterCard
                     key={s.key}
-                    type="button"
-                    className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"
-                    onClick={() => {
+                    suggestion={s}
+                    onSelect={(suggestion) => {
                       setActiveIntent(s.key);
-                      prefillComposer(s.seed);
+                      prefillComposer(suggestion.seed);
                     }}
-                  >
-                    <span className={"home-empty-card-icon " + s.tone} aria-hidden>
-                      {s.icon}
-                    </span>
-                    <span className="home-empty-card-label">{s.label}</span>
-                  </button>
+                  />
                 ))}
               </div>
             )}
           </div>
           {activeSuggestion && (
-            <div className="home-intent-suggestions" aria-label={`${activeSuggestion.seed} suggestions`}>
-              {activeSuggestion.followups.map((followup) => (
-                <button
-                  key={followup}
-                  type="button"
-                  className="home-intent-suggestion"
-                  onClick={() => {
-                    setActiveIntent(null);
-                    prefillComposer(followup);
-                  }}
-                >
-                  <span className={"home-intent-icon " + activeSuggestion.tone} aria-hidden>
-                    {activeSuggestion.icon}
-                  </span>
-                  <span>{followup}</span>
-                </button>
-              ))}
-            </div>
+            <IntentSuggestionList
+              suggestion={activeSuggestion}
+              onSelect={(followup) => {
+                setActiveIntent(null);
+                prefillComposer(followup);
+              }}
+            />
           )}
           <DaemonAlert />
         </div>

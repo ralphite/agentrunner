@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Folder, Globe, Terminal, X } from "@phosphor-icons/react";
 import { useAppServices } from "../app/appServices";
 import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
 import { scheduleFieldError } from "../scheduleValidate";
 import type { SpecFile } from "../types";
-import { DEFAULT_DRIVER, DEFAULT_EFFORT, DEFAULT_MODEL, EFFORT_LEVELS, legacyModelFromSpec, MODELS, stripLegacyModel, type EffortId } from "../specs";
+import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
 import { compactCount, summarizeInspect } from "../inspectPresentation";
 import { friendlyStatus } from "./pill";
-import { recallAccess, recallModel, recallSpec, rememberAccess, rememberModel, rememberSpec } from "./sessionSpecs";
+import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
 
 // "Image" (input modality) and "Images" (capability flag) state the same fact
 // twice, so the chip row read like a plural typo (FB-3). Dedupe on a
@@ -131,23 +131,16 @@ export function Modals() {
   );
 }
 
-function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
+export function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
   switch (modal.kind) {
     case "new":
-      return <NewSessionModal
-        initialMessage={modal.message}
-        initialSpec={modal.spec}
-        initialWorker={modal.worker}
-        initialProvider={modal.provider}
-        initialModel={modal.model}
-        initialEffort={modal.effort}
-      />;
+      return <NewSessionModal initialMessage={modal.message} initialSpec={modal.spec} initialWorker={modal.worker} />;
     case "run":
       return <RunModal initialPrompt={modal.prompt} preset={modal.preset} cadence={modal.cadence} returnFocus={modal.returnFocus} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
-      return <AgentModal sid={modal.sid} provider={modal.provider} model={modal.model} effort={modal.effort} />;
+      return <AgentModal sid={modal.sid} />;
     case "rename":
       return <RenameModal sid={modal.sid} />;
     case "trust":
@@ -161,7 +154,7 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
   }
 }
 
-function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind: "confirm" }> }) {
+export function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind: "confirm" }> }) {
   const { openModal, toast } = useStore();
   const [busy, setBusy] = useState(false);
   const close = () => {
@@ -216,7 +209,7 @@ function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind
 // F-C1: the native dialog synchronously freezes the renderer and looks
 // nothing like the rest of the UI). It renders after (= on top of) the
 // main modal, so flows inside a modal can ask for one more string.
-function PromptModal({
+export function PromptModal({
   title,
   label,
   initial,
@@ -232,6 +225,7 @@ function PromptModal({
   onSubmit: (value: string) => void;
 }) {
   const { openPrompt } = useStore();
+  const inputId = useId();
   const [value, setValue] = useState(initial || "");
   const close = () => openPrompt(null);
   const submit = () => {
@@ -253,8 +247,9 @@ function PromptModal({
         </>
       }
     >
-      {label && <label className="field">{label}</label>}
+      {label && <label className="field" htmlFor={inputId}>{label}</label>}
       <input
+        id={inputId}
         type="text"
         autoFocus
         value={value}
@@ -326,84 +321,24 @@ function useWorkspace() {
   return { ws, setWs, mk, ensure, choose, mkWorktree };
 }
 
-function ModelFields({
-  provider,
-  model,
-  effort,
-  onModel,
-  onEffort,
-}: {
-  provider: string;
-  model: string;
-  effort: EffortId;
-  onModel: (provider: string, model: string) => void;
-  onEffort: (effort: EffortId) => void;
-}) {
-  return (
-    <div className="row-flex">
-      <div style={{ flex: 1 }}>
-        <label className="field">Model</label>
-        <select
-          value={`${provider}/${model}`}
-          onChange={(event) => {
-            const selected = MODELS.find((choice) => `${choice.provider}/${choice.id}` === event.target.value);
-            if (selected) onModel(selected.provider, selected.id);
-          }}
-        >
-          {MODELS.map((choice) => (
-            <option key={`${choice.provider}/${choice.id}`} value={`${choice.provider}/${choice.id}`}>{choice.label}</option>
-          ))}
-          {!MODELS.some((choice) => choice.provider === provider && choice.id === model) && (
-            <option value={`${provider}/${model}`}>{model}</option>
-          )}
-        </select>
-      </div>
-      <div style={{ flex: 1 }}>
-        <label className="field">Effort</label>
-        <select value={effort} onChange={(event) => onEffort(event.target.value as EffortId)}>
-          {EFFORT_LEVELS.map((level) => <option key={level.id} value={level.id}>{level.label}</option>)}
-        </select>
-      </div>
-    </div>
-  );
-}
-
-function NewSessionModal({
+export function NewSessionModal({
   initialMessage,
   initialSpec,
   initialWorker,
-  initialProvider,
-  initialModel,
-  initialEffort,
 }: {
   initialMessage?: string;
   initialSpec?: string;
   initialWorker?: string;
-  initialProvider?: string;
-  initialModel?: string;
-  initialEffort?: string;
 }) {
   const { api, storage } = useAppServices();
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose, mkWorktree } = useWorkspace();
   const [msg, setMsg] = useState(initialMessage || "");
   const [mode, setMode] = useState("");
-  const [spec, setSpec] = useState(initialSpec || "");
-  const [worker, setWorker] = useState(initialWorker || "");
-  const [provider, setProvider] = useState(initialProvider || DEFAULT_MODEL.provider);
-  const [model, setModel] = useState(initialModel || DEFAULT_MODEL.id);
-  const [effort, setEffort] = useState<EffortId>(
-    EFFORT_LEVELS.some((level) => level.id === initialEffort) ? initialEffort as EffortId : DEFAULT_EFFORT,
-  );
+  const [spec, setSpec] = useState(initialSpec || DEFAULT_SPEC);
+  const [worker, setWorker] = useState(initialWorker === undefined ? DEFAULT_WORKER : initialWorker);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
-
-  useEffect(() => {
-    if (spec.trim()) return;
-    api.agents()
-      .then((catalog) => setSpec((current) => current.trim() ? current : (catalog.find((entry) => entry.name === "dev") || catalog[0])?.yaml || ""))
-      .catch((error: Error) => toast(error.message));
-  }, []);
 
   const create = async () => {
     setBusy(true);
@@ -411,18 +346,8 @@ function NewSessionModal({
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
       const workspace = await ensure();
-      const r = await api.newSession({
-        provider,
-        model,
-        effort,
-        spec,
-        extraSpecs,
-        workspace,
-        message: msg.trim(),
-        mode,
-      });
+      const r = await api.newSession({ spec, extraSpecs, workspace, message: msg.trim(), mode });
       rememberSpec(r.sid, spec, storage.local);
-      rememberModel(r.sid, { provider, model, effort }, storage.local);
       close();
       await refreshSessions();
       select(r.sid);
@@ -440,39 +365,32 @@ function NewSessionModal({
       footer={
         <>
           <button onClick={() => openModal({ kind: "run", prompt: msg })}>Create a background run…</button>
-          <button className="primary" disabled={busy || !msg.trim() || !spec.trim()} onClick={create}>
+          <button className="primary" disabled={busy || !msg.trim()} onClick={create}>
             Start session
           </button>
         </>
       }
     >
-      <label className="field">Opening message</label>
-      <textarea autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
-      <label className="field">Workspace</label>
+      <label className="field" htmlFor="new-session-message">Opening message</label>
+      <textarea id="new-session-message" autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
+      <label className="field" htmlFor="new-session-workspace">Workspace</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
+        <input id="new-session-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
         <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
         <button style={{ whiteSpace: "nowrap" }} onClick={mkWorktree} title="Codex 'New worktree': branch a fresh, isolated git worktree of a repo so edits don't touch your checkout">
           New worktree…
         </button>
       </div>
-      <label className="field">Approval mode</label>
-      <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
+      <label className="field" htmlFor="new-session-approval">Approval mode</label>
+      <select id="new-session-approval" value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
         <option value="">default</option>
         <option value="plan">plan</option>
         <option value="acceptEdits">acceptEdits</option>
       </select>
-      <ModelFields
-        provider={provider}
-        model={model}
-        effort={effort}
-        onModel={(nextProvider, nextModel) => { setProvider(nextProvider); setModel(nextModel); }}
-        onEffort={setEffort}
-      />
-      <label className="field">Agent specification (YAML)</label>
-      <textarea className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
-      <label className="field">Worker specification (optional YAML)</label>
-      <textarea className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
+      <label className="field" htmlFor="new-session-spec">Agent specification (YAML)</label>
+      <textarea id="new-session-spec" className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
+      <label className="field" htmlFor="new-session-worker">Worker specification (optional YAML)</label>
+      <textarea id="new-session-worker" className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
 }
@@ -495,7 +413,7 @@ function withDriverPrompt(driver: string, prompt: string): string {
   return kept.join("\n").replace(/\n+$/, "") + `\nprompt: ${JSON.stringify(prompt.trim())}\n`;
 }
 
-function RunModal({
+export function RunModal({
   initialPrompt,
   preset = "one-time",
   cadence,
@@ -519,11 +437,9 @@ function RunModal({
   const [prompt, setPrompt] = useState(initialPrompt || "");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
-  const [spec, setSpec] = useState("");
+  const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
-  const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
-  const [model, setModel] = useState(DEFAULT_MODEL.id);
-  const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
+  const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
   const [schedule, setSchedule] = useState<ScheduleKind>(formDefaults.schedule);
   const [interval, setInterval] = useState(formDefaults.interval);
   const [cron, setCron] = useState(formDefaults.cron);
@@ -531,24 +447,17 @@ function RunModal({
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
-  useEffect(() => {
-    api.agents()
-      .then((catalog) => setSpec((current) => current.trim() ? current : (catalog.find((entry) => entry.name === "dev") || catalog[0])?.yaml || ""))
-      .catch((error: Error) => toast(error.message));
-  }, []);
-
   const start = async () => {
     setBusy(true);
     try {
       const workspace = await ensure();
       const driverSpec = withSchedule(withDriverPrompt(driver, prompt), schedule, interval, cron, nAttempts);
       const r = await api.startRun({
-        provider,
-        model,
-        effort,
         kind,
         spec: kind === "submit" ? spec : driverSpec,
-        extraSpecs: [],
+        // drive needs the child agent spec as an agent.yaml sibling (driver's
+        // agent_spec field points at it); submit needs no sibling.
+        extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
         prompt,
         workspace,
         mode,
@@ -601,7 +510,7 @@ function RunModal({
       onClose={close}
       returnFocus={returnFocus}
       footer={
-        <button className="primary" disabled={busy || !prompt.trim() || scheduleBlocked || (kind === "submit" && !spec.trim())} onClick={start}>
+        <button className="primary" disabled={busy || !prompt.trim() || scheduleBlocked} onClick={start}>
           {kind === "submit" ? "Start run" : "Start schedule"}
         </button>
       }
@@ -622,38 +531,31 @@ function RunModal({
         <input id="run-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
         <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
       </div>
-      <ModelFields
-        provider={provider}
-        model={model}
-        effort={effort}
-        onModel={(nextProvider, nextModel) => { setProvider(nextProvider); setModel(nextModel); }}
-        onEffort={setEffort}
-      />
       {kind === "submit" ? (
         <details className="advanced-settings">
           <summary>Advanced settings</summary>
           <div className="row-flex">
             <div style={{ flex: 1 }}>
-              <label className="field">Approval mode</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value)}>
+              <label className="field" htmlFor="run-approval">Approval mode</label>
+              <select id="run-approval" value={mode} onChange={(e) => setMode(e.target.value)}>
                 <option value="">From agent specification</option>
                 <option value="plan">Plan (read-only)</option>
                 <option value="acceptEdits">Auto-accept edits</option>
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <label className="field">Idempotency key (optional)</label>
-              <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} />
+              <label className="field" htmlFor="run-idempotency">Idempotency key (optional)</label>
+              <input id="run-idempotency" type="text" value={idem} onChange={(e) => setIdem(e.target.value)} />
             </div>
           </div>
-          <label className="field">Agent specification (YAML)</label>
-          <textarea className="code" rows={9} value={spec} onChange={(e) => setSpec(e.target.value)} />
+          <label className="field" htmlFor="run-agent-spec">Agent specification (YAML)</label>
+          <textarea id="run-agent-spec" className="code" rows={9} value={spec} onChange={(e) => setSpec(e.target.value)} />
         </details>
       ) : (
         <>
-          <label className="field">Schedule</label>
+          <label className="field" htmlFor="run-schedule">Schedule</label>
           <div className="row-flex">
-            <select value={schedule} onChange={(e) => setSchedule(e.target.value as ScheduleKind)} title="how iterations are paced">
+            <select id="run-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value as ScheduleKind)} title="how iterations are paced">
               <option value="immediate">Goal — work until verified</option>
               <option value="interval">Repeat every…</option>
               <option value="cron">Cron schedule…</option>
@@ -666,6 +568,7 @@ function RunModal({
                 onChange={(e) => setInterval(e.target.value)}
                 placeholder="5m · 30s · 1h"
                 title="Go duration between iterations"
+                aria-label="Repeat interval"
               />
             )}
             {schedule === "cron" && (
@@ -675,6 +578,7 @@ function RunModal({
                 onChange={(e) => setCron(e.target.value)}
                 placeholder="0 * * * * (min hr dom mon dow)"
                 title="5-field cron expression"
+                aria-label="Cron schedule"
               />
             )}
             {schedule === "parallel" && (
@@ -684,6 +588,7 @@ function RunModal({
                 value={nAttempts}
                 onChange={(e) => setNAttempts(Math.max(2, Number(e.target.value) || 2))}
                 title="how many isolated attempts to run; the verifiers judge the best"
+                aria-label="Number of attempts"
               />
             )}
           </div>
@@ -705,8 +610,10 @@ function RunModal({
           )}
           <details className="advanced-settings">
             <summary>Advanced settings</summary>
-            <label className="field">Driver specification (YAML)</label>
-            <textarea className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
+            <label className="field" htmlFor="run-driver-spec">Driver specification (YAML)</label>
+            <textarea id="run-driver-spec" className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
+            <label className="field" htmlFor="run-iteration-agent">Iteration agent (YAML)</label>
+            <textarea id="run-iteration-agent" className="code" rows={7} value={driverAgent} onChange={(e) => setDriverAgent(e.target.value)} />
           </details>
         </>
       )}
@@ -735,7 +642,7 @@ function forkRank(b: string): number {
   return 2000;
 }
 
-function ForkModal({ sid }: { sid: string }) {
+export function ForkModal({ sid }: { sid: string }) {
   const { api, clock, storage } = useAppServices();
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs } = useWorkspace();
@@ -814,7 +721,7 @@ function ForkModal({ sid }: { sid: string }) {
         Starts a new session from a checkpoint of this one, in its own git worktree.
         This session stays unchanged.
       </div>
-      <label className="field">Continue from</label>
+      <label className="field" htmlFor="fork-checkpoint">Continue from</label>
       {barriers.length === 0 ? (
         <div className="fork-empty">
           <span>No checkpoints yet. Create one now, then continue from this exact point.</span>
@@ -834,7 +741,7 @@ function ForkModal({ sid }: { sid: string }) {
           )}
           {showEarlier && (
             <>
-              <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
+              <select id="fork-checkpoint" value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
                 {barriers.map((b) => (
                   <option key={b} value={b}>
                     {barrierLabel(b)}
@@ -850,61 +757,28 @@ function ForkModal({ sid }: { sid: string }) {
       )}
       <details className="advanced-settings">
         <summary>Advanced settings</summary>
-        <label className="field">Worktree directory (optional)</label>
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Automatically create a worktree" />
+        <label className="field" htmlFor="fork-worktree">Worktree directory (optional)</label>
+        <input id="fork-worktree" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Automatically create a worktree" />
       </details>
     </Modal>
   );
 }
 
-function AgentModal({
-  sid,
-  provider: initialProvider,
-  model: initialModel,
-  effort: initialEffort,
-}: {
-  sid: string;
-  provider?: string;
-  model?: string;
-  effort?: string;
-}) {
+export function AgentModal({ sid }: { sid: string }) {
   const { api, storage } = useAppServices();
   const { openModal, toast } = useStore();
-  const rawRememberedSpec = recallSpec(sid, storage.local) || "";
-  const remembered =
-    recallModel(sid, storage.local) ||
-    legacyModelFromSpec(rawRememberedSpec);
-  const [spec, setSpec] = useState(() => stripLegacyModel(rawRememberedSpec));
-  const [worker, setWorker] = useState("");
-  const [provider, setProvider] = useState(initialProvider || remembered?.provider || DEFAULT_MODEL.provider);
-  const [model, setModel] = useState(initialModel || remembered?.model || DEFAULT_MODEL.id);
-  const [effort, setEffort] = useState<EffortId>(
-    EFFORT_LEVELS.some((level) => level.id === (initialEffort || remembered?.effort))
-      ? (initialEffort || remembered?.effort) as EffortId
-      : DEFAULT_EFFORT,
-  );
+  const [spec, setSpec] = useState(() => recallSpec(sid, storage.local) || DEFAULT_SPEC);
+  const [worker, setWorker] = useState(DEFAULT_WORKER);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
-
-  useEffect(() => {
-    if (spec.trim()) return;
-    api.agents()
-      .then((catalog) => setSpec((current) => current.trim() ? current : (catalog.find((entry) => entry.name === "dev") || catalog[0])?.yaml || ""))
-      .catch((error: Error) => toast(error.message));
-  }, []);
 
   const swap = async () => {
     setBusy(true);
     try {
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
-      await api.switchAgent(sid, spec, extraSpecs, {
-        provider,
-        model,
-        effort,
-      });
+      await api.switchAgent(sid, spec, extraSpecs);
       rememberSpec(sid, spec, storage.local);
-      rememberModel(sid, { provider, model, effort }, storage.local);
       close();
       toast("agent spec switched", "info");
     } catch (e: any) {
@@ -919,28 +793,21 @@ function AgentModal({
       title={`Switch agent · ${sid}`}
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || !spec.trim()} onClick={swap}>
+        <button className="primary" disabled={busy} onClick={swap}>
           Switch
         </button>
       }
     >
       <div className="dim">Same session, context carries over; takes effect at the next safe boundary (decision #32) and lands in the journal as spec_changed. The new spec is written to runtime/specs.</div>
-      <ModelFields
-        provider={provider}
-        model={model}
-        effort={effort}
-        onModel={(nextProvider, nextModel) => { setProvider(nextProvider); setModel(nextModel); }}
-        onEffort={setEffort}
-      />
-      <label className="field">base.yaml (new main agent spec)</label>
-      <textarea className="code" rows={12} value={spec} onChange={(e) => setSpec(e.target.value)} />
-      <label className="field">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
-      <textarea className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
+      <label className="field" htmlFor="agent-base-spec">base.yaml (new main agent spec)</label>
+      <textarea id="agent-base-spec" className="code" rows={12} value={spec} onChange={(e) => setSpec(e.target.value)} />
+      <label className="field" htmlFor="agent-worker-spec">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
+      <textarea id="agent-worker-spec" className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
 }
 
-function TrustModal() {
+export function TrustModal() {
   const { api } = useAppServices();
   const { openModal, toast } = useStore();
   const [dir, setDir] = useState("");
@@ -968,13 +835,13 @@ function TrustModal() {
         </button>
       }
     >
-      <label className="field">directory (absolute path)</label>
-      <input type="text" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/path/to/workspace" />
+      <label className="field" htmlFor="trust-directory">directory (absolute path)</label>
+      <input id="trust-directory" type="text" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/path/to/workspace" />
     </Modal>
   );
 }
 
-function RenameModal({ sid }: { sid: string }) {
+export function RenameModal({ sid }: { sid: string }) {
   const { openModal, sessions, renames, setRename, toast } = useStore();
   const raw = sessions.find((s) => s.id === sid)?.title;
   const [name, setName] = useState(() => displayTitle(renames, sid, raw));
@@ -1003,8 +870,9 @@ function RenameModal({ sid }: { sid: string }) {
         </>
       }
     >
-      <label className="field">Keep it short and recognizable</label>
+      <label className="field" htmlFor="rename-session">Keep it short and recognizable</label>
       <input
+        id="rename-session"
         type="text"
         autoFocus
         value={name}
@@ -1020,7 +888,7 @@ function RenameModal({ sid }: { sid: string }) {
   );
 }
 
-function ViewerModal({ title, body }: { title: string; body: string }) {
+export function ViewerModal({ title, body }: { title: string; body: string }) {
   const { openModal } = useStore();
   return (
     <Modal title={title} onClose={() => openModal(null)}>
@@ -1031,7 +899,7 @@ function ViewerModal({ title, body }: { title: string; body: string }) {
   );
 }
 
-function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
+export function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
   const { openModal } = useStore();
   const summary = summarizeInspect(data, status);
   const displayStatus = friendlyStatus(summary.status.text);
@@ -1100,7 +968,9 @@ function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
 
         <details className="rd-raw">
           <summary>Raw run data</summary>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
+          <pre tabIndex={0} aria-label="Raw run data contents">
+            {JSON.stringify(data, null, 2)}
+          </pre>
         </details>
       </div>
     </Modal>

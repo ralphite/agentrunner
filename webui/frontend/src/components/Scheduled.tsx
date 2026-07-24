@@ -1,6 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Icon } from "@phosphor-icons/react";
-import { ArrowLeft, CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin, X } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, X } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { ApiError } from "../api";
 import { useAppServices } from "../app/appServices";
@@ -8,14 +7,23 @@ import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
 import { scheduledTitle } from "../scheduledTitle";
 import { relTimeAgo, sessionDate } from "../time";
-import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { cadenceText, type CadenceSpec } from "../runPreset";
 import type { Cadence, ScheduleDetail } from "../types";
 import { scheduleFieldError } from "../scheduleValidate";
 import { Modal } from "./Modals";
+import {
+  ScheduledEmptyState,
+  ScheduledRunActions,
+  ScheduledRunItem,
+  ScheduledSuggestions,
+  ScheduledToolbar,
+  type ScheduledFilter,
+  type ScheduledRunItemModel,
+} from "./ScheduledParts";
 
-type Filter = "all" | "active" | "paused";
+export { SUGGESTIONS } from "./ScheduledParts";
+
+type Filter = ScheduledFilter;
 const INITIAL_VISIBLE_ROWS = 5;
 const ROWS_PER_PAGE = 10;
 
@@ -34,36 +42,6 @@ const ROWS_PER_PAGE = 10;
 // and the click hands the very same spec to the modal. Change the cron here and
 // the card, the form and the created schedule all move together; they cannot
 // disagree, because there is nothing left to disagree with.
-interface Suggestion {
-  icon: Icon;
-  color: string;
-  title: string;
-  cadence: CadenceSpec;
-  desc: string;
-}
-export const SUGGESTIONS: Suggestion[] = [
-  {
-    icon: Bell,
-    color: "#3b82f6",
-    title: "Daily brief",
-    cadence: { schedule: "cron", cron: "0 8 * * 1-5" }, // Weekdays at 8:00 AM
-    desc: "Start each weekday with a summary of your priorities",
-  },
-  {
-    icon: Notebook,
-    color: "#8b5cf6",
-    title: "Weekly review",
-    cadence: { schedule: "cron", cron: "0 16 * * 5" }, // Fridays at 4:00 PM
-    desc: "Summarize the week's changes and open work",
-  },
-  {
-    icon: FileMagnifyingGlass,
-    color: "#22c55e",
-    title: "Follow-up monitor",
-    cadence: { schedule: "cron", cron: "0 */6 * * *" }, // Every 6 hours
-    desc: "Watch for failures and follow up",
-  },
-];
 
 // SC-1 — what belongs on this page. A scheduled thing has a RHYTHM: left alone,
 // it fires again. That is the whole reason the screen exists, and it is exactly
@@ -134,32 +112,7 @@ function seriesActive(cls: string, hasNextTick: boolean): boolean {
   return hasNextTick || LIVE_STATUS.has(cls);
 }
 
-interface SchedRow {
-  key: string;
-  id: string; // the store id this row is about (session id / run id)
-  kind: "session" | "run"; // which of the two things it is — decides its actions (SC-12)
-  title: string; // SC-13: the derived NAME (short, scannable); never the whole prompt — this is what the row SHOWS
-  full: string; // the raw label/prompt — the tooltip, and what search reads
-  cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Self-paced"
-  when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
-  isNext: boolean; // when names a FUTURE tick (styled as the live fact it is)
-  alert: string; // SC-10: "Failed" / "Needs recovery" — shown, not tooltipped
-  project: string;
-  workspace: string;
-  raw: string; // the daemon's own status word, before friendlyStatus collapses it
-  meta: string; // the row's facts flattened (project included), for search
-  status: { text: string; cls: string };
-  active: boolean; // the series still has ticks coming / needs you (SC-11)
-  paused: boolean; // durable SeriesPaused lifecycle; never inferred from missing nextRunAt
-  scheduleControl: boolean; // backend-confirmed merged series lifecycle capability
-  scheduleDetail: boolean; // backend-confirmed safe typed detail capability
-  running: boolean; // an iteration is executing right now — the only stoppable state
-  settled: boolean; // nothing more will happen: closed/done/stopped, or a limit (SC-16)
-  recover: boolean; // genuinely broken (crash/stranded) — Resume is the fix (SC-17)
-  unread: boolean; // driver row with new activity you haven't opened (F2)
-  sortTs: number;
-  onClick: (opener?: HTMLElement) => void;
-}
+type SchedRow = ScheduledRunItemModel;
 
 // nextRunPhrase renders the backend's nextRunAt (RFC3339) as Codex's
 // "Next run in 12m". A tick already due (an iteration is running, or the driver
@@ -189,23 +142,6 @@ function nextRunPhrase(iso: string | undefined, now: number): string {
 //   settled     CheckCircle    terminal: closed, or a limit you configured (SC-16)
 //   active      Circle         a healthy series, idle between ticks (SC-11)
 //   paused      PauseCircle    durable SeriesPaused lifecycle
-export function glyphFor(r: Pick<SchedRow, "alert" | "running" | "settled" | "active">) {
-  const size = 16;
-  if (r.alert) return <WarningCircle size={size} weight="regular" />;
-  if (r.running) return <PlayCircle size={size} weight="regular" />;
-  if (r.settled) return <CheckCircle size={size} weight="regular" />;
-  if (r.active) return <Circle size={size} weight="regular" />;
-  return <PauseCircle size={size} weight="regular" />;
-}
-
-// SCH-ICON — a row that is not going to fire again should not shout as loudly as
-// one that is. Codex greys the whole paused row, title included (`cloc` in the
-// reference crop); paused and terminal rows step back from live work.
-// A broken row is never quiet — it is the one row that must keep its emphasis.
-function isQuiet(r: SchedRow): boolean {
-  return !r.recover && !r.active;
-}
-
 function detailTime(iso?: string): string {
   if (!iso) return "Not scheduled";
   const d = new Date(iso);
@@ -222,7 +158,7 @@ function reasoningText(detail: ScheduleDetail): string {
   return "Enabled";
 }
 
-interface ScheduleDetailPanelProps {
+export interface ScheduleDetailPanelProps {
   title: string;
   detail: ScheduleDetail | null;
   loading: boolean;
@@ -235,7 +171,7 @@ interface ScheduleDetailPanelProps {
   onEdit: () => void;
 }
 
-function ScheduleDetailPanel({
+export function ScheduleDetailPanel({
   title,
   detail,
   loading,
@@ -330,7 +266,7 @@ function ScheduleDetailPanel({
   );
 }
 
-function ScheduleEditDialog({
+export function ScheduleEditDialog({
   detail,
   onClose,
   onSaved,
@@ -777,48 +713,16 @@ export function Scheduled() {
   // mid-list split because it happens to carry two real runs; it never carves
   // the list apart). This holds for any number of real rows.
   const suggestions = (
-    <div className="sched-suggestions" data-testid="scheduled-suggestions">
-      <div className="sched-suggestions-title">Suggestions</div>
-      {SUGGESTIONS.map((s) => {
-        const Ic = s.icon;
-        return (
-          <button
-            key={s.title}
-            className="sched-suggest"
-            // SC-18: the rhythm rides along with the prompt, so the modal
-            // opens on the cadence this card just promised.
-            onClick={(event) => openModal({
-              kind: "run",
-              preset: "repeating",
-              prompt: s.desc,
-              cadence: s.cadence,
-              // Pointer click on macOS may leave BODY active. Pass the durable
-              // card explicitly so dismiss can still restore the real opener.
-              returnFocus: event.currentTarget,
-            })}
-          >
-            <span className="sched-suggest-icon">
-              <Ic size={22} color={s.color} />
-            </span>
-            <span
-              className="sched-suggest-body flex min-w-0 flex-1 flex-col gap-1"
-              style={{ display: "flex", flexDirection: "column", gap: 4 }}
-            >
-              <span
-                className="sched-suggest-head flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5"
-                style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 8, rowGap: 2 }}
-              >
-                <b className="sched-suggest-title font-semibold">{s.title}</b>
-                {/* SC-18: rendered from the spec above — never a second,
-                    hand-written copy of it. */}
-                <span className="sched-suggest-cadence">{cadenceText(s.cadence)}</span>
-              </span>
-              <span className="sched-suggest-desc block" style={{ display: "block" }}>{s.desc}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <ScheduledSuggestions
+      onSelect={(suggestion, opener) =>
+        openModal({
+          kind: "run",
+          preset: "repeating",
+          prompt: suggestion.desc,
+          cadence: suggestion.cadence,
+          returnFocus: opener,
+        })}
+    />
   );
   const selectedDetailRow = scheduledDetailSid
     ? rows.find((row) => row.id === scheduledDetailSid)
@@ -865,202 +769,37 @@ export function Scheduled() {
           right). The right-aligned button can appear and disappear with the unread
           set without ever nudging the tabs. */}
       {!totalEmpty && (
-        <div className="sched-toolbar">
-          <div className="sched-search">
-            <MagnifyingGlass size={15} />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search scheduled runs"
-              aria-label="Search scheduled runs"
-            />
-          </div>
-          <div className="sched-filters">
-            <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
-              {(["all", "active", "paused"] as Filter[]).map((f) => (
-                <button
-                  key={f}
-                  role="tab"
-                  aria-selected={filter === f}
-                  className={"sched-tab" + (filter === f ? " on" : "")}
-                  onClick={() => setFilter(f)}
-                >
-                  {f[0].toUpperCase() + f.slice(1)}
-                </button>
-              ))}
-            </div>
-            {unreadIds.length > 0 && (
-              <button
-                className="sched-markread"
-                onClick={() => unreadIds.forEach(markRead)}
-                title="Mark all scheduled activity as read"
-              >
-                <Check size={14} /> Mark all as read
-              </button>
-            )}
-          </div>
-        </div>
+        <ScheduledToolbar
+          query={query}
+          filter={filter}
+          unreadCount={unreadIds.length}
+          onQueryChange={setQuery}
+          onFilterChange={setFilter}
+          onMarkAllRead={() => unreadIds.forEach(markRead)}
+        />
       )}
 
       <div className="scheduled-list">
         {totalEmpty ? (
-          <div className="empty-state">
-            <CalendarDots size={28} />
-            <b>No scheduled work</b>
-            <span>Start a repeating run when work should keep running on its own.</span>
-          </div>
+          <ScheduledEmptyState kind="empty" />
         ) : filtered.length === 0 ? (
-          <div className="empty-state">
-            <CalendarDots size={28} />
-            <b>Nothing here</b>
-            <span>
-              {ql
-                ? `No results for "${query.trim()}".`
-                : filter === "all"
-                  ? "No work matches this view."
-                  : `No ${filter} work matches this view.`}
-            </span>
-          </div>
+          <ScheduledEmptyState
+            kind={ql ? "search" : "filter"}
+            query={query}
+            filter={filter}
+          />
         ) : (
           visibleRows.map((r) => {
-            const isPinned = pinned.includes(r.id);
-            const isArchived = archived.includes(r.id);
-            const hasActions = r.kind === "session" || r.running;
-            const openMenu = (x: number, y: number) => setCtx({ x, y, key: r.key });
             return (
-            <Fragment key={r.key}>
-            <div
-              className={
-                "scheduled-row-wrap relative" +
-                (r.unread ? " is-unread" : "") +
-                (isArchived ? " is-archived" : "") +
-                (ctx?.key === r.key ? " menu-open" : "")
-              }
-              onContextMenu={(e) => {
-                if (!hasActions) return;
-                e.preventDefault();
-                openMenu(e.clientX, e.clientY);
-              }}
-            >
-            <button
-              className={
-                // SCH-ICON-TOP: the leading glyph anchors the row's left column;
-                // it must ride the TITLE'S FIRST LINE (Codex gold), not float to
-                // the vertical middle of a two-line title. items-start tops the
-                // glyph slot with the title; the glyph's own -mt below optically
-                // centres its 28px ring on the 20px first line.
-                "scheduled-row w-full items-start pr-14" +
-                (r.unread ? " is-unread" : "") +
-                // SCH-ICON: settled / dormant rows step back a shade — title
-                // included — so the rows that are still ticking are the ones the
-                // eye lands on first.
-                (isQuiet(r) ? " is-quiet" : "")
-              }
-              onClick={(e) => r.onClick(e.currentTarget)}
-              onKeyDown={(e) => {
-                // Same keyboard affordance the sidebar rows carry: the menu is
-                // reachable without a right mouse button.
-                if (!((e.shiftKey && e.key === "F10") || e.key === "ContextMenu")) return;
-                if (!hasActions) return;
-                e.preventDefault();
-                const rect = e.currentTarget.getBoundingClientRect();
-                openMenu(rect.left + 20, rect.top + rect.height);
-              }}
-              // SC-13: the derived name is what the row SHOWS; the raw prompt is
-              // one hover away, so nothing is hidden — only unshouted.
-              title={[r.full, `${r.cadence}${r.when ? ` · ${r.when}` : ""}`, r.project].filter(Boolean).join("\n")}
-            >
-              {/* SCH-ICON: EVERY row carries a leading glyph. The settled rows
-                  used to render an empty slot (SC-16, which was right to strip
-                  their amber and wrong to leave nothing behind): the column kept
-                  the icon's width, so a finished row read as one whose icon had
-                  failed to load, and the page could not answer its own question —
-                  which of these are still ticking? — without reading every
-                  sub-line. The glyph is now the row's anchor, chosen from the
-                  state the row ALREADY computes, so it cannot disagree with the
-                  words next to it. Neutral gray throughout; the alert colour
-                  stays scarce and keeps meaning exactly what SC-10 made it mean. */}
-              <span
-                className={"sched-glyph -mt-1" + (r.alert ? ` sched-warn is-${r.status.cls}` : "")}
-                title={r.status.text}
-              >
-                {/* SC-19: 16px — the gold standard's ring is 13.5px of ink. */}
-                {glyphFor(r)}
-              </span>
-              <span className="scheduled-copy flex min-w-0 flex-col gap-0.5">
-                {/* SC-13 — the row shows the derived NAME (short, scannable), one
-                    line, exactly as its own title= comment and scheduledTitle.ts
-                    promise. Codex names rows in 2–4 words on a single line; the
-                    raw prompt stays one hover away (title=) and fully searchable.
-                    A brief detour rendered the un-truncated prompt across two
-                    clamped lines ("use available mobile width"), which reproduced
-                    the very paragraph-wall SC-13 was built to prevent — near-
-                    identical rows could not be told apart at a glance. */}
-                <b className="min-w-0 truncate leading-5 font-semibold">{r.title}</b>
-                <span
-                  className="sched-sub block min-w-0 truncate leading-4"
-                  title={[r.cadence, r.alert || r.when].filter(Boolean).join(" · ")}
-                >
-                  <span className="sched-cadence">{r.cadence}</span>
-                  {/* SC-4: two facts, as Codex has them — the rhythm and the
-                      next tick. The project used to ride along as a third
-                      segment, which made every sub-line a run-on and gave the
-                      one live fact nothing to stand out from. It stays
-                      searchable (r.meta), just not shouted.
-
-                      SC-10: when the series is BROKEN, its state is the second
-                      fact — it takes the next-run slot, because there is no next
-                      run and saying nothing is what let a four-hours-dead
-                      "Every 30m" driver pass for healthy. The last-ran stamp
-                      keeps the emphasis off the tooltip. */}
-                  {r.alert ? (
-                    <>
-                      {" · "}
-                      <span className={`sched-warn is-${r.status.cls}`} title={r.when || undefined}>
-                        {r.alert}
-                      </span>
-                    </>
-                  ) : (
-                    r.when && (
-                      <>
-                        {" · "}
-                        <span className={r.isNext ? "sched-next" : undefined}>{r.when}</span>
-                      </>
-                    )
-                  )}
-                </span>
-              </span>
-              {/* SC-14: the project, named only when the query is what put this row
-                  on screen. A quiet chip, not a third sub-line fact. */}
-              {projectHit(r) && <span className="sched-project-chip">{r.project}</span>}
-              {/* RS-3: the unread dot lives at the row's far right — the left column
-                  is the status column, the right end is "there is something new".
-                  Always rendered (empty when read) so the copy column keeps one
-                  width and the titles never shift. A pinned row says so here too,
-                  so Pin from the menu has a visible effect on this screen. */}
-              <span className="sched-trail" aria-hidden="true">
-                {isPinned && <PushPin className="sched-pinned" size={12} weight="fill" />}
-                {r.unread && <span className="sched-unread" title="New activity" />}
-              </span>
-            </button>
-            {/* SC-12 — the row's actions. The button is invisible at rest and
-                appears on hover/focus, in a lane the row always reserves, so it
-                can never nudge the title or the trail. */}
-            {hasActions && <button
-              className="sched-more absolute right-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg border-0 bg-transparent hover:bg-panel-2"
-              aria-label={`Actions for ${r.title}`}
-              aria-haspopup="menu"
-              title="Run actions"
-              onClick={(e) => {
-                e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                openMenu(rect.right - 8, rect.bottom + 4);
-              }}
-            >
-              <DotsThree size={18} weight="bold" />
-            </button>}
-            </div>
-            </Fragment>
+              <ScheduledRunItem
+                key={r.key}
+                row={r}
+                pinned={pinned.includes(r.id)}
+                archived={archived.includes(r.id)}
+                menuOpen={ctx?.key === r.key}
+                showProjectHit={projectHit(r)}
+                onOpenMenu={(x, y) => setCtx({ x, y, key: r.key })}
+              />
             );
           })
         )}
@@ -1088,51 +827,30 @@ export function Scheduled() {
       </div>
 
       {menuRow && ctx && (
-        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-          <MenuLabel>{menuRow.title}</MenuLabel>
-          {/* A run row and a driver-session row are different objects: pin /
-              rename / archive / unread are session-scoped store state, and a run
-              has none of it. Offer each row only what actually acts on it —
-              a menu of no-ops is worse than no menu. */}
-          {menuRow.kind === "session" ? (
-            <>
-              {/* SC-17/INC-83 — the actions act on the SERIES itself, above the
-                  housekeeping: Resume only for a genuinely broken series,
-                  Retry while there is a live series to retry, and Cancel — the
-                  series' own domain terminal, not a session lifecycle verb. */}
-              {menuRow.scheduleControl && menuRow.paused ? (
-                <MenuItem onClick={() => void act.cadence(menuRow.id, "resume")}>Resume</MenuItem>
-              ) : menuRow.recover ? (
-                <MenuItem onClick={() => void act.resume(menuRow.id)}>Resume</MenuItem>
-              ) : menuRow.scheduleControl && !menuRow.settled ? (
-                <MenuItem onClick={() => void act.cadence(menuRow.id, "pause")}>Pause</MenuItem>
-              ) : null}
-              {!menuRow.paused && !menuRow.settled && <MenuItem onClick={() => void act.retry(menuRow.id)}>Retry</MenuItem>}
-              {!menuRow.paused && !menuRow.settled && (
-                <MenuItem
-                  danger
-                  title="no more iterations; the series records its cancelled terminal"
-                  onClick={() => act.cancel(menuRow.id)}
-                >
-                  Cancel series…
-                </MenuItem>
-              )}
-              <MenuLabel>Organize</MenuLabel>
-              <MenuItem onClick={() => togglePin(menuRow.id)}>{pinned.includes(menuRow.id) ? "Unpin" : "Pin"}</MenuItem>
-              <MenuItem onClick={() => openModal({ kind: "rename", sid: menuRow.id })}>Rename…</MenuItem>
-              <MenuItem onClick={() => (unread.includes(menuRow.id) ? markRead(menuRow.id) : markUnread(menuRow.id))}>
-                {unread.includes(menuRow.id) ? "Mark as read" : "Mark as unread"}
-              </MenuItem>
-              <MenuItem onClick={() => toggleArchive(menuRow.id)}>
-                {archived.includes(menuRow.id) ? "Unarchive" : "Archive"}
-              </MenuItem>
-            </>
-          ) : (
-            <>
-              {menuRow.running && <MenuItem onClick={() => void stopRun(menuRow.id)}>Stop</MenuItem>}
-            </>
-          )}
-        </ContextMenu>
+        <ScheduledRunActions
+          row={menuRow}
+          x={ctx.x}
+          y={ctx.y}
+          pinned={pinned.includes(menuRow.id)}
+          archived={archived.includes(menuRow.id)}
+          unread={unread.includes(menuRow.id)}
+          onClose={() => setCtx(null)}
+          onResume={() =>
+            void (menuRow.recover
+              ? act.resume(menuRow.id)
+              : act.cadence(menuRow.id, "resume"))}
+          onRetry={() => void act.retry(menuRow.id)}
+          onPause={() => void act.cadence(menuRow.id, "pause")}
+          onCancel={() => act.cancel(menuRow.id)}
+          onTogglePin={() => togglePin(menuRow.id)}
+          onRename={() => openModal({ kind: "rename", sid: menuRow.id })}
+          onToggleRead={() =>
+            unread.includes(menuRow.id)
+              ? markRead(menuRow.id)
+              : markUnread(menuRow.id)}
+          onToggleArchive={() => toggleArchive(menuRow.id)}
+          onStop={() => void stopRun(menuRow.id)}
+        />
       )}
       </main>
       {scheduledDetailSid && (

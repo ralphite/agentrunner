@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
 
 // Shortcuts is Codex's Keyboard-shortcuts reference: a searchable, grouped list
@@ -7,9 +7,14 @@ import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
 export function Shortcuts({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
     inputRef.current?.focus();
+    return () => {
+      if (previous?.isConnected) previous.focus();
+    };
   }, []);
 
   const groups = useMemo(() => {
@@ -28,18 +33,29 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="cmdk shortcuts" onKeyDown={(e) => e.key === "Escape" && onClose()}>
+      <div
+        className="cmdk shortcuts"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+      >
         <div className="sc-head">
-          <div className="sc-title">Keyboard shortcuts</div>
+          <div className="sc-title" id={titleId}>Keyboard shortcuts</div>
           <input
             ref={inputRef}
             className="cmdk-input sc-search"
+            aria-label="Search keyboard shortcuts"
             placeholder="Search shortcuts…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <div className="cmdk-list sc-list">
+        <div
+          className="cmdk-list sc-list"
+          aria-label="Keyboard shortcut list"
+          tabIndex={0}
+        >
           {groups.length === 0 && <div className="cmdk-empty">No matching shortcuts</div>}
           {groups.map((g) => (
             <div key={g.title} className="sc-group">

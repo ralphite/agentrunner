@@ -1,27 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Rows,
-  Columns,
-  MagnifyingGlass,
-  GitBranch,
-  GitCommit,
-  CaretDown,
   CaretRight,
   CaretUp,
   CaretUpDown,
-  ArrowClockwise,
-  ArrowsHorizontal,
-  ArrowsOutLineVertical,
-  ArrowsInLineVertical,
-  DotsThree,
-  TextAlignLeft,
-  TreeStructure,
-  Copy,
-  X,
-  FileDashed,
-  FileMagnifyingGlass,
-  FolderDashed,
-  ClockCounterClockwise,
+  CaretDown,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { isBinaryPath, pushErrorMessage } from "../api";
@@ -31,9 +13,11 @@ import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
-import { Popover, PopItem, PopSection } from "./Popover";
+import { DiffStateView, DiffToolbar } from "./DiffParts";
 import { useWorktreeActions } from "./worktreeActions";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+
+export { DiffSkeleton } from "./DiffParts";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
 // Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
@@ -61,12 +45,6 @@ const STATUS_GLYPH: Record<FileStatus, string> = {
 // squeezing the filename into `package-lock.js…`; only the badges the glyph
 // cannot carry ("binary", "mode changed") still earn their width.
 const GLYPH_BADGES = new Set(["new file", "deleted", "renamed", "copied"]);
-
-// INC-41 DF-D5 · the whole sentence the hidden-files note used to try (and fail)
-// to fit on one ellipsized line. It lives in the row's tooltip now; the row
-// itself states the two facts that fit.
-const HIDDEN_NOTE_TITLE =
-  "Untracked files that look generated — dependencies, build output — are omitted so the review stays responsive. Every source file remains visible.";
 
 // INC-41 RD-12 · what the file list needs to know about a file, read straight off
 // its metadata lines. `parseFileDiff` answers the same question — but it also
@@ -233,7 +211,7 @@ const fileCardClass = (edgeToEdge: boolean, untracked = false) =>
 // changed-file card, and after DF-3 so do we: tracked edits and untracked new
 // files render through this same summary (caret + M/A/D glyph + path + `+x −y`
 // + badges) and the same expandable body underneath.
-function FileHead({
+export function FileHead({
   path,
   status,
   add,
@@ -593,89 +571,22 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
     }
   };
 
-  const scopeControl = (
-    <Popover
-      panelClass="diff-scope-menu"
-      trigger={(open, toggle) => (
-        <button
-          ref={scopeTriggerRef}
-          className={"diff-scope-trigger inline-flex shrink-0 items-center gap-1 whitespace-nowrap" + (open ? " active" : "")}
-          onClick={toggle}
-          aria-label="Change diff scope"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          title="Choose which workspace changes to review"
-        >
-          {scope === "working-tree" ? "Working Tree" : "Last Turn"}
-          <CaretDown size={12} />
-        </button>
-      )}
-    >
-      {(close) => (
-        <PopSection label="Compare changes">
-          <PopItem
-            title="Working Tree"
-            desc="All uncommitted workspace changes"
-            active={scope === "working-tree"}
-            onClick={() => {
-              pickScope("working-tree");
-              close();
-            }}
-          />
-          <PopItem
-            title="Last Turn"
-            desc="Since the latest human turn began"
-            active={scope === "last-turn"}
-            onClick={() => {
-              pickScope("last-turn");
-              close();
-            }}
-          />
-        </PopSection>
-      )}
-    </Popover>
-  );
-
-  // INC-41 RV-1 · the panel's only chrome is this one row. The Changes title bar
-  // that used to sit above it (`.changes-panel-head`) was a second copy of the
-  // topbar's `Changes` pill, so it's gone and its ✕ moved here — Codex's review
-  // rail likewise opens straight onto the diff under a single toolbar.
-  //
-  // INC-41 RD-8 · it is also the panel's only exit, so it is the *last* thing on
-  // the bar and the one control that may never be shrunk, wrapped or pushed off
-  // the edge (`.diff-closebtn`, tw.css). Everything above it that could
-  // cost it its 28px stands down first.
-  const closeBtn = onClose ? (
-    <button
-      className="sm ghost diff-iconbtn diff-closebtn"
-      onClick={onClose}
-      aria-label="Close changes"
-      title="Close changes (back to the conversation)"
-    >
-      <X size={15} />
-    </button>
-  ) : null;
-
   const stateBar = (
-    <div className="diffbar diffbar-state">
-      {scopeControl}
-      <span className="spacer" />
-      <button className="sm ghost diff-iconbtn" onClick={load} aria-label="Refresh changes" title="Refresh changes">
-        <ArrowClockwise size={15} />
-      </button>
-      {closeBtn}
-    </div>
+    <DiffToolbar
+      variant="state"
+      scope={scope}
+      scopeTriggerRef={scopeTriggerRef}
+      onScopeChange={pickScope}
+      onRefresh={load}
+      onClose={onClose}
+    />
   );
 
   if (err)
     return (
       <div className="diffwrap">
         {stateBar}
-        <div className="diff-empty">
-          <b>Couldn’t load changes</b>
-          <span>{err}</span>
-          <button onClick={load}>Try again</button>
-        </div>
+        <DiffStateView state={{ kind: "error", message: err, onRetry: load }} />
       </div>
     );
   // INC-41 RVW-6 · the review loads the way the rest of the app does. This was a
@@ -687,7 +598,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
     return (
       <div className="diffwrap">
         {stateBar}
-        <DiffSkeleton />
+        <DiffStateView state={{ kind: "loading" }} />
       </div>
     );
 
@@ -695,12 +606,9 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
     return (
       <div className="diffwrap">
         {stateBar}
-        <div className="diff-empty">
-          <ClockCounterClockwise size={26} weight="light" />
-          <b>Last turn unavailable</b>
-          <span>{data.reason || "This session has no durable workspace baseline for its latest human turn."}</span>
-          <span className="dim">Working tree remains available for the session's current uncommitted changes.</span>
-        </div>
+        <DiffStateView
+          state={{ kind: "last-turn-unavailable", reason: data.reason }}
+        />
       </div>
     );
 
@@ -708,40 +616,27 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
     return (
       <div className="diffwrap">
         {stateBar}
-        <div className="diff-empty">
-          <FolderDashed size={26} weight="light" />
-          <b>Workspace unavailable</b>
-          <span>This session predates workspace metadata, so AgentRunner cannot reconstruct its changes view.</span>
-          <button onClick={load}>Try again</button>
-        </div>
+        <DiffStateView
+          state={{ kind: "workspace-unavailable", onRetry: load }}
+        />
       </div>
     );
   if (scope === "working-tree" && data.nested)
     return (
       <div className="diffwrap">
         {stateBar}
-        <div className="diff-empty">
-          <GitBranch size={26} weight="light" />
-          <b>Changes can't be tracked here yet</b>
-          <span>This session's workspace sits inside another repository, so its files aren't tracked on their own.</span>
-          <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
-            Track changes (git init)
-          </button>
-        </div>
+        <DiffStateView
+          state={{ kind: "nested", busy, onTrack: gitInit }}
+        />
       </div>
     );
   if (scope === "working-tree" && !data.isRepo)
     return (
       <div className="diffwrap">
         {stateBar}
-        <div className="diff-empty">
-          <GitBranch size={26} weight="light" />
-          <b>No Git changes to review</b>
-          <span>This session's workspace has no version control yet.</span>
-          <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
-            Track changes (git init)
-          </button>
-        </div>
+        <DiffStateView
+          state={{ kind: "non-repo", busy, onTrack: gitInit }}
+        />
       </div>
     );
 
@@ -815,455 +710,49 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
 
   return (
     <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
-      <div className="diffbar" ref={barRef}>
-        {/* DIFF-REVIEW-LABEL · a compact, non-interactive marker that this panel
-            *is* the review surface. Codex's diff header opens with a `Review`
-            pill; ours opened straight onto `Last Turn ▾ +932 −0 …` with nothing
-            naming the mode, so a user who clicked into changes had no cue they
-            were in "review". It is the first thing on the bar — and the *first*
-            to stand down when the bar goes tight (barTight): the ✕ and the
-            working controls own the width of a narrow panel (DF-1 / RD-8 / RV-1),
-            so the label only shows where there is room to spare (the ~658px 1440
-            panel), hidden entirely — never shrunk — below BAR_TIGHT_PX. `shrink-0`
-            so it never compresses the scope chip / counts beside it, and it sits
-            before {scopeControl} so it can give way without ever costing the ✕
-            its 28px. Mirrors the worktree chip's subtle pill (bg-panel-2 / border)
-            but reads in `text-ink` — it names the panel, so it carries a touch
-            more weight — and coordinates in both themes via the same tokens. */}
-        {!barTight && (
-          <span className="diff-review-label inline-flex shrink-0 items-center gap-[4px] whitespace-nowrap rounded-[5px] border border-line-2 bg-panel-2 px-[7px] py-[2px] text-[12px] font-medium text-ink">
-            <FileMagnifyingGlass size={13} weight="bold" className="shrink-0" />
-            Review
-          </span>
-        )}
-        {scopeControl}
-        {/* DF-6 · both numbers, always — Codex's toolbar reads `+649 -57`, and a
-            review with nothing deleted reads `+1 −0`, not a lone `+1`. The old
-            `> 0` guards meant the *same panel* stated its counts two different
-            ways: this bar dropped the zero half while every file header below it
-            (FileHead's `.fd-counts`, which never had a guard) kept it. Same
-            markup, same colors, same tabular spacing as those headers now. */}
-        {!empty && (
-          <span className="diff-summary">
-            <span className="add">+{totalAdd}</span>
-            <span className="del">-{totalDel}</span>
-          </span>
-        )}
-        {data.worktree && (
-          <span
-            // RV-1: nowrap — the badge used to wrap onto three lines inside the
-            // toolbar ("worktree of / agentrunner · / detached"), single-handedly
-            // pushing the bar past Codex's one-row height.
-            //
-            // DF-1: …and then, as an unshrinkable 195px sentence ("worktree of
-            // agentrunner · main"), it pushed the bar past the *panel* instead —
-            // the ✕ landed outside it. The repo name lives in the tooltip (and in
-            // the `…` menu's Apply/Remove lines) now; the chip states the two
-            // facts the review actually needs — this is a worktree, on this
-            // branch — and it is the one control allowed to give way, ellipsizing
-            // its branch as the panel narrows.
-            className="diff-wt-badge inline-flex min-w-0 items-center gap-[4px] whitespace-nowrap text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
-            title={
-              (data.mainRepo ? "Isolated worktree of " + data.mainRepo : "Isolated git worktree") +
-              (data.branch ? " · branch " + data.branch : " · detached HEAD")
-            }
-          >
-            <GitBranch size={12} className="shrink-0" />
-            {/* One truncating run, not several shrink-0 words: whatever width is
-                left, the chip ends in an ellipsis instead of a clipped glyph. */}
-            {!chipCompact && (
-              <span className="min-w-0 truncate">
-                worktree <span className="dim">· {data.branch || "detached"}</span>
-              </span>
-            )}
-          </span>
-        )}
-        <span className="spacer" />
-        {/* RV-1 · the low-frequency, workspace-level actions (refresh, and the
-            worktree's Apply / Remove) live behind one `…`, so the bar can no
-            longer wrap to a second row in a worktree session. DF-1 · Expand /
-            Collapse-all joined them: four resident controls (`…`, filter, split,
-            Commit or push) plus the ✕ is what a 658px panel can seat at 1440
-            without crushing anything — the same shape Codex's review header has. */}
-        <Popover
-          align="right"
-          panelClass="diff-more-menu"
-          trigger={(open, toggle) => (
-            <button
-              className={"sm ghost diff-iconbtn" + (open ? " active" : "")}
-              onClick={toggle}
-              aria-label="More changes actions"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              title="More actions"
-            >
-              <DotsThree size={18} weight="bold" />
-            </button>
-          )}
-        >
-          {(close) => (
-            <PopSection label="Changes">
-              {fileCount > 1 && (
-                <PopItem
-                  icon={allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
-                  title={allShownOpen ? "Collapse all files" : "Expand all files"}
-                  desc={allShownOpen ? "Fold every file down to its header" : "Open every file's diff"}
-                  onClick={() => {
-                    close();
-                    setAll(!allShownOpen);
-                  }}
-                />
-              )}
-              {/* RD-8 · on a tight bar these two are here instead of out there.
-                  Same actions, same wording, same state — a demotion, not a
-                  deletion: the bar sheds exactly the width it needs to keep its
-                  ✕ inside the panel, and nothing the user could do at 1440 has
-                  become impossible at 1024. */}
-              {barTight && !empty && (
-                <PopItem
-                  icon={wrap ? <TextAlignLeft size={15} /> : <ArrowsHorizontal size={15} />}
-                  title={wrap ? "Disable line wrap" : "Wrap long lines"}
-                  desc={wrap ? "Let long lines scroll horizontally again" : "Soft-wrap long diff lines so nothing is clipped"}
-                  onClick={() => {
-                    close();
-                    toggleWrap();
-                  }}
-                />
-              )}
-              {barTight && !empty && (
-                <PopItem
-                  icon={<Copy size={15} />}
-                  title="Copy diff"
-                  desc="Copy the whole unified diff to the clipboard"
-                  onClick={() => {
-                    close();
-                    void copyDiff();
-                  }}
-                />
-              )}
-              {/* DIFF-SPLIT-TOGGLE-GONE · the inline/split toggle demotes here too,
-                  pointing at the *other* view like the Wrap item points at the
-                  other wrap state — so split stays reachable on the 538–635px
-                  panels every mainstream laptop (1280–1512) renders, instead of
-                  being the one control that silently vanished. Guarded by
-                  `!narrow`, mirroring the resident split button's `disabled={narrow}`:
-                  a ≤900px window has no room for two columns and offers no door. */}
-              {barTight && !empty && !narrow && (
-                <PopItem
-                  icon={effView === "split" ? <Rows size={15} /> : <Columns size={15} />}
-                  title={effView === "split" ? "Inline view" : "Split view"}
-                  desc={
-                    effView === "split"
-                      ? "Show changes in one column"
-                      : "Show old and new side by side"
-                  }
-                  onClick={() => {
-                    close();
-                    setView(effView === "split" ? "inline" : "split");
-                  }}
-                />
-              )}
-              <PopItem
-                title="Refresh changes"
-                desc="Re-read the workspace diff"
-                onClick={() => {
-                  close();
-                  load();
-                }}
-              />
-              {scope === "working-tree" && data.worktree && data.mainRepo && (
-                <PopItem
-                  title="Apply to project…"
-                  desc={"Apply these changes back onto " + data.mainRepo + " (unstaged, for review)"}
-                  disabled={busy || empty}
-                  onClick={() => {
-                    close();
-                    applyBack(data.mainRepo!);
-                  }}
-                />
-              )}
-              {scope === "working-tree" && data.worktree && (
-                <PopItem
-                  title="Remove worktree…"
-                  desc="Delete this worktree checkout and prune it from git"
-                  danger
-                  disabled={busy}
-                  onClick={() => {
-                    close();
-                    removeWorktree();
-                  }}
-                />
-              )}
-            </PopSection>
-          )}
-        </Popover>
-        {/* DF-1 · the filter is an icon, not a permanently-open 150px input —
-            Codex's review header does the same. As a resident input it was the
-            second-largest thing on a bar that already didn't fit, and flexbox
-            paid for it by crushing the split/unified toggle to 2px and shoving
-            the ✕ out of the panel. The field opens in a popover, where it has
-            room; the trigger stays lit while a query is filtering the list, so a
-            filtered review can never look like an empty one.
-
-            INC-41 RD-12 · …and behind that icon there is now the thing the review
-            was missing outright: *which files did this change touch*. Ours could
-            only ever answer "which files match what I type" — you had to already
-            know a path to find it, in a rail whose whole job is telling you what
-            you don't know yet. The golden's review header carries a file-tree
-            button listing every changed file with its `+N −M`, and a click walks
-            the review to that file. So does this: the same popover, upgraded from
-            a filter into an index that happens to be filterable (the input still
-            drives `fileQuery`, so it still narrows the panel below — one control,
-            two jobs, and no new resident on a bar that has none to spare, DF-1 /
-            RD-8). The `N generated files hidden` note used to be the review's
-            *first line* — the first thing you read about a diff was what wasn't in
-            it — and it is this list's footnote now, where a fact about the file
-            list belongs. */}
-        {(fileCount > 1 || hiddenUntracked > 0) && (
-          <Popover
-            align="right"
-            panelClass="diff-files-menu"
-            trigger={(open, toggle) => (
-              <button
-                className={"sm ghost diff-iconbtn" + (open || fileQuery ? " active" : "")}
-                onClick={toggle}
-                aria-label="Changed files"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                title={
-                  fileQuery
-                    ? "Changed files — filtering by “" + fileQuery + "”"
-                    : "Changed files — jump to one, or filter the review"
-                }
-              >
-                <TreeStructure size={15} />
-              </button>
-            )}
-          >
-            {(close) => (
-              <>
-                <PopSection label={q ? `${shownCount} of ${fileCount} files match` : `${fileCount} files changed`}>
-                  <label className="mx-[6px] flex items-center gap-[6px] rounded-[8px] border border-line bg-panel px-[9px] py-[5px] text-dim focus-within:border-[var(--rs-accent)]">
-                    <MagnifyingGlass size={13} className="shrink-0" />
-                    <input
-                      data-popover-autofocus
-                      className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] text-ink outline-none"
-                      value={fileQuery}
-                      onChange={(e) => setFileQuery(e.target.value)}
-                      placeholder="Filter files…"
-                      aria-label="Filter files by path"
-                    />
-                  </label>
-                  {shown.length === 0 ? (
-                    <div className="diff-filelist-empty">No changed file’s path contains “{fileQuery}”.</div>
-                  ) : (
-                    <div className="diff-filelist">
-                      {/* RD-12 · the review's table of contents — and RVW-ORDER · it
-                          indexes `shown`, the very array the stream below renders,
-                          so the list reads top-to-bottom like the thing it points
-                          at. An untracked file's `+N` is only knowable once its
-                          blob is in hand, so it says `+…` rather than inventing a
-                          number — and a binary file, tracked or untracked, says
-                          nothing at all, exactly as its header does (DF-D3). */}
-                      {shown.map((f) => {
-                        const { dir, base } = splitPath(f.path);
-                        return (
-                          <button
-                            key={f.path}
-                            type="button"
-                            role="menuitem"
-                            className="diff-fileitem mono"
-                            title={f.path}
-                            onClick={() => {
-                              close();
-                              focusFile(f.path);
-                            }}
-                          >
-                            <span className={"fd-glyph fd-glyph-" + f.status} aria-hidden="true">
-                              {STATUS_GLYPH[f.status]}
-                            </span>
-                            <span className="diff-fileitem-path">
-                              {dir && <span className="fd-dir">{dir}</span>}
-                              <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
-                            </span>
-                            {f.conflict && <span className="fd-badge conflict">conflict</span>}
-                            {!f.binary && (
-                              <span className="fd-counts">
-                                <span className="add">+{f.add === null ? "…" : f.add}</span>
-                                <span className="del">-{f.del}</span>
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </PopSection>
-                {/* INC-41 DF-D5 / RD-12 · the hidden-files note, in its right place.
-                    It is a fact *about this list* ("…and these ones aren't in it"),
-                    not the headline of the review, so it reads as the list's
-                    footnote instead of the band that used to sit above the first
-                    file. Same sentence, same tooltip, same count — one flight of
-                    stairs down. */}
-                {hiddenUntracked > 0 && (
-                  <div className="diff-hidden-note" title={HIDDEN_NOTE_TITLE}>
-                    <b>{hiddenUntracked.toLocaleString()} generated files hidden</b>
-                    <span>Source files all still shown.</span>
-                  </div>
-                )}
-              </>
-            )}
-          </Popover>
-        )}
-        {/* INC-41 RVW-3 · the way out of the panel. Codex's review header carries
-            a copy icon; ours carried none — not in the bar, not in `…`, not per
-            file — while every fenced code block in the conversation *right next
-            to it* has had a Copy button all along. The most common thing done
-            with a diff you've just read is pasting it into an issue or a message,
-            and the only way to do that was dragging a selection across a
-            virtualized grid. One button, the whole unified diff, same `copyText`
-            + toast contract as Markdown's CodeBlock. (RD-8 · on a tight bar it
-            moves into `…` — see BAR_TIGHT_PX.) */}
-        {!empty && !barTight && (
-          <button
-            className="sm ghost diff-iconbtn"
-            onClick={() => void copyDiff()}
-            aria-label="Copy diff"
-            title="Copy the whole diff to the clipboard"
-          >
-            <Copy size={15} />
-          </button>
-        )}
-        {/* DF-4 · the Wrap switch. Same two icons, same wording, same aria-pressed
-            contract as the conversation's code blocks (Markdown.tsx CodeBlock) —
-            it was absurd that a fenced snippet in the chat could soft-wrap while
-            the review, where long lines actually hurt, hard-clipped them behind a
-            per-file scrollbar. Icon-only here because DF-1's whole point was that
-            this bar has no spare width; the label lives in the tooltip. RD-8 ·
-            and when even that is more width than the bar has, it stands down
-            into `…` with Copy — the preference is untouched, only its door
-            moves. */}
-        {!empty && !barTight && (
-          <button
-            className={"sm ghost diff-iconbtn diff-wrap-btn" + (wrap ? " active" : "")}
-            onClick={toggleWrap}
-            aria-label="Wrap long lines"
-            aria-pressed={wrap}
-            title={wrap ? "Disable line wrap" : "Wrap long lines"}
-          >
-            {wrap ? <TextAlignLeft size={15} /> : <ArrowsHorizontal size={15} />}
-          </button>
-        )}
-        {/* DIFF-CP · …and on a tight bar the toggle itself goes. Offering "split"
-            for a 415px panel was offering two ~190px columns of code — the very
-            crush D4 wrote this control's `narrow` rule to prevent, which it then
-            measured on the window and so never saw. The view is inline there
-            (effView), so the toggle would have had nothing left to toggle. */}
-        {!empty && !barTight && (
-          <div className="diff-viewtoggle" role="group" aria-label="Diff layout">
-            <button
-              className={"sm icon" + (effView === "inline" ? " sel" : "")}
-              onClick={() => setView("inline")}
-              title="Inline view"
-              aria-pressed={effView === "inline"}
-            >
-              <Rows size={14} />
-            </button>
-            <button
-              className={"sm icon" + (effView === "split" ? " sel" : "")}
-              onClick={() => setView("split")}
-              disabled={narrow}
-              title={narrow ? "Split view needs a wider window" : "Split view"}
-              aria-pressed={effView === "split"}
-            >
-              <Columns size={14} />
-            </button>
-          </div>
-        )}
-        {/* INC-41 DIFF-CP · the review's main exit, resident.
-            Codex's review header ends in one outlined `⊸ Commit or push ⌄`, and
-            for good reason: the next thing you do after reading a diff is commit
-            it. Ours already looked like that button — but it was gated on
-            `scope === "working-tree"`, and RVW-4 had just made `last-turn` the
-            *default* scope. So on the screen the user actually lands on, the
-            panel's primary action did not exist: not in the bar, and not in `…`
-            either (Apply/Remove are working-tree-gated too, so the overflow held
-            nothing but Refresh). The commit itself was never scope-dependent —
-            api.commit stages the workspace, which is the same workspace whichever
-            diff you happen to be reading — so the gate was protecting nothing.
-            It is resident now, in every scope, and states its own unavailability
-            (disabled) instead of vanishing, exactly as the golden's greyed-out
-            button does next to its `Last Turn` chip. */}
-        <Popover
-          align="right"
-          panelClass="w-[264px] max-w-[calc(100vw-24px)]"
-          trigger={(open, toggle) => (
-            <button
-              className={
-                "sm diff-commit-btn" + (open ? " active" : "") + (barTight ? " diff-commit-compact" : "")
-              }
-              onClick={toggle}
-              // A clean tree has nothing to commit, but it can still have local
-              // commits to push. Keep the group reachable and disable only its
-              // two commit rows; disabling this trigger made the resident Push
-              // action impossible exactly after a local-only commit.
-              disabled={busy || !data?.isRepo}
-              aria-label="Commit or push"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              title={
-                !data?.isRepo
-                  ? "This workspace is not a Git repository"
-                  : conflicts.length > 0
-                    ? "Resolve merge conflicts before committing — Push remains available"
-                  : empty
-                    ? "No workspace changes to commit — you can still push existing commits"
-                  : "Commit or push the workspace changes"
-              }
-            >
-              <GitCommit size={14} />
-              {!barTight && (
-                <>
-                  Commit or push
-                  <CaretDown size={12} className="diff-commit-caret" />
-                </>
-              )}
-            </button>
-          )}
-        >
-          {(close) => (
-            <PopSection label="Commit or push">
-              <PopItem
-                title="Commit"
-                desc={conflicts.length > 0 ? "Resolve merge conflicts before committing" : "git add -A && git commit locally (no push)"}
-                disabled={empty || conflicts.length > 0}
-                onClick={() => {
-                  close();
-                  commit();
-                }}
-              />
-              <PopItem
-                title="Commit &amp; push"
-                desc={conflicts.length > 0 ? "Resolve merge conflicts before committing" : "Commit locally, then push to the upstream branch"}
-                disabled={empty || conflicts.length > 0}
-                onClick={() => {
-                  close();
-                  commitAndPush();
-                }}
-              />
-              <PopItem
-                title="Push"
-                desc="Push existing commits to the upstream branch"
-                onClick={() => {
-                  close();
-                  void doPush();
-                }}
-              />
-            </PopSection>
-          )}
-        </Popover>
-        {closeBtn}
-      </div>
+      <DiffToolbar
+        variant="ready"
+        barRef={barRef}
+        scope={scope}
+        scopeTriggerRef={scopeTriggerRef}
+        onScopeChange={pickScope}
+        onRefresh={load}
+        onClose={onClose}
+        barTight={barTight}
+        empty={empty}
+        totalAdd={totalAdd}
+        totalDel={totalDel}
+        worktree={!!data.worktree}
+        mainRepo={data.mainRepo}
+        branch={data.branch}
+        chipCompact={chipCompact}
+        files={shown}
+        fileCount={fileCount}
+        query={fileQuery}
+        hiddenUntracked={hiddenUntracked}
+        allShownOpen={allShownOpen}
+        narrow={narrow}
+        view={effView}
+        wrap={wrap}
+        busy={busy}
+        isRepo={data.isRepo}
+        conflictCount={conflicts.length}
+        onQueryChange={setFileQuery}
+        onFocusFile={focusFile}
+        onToggleAll={() => setAll(!allShownOpen)}
+        onToggleWrap={toggleWrap}
+        onCopy={() => void copyDiff()}
+        onToggleView={() =>
+          setView(effView === "split" ? "inline" : "split")
+        }
+        onApplyProject={() =>
+          data.mainRepo && applyBack(data.mainRepo)
+        }
+        onRemoveWorktree={removeWorktree}
+        onCommit={commit}
+        onCommitAndPush={commitAndPush}
+        onPush={() => void doPush()}
+      />
       {conflicts.length > 0 && (
         <div className="diff-conflict-note" role="status">
           <WarningCircle size={16} weight="fill" />
@@ -1277,27 +766,16 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
           empty-state language (icon + title + one line of guidance) via the
           shared `.diff-empty` shape — a bare grey sentence was the odd one out. */}
       {empty && (
-        <div className="diff-empty">
-          <FileDashed size={26} weight="light" />
-          {scope === "last-turn" ? (
-            <>
-              <b>No changes this turn</b>
-              <span>The agent hasn't touched the workspace since the latest human turn began.</span>
-            </>
-          ) : (
-            <>
-              <b>No changes yet</b>
-              <span>Edits the agent makes to the workspace will show up here.</span>
-            </>
-          )}
-        </div>
+        <DiffStateView state={{ kind: "empty", scope }} />
       )}
       {!empty && q && shownCount === 0 && (
-        <div className="diff-empty">
-          <FileMagnifyingGlass size={26} weight="light" />
-          <b>No matching files</b>
-          <span>No changed file’s path contains “{fileQuery}”. Clear the filter to see all {fileCount} of them.</span>
-        </div>
+        <DiffStateView
+          state={{
+            kind: "no-matches",
+            query: fileQuery,
+            fileCount,
+          }}
+        />
       )}
       {/* INC-41 RD-12 · the review opens on the *first file*. What used to be here
           — `N generated files hidden`, full-bleed, above everything — meant the
@@ -1382,47 +860,6 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   );
 }
 
-// INC-41 RVW-6 · DiffSkeleton — what the review looks like before it has loaded.
-//
-// The shape it is about to become: file headers (glyph, path, counts) over a
-// line-numbered grid, in the panel's own geometry — so the diff resolves *into*
-// the skeleton instead of replacing a centred grey sentence with a wall of code.
-// Three file cards (the last folded, as most reviews have one) and twelve rows,
-// which is roughly what the 658px panel shows above the fold; the code bars are
-// staggered so the block reads as text rather than as a progress bar.
-const SKEL_FILES: { path: number; rows: number[] }[] = [
-  { path: 152, rows: [74, 46, 62, 38, 84, 54, 30] },
-  { path: 108, rows: [58, 80, 42, 66, 34] },
-  { path: 176, rows: [] },
-];
-
-function DiffSkeleton() {
-  return (
-    <div className="diff-skeleton" role="status" aria-label="Loading changes">
-      {SKEL_FILES.map((f, i) => (
-        <div className="dsk-file" key={i}>
-          <div className="dsk-head">
-            <span className="dsk-bar dsk-glyph" />
-            <span className="dsk-bar dsk-path" style={{ width: f.path }} />
-            <span className="dsk-bar dsk-counts" />
-          </div>
-          {f.rows.length > 0 && (
-            <div className="dsk-body">
-              {f.rows.map((w, r) => (
-                <div className="dsk-row" key={r}>
-                  <span className="dsk-bar dsk-marker" />
-                  <span className="dsk-bar dsk-no" />
-                  <span className="dsk-bar dsk-code" style={{ width: w + "%" }} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // INC-41 DF-3 · UntrackedFile — a new file that never reached `git diff`.
 //
 // The backend already inlines every small text file it finds as a synthetic
@@ -1433,7 +870,7 @@ function DiffSkeleton() {
 // disclosure — with their body read from the workspace on demand (api.blob, the
 // endpoint the "N unmodified lines" bands already use) and rendered as what it
 // is: a file made entirely of added lines.
-function UntrackedFile({
+export function UntrackedFile({
   sid,
   path,
   effView,
@@ -1550,7 +987,7 @@ function UntrackedFile({
 // revealed region's header collapses it again. The split view keeps the plain
 // hunk-separator rendering (its paired-column model has no per-row anchor to
 // hang a band on), so context expansion lives in the default inline layout.
-function FileBody({
+export function FileBody({
   sid,
   path,
   parsed,
@@ -1701,7 +1138,7 @@ function FileBody({
             // RVW-HUNKBAND · the @@ context (enclosing function/section) rides
             // *inside* the fold band as a secondary, dimmer tail — Codex shows one
             // grey band per gap, not a fold band stacked on a `.dl-hunk` heading.
-            <span className="fd-gap-context ml-2 text-[11px] opacity-70">{context}</span>
+            <span className="fd-gap-context ml-2 text-[11px] text-dim">{context}</span>
           ) : null}
         </span>
       </button>
