@@ -16,7 +16,7 @@ import {
   RunLocationPicker,
   SlashCommandMenu,
   SubmitButton,
-} from "../../components/ComposerParts";
+} from "./ComposerParts";
 import { Textarea } from "../../ui/Field";
 import {
   GoalLoopLauncher,
