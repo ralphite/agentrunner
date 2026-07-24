@@ -412,13 +412,16 @@
   .section-toggle { @apply w-full rounded-[7px] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
-  /* Project name owns the full text track. When two groups collide on the
-     same basename, a short de-noised parent-path hint rides one dim line
-     below the name (W20) so the rail never reads as a duplicate. Non-twin
-     repos have no hint → no second line → single-row rhythm unchanged. */
-  .proj-heading-text { @apply flex min-w-0 flex-1 flex-col text-left; }
+  /* Repo heading lays the name and its disambiguation hint INLINE on a single
+     row (Codex single-row rhythm). When two groups collide on the same
+     basename, a short de-noised parent-path hint (W20) rides dim right after
+     the name so the rail never reads as a duplicate. The name truncates with
+     ellipsis when the row is narrow; the hint keeps its intrinsic width
+     (shrink-0). Non-twin repos have no hint → just the name → identical
+     single-row layout. */
+  .proj-heading-text { @apply flex min-w-0 flex-1 flex-row items-baseline gap-[6px] text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
-  .proj-heading-hint { @apply min-w-0 truncate text-[11px] leading-tight text-dim; }
+  .proj-heading-hint { @apply min-w-0 shrink-0 truncate text-[11px] leading-tight text-dim; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
