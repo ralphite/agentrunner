@@ -681,13 +681,13 @@ const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-home":
     "185b48f2887973bffd37876a59e6b617cf150ff0034f6bc8bf701ba583d23434",
   "components-input":
-    "a6cfb5621aa720b7c7b2caec8846535e0c07febf47b5b5895d55f56ee9e7cda8",
+    "caa6db1c52c8fcdc65643ee055c244d7e4ff943151908a6ca6682cfa921eb19c",
   "components-media":
     "8c4e3c5047195658cc7707e93064ad33171d4c4d2f1af5877996d71b8a1fb033",
   "components-navigation":
     "78fb1a2a52c602afb68894cca21bc324af22f69d439890863be8fe06e8585c86",
   "components-overlays":
-    "9cd10625d779562ef3969359d545190321573795a498cac2d0e42ea261066106",
+    "f0f5d0dc1655d868e5f28eaa128015bfe779881b0e1896d25fed95e99b4baeba",
   "components-runs":
     "fd27e026779c6209f19f882b735b423faf0a28d0c0b41e3d9bd60f771d5e285e",
   "components-scheduled":
@@ -833,9 +833,9 @@ export const storyReviewFamilies = [
     "Components/Input",
     "GAP",
     "UNTESTED",
-    "Model Picker compact-canvas containment and drill-in chevrons are fixed. The family remains GAP: Project Picker still clips footer actions in short mobile viewports, several Composer controls miss 44px touch geometry, long attachments can crowd out the action bar, and async failure states need honest recovery UI.",
+    "Model Picker and Project Picker compact-canvas containment are fixed. Project Picker now keeps search and footer actions visible around one independently scrolling result list, uses 44px mobile/coarse-pointer targets, contains long CJK paths, and preserves open, Back, selection, and Escape focus return. The family remains GAP: several other Composer controls miss 44px touch geometry, long attachments can crowd out the action bar, and async failure states need honest recovery UI.",
     "CODEX-PARITY NS input rows contain mixed PASS/GAP/UNTESTED states; no family-wide PASS is claimed.",
-    "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
+    "Fresh Project Picker design, interaction, and code review at 390x500, 390x844, and 1280x800: panel margins stay >=8px; search, trigger, New project, projectless, and Back meet 44px on mobile; panel scroll is zero while the 14-row list scrolls; long English/CJK labels truncate; document overflow and browser console errors are zero; Storybook 67/67 and shared-runtime focus-chain checks pass. Evidence: 11-after-component-local-390x500.png, 10-after-long-overflow-390x844.png, 12-after-desktop-recent-1280x800.png, 13-real-shared-runtime-390x500.png. Fresh visual and code reviewers APPROVE with P0/P1/P2=0.",
     "2026-07-24",
   ),
   reviewedFamily(
@@ -843,9 +843,9 @@ export const storyReviewFamilies = [
     "Components/Overlays",
     "GAP",
     "UNTESTED",
-    "Model Picker now remains within a 389x160 viewport without hidden scrolling. The family remains GAP: pointer-open focus, roving menu focus, Tab dismissal, dialog-popover containment, and Project Picker short-viewport footer behavior do not yet satisfy the declared overlay contract.",
+    "Model Picker remains within a 389x160 viewport, and Project Picker now keeps its persistent actions reachable in short mobile viewports with only the result list scrolling. The family remains GAP: pointer-open focus, roving menu focus, Tab dismissal, and dialog-popover containment do not yet satisfy the declared overlay contract.",
     "Only selected overlay journeys have same-state Codex evidence; family parity remains UNTESTED.",
-    "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
+    "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Project Picker passed 390x500 and 390x844 containment/focus review; remaining gaps are the shared focus-model contracts.",
     "2026-07-24",
   ),
   reviewedFamily(

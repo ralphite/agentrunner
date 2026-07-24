@@ -252,12 +252,23 @@ const longProjectLabel =
   "agentrunner-with-an-intentionally-long-project-name-that-must-truncate";
 const manyProjects = Array.from({ length: 14 }, (_, index) => ({
   workspace: `/workspace/very/deep/team/repository-${index}`,
-  label: index === 0 ? longProjectLabel : `repository-${index}`,
-  subtitle: "~/workspace/very/deep/team",
+  label:
+    index === 0
+      ? longProjectLabel
+      : index === 1
+        ? "一个很长的中文项目名称也必须在窄屏中正确截断"
+        : `repository-${index}`,
+  subtitle:
+    index === 1
+      ? "~/工作区/非常深的团队目录/同样很长且不能撑破面板"
+      : "~/workspace/very/deep/team",
   active: index === 0,
 }));
 
 export const ProjectPickerLongOverflow: Story = {
+  globals: {
+    viewport: { value: "phone", isRotated: false },
+  },
   render: () => (
     <StorySurface>
       <ProjectPickerHarness
@@ -269,14 +280,47 @@ export const ProjectPickerLongOverflow: Story = {
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, longProjectLabel);
     const page = body(canvasElement);
+    const trigger = within(canvasElement).getByRole("button", {
+      name: longProjectLabel,
+    });
     const dialog = page.getByRole("dialog", { name: "Project picker" });
     const list = dialog.querySelector<HTMLElement>(".cx-project-list");
     const title = within(dialog).getByText(longProjectLabel);
+    const search = page.getByRole("textbox", { name: "Search projects" });
+    const newProject = page.getByRole("button", { name: "New project" });
+    const projectless = page.getByRole("button", {
+      name: "Don't work in a project",
+    });
+
+    // The Story runs in the existing phone viewport; reduce only the panel's
+    // available height to reproduce the keyboard-compressed 390x500 geometry
+    // without adding a global viewport or changing production positioning.
+    dialog.style.maxHeight = "260px";
     await expect(title).toBeVisible();
     await waitFor(() =>
       expect(list!.scrollHeight).toBeGreaterThan(list!.clientHeight),
     );
     await expect(title.scrollWidth).toBeGreaterThan(title.clientWidth);
+    await waitFor(() => expect(dialog.scrollHeight).toBe(dialog.clientHeight));
+
+    const panelRect = dialog.getBoundingClientRect();
+    const viewport = dialog.ownerDocument.documentElement;
+    expect(panelRect.left).toBeGreaterThanOrEqual(8);
+    expect(panelRect.top).toBeGreaterThanOrEqual(8);
+    expect(panelRect.right).toBeLessThanOrEqual(viewport.clientWidth - 8);
+    expect(panelRect.bottom).toBeLessThanOrEqual(viewport.clientHeight - 8);
+    for (const control of [
+      search.closest("label")!,
+      newProject,
+      projectless,
+    ]) {
+      const rect = control.getBoundingClientRect();
+      expect(rect.top).toBeGreaterThanOrEqual(panelRect.top);
+      expect(rect.bottom).toBeLessThanOrEqual(panelRect.bottom);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(trigger.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(viewport.scrollWidth).toBe(viewport.clientWidth);
   },
 };
 

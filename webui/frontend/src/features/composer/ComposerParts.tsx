@@ -117,7 +117,10 @@ export function ProjectPicker({
       ariaLabel="Project picker"
       trigger={(open, toggle) => (
         <button
-          className={"cx-env-control project" + (open ? " active" : "")}
+          className={
+            "cx-env-control project max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11" +
+            (open ? " active" : "")
+          }
           onClick={toggle}
           title="Select project"
           aria-haspopup="dialog"
@@ -129,14 +132,17 @@ export function ProjectPicker({
           </span>
         </button>
       )}
-      panelClass="cx-project-popover"
+      panelClass="cx-project-popover flex !overflow-hidden"
       onOpen={onOpen}
     >
       {(close) => (
-        <div className="cx-menu project-menu" ref={pageRef}>
+        <div
+          className="cx-menu project-menu flex min-h-0 flex-1 flex-col overflow-hidden"
+          ref={pageRef}
+        >
           {page === "projects" ? (
             <>
-              <label className="cx-project-search">
+              <label className="cx-project-search shrink-0 max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11">
                 <MagnifyingGlass size={16} />
                 <Input
                   variant="unstyled"
@@ -147,7 +153,7 @@ export function ProjectPicker({
                   onChange={(event) => onQueryChange(event.target.value)}
                 />
               </label>
-              <div className="cx-project-list max-h-[180px] overflow-y-auto pb-[4px] border-b border-line-2">
+              <div className="cx-project-list min-h-0 max-h-[180px] shrink overflow-y-auto overscroll-contain pb-[4px] border-b border-line-2">
                 {projects.map((project) => (
                   <PopItem
                     key={project.workspace}
@@ -155,6 +161,7 @@ export function ProjectPicker({
                     title={project.label}
                     desc={project.subtitle}
                     active={project.active}
+                    className="max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11 [&_.pop-desc]:min-w-0 [&_.pop-desc]:truncate"
                     onClick={() => {
                       onSelect(project.workspace);
                       close();
@@ -165,23 +172,27 @@ export function ProjectPicker({
                   <div className="pop-empty">No projects found</div>
                 )}
               </div>
-              <PopSection>
-                <PopItem
-                  icon={<Plus size={16} />}
-                  title="New project"
-                  right={<span aria-hidden>›</span>}
-                  onClick={onShowNew}
-                />
-                <PopItem
-                  icon={<X size={15} />}
-                  title="Don't work in a project"
-                  active={!selected}
-                  onClick={() => {
-                    onClear();
-                    close();
-                  }}
-                />
-              </PopSection>
+              <div className="shrink-0">
+                <PopSection>
+                  <PopItem
+                    icon={<Plus size={16} />}
+                    title="New project"
+                    right={<span aria-hidden>›</span>}
+                    className="max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
+                    onClick={onShowNew}
+                  />
+                  <PopItem
+                    icon={<X size={15} />}
+                    title="Don't work in a project"
+                    active={!selected}
+                    className="max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
+                    onClick={() => {
+                      onClear();
+                      close();
+                    }}
+                  />
+                </PopSection>
+              </div>
             </>
           ) : (
             <>
@@ -189,6 +200,7 @@ export function ProjectPicker({
                 <IconButton
                   size="lg"
                   variant="ghost"
+                  className="max-[680px]:min-h-11 max-[680px]:min-w-11 [@media(any-pointer:coarse)]:min-h-11 [@media(any-pointer:coarse)]:min-w-11"
                   onClick={onBack}
                   aria-label="Back to projects"
                 >
