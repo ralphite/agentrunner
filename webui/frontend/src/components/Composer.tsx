@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowClockwise,
-  ChartBar,
-  Target,
-  X,
-} from "@phosphor-icons/react";
 import { sessionImageURL, type ForkDraft } from "../api";
 import { useAppServices } from "../app/appServices";
-import { scheduleFieldError } from "../scheduleValidate";
 import { useAppStoreApi, useStore, type NewSessionProject } from "../store";
 import {
   ACCESS_LEVELS,
@@ -33,31 +26,19 @@ import {
   type AccessId,
   type EffortId,
 } from "../specs";
-import {
-  AccessPicker,
-  AddMenu,
-  AssistActions,
-  AttachmentList,
-  BranchPicker,
-  DeliveryModeControl,
-  FileMentionMenu,
-  GoalOptions,
-  ModelPicker,
-  ProjectPicker,
-  RunLocationPicker,
-  SlashCommandMenu,
-  SubmitButton,
-  type ComposerAttachment,
-} from "./ComposerParts";
+import type { ComposerAttachment } from "./ComposerParts";
 import { useVoice } from "./useVoice";
 import { useDictation } from "./useDictation";
 import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
 import { parseSlash, SLASH, type SlashCmd } from "./slash";
 import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
 import { isScratchWorkspace, projectLabel, projectSubtitles } from "../viewModels";
-import { Button } from "../ui/Button";
-import { Input, Textarea } from "../ui/Field";
-import { IconButton } from "../ui/IconButton";
+import { ComposerView } from "../features/composer/ComposerView";
+
+export {
+  ComposerView,
+  GoalLoopLauncher,
+} from "../features/composer/ComposerView";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -1262,449 +1243,335 @@ export function Composer(props: ComposerProps) {
   };
 
   return (
-    <div className={"cx " + (isSession ? "cx-session" : "cx-home")}>
-      {launcher && launcher.mode !== "goal" && (
-        <GoalLoopLauncher
-          mode={launcher.mode}
-          initialPrompt={launcher.prompt}
-          busy={busy}
-          onCancel={() => setLauncher(null)}
-          onStart={(prompt, a, b) =>
-            launcher.mode === "goal" ? startGoal(prompt, a, b) : launcher.mode === "loop" ? startLoop(prompt, a, b) : startBest(prompt, a, b)
-          }
-        />
-      )}
-
-      <div
-        className={"cx-card" + (dragging ? " dropping" : "")}
-        onDragEnter={onDragEnter}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        {/* Project, run-location and branch chips. (A Codex-style environment
-            chip was a disabled placeholder with no backend and was removed —
-            re-add one only when an environment concept actually exists.) */}
-        {!isSession && (
-          <div className="cx-env-strip">
-          <ProjectPicker
-            label={ws ? wsShort : "Select project"}
-            query={projectQuery}
-            page={projectMenuPage}
-            selected={!!ws}
-            projects={filteredProjects.map((workspace) => ({
-              workspace,
-              label: projectLabel(workspace),
-              subtitle: projectSubs.get(workspace),
-              active: workspace === normalizedWs,
-            }))}
-            onOpen={() => {
-              setProjectQuery("");
-              setProjectMenuPage("projects");
-            }}
-            onQueryChange={setProjectQuery}
-            onSelect={chooseProject}
-            onShowNew={() => setProjectMenuPage("new")}
-            onBack={() => setProjectMenuPage("projects")}
-            onStartScratch={async () => {
-              try {
-                chooseProject((await api.makeWorkspace()).path);
-              } catch (error: any) {
-                props.onError(error.message);
-              }
-            }}
-            onUseExisting={() =>
-              openPrompt({
-                title: "Add project",
-                label: "absolute folder path",
-                initial: ws,
-                placeholder: "/path/to/project",
-                onSubmit: chooseProject,
-              })
+    <ComposerView
+      isSession={isSession}
+      launcher={
+        launcher
+          ? {
+              mode: launcher.mode,
+              initialPrompt: launcher.prompt,
+              busy,
+              onCancel: () => setLauncher(null),
+              onStart: (prompt, second, iterations) =>
+                launcher.mode === "goal"
+                  ? startGoal(prompt, second, iterations)
+                  : launcher.mode === "loop"
+                    ? startLoop(prompt, second, iterations)
+                    : startBest(prompt, second, iterations),
             }
-            onClear={() => {
-              setWs("");
-              rememberProject(storage.local, "");
-              seeded.current = true;
-              setBranchInfo(null);
-              setStartingBranch("");
-              setRunLocation("local");
-            }}
-          />
-
-          {ws && (<>
-          {/* Start-in chip (INC-41 CP-4): ONE meaning — where the session runs.
-              Run type (interactive vs background) used to ride along in this
-              popover, which both broke the one-choice-per-menu rule above and
-              left the chip lying: picking Background changed nothing here, so a
-              headless run looked like a chat session. Session type now lives in the
-              `+` menu's Advanced options, and the chip names the background state. */}
-          <RunLocationPicker
-            kind={kind}
-            location={runLocation}
-            worktreeUnavailableReason={
-              !branchInfo?.isRepo
-                ? "Select a Git project first"
-                : branchInfo.hasCommits === false
-                  ? "Repo has no commits yet — commit one first"
-                  : undefined
-            }
-            onSelect={setRunLocation}
-            onUnavailableWorktree={() => {
-              if (!branchInfo?.isRepo) {
-                props.onError("New worktree needs a Git project.");
-              } else {
-                props.onError(
-                  "This repo has no commits yet — a worktree needs a starting commit.",
-                );
-              }
-            }}
-          />
-
-          <BranchPicker
-            label={branchLabel}
-            narrow={narrow}
-            isRepo={!!branchInfo?.isRepo}
-            location={runLocation}
-            dirty={branchInfo?.dirty}
-            query={branchQuery}
-            branches={filteredBranches}
-            totalBranches={branchInfo?.branches.length || 0}
-            onOpen={() => {
-              setBranchQuery("");
-              if (ws.trim()) api.gitBranches(ws.trim()).then((info) => {
-                setBranchInfo(info);
-                if (!startingBranch) setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
-              }).catch(() => {});
-            }}
-            onQueryChange={setBranchQuery}
-            onSelect={async (branch, close) => {
-              if (runLocation === "worktree") {
-                setStartingBranch(branch);
-                close();
-                return;
-              }
-              try {
-                await api.gitCheckout(ws.trim(), branch, false);
-                setBranchInfo((current) =>
-                  current ? { ...current, current: branch } : current,
-                );
-                setStartingBranch(branch);
-                toast(`Switched to ${branch}`, "info");
-                close();
-              } catch (error: any) {
-                props.onError(error.message);
-              }
-            }}
-          />
-          </>)}
-        </div>
-        )}
-
-        {dragging && (
-          <div className="cx-drop absolute inset-0 z-[5] grid place-items-center rounded-[22px] border-2 border-dashed border-blue text-blue text-[13.5px] font-medium pointer-events-none">
-            <span>Drop files to attach</span>
-          </div>
-        )}
-        <AttachmentList
-          attachments={atts}
-          onRemove={(index) =>
-            setAtts((current) =>
-              current.filter((_, itemIndex) => itemIndex !== index),
-            )
-          }
-        />
-
-        <div className="cx-input-wrap">
-          <Textarea
-            variant="unstyled"
-            ref={taRef}
-            value={text}
-            placeholder={placeholder}
-            onChange={(e) => {
-              setText(e.target.value);
-              grow(e.target);
-            }}
-            onFocus={revealMobileActions}
-            onKeyDown={onKey}
-            onPaste={onPaste}
-            rows={1}
-          />
-        </div>
-
-        {atQuery !== null && (
-          <FileMentionMenu
-            query={atQuery}
-            known={atKnown}
-            files={atFiles}
-            activeIndex={atIdx}
-            onActiveIndexChange={setAtIdx}
-            onSelect={applyAt}
-          />
-        )}
-
-        {slashOpen && filteredSlash.length > 0 && (
-          <SlashCommandMenu
-            commands={filteredSlash}
-            activeIndex={slashIdx}
-            onActiveIndexChange={setSlashIdx}
-            onSelect={applySlash}
-          />
-        )}
-
-        {/* ---- control bar ---- */}
-        <div className="cx-bar">
-          {/* Codex-style `+`: root stays about adding context or switching the
-              immediate mode. AgentRunner-specific automation remains available,
-              but one level down so the first screen matches Codex's Add menu. */}
-          <AddMenu
-            page={addMenuPage}
-            isSession={isSession}
-            goalMode={goalMode}
-            planMode={access === "plan"}
-            kind={kind}
-            persona={persona}
-            onOpen={() => setAddMenuPage("root")}
-            onPageChange={setAddMenuPage}
-            onPickFiles={() => anyRef.current?.click()}
-            onToggleGoal={() =>
-              setLauncher(
-                goalMode ? null : { mode: "goal", prompt: text.trim() },
-              )
-            }
-            onTogglePlan={togglePlanMode}
-            onStartLoop={() =>
-              setLauncher({ mode: "loop", prompt: text.trim() })
-            }
-            onStartBest={() =>
-              setLauncher({ mode: "best", prompt: text.trim() })
-            }
-            onToggleBackground={() =>
-              setKind(kind === "background" ? "chat" : "background")
-            }
-            onSelectPersona={choosePersona}
-            onEditSpec={() =>
-              openModal(
-                isSession
-                  ? { kind: "agent", sid: (props as any).sid }
-                  : {
-                      kind: "new",
-                      message: text,
-                      spec: buildSpec({
-                        provider,
-                        model,
-                        access,
-                        persona,
-                        effort,
-                        budgetOverride,
-                      }),
-                      worker: personaById(persona).withWorker
-                        ? DEFAULT_WORKER
-                        : "",
-                    },
-              )
-            }
-          />
-
-          {/* permission mode pill */}
-          <AccessPicker
-            variant={isSession ? "session" : "home"}
-            active={isSession ? sessionAccess?.id : access}
-            label={
-              isSession
-                ? sessionAccess?.label || "Access: set by agent spec"
-                : accessLevel?.label
-            }
-            risk={
-              isSession
-                ? sessionAccess?.risk || "unknown"
-                : accessLevel?.risk || "low"
-            }
-            triggerRef={!isSession ? homeAccessTriggerRef : undefined}
-            onHomeSelect={chooseHomeAccess}
-            onSessionSelect={(target, close) => {
-              switchMode(target);
-              close();
-            }}
-          />
-
-          {goalMode && (
-            <GoalOptions
-              verifier={goalVerifier}
-              rounds={goalRounds}
-              onVerifierChange={setGoalVerifier}
-              onRoundsChange={setGoalRounds}
-              onExit={() => setLauncher(null)}
-            />
-          )}
-
-          <span className="cx-spacer" />
-
-          {/* model pill — shows "<model> <effort>" like Codex's "5.6 Sol Extra High"
-              (effort "Off" stays unwritten: the default posture is not news). */}
-          <ModelPicker
-            provider={provider}
-            model={model}
-            modelLabel={modelLabel}
-            effort={effort}
-            effortLabel={effortLevel.label}
-            budgetOverride={budgetOverride}
-            page={modelMenuPage}
-            onOpen={() => setModelMenuPage("root")}
-            onPageChange={setModelMenuPage}
-            onSelectModel={chooseModel}
-            onSelectEffort={chooseEffort}
-            onCustomModel={() =>
-              openPrompt({
-                title: "Custom model id",
-                label: "model id (provider stays " + provider + ")",
-                initial: model,
-                onSubmit: (id) => chooseModel(provider, id),
-              })
-            }
-            onCustomBudget={() =>
-              openPrompt({
-                title: "Thinking budget override",
-                label:
-                  "budget tokens (0 or empty = use the effort preset)",
-                initial:
-                  budgetOverride != null ? String(budgetOverride) : "",
-                onSubmit: (value) => {
-                  const next = Number(value.trim());
-                  chooseBudgetOverride(
-                    Number.isFinite(next) && next > 0
-                      ? Math.floor(next)
-                      : null,
-                  );
+          : undefined
+      }
+      dragging={dragging}
+      cardEvents={{ onDragEnter, onDragOver, onDragLeave, onDrop }}
+      environment={
+        !isSession
+          ? {
+              projectPicker: {
+                label: ws ? wsShort : "Select project",
+                query: projectQuery,
+                page: projectMenuPage,
+                selected: !!ws,
+                projects: filteredProjects.map((workspace) => ({
+                  workspace,
+                  label: projectLabel(workspace),
+                  subtitle: projectSubs.get(workspace),
+                  active: workspace === normalizedWs,
+                })),
+                onOpen: () => {
+                  setProjectQuery("");
+                  setProjectMenuPage("projects");
                 },
-              })
+                onQueryChange: setProjectQuery,
+                onSelect: chooseProject,
+                onShowNew: () => setProjectMenuPage("new"),
+                onBack: () => setProjectMenuPage("projects"),
+                onStartScratch: async () => {
+                  try {
+                    chooseProject((await api.makeWorkspace()).path);
+                  } catch (error: any) {
+                    props.onError(error.message);
+                  }
+                },
+                onUseExisting: () =>
+                  openPrompt({
+                    title: "Add project",
+                    label: "absolute folder path",
+                    initial: ws,
+                    placeholder: "/path/to/project",
+                    onSubmit: chooseProject,
+                  }),
+                onClear: () => {
+                  setWs("");
+                  rememberProject(storage.local, "");
+                  seeded.current = true;
+                  setBranchInfo(null);
+                  setStartingBranch("");
+                  setRunLocation("local");
+                },
+              },
+              ...(ws
+                ? {
+                    runLocationPicker: {
+                      kind,
+                      location: runLocation,
+                      worktreeUnavailableReason: !branchInfo?.isRepo
+                        ? "Select a Git project first"
+                        : branchInfo.hasCommits === false
+                          ? "Repo has no commits yet — commit one first"
+                          : undefined,
+                      onSelect: setRunLocation,
+                      onUnavailableWorktree: () => {
+                        props.onError(
+                          !branchInfo?.isRepo
+                            ? "New worktree needs a Git project."
+                            : "This repo has no commits yet — a worktree needs a starting commit.",
+                        );
+                      },
+                    },
+                    branchPicker: {
+                      label: branchLabel,
+                      narrow,
+                      isRepo: !!branchInfo?.isRepo,
+                      location: runLocation,
+                      dirty: branchInfo?.dirty,
+                      query: branchQuery,
+                      branches: filteredBranches,
+                      totalBranches: branchInfo?.branches.length || 0,
+                      onOpen: () => {
+                        setBranchQuery("");
+                        if (ws.trim()) {
+                          api
+                            .gitBranches(ws.trim())
+                            .then((info) => {
+                              setBranchInfo(info);
+                              if (!startingBranch) {
+                                setStartingBranch(
+                                  (info.current === "HEAD"
+                                    ? ""
+                                    : info.current) ||
+                                    info.branches[0] ||
+                                    "",
+                                );
+                              }
+                            })
+                            .catch(() => {});
+                        }
+                      },
+                      onQueryChange: setBranchQuery,
+                      onSelect: async (branch, close) => {
+                        if (runLocation === "worktree") {
+                          setStartingBranch(branch);
+                          close();
+                          return;
+                        }
+                        try {
+                          await api.gitCheckout(ws.trim(), branch, false);
+                          setBranchInfo((current) =>
+                            current
+                              ? { ...current, current: branch }
+                              : current,
+                          );
+                          setStartingBranch(branch);
+                          toast(`Switched to ${branch}`, "info");
+                          close();
+                        } catch (error: any) {
+                          props.onError(error.message);
+                        }
+                      },
+                    },
+                  }
+                : {}),
             }
-          />
-
-          {/* optimize (INC-56 · HANDA #19): rewrite the draft via `ar optimize`.
-              After a rewrite an Undo button restores the original draft in one
-              step. Both are hidden when there's nothing to act on. */}
-          <AssistActions
-            hasText={!!text.trim()}
-            canUndo={undoDraft !== null}
-            optimizing={optimizing}
-            micVisible={micVisible}
-            micActive={micActive}
-            dictationBusy={dictation.busy}
-            onOptimize={() => doOptimize(text, text)}
-            onUndo={undoOptimizeNow}
-            onToggleMic={toggleMic}
-          />
-
-          {/* delivery mode (INC-43, Codex parity): while a turn is running, choose
-              whether this message steers the current turn or queues for the next.
-              ⌘⏎ sends with the opposite mode for one message. */}
-          {running && (
-            <DeliveryModeControl
-              mode={deliveryMode}
-              onChange={setDeliveryMode}
-            />
-          )}
-
-          {/* send — or Stop while a turn is running and nothing is typed
-              (W30: stopping shouldn't require finding the topbar button) */}
-          {isSession && (props as { running?: boolean }).running && !text.trim() && atts.length === 0 ? (
-            <SubmitButton
-              mode="stop"
-              onSubmit={() =>
-                (props as { actions?: SessionActions }).actions?.interrupt?.()
-              }
-            />
-          ) : (
-            <SubmitButton
-              mode="send"
-              onSubmit={() => doSubmit()}
-              disabled={busy || (!text.trim() && atts.length === 0)}
-              running={running}
-              deliveryMode={deliveryMode}
-            />
-          )}
-        </div>
-
-      </div>
-
-      {/* hidden file input — ONE picker for everything (CP-1). Multi-select
-          (mirrors the drag-drop loop) and mime-routed: images ride --image,
-          everything else --file, exactly like paste and drop. The old
-          image-only input existed solely to back a separate "Images" row. */}
-      <input type="file" multiple ref={anyRef} style={{ display: "none" }} onChange={(e) => { for (const f of Array.from(e.target.files || [])) pick(f, f.type.startsWith("image/")); e.target.value = ""; }} />
-    </div>
-  );
-}
-
-// ---- goal / loop / best-of-N launcher ---------------------------------------
-export function GoalLoopLauncher({
-  mode,
-  initialPrompt,
-  busy,
-  onCancel,
-  onStart,
-}: {
-  mode: "goal" | "loop" | "best";
-  initialPrompt: string;
-  busy: boolean;
-  onCancel: () => void;
-  onStart: (prompt: string, second: string, iterations: number) => void;
-}) {
-  const [prompt, setPrompt] = useState(initialPrompt);
-  const [second, setSecond] = useState(mode === "loop" ? "5m" : ""); // interval | verifier
-  // Inline cadence validation (G36 余项): same mirror as the Schedule modal.
-  const intervalError = mode === "loop" ? scheduleFieldError("interval", second) : "";
-  const [iters, setIters] = useState(mode === "goal" ? 10 : mode === "loop" ? 5 : 3); // rounds | attempts
-  const meta = {
-    goal: { icon: <GoalIcon />, label: "Goal", hint: "iterate until the goal is met", start: "Start goal" },
-    loop: { icon: <LoopIcon />, label: "Loop", hint: "repeat on a fixed cadence", start: "Start loop" },
-    best: { icon: <BestIcon />, label: "Best of N", hint: "N isolated attempts, the verifier picks the best", start: "Start best-of-N" },
-  }[mode];
-  return (
-    <div className="cx-launcher">
-      <div className="cx-launcher-hd">
-        {meta.icon}
-        <b>{meta.label}</b>
-        <span className="dim">{meta.hint}</span>
-        <span className="cx-spacer" />
-        <IconButton size="sm" variant="ghost" onClick={onCancel} aria-label="Close launcher">
-          <X size={13} />
-        </IconButton>
-      </div>
-      <Textarea className="cx-launcher-prompt" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-      <div className="cx-launcher-row">
-        {mode === "loop" ? (
-          <label className="cx-launcher-field" title="How often to run (Go duration, e.g. 30s, 5m, 1h)">
-            <span>Every</span>
-            <Input placeholder="5m" value={second} onChange={(e) => setSecond(e.target.value)} />
-          </label>
-        ) : (
-          <label className="cx-launcher-field" title={mode === "goal" ? "A shell command that must exit 0 for the goal to count as met. Optional — leave it empty and the agent self-certifies: it calls goal_complete when the goal is verifiably done (audited at the turn boundary)" : "A shell command that judges each attempt — exit 0 = pass (optional; without it the earliest attempt wins)"}>
-            <span>{mode === "goal" ? "Done when (command)" : "Judge with (command)"}</span>
-            <Input placeholder={mode === "goal" ? "e.g. go test ./…  (empty = agent self-certifies)" : "e.g. go test ./…  (optional)"} value={second} onChange={(e) => setSecond(e.target.value)} />
-          </label>
-        )}
-        <label className="cx-launcher-field small" title={mode === "best" ? "How many isolated attempts to run" : "Safety cap on iterations"}>
-          <span>{mode === "best" ? "Attempts" : "Max rounds"}</span>
-          <Input type="number" min={mode === "best" ? 2 : 1} value={iters} onChange={(e) => setIters(Math.max(mode === "best" ? 2 : 1, Number(e.target.value) || 1))} />
-        </label>
-        <Button
-          variant="solid"
-          className="cx-launcher-go"
-          loading={busy}
-          disabled={!prompt.trim() || (mode === "loop" && (!second.trim() || intervalError !== ""))}
-          onClick={() => onStart(prompt.trim(), second.trim(), iters)}
-        >
-          {meta.start}
-        </Button>
-      </div>
-      {intervalError !== "" && (
-        <div className="mt-1 text-[12px] leading-5 text-red" role="alert">
-          {intervalError}
-        </div>
-      )}
-    </div>
+          : undefined
+      }
+      attachments={{
+        attachments: atts,
+        onRemove: (index) =>
+          setAtts((current) =>
+            current.filter((_, itemIndex) => itemIndex !== index),
+          ),
+      }}
+      textarea={{
+        ref: taRef,
+        value: text,
+        placeholder,
+        onChange: (event) => {
+          setText(event.target.value);
+          grow(event.target);
+        },
+        onFocus: revealMobileActions,
+        onKeyDown: onKey,
+        onPaste,
+      }}
+      fileMentionMenu={
+        atQuery !== null
+          ? {
+              query: atQuery,
+              known: atKnown,
+              files: atFiles,
+              activeIndex: atIdx,
+              onActiveIndexChange: setAtIdx,
+              onSelect: applyAt,
+            }
+          : undefined
+      }
+      slashCommandMenu={
+        slashOpen && filteredSlash.length > 0
+          ? {
+              commands: filteredSlash,
+              activeIndex: slashIdx,
+              onActiveIndexChange: setSlashIdx,
+              onSelect: applySlash,
+            }
+          : undefined
+      }
+      addMenu={{
+        page: addMenuPage,
+        isSession,
+        goalMode,
+        planMode: access === "plan",
+        kind,
+        persona,
+        onOpen: () => setAddMenuPage("root"),
+        onPageChange: setAddMenuPage,
+        onPickFiles: () => anyRef.current?.click(),
+        onToggleGoal: () =>
+          setLauncher(
+            goalMode ? null : { mode: "goal", prompt: text.trim() },
+          ),
+        onTogglePlan: togglePlanMode,
+        onStartLoop: () =>
+          setLauncher({ mode: "loop", prompt: text.trim() }),
+        onStartBest: () =>
+          setLauncher({ mode: "best", prompt: text.trim() }),
+        onToggleBackground: () =>
+          setKind(kind === "background" ? "chat" : "background"),
+        onSelectPersona: choosePersona,
+        onEditSpec: () =>
+          openModal(
+            isSession
+              ? { kind: "agent", sid: (props as any).sid }
+              : {
+                  kind: "new",
+                  message: text,
+                  spec: buildSpec({
+                    provider,
+                    model,
+                    access,
+                    persona,
+                    effort,
+                    budgetOverride,
+                  }),
+                  worker: personaById(persona).withWorker
+                    ? DEFAULT_WORKER
+                    : "",
+                },
+          ),
+      }}
+      accessPicker={{
+        variant: isSession ? "session" : "home",
+        active: isSession ? sessionAccess?.id : access,
+        label: isSession
+          ? sessionAccess?.label || "Access: set by agent spec"
+          : accessLevel?.label,
+        risk: isSession
+          ? sessionAccess?.risk || "unknown"
+          : accessLevel?.risk || "low",
+        triggerRef: !isSession ? homeAccessTriggerRef : undefined,
+        onHomeSelect: chooseHomeAccess,
+        onSessionSelect: (target, close) => {
+          switchMode(target);
+          close();
+        },
+      }}
+      goalOptions={
+        goalMode
+          ? {
+              verifier: goalVerifier,
+              rounds: goalRounds,
+              onVerifierChange: setGoalVerifier,
+              onRoundsChange: setGoalRounds,
+              onExit: () => setLauncher(null),
+            }
+          : undefined
+      }
+      modelPicker={{
+        provider,
+        model,
+        modelLabel,
+        effort,
+        effortLabel: effortLevel.label,
+        budgetOverride,
+        page: modelMenuPage,
+        onOpen: () => setModelMenuPage("root"),
+        onPageChange: setModelMenuPage,
+        onSelectModel: chooseModel,
+        onSelectEffort: chooseEffort,
+        onCustomModel: () =>
+          openPrompt({
+            title: "Custom model id",
+            label: "model id (provider stays " + provider + ")",
+            initial: model,
+            onSubmit: (id) => chooseModel(provider, id),
+          }),
+        onCustomBudget: () =>
+          openPrompt({
+            title: "Thinking budget override",
+            label: "budget tokens (0 or empty = use the effort preset)",
+            initial:
+              budgetOverride != null ? String(budgetOverride) : "",
+            onSubmit: (value) => {
+              const next = Number(value.trim());
+              chooseBudgetOverride(
+                Number.isFinite(next) && next > 0
+                  ? Math.floor(next)
+                  : null,
+              );
+            },
+          }),
+      }}
+      assistActions={{
+        hasText: !!text.trim(),
+        canUndo: undoDraft !== null,
+        optimizing,
+        micVisible,
+        micActive,
+        dictationBusy: dictation.busy,
+        onOptimize: () => doOptimize(text, text),
+        onUndo: undoOptimizeNow,
+        onToggleMic: toggleMic,
+      }}
+      deliveryModeControl={
+        running ? { mode: deliveryMode, onChange: setDeliveryMode } : undefined
+      }
+      submitButton={
+        isSession &&
+        (props as { running?: boolean }).running &&
+        !text.trim() &&
+        atts.length === 0
+          ? {
+              mode: "stop",
+              onSubmit: () =>
+                (props as { actions?: SessionActions }).actions?.interrupt?.(),
+            }
+          : {
+              mode: "send",
+              onSubmit: () => doSubmit(),
+              disabled: busy || (!text.trim() && atts.length === 0),
+              running,
+              deliveryMode,
+            }
+      }
+      fileInput={{
+        ref: anyRef,
+        onChange: (event) => {
+          for (const file of Array.from(event.target.files || [])) {
+            pick(file, file.type.startsWith("image/"));
+          }
+          event.target.value = "";
+        },
+      }}
+    />
   );
 }
 
@@ -1718,7 +1585,3 @@ function accessByMode(mode?: string) {
   // unknown instead and let the pill say so honestly.
   return undefined;
 }
-
-const GoalIcon = () => <Target size={14} />;
-const LoopIcon = () => <ArrowClockwise size={14} />;
-const BestIcon = () => <ChartBar size={14} />;
