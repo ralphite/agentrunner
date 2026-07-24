@@ -451,6 +451,47 @@ export const privateVisibleExclusions = [
 // therefore carry their own exact Story source/evidence record.
 export const workbenchStories = [
   {
+    storyId: "cujs-core-session-journeys--configure-new-session",
+    source: "src/storybook/cujs/CoreSessionJourneys.stories.tsx",
+    kind: "cuj",
+    evidence:
+      "Fast deterministic journey configures project, intent, request, access, and model through production Home controls.",
+    owner: "webui",
+  },
+  {
+    storyId: "cujs-core-session-journeys--start-new-session",
+    source: "src/storybook/cujs/CoreSessionJourneys.stories.tsx",
+    kind: "cuj",
+    evidence:
+      "Fast deterministic journey sends the configured request and reaches the production Session shell.",
+    owner: "webui",
+  },
+  {
+    storyId: "cujs-core-session-journeys--stream-and-persist-response",
+    source: "src/storybook/cujs/CoreSessionJourneys.stories.tsx",
+    kind: "cuj",
+    evidence:
+      "Fast deterministic journey drives scripted stream chunks and the durable poll projection.",
+    owner: "webui",
+  },
+  {
+    storyId:
+      "cujs-core-session-journeys--inspect-environment-and-completion",
+    source: "src/storybook/cujs/CoreSessionJourneys.stories.tsx",
+    kind: "cuj",
+    evidence:
+      "Fast deterministic journey opens the production Environment surface and observes the completion message.",
+    owner: "webui",
+  },
+  {
+    storyId: "cujs-core-session-journeys--review-changes-and-return",
+    source: "src/storybook/cujs/CoreSessionJourneys.stories.tsx",
+    kind: "cuj",
+    evidence:
+      "Fast deterministic journey completes the session, opens Changes, then closes it and returns to the stable composer.",
+    owner: "webui",
+  },
+  {
     storyId: "demos-scenario-controls--default",
     source: "src/storybook/scenarios/ScenarioControls.stories.tsx",
     kind: "demo",

@@ -699,18 +699,22 @@ const steps: readonly DemoStep<DemoContext>[] = [
   },
 ];
 
-interface CoreSessionPlaybackProps {
+export interface CoreSessionPlaybackProps {
   autoPlay: boolean;
+  label?: string;
+  stepLimit?: number;
 }
 
-function CoreSessionPlayback({
+export function CoreSessionPlayback({
   autoPlay: initialAutoPlay,
+  label = "Core session playback",
+  stepLimit,
 }: CoreSessionPlaybackProps) {
   const [runner] = useState(
     () =>
       new ScenarioRunner<DemoContext>({
         context: createDemoContext(demoApi),
-        steps,
+        steps: steps.slice(0, stepLimit ?? steps.length),
         timing: createDemoScenarioTiming(STEP_DELAY_MS),
         recreateContext: () => createDemoContext(demoApi),
         disposeContext: async (context) => {
@@ -753,7 +757,7 @@ function CoreSessionPlayback({
     <div className="core-session-playback">
       <ScenarioControls
         runner={runner}
-        label="Core session playback"
+        label={label}
         autoPlay={autoPlay}
         onAutoPlayChange={setAutoPlay}
       />
@@ -781,6 +785,7 @@ function CoreSessionPlayback({
 const meta = {
   title: "Demos/Core Session Playback",
   component: CoreSessionPlayback,
+  excludeStories: ["CoreSessionPlayback", "coreSessionDemoHandlers"],
   tags: ["!test"],
   parameters: {
     layout: "fullscreen",
@@ -796,6 +801,8 @@ const meta = {
     },
   },
 } satisfies Meta<typeof CoreSessionPlayback>;
+
+export const coreSessionDemoHandlers = demoApi.handlers;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
