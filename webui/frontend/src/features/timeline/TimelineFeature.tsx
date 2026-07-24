@@ -1317,20 +1317,30 @@ export function TimelineFeature({
   // are only aggregated (TH-4) in the reader's view.
   const nodes: RenderNode[] = showSys ? visible : foldWork(mergeAdjacentChips(foldInput), durations, active);
 
-  // The goal verdict rides the FINAL assistant answer only (fix 3) — a settled
-  // run's last word. Assistant answers are turn boundaries, so they sit at the
-  // top level of `nodes`, never folded into WorkedFold work.
+  // The goal verdict rides the CURRENT turn's final assistant answer only.
+  // Do not reach backward across a newer input: a turn that hits a step limit
+  // without a text answer would otherwise hoist an old answer's Copy button to
+  // the bottom, leaving an orphan icon beside the terminal alert.
   //
   // TH-21 reuses the same key: the final assistant answer is also the only
   // message that keeps its action row at rest (`.msg-last`).
-  const lastAssistant = (() => {
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const n = nodes[i];
-      if (n.kind === "assistant") return n;
+  const currentTurnAssistant = (() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.kind === "assistant") return item;
+      if ((item.kind === "user" && !item.peerSession) || item.kind === "runtime") {
+        return undefined;
+      }
     }
     return undefined;
   })();
-  const lastAssistantKey = lastAssistant?.key;
+  // A narration fragment before more tool work is not a settled answer. Keep
+  // its actions inline; only an answer that closed a measured turn belongs in
+  // the shared tail row.
+  const lastAssistant = currentTurnAssistant && durations.has(currentTurnAssistant.key)
+    ? currentTurnAssistant
+    : undefined;
+  const lastAssistantKey = currentTurnAssistant?.key;
 
   // TAIL-ROW: a settled turn (run idle, nothing typing/pending) hoists the final
   // answer's action row out of the bubble and down past the turn's artifact /

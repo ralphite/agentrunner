@@ -115,6 +115,20 @@ describe("TAIL-ROW — last answer's action row lands after the turn's cards", (
     const tailActions = tail.querySelector(".msg-actions")!;
     expect(card.compareDocumentPosition(tailActions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it("does not hoist an old Copy action after a newer turn ends without an answer", () => {
+    const { container } = render(
+      <TimelineView
+        items={[user("u1"), assistant("a1", "Earlier answer."), user("u2", "Continue the work")]}
+        pending={[]}
+        typing=""
+        showSys={false}
+      />,
+    );
+
+    expect(container.querySelector(".tl-tail-row")).toBeNull();
+    expect(container.querySelector(".msg.assistant")!.querySelector(".msg-actions")).not.toBeNull();
+  });
 });
 
 describe("TAIL-ROW — a live turn keeps the last answer's row inline", () => {
