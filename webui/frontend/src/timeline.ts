@@ -1509,6 +1509,24 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
   return state;
 }
 
+// goalNoopReceipts (G58① · QA-0724-goal): seqs of goal-control receipts that
+// landed as no_op AFTER sinceSeq. A pause/resume/cancel can race the goal's
+// settlement — for one poll interval the banner the user clicked was stale —
+// and the daemon ack is a fixed "requested" line (fsync-before-ack never
+// promises the outcome), so without surfacing the journaled receipt the click
+// silently does nothing. The view toasts when new receipts appear.
+export function goalNoopReceipts(events: Envelope[], sinceSeq: number): number[] {
+  const out: number[] = [];
+  for (const env of events) {
+    if (env.seq <= sinceSeq) continue;
+    const p = (env.payload || {}) as { kind?: unknown; result?: unknown };
+    if (env.type === "command_handled" && String(p.kind || "").startsWith("goal_") && p.result === "no_op") {
+      out.push(env.seq);
+    }
+  }
+  return out;
+}
+
 // formatElapsed renders a goal's running/total time. Under an hour it's mm:ss
 // (00:00 padded); an hour or more switches to "Xh Ym" (Codex's coarse form); a
 // day or more rolls hours up into days ("10d 12h") so a long-lived goal reads

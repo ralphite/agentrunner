@@ -7908,3 +7908,23 @@ rounds=1 反馈,其余 P2(cadence 双方言/detail 差一/model 空投/attach �
 buildLoopDriver 死代码)记档待理。review 亦证伪:argv 注入不成立(exec 直传、
 flag 面收敛)、scheduleNextWake 追赶实测 778 万次迭代 0.07s、投影白名单与
 series 同纪律。QA-0724 补第 6 条(pause→resume→cancel→消息不复活)随本轮真机。
+
+## 2026-07-24 · G58 关闭 + deploy.sh env 修复（QA-0724-goal 余项清零）
+
+三件收尾一批落地：① **no_op 回执可见**（G58①）——goal 控制与 goal 终结
+竞态时 daemon 记 `command_handled{result:no_op}` 而 ack 是固定 "requested"
+文案（fsync-before-ack 不承诺结果，通道语义不动），前端新增
+`goalNoopReceipts` 纯函数 + SessionFeature 基线监听：只对**新到达**的
+goal_* no_op 回执 toast（"goal control had no effect — the goal had
+already settled"），挂载/切会话只建基线不翻历史。② **GoalLoopLauncher
+goal 死分支清理**（G58②）——goal 的 UI 载体自 composer Goal chip
+（GoalOptions）落地后，launcher 面板的 goal 形态成死路径且构成双入口
+漂移风险；组件 props 收窄 `"loop"|"best"`，ComposerController 对 goal
+收起 launcher prop（chip 状态载体 `launcher.mode==="goal"` 保留），
+stories 矩阵同步。③ **deploy.sh daemon env**——修当日并发 session 记档
+的事故（`--detach` 直启 daemon 继承空 shell env，无 GEMINI_API_KEY 起得
+来跑不了 turn）：重启分支起 daemon 前 `set -a; source "$ENV_FILE"`，
+--no-restart 提示同步；env file 缺失时显式警告不再静默。
+锚：timeline.test goalNoopReceipts + Composer stories/tests 40/40 +
+真机部署验证（daemon env 含 key、no_op toast 路径 API 抽验）。GAPS G58
+✅。

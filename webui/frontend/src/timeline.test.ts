@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, suppressEchoedChips, verdictLabel } from "./timeline";
+import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, goalNoopReceipts, guiReason, suppressEchoedChips, verdictLabel } from "./timeline";
 
 // INC-102: in-session schedule events annotate an ORDINARY conversation — they
 // must render as chips without flipping the session into driver chrome (which
@@ -1181,5 +1181,28 @@ describe("THREAD-2-SINGLESTEP — interrupted single-step turn dates its fold he
     // yet the head reads the real 2 minutes, recovered from the tool's own
     // ts→endTs by foldSpanMs (branch ③). NOT "Worked · 1 step".
     expect(workedLabel(fold)).toBe("Worked for 2m");
+  });
+});
+
+describe("goalNoopReceipts (G58\u2460 no_op goal-control receipts)", () => {
+  const evs = [
+    { seq: 1, type: "goal_attached", payload: { goal_id: "goal", goal: "x" } },
+    { seq: 2, type: "command_handled", payload: { kind: "goal_pause", result: "no_op" } },
+    { seq: 3, type: "command_handled", payload: { kind: "goal_pause", result: "ok" } },
+    { seq: 4, type: "command_handled", payload: { kind: "compact", result: "no_op" } },
+    { seq: 5, type: "command_handled", payload: { kind: "goal_resume", result: "no_op" } },
+  ] as any[];
+
+  it("returns only goal_* no_op receipts newer than the baseline", () => {
+    expect(goalNoopReceipts(evs, 0)).toEqual([2, 5]);
+    // baseline past the first receipt: only the later one is NEW
+    expect(goalNoopReceipts(evs, 2)).toEqual([5]);
+    // nothing new past the tail
+    expect(goalNoopReceipts(evs, 5)).toEqual([]);
+  });
+
+  it("ignores non-goal kinds and non-no_op results", () => {
+    expect(goalNoopReceipts(evs, 0)).not.toContain(3);
+    expect(goalNoopReceipts(evs, 0)).not.toContain(4);
   });
 });

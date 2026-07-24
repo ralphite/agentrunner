@@ -1,7 +1,6 @@
 import {
   ArrowClockwise,
   ChartBar,
-  Target,
   X,
 } from "@phosphor-icons/react";
 import { useState } from "react";
@@ -11,7 +10,10 @@ import { Input, Textarea } from "../../ui/Field";
 import { IconButton } from "../../ui/IconButton";
 
 export interface GoalLoopLauncherProps {
-  mode: "goal" | "loop" | "best";
+  // G58② (QA-0724-goal) · "goal" is gone: the composer's Goal chip
+  // (GoalOptions) is the goal form's only home — this panel serving a second
+  // goal entry point invited the two to drift.
+  mode: "loop" | "best";
   initialPrompt: string;
   busy: boolean;
   onCancel: () => void;
@@ -19,11 +21,12 @@ export interface GoalLoopLauncherProps {
 }
 
 /**
- * Owns the complete launcher form interaction for Goal, Loop and Best-of-N.
+ * Owns the complete launcher form interaction for Loop and Best-of-N.
  *
  * The parent only orchestrates the resulting command. Draft fields, defaults,
  * cadence validation and the mode-specific presentation stay within this
- * feature boundary.
+ * feature boundary. (Goal lives on the composer's Goal chip — GoalOptions —
+ * not here; G58②.)
  */
 export function GoalLoopLauncher({
   mode,
@@ -36,16 +39,8 @@ export function GoalLoopLauncher({
   const [second, setSecond] = useState(mode === "loop" ? "5m" : "");
   const intervalError =
     mode === "loop" ? scheduleFieldError("interval", second) : "";
-  const [iterations, setIterations] = useState(
-    mode === "goal" ? 10 : mode === "loop" ? 5 : 3,
-  );
+  const [iterations, setIterations] = useState(mode === "loop" ? 5 : 3);
   const meta = {
-    goal: {
-      icon: <Target size={14} />,
-      label: "Goal",
-      hint: "iterate until the goal is met",
-      start: "Start goal",
-    },
     loop: {
       icon: <ArrowClockwise size={14} />,
       label: "Loop",
@@ -80,11 +75,9 @@ export function GoalLoopLauncher({
         className="cx-launcher-prompt"
         rows={2}
         placeholder={
-          mode === "goal"
-            ? "What goal should the agent keep working toward?"
-            : mode === "loop"
-              ? "What should each iteration do?"
-              : "What should each attempt try to do?"
+          mode === "loop"
+            ? "What should each iteration do?"
+            : "What should each attempt try to do?"
         }
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
@@ -105,23 +98,11 @@ export function GoalLoopLauncher({
         ) : (
           <label
             className="cx-launcher-field"
-            title={
-              mode === "goal"
-                ? "A shell command that must exit 0 for the goal to count as met. Optional — leave it empty and the agent self-certifies: it calls goal_complete when the goal is verifiably done (audited at the turn boundary)"
-                : "A shell command that judges each attempt — exit 0 = pass (optional; without it the earliest attempt wins)"
-            }
+            title="A shell command that judges each attempt — exit 0 = pass (optional; without it the earliest attempt wins)"
           >
-            <span>
-              {mode === "goal"
-                ? "Done when (command)"
-                : "Judge with (command)"}
-            </span>
+            <span>Judge with (command)</span>
             <Input
-              placeholder={
-                mode === "goal"
-                  ? "e.g. go test ./…  (empty = agent self-certifies)"
-                  : "e.g. go test ./…  (optional)"
-              }
+              placeholder="e.g. go test ./…  (optional)"
               value={second}
               onChange={(event) => setSecond(event.target.value)}
             />

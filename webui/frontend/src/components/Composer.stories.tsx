@@ -641,17 +641,13 @@ export const GoalLoopLauncher: Story = {
   },
 };
 
+// G58② (QA-0724-goal) · no "goal" variant any more: the composer's Goal chip
+// (GoalOptions, exercised by the GoalMode story above) is the goal form's only
+// home — the launcher panel serves loop/best.
 export const GoalLoopModeMatrix: Story = {
   render: () => (
     <StoryAppFrame>
       <div className="mx-auto grid max-w-[760px] gap-4 p-6">
-        <GoalLoopLauncherView
-          mode="goal"
-          initialPrompt="Keep improving coverage until every visible state is represented"
-          busy={false}
-          onCancel={fn()}
-          onStart={fn()}
-        />
         <GoalLoopLauncherView
           mode="loop"
           initialPrompt="Repeat the focused Storybook checks"
@@ -672,16 +668,13 @@ export const GoalLoopModeMatrix: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Start goal" }),
-    ).toBeEnabled();
-    await expect(
       canvas.getByRole("button", { name: "Start loop" }),
     ).toBeEnabled();
     await expect(
       canvas.getByRole("button", { name: "Start best-of-N" }),
     ).toBeEnabled();
     await expect(canvas.getByText("Attempts")).toBeVisible();
-    await expect(canvas.getAllByText("Max rounds")).toHaveLength(2);
+    await expect(canvas.getByText("Max rounds")).toBeVisible();
   },
 };
 
@@ -716,7 +709,7 @@ export const GoalLoopEmptyAndBusy: Story = {
     <StoryAppFrame>
       <div className="mx-auto grid max-w-[760px] gap-4 p-6">
         <GoalLoopLauncherView
-          mode="goal"
+          mode="loop"
           initialPrompt=""
           busy={false}
           onCancel={fn()}
@@ -735,7 +728,7 @@ export const GoalLoopEmptyAndBusy: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Start goal" }),
+      canvas.getByRole("button", { name: "Start loop" }),
     ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start best-of-N" }),

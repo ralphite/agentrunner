@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type ForkDraft } from "../../api";
 import { useAppServices } from "../../app/appServices";
 import { useStore } from "../../store";
-import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef } from "../../timeline";
+import { deriveGoalState, foldEvents, formatElapsed, goalNoopReceipts, isGoalTerminal, suppressEchoedChips, type ApprovalRef } from "../../timeline";
 import { TimelineFeature } from "../timeline/TimelineFeature";
 import { ApprovalCard } from "../../components/ApprovalCard";
 import { Composer } from "../composer/ComposerController";
@@ -279,6 +279,23 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   }, [goalState?.phase, goalState?.attachedAt, goalTerminal]);
   const goalAction = (action: "pause" | "resume" | "cancel") =>
     commands.goal(action).then(() => pollInspect()).catch((e) => toast(e.message));
+  // G58① · a goal control that raced the goal's settlement journals a no_op
+  // receipt; the daemon ack is a fixed "requested" line, so without this the
+  // click silently does nothing while the stale banner it targeted is already
+  // being replaced. Toast NEW receipts only — the mount pass just baselines,
+  // so reloading a journal that contains old no_ops stays quiet.
+  const goalNoopBase = useRef<{ sid: string; seq: number } | null>(null);
+  useEffect(() => {
+    const maxSeq = events.length ? events[events.length - 1].seq : -1;
+    if (goalNoopBase.current?.sid !== sid) {
+      goalNoopBase.current = { sid, seq: maxSeq };
+      return;
+    }
+    if (goalNoopReceipts(events, goalNoopBase.current.seq).length > 0) {
+      toast("goal control had no effect — the goal had already settled", "info");
+    }
+    goalNoopBase.current = { sid, seq: maxSeq };
+  }, [events, sid]);
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
   const openApprovals: (ApprovalRef & {

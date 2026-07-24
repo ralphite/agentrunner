@@ -81,9 +81,9 @@ export function ComposerView({
 }: ComposerViewProps) {
   return (
     <div className={"cx " + (isSession ? "cx-session" : "cx-home")}>
-      {launcher && launcher.mode !== "goal" && (
-        <GoalLoopLauncher {...launcher} />
-      )}
+      {/* G58② · loop/best only — goal renders as the Goal chip below, and
+          the controller already withholds the prop for it. */}
+      {launcher && <GoalLoopLauncher {...launcher} />}
 
       <div
         className={"cx-card" + (dragging ? " dropping" : "")}

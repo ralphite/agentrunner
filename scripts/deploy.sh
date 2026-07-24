@@ -88,8 +88,9 @@ if [[ $DO_RESTART -eq 0 ]]; then
   cat <<EOF
 
 --no-restart: install-only. To go live:
-  # daemon (only if no turn is running):
-  pkill -f 'ar.* daemon' ; "$AR_OUT" daemon &
+  # daemon (only if no turn is running; source the env file first or the
+  # daemon comes up without GEMINI_API_KEY — 2026-07-24 incident):
+  pkill -f 'ar.* daemon' ; set -a; source "$ENV_FILE"; set +a; "$AR_OUT" daemon &
   # webui:
   pkill -f "arwebui.*--addr $ADDR" ; \\
     "$WEBUI_OUT" --addr $ADDR --ar "$AR_OUT" --env-file "$ENV_FILE" &
@@ -133,6 +134,19 @@ echo "==> restarting global daemon on new binary (durable store survives)"
 pkill -TERM -f '(^|/)(ar|ar-[^ ]*|arwebui) .*daemon' 2>/dev/null || true
 pkill -TERM -f 'agentrunner daemon' 2>/dev/null || true
 sleep 1
+# 2026-07-24 incident (LOG): the detached daemon inherits THIS shell's env,
+# and an agent/CI shell usually has no GEMINI_API_KEY — the restarted daemon
+# came up fine but could not host a single turn ("GEMINI_API_KEY not set").
+# Export the same env file the webui already consumes before starting it.
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+  echo "   (daemon env sourced from $ENV_FILE)"
+else
+  echo "!! env file $ENV_FILE not found — the daemon will inherit this shell's env only" >&2
+fi
 "$AR_OUT" daemon --detach
 # Probe the socket itself. `sessions` only reads journals and can succeed with
 # no daemon, so it is not a valid liveness check.

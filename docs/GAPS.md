@@ -791,14 +791,16 @@ prompt、171h cadence、Coalesce、revision 3 与重锚 timer 均从共享 journ
 policy/schema/durable receipt，以及 paused/loading/error 与 dark theme，均未冒充已测。
 → UJ-14/UJ-24
 
-**G58 goal 终结后的残留交互回声 — ❌ 开放（QA-0724-goal 批量修复的余项，低）**
-QA-0724-goal 主修复（注入 mode-aware、达成单一陈述、骨架饿死、composer 留白，
-见 LOG 2026-07-24 QA-0724-goal 条）已落地；两个低危余项：① goal 已终结后，
-轮询延迟窗内旧 banner 的 Pause 点击得 daemon `no_op` 回执但前端无 toast
-反馈（后端幂等正确；achieved 已不渲染 banner，窗口只剩 stopped/cancelled
-的秒级延迟）；② `GoalLoopLauncher` 的 goal 分支已被 composer Goal chip
-形态（GoalOptions）取代，`launcher.mode !== "goal"` 使其成死路径，待
-清理防止双入口漂移。
+**G58 goal 终结后的残留交互回声 — ✅ 已关闭（QA-0724-goal 余项清理，2026-07-24）**
+关闭位置：① 前端监听**新到达**的 `command_handled{kind:goal_*,result:no_op}`
+回执并 toast（`goalNoopReceipts` 纯函数 + SessionFeature 基线机制——挂载
+只建基线不翻旧账；daemon ack 保持 fixed "requested" 文案不动，
+fsync-before-ack 不承诺结果的通道语义原样）；② `GoalLoopLauncher` 删除
+goal 渲染路径（props 收窄 `"loop"|"best"`，goal 的唯一 UI 载体 =
+composer Goal chip/GoalOptions；ComposerController 对 goal 收起 launcher
+prop，stories 矩阵同步）。锚：timeline.test goalNoopReceipts 场景 +
+Composer stories 40/40。顺带修 `deploy.sh` daemon env 事故（起 daemon 前
+source ENV_FILE，LOG 2026-07-24 记档的 GEMINI_API_KEY 丢失）。
 → UJ-22/UJ-24
 
 **G57 当前 context window/compaction 状态的 backend projection 缺失 — ❌ 开放（INC-98.4k 主界面对照，中）**

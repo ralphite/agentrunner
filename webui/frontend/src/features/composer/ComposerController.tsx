@@ -1351,18 +1351,18 @@ export function Composer(props: ComposerProps) {
     <ComposerView
       isSession={isSession}
       launcher={
-        launcher
+        // G58② · goal mode renders as the composer's Goal chip (GoalOptions),
+        // never as a launcher panel — the panel serves loop/best only.
+        launcher && launcher.mode !== "goal"
           ? {
               mode: launcher.mode,
               initialPrompt: launcher.prompt,
               busy,
               onCancel: () => setLauncher(null),
               onStart: (prompt, second, iterations) =>
-                launcher.mode === "goal"
-                  ? startGoal(prompt, second, iterations)
-                  : launcher.mode === "loop"
-                    ? startLoop(prompt, second, iterations)
-                    : startBest(prompt, second, iterations),
+                launcher.mode === "loop"
+                  ? startLoop(prompt, second, iterations)
+                  : startBest(prompt, second, iterations),
             }
           : undefined
       }
