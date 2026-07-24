@@ -671,61 +671,61 @@ const ALL_STORY_REVIEW_AXES = [
 // digest edit.
 const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-attention":
-    "08d82ac4b561218df6de41554cdade657de0ff4f832b68ef3086444b10437914",
+    "fa1df71c0e60024c30eb50e20f27a0658fff8e5033bc29dbf94cfed9880e6e32",
   "components-changes":
-    "77e53051c4a121bca9410606e6a1a0ca2a23084dcc44082937dff4bc05935047",
+    "318ab86f345a8a442d35aa143ce8f69f8b1eb8efcb6a2cd8e3f54b5c9ac7ac49",
   "components-content":
-    "ab56f2824ae8c342bac9725be05f1a557c8d1e37799d483f0db701205cf9b7aa",
+    "7352ac54db99658a351fa0eb429e75607df341a45a36cbcbb9800ee8d6b1da21",
   "components-feedback":
-    "fc2381b1f621b34a6f8caedc048da5d1a70e0624561a4e08a9a9b92f71f85cae",
+    "07b1f9d1bf219f21abe02a2a79810e460e92cde6645a655305881dea60bc923e",
   "components-home":
-    "0f970c8c4acf1978d707d3e68f94a681d2d79083e737ecca2cfb651182558828",
+    "4c75e9f513c44143eebaec6de335834de9751880589ca119631f4da909a6daa9",
   "components-input":
-    "6e505919dd5855d8c007ca879c827f6f32b34b2dd4df44932a7108f3dc40c0e8",
+    "20a4f4718c69ab0fbee2e4ea2b8c6db583262f66b39cf1fc0521148a2cdf3ebf",
   "components-media":
-    "36738d597a948a18180add6511f9b90c988ccd49c25ee396d869e5dd62db9350",
+    "69efb6f282f1af3611610df4da075a2275a55f518fa4d6be9157eeefb0f44248",
   "components-navigation":
-    "bede0f9cda57c3e550abdbf5255fe3ee37cc11b1da3d1c585952ad217b1eb84b",
+    "9dc52c966489c7cf5446205d946001451752915a1a30ba701a76176922c0c5d8",
   "components-overlays":
-    "989014a1a4d754420a50a8427be2075fabc94078a141b69fe0829b43f1548080",
+    "b50d4d1cda3b4fe9deda3c2d12ab72f27c26d9c4c605003cb51c86a294158a41",
   "components-runs":
-    "42e29e7d09f8ac6a764f2f027331352d440ac844731f76c3bbd4e1fdf885104c",
+    "1c25a30b4c2826b22ee6aee34ba5ba39aa5e35a8c67cfb0a24f19c0adc2d233a",
   "components-scheduled":
-    "fa58d12250a0c47fb5e75c1027ebcd8afa745927ae62d3ef3678f873e6376f03",
+    "9210fa5911155202d2ab31dc57af9bc9e1caa637b22becf403ed8560f75e52a4",
   "components-sessions":
-    "45daa39f3928c94fe6acffdd76ebc184ff44df3cf21e72648d3c0f68813cec8f",
+    "157f535c68e3b191d965c65f45999fb3d7ef0de083988b9e15fc280a90785429",
   "components-settings":
-    "e3a0a6881ac03e8c5cc4c994857d3a723a2e808a3bbb13a65f31a02329e65867",
+    "6a58191272b928023407e0eb66dc3d5553c1fab271f41166a36bff42f88dec2a",
   "components-supervision":
-    "72ffd286ede15acc09b5f6c1bcb66e9ae136eb86f9e420a1fa62df717e6578af",
+    "157ef8fe0aceceff96ba26002a14966ddf2a604f7900c07141de80556c8ec4af",
   "components-timeline":
-    "134da45db6c97f71d7b6dbdb7cada364a2137663bf3157630407c7a979d3f690",
+    "4b7ae757218800778c87e0ef13bd1c791b82947aa00ec145f71f20fecf9fe8de",
   "cujs-core-session":
-    "025cbce08af8419967561723ce738ab46208c4c6b5038c674a89278d8ae61d0b",
+    "debf4ca51a0d5d24c0057e246358d7ee770383f0a57bc9d9135b61656b8d1688",
   "demos-core-session":
-    "65b57a60d09301efa37804434b5ff6e17c31833f21c902476c7b6137f3ebb39d",
+    "0408d154efe915648dbd08e27458ab7c5eab3052e3b4166d74ba2f845b4c81f0",
   "demos-scenario-controls":
-    "3b453de924a1a5f3d57cae3b522e66c82d5ee429c360afb2cb93b8a135f129b7",
+    "516c2349c3615080f13bc8e3f3a17d448a0315286d90ebf3e406a6ca69f818fb",
   "foundations-actions":
-    "723d8704ad1df6f1265fcaaa97790064376fd540999e94b733e92f81e38e7829",
+    "b51bb7841bd224d1291590d57eeff714e754263aec6eee6e94ca5e33cdd04efe",
   "foundations-behavior":
-    "b9527cc97b0350565e2952fefb800aab42a23afadd22691857cb55ed292a434f",
+    "ac3342eb03edb467ce8b1e74d39889fc57d906ceec477efa8d27e042bae9efae",
   "foundations-feedback":
-    "1be4386b4b3d57c083bbd961032236b712b04b72a098fafc207f97e2d7728a27",
+    "6b4dd0872dd5ad73be7daf12499bfed71e8ec244e5b4f5fa1f68befa87ffd970",
   "foundations-forms":
-    "2a027901d7ed9649785fda419c626719a987016614b99fc8ae8de7b0791cbdb1",
+    "cef0aa5e68baad16656794ce54d2773d553422fdaad25b07cbbca1f528db1e4c",
   "pages-appruntime":
-    "432101a696c6ddd17e58e7ce55cff50755586d4b0a11335905998ff38084dd02",
+    "b1ccbffc2503dbdc9c0d0aaf53a87238ebd980ffff1b3d0ac558d7b4d4b6aebb",
   "pages-appshell":
-    "abc1f438228f9d559f7cfb3e98dcc96fa696f3557d85769f52cc78693b3f99e9",
+    "5594e6a20b0bbc9099878a602a5e3d3e7ca6632d22527cc9b0e6047f062dbb4d",
   "pages-home":
-    "424724136eb7cb3234c3aef45e7af77bb032f483e793c1158c9ba80c29e66c5a",
+    "371c39386f4cfe2b53fa813ca15f71999cc2d05d9cff6380d0325a1655354fe1",
   "pages-pagehost":
-    "8cc36c038dbba2e739398f28b206b48d58bfbc2dc1b9fad4a3c394b331ef14f4",
+    "6b94c5916ed96d78943eb6ce8f87aff7baf88a45751d86b90f7c5548f0539476",
   "pages-scheduled":
-    "ea55f218f8d11341b7b401907ca744b72af07c9184fa9b04b075f8d770c49ce0",
+    "1930bd70761fb70a983394a71411dcf437630e9cca11abcd31b12fad31d73ed7",
   "pages-settings":
-    "b591014a35e539ac33fccdfa34c0b9676a894278233d62c75818b46f95772e3a",
+    "1a1742ff6c9da4d5ba155c8b12df882ba6211df9b1f6c19b0567dd9e6e792ed3",
 };
 
 function reviewedFamily(
@@ -3061,6 +3061,7 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
   ScheduledRunItem: [
     "components-scheduled-parts--run-item-action-visibility-states",
     "components-scheduled-parts--run-item-focus-and-menu-open",
+    "components-scheduled-parts--run-item-touch-action-visibility",
   ],
   SessionTopbar: [
     "components-sessions-sessionchrome--topbar-read-only-sub-agent",
