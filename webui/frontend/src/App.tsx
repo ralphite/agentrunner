@@ -246,7 +246,13 @@ export function AppShell() {
       {isMobile && mobileSidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={hideSidebar} />}
       {/* tabIndex -1 so the skip link can land focus here (not just scroll):
           the next Tab then continues into the conversation / composer. */}
-      <div className="main" id="main" tabIndex={-1}>
+      <div
+        className="main"
+        id="main"
+        tabIndex={-1}
+        inert={isMobile && mobileSidebarOpen ? true : undefined}
+        aria-hidden={isMobile && mobileSidebarOpen ? "true" : undefined}
+      >
         {effectiveCollapsed && !(isMobile && currentPage === "scheduled" && scheduledDetailSid) && (
           <IconButton
             className="sidebar-show"

@@ -120,24 +120,22 @@ export function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactN
     <div className="thumbs">
       {paths.map((p, i) =>
         broken.has(i) ? null : (
-          <img
-            className="thumb"
+          <button
+            className="thumb-button"
             key={i}
-            src={uploadURL(p)}
-            alt={`Attachment ${i + 1}`}
-            role="button"
-            tabIndex={0}
+            type="button"
             title="View image"
             aria-label={`View image ${i + 1} of ${paths.length}`}
-            onError={() => setBroken((prev) => new Set(prev).add(i))}
             onClick={() => setLightbox(i)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setLightbox(i);
-              }
-            }}
-          />
+          >
+            <img
+              className="thumb"
+              src={uploadURL(p)}
+              alt=""
+              aria-hidden="true"
+              onError={() => setBroken((prev) => new Set(prev).add(i))}
+            />
+          </button>
         ),
       )}
       {lightbox !== null && (

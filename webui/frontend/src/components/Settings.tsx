@@ -89,6 +89,7 @@ export function Settings({
     <FocusScope
       className="fixed inset-0 z-[60] flex h-[100dvh] overflow-hidden bg-bg text-ink font-sans text-[length:var(--ui-font-size)] leading-[1.55] max-[720px]:flex-col"
       role="dialog"
+      aria-modal="true"
       aria-label="Settings"
       initialFocus={searchRef}
       restoreFocus={restoreFocus ?? true}

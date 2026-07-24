@@ -57,6 +57,13 @@ export function CommandPaletteItem({
             aria-hidden="true"
           />
         ))}
+      {item.session && (item.actionCount || item.dotTitle) && (
+        <span className="sr-only">
+          {item.actionCount
+            ? `${item.actionCount} actions required`
+            : `Status: ${item.dotTitle}`}
+        </span>
+      )}
       <span className="cmdk-label">{item.label}</span>
       {item.hint && <span className="cmdk-hint">{item.hint}</span>}
       {item.quickNum && item.quickNum <= 9 && (

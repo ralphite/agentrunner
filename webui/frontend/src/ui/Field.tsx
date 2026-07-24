@@ -255,7 +255,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
           className={cx("min-w-0 flex-1 text-ink", className)}
         />
         {endActions && (
-          <div className="inline-flex shrink-0 items-center gap-1 [&_:focus-visible]:outline-none">
+          <div className="inline-flex shrink-0 items-center gap-1">
             {endActions}
           </div>
         )}
