@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { AppShell } from "./app/AppShell";
 import { StoryAppFrame } from "./storybook/StoryAppFrame";
+import { createStoryApiHandlers } from "./storybook/handlers";
 import type { Health, Session } from "./types";
 
 const health: Health = {
@@ -29,12 +30,15 @@ const sessions: Session[] = [
   },
 ];
 
+const appShellApi = createStoryApiHandlers({ health, sessions });
+
 const meta = {
   title: "Pages/AppShell",
   component: AppShell,
   parameters: {
     fullHeight: true,
     options: { layout: { showNav: false, showPanel: false } },
+    msw: { handlers: appShellApi.handlers },
   },
   decorators: [
     (Story) => (
