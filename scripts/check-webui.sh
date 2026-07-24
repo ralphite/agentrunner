@@ -31,6 +31,7 @@ npm run build
 npm run build-storybook
 npm run lint:storybook
 npm run test:storybook
+npm run test:visual
 
 if rg -q "mockServiceWorker|msw-storybook-addon|ApprovalCard\\.stories|storybook" dist; then
   echo "check-webui: production bundle contains Storybook/MSW development assets" >&2

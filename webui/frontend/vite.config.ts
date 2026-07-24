@@ -8,7 +8,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./",
   build: { outDir: "dist", emptyOutDir: true },
-  test: { setupFiles: "./src/testSetup.ts" },
+  test: {
+    include: [
+      "src/**/*.test.{ts,tsx,js,jsx}",
+      "src/**/*.spec.{ts,tsx,js,jsx}",
+    ],
+    setupFiles: "./src/testSetup.ts",
+  },
   server: {
     port: 5188,
     proxy: {

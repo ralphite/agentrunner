@@ -13,6 +13,7 @@ const manifestPath = path.join(frontendRoot, "src/storybook/storyManifest.ts");
 const baselinePath = path.join(frontendRoot, "storybook-missing-baseline.json");
 const storyIndexPath = path.join(frontendRoot, "storybook-static/index.json");
 const sourceBaselinePath = path.join(frontendRoot, "storybook-baseline.json");
+const missingBaselineSchemaVersion = 2;
 const allowedRoots = new Set([
   "Foundations",
   "Components",
@@ -45,8 +46,8 @@ async function loadManifest() {
   return import(`data:text/javascript;base64,${encoded}`);
 }
 
-function normalizeImportPath(source) {
-  return `./${source.replace(/\.tsx$/, ".stories.tsx")}`;
+function normalizeImportPath(target) {
+  return `./${target.storySource ?? target.source.replace(/\.tsx$/, ".stories.tsx")}`;
 }
 
 function readGitFile(revision, file) {
@@ -72,28 +73,43 @@ function previousBaseline() {
   } catch {
     trackedAtHead = false;
   }
-  if (!trackedAtHead) return [];
+  if (!trackedAtHead) return { schemaVersion: 0, missing: [] };
 
   const working = fs.readFileSync(baselinePath, "utf8");
   const head = readGitFile("HEAD", relativeBaseline);
   const previous = working === head ? readGitFile("HEAD^", relativeBaseline) : head;
-  if (!previous) return [];
+  if (!previous) return { schemaVersion: 0, missing: [] };
   try {
-    return JSON.parse(previous).missing ?? [];
+    const parsed = JSON.parse(previous);
+    return {
+      schemaVersion: parsed.schemaVersion ?? 0,
+      missing: parsed.missing ?? [],
+    };
   } catch {
-    return [];
+    return { schemaVersion: 0, missing: [] };
   }
 }
 
-const { storyManifest } = await loadManifest();
+const {
+  storyManifest,
+  privateVisibleExclusions = [],
+  workbenchStories = [],
+} = await loadManifest();
 const storyIndex = JSON.parse(fs.readFileSync(storyIndexPath, "utf8"));
 const sourceBaseline = JSON.parse(fs.readFileSync(sourceBaselinePath, "utf8"));
 const entries = storyIndex.entries ?? {};
 const targetIds = new Set();
-const sourceExports = new Set();
+const sourceDeclarations = new Set();
 const availableExports = new Set(
   sourceBaseline.productionComponents.files.flatMap((file) =>
     file.exports.map((exportName) => `${file.source}#${exportName}`),
+  ),
+);
+const availablePrivateVisible = new Set(
+  sourceBaseline.productionComponents.files.flatMap((file) =>
+    file.privateVisibleCandidates.map(
+      (declarationName) => `${file.source}#${declarationName}`,
+    ),
   ),
 );
 const coveredStoryIds = new Set();
@@ -163,10 +179,16 @@ for (const target of storyManifest) {
   if (!fs.existsSync(sourcePath)) {
     fail(`${target.componentId}: source does not exist: ${target.source}`);
   }
-  const sourceExport = `${target.source}#${target.exportName}`;
-  sourceExports.add(sourceExport);
-  if (!availableExports.has(sourceExport)) {
-    fail(`${target.componentId}: production export does not exist: ${sourceExport}`);
+  const declarationName = target.exportName ?? target.componentId;
+  const sourceDeclaration = `${target.source}#${declarationName}`;
+  sourceDeclarations.add(sourceDeclaration);
+  const availableDeclarations = target.exportName
+    ? availableExports
+    : availablePrivateVisible;
+  if (!availableDeclarations.has(sourceDeclaration)) {
+    fail(
+      `${target.componentId}: production ${target.exportName ? "export" : "private visible declaration"} does not exist: ${sourceDeclaration}`,
+    );
   }
   if (!target.cells || Object.keys(target.cells).length === 0) {
     fail(`${target.componentId}: no coverage cells`);
@@ -194,22 +216,69 @@ for (const target of storyManifest) {
       fail(`${key}: storyId not found in built index: ${cell.storyId}`);
       continue;
     }
-    if (entry.importPath !== normalizeImportPath(target.source)) {
+    const expectedImportPath = normalizeImportPath(target);
+    if (entry.importPath !== expectedImportPath) {
       fail(
-        `${key}: Story must colocate with source (${entry.importPath} != ${normalizeImportPath(target.source)})`,
+        `${key}: Story source mismatch (${entry.importPath} != ${expectedImportPath})`,
       );
     }
     coveredStoryIds.add(cell.storyId);
   }
 }
 
+const exclusionDeclarations = new Set();
+for (const exclusion of privateVisibleExclusions) {
+  const key = `${exclusion.source}#${exclusion.declarationName}`;
+  if (exclusionDeclarations.has(key)) {
+    fail(`duplicate private-visible exclusion: ${key}`);
+  }
+  exclusionDeclarations.add(key);
+  if (!availablePrivateVisible.has(key)) {
+    fail(`private-visible exclusion does not exist in source baseline: ${key}`);
+  }
+  if (sourceDeclarations.has(key)) {
+    fail(`private-visible declaration cannot be both target and exclusion: ${key}`);
+  }
+  if (!exclusion.reason || !exclusion.evidence || !exclusion.owner) {
+    fail(`${key}: private-visible exclusion requires reason, evidence and owner`);
+  }
+}
+
 for (const file of sourceBaseline.productionComponents.files) {
   for (const exportName of file.exports) {
     const key = `${file.source}#${exportName}`;
-    if (!sourceExports.has(key)) {
+    if (!sourceDeclarations.has(key)) {
       fail(`visible production export missing from manifest: ${key}`);
     }
   }
+  for (const declarationName of file.privateVisibleCandidates) {
+    const key = `${file.source}#${declarationName}`;
+    if (!sourceDeclarations.has(key) && !exclusionDeclarations.has(key)) {
+      fail(`private visible declaration is unclassified: ${key}`);
+    }
+  }
+}
+
+for (const workbench of workbenchStories) {
+  const key = `${workbench.kind}:${workbench.storyId}`;
+  const entry = entries[workbench.storyId];
+  if (!entry || entry.type !== "story") {
+    fail(`${key}: storyId not found in built index`);
+    continue;
+  }
+  const expectedRoot = workbench.kind === "cuj" ? "CUJs" : "Demos";
+  if (entry.title.split("/")[0] !== expectedRoot) {
+    fail(`${key}: expected ${expectedRoot} taxonomy root, got ${entry.title}`);
+  }
+  if (entry.importPath !== `./${workbench.source}`) {
+    fail(
+      `${key}: Story source mismatch (${entry.importPath} != ./${workbench.source})`,
+    );
+  }
+  if (!workbench.evidence || !workbench.owner) {
+    fail(`${key}: evidence and owner are required`);
+  }
+  coveredStoryIds.add(workbench.storyId);
 }
 
 for (const entry of Object.values(entries)) {
@@ -227,7 +296,7 @@ for (const entry of Object.values(entries)) {
 }
 
 missing.sort();
-const renderedBaseline = `${JSON.stringify({ schemaVersion: 1, missing }, null, 2)}\n`;
+const renderedBaseline = `${JSON.stringify({ schemaVersion: missingBaselineSchemaVersion, missing }, null, 2)}\n`;
 if (process.argv.includes("--update-baseline")) {
   fs.writeFileSync(baselinePath, renderedBaseline);
   console.log(`storybook manifest: wrote ${path.relative(repoRoot, baselinePath)} (${missing.length} missing)`);
@@ -238,9 +307,14 @@ if (process.argv.includes("--update-baseline")) {
   if (currentBaseline !== renderedBaseline) {
     fail("missing baseline is stale; run `npm run manifest:storybook:update`");
   }
-  const previous = new Set(previousBaseline());
+  const previousSnapshot = previousBaseline();
+  const previous = new Set(previousSnapshot.missing);
   const regressions = missing.filter((item) => !previous.has(item));
-  if (previous.size > 0 && regressions.length > 0) {
+  if (
+    previousSnapshot.schemaVersion === missingBaselineSchemaVersion &&
+    previous.size > 0 &&
+    regressions.length > 0
+  ) {
     fail(`MISSING baseline increased: ${regressions.join(", ")}`);
   }
 }
@@ -251,5 +325,5 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `storybook lint: ${storyManifest.length} targets, ${Object.keys(entries).length} stories, ${missing.length} missing`,
+  `storybook lint: ${storyManifest.length} targets, ${privateVisibleExclusions.length} private exclusions, ${Object.keys(entries).length} stories, ${missing.length} missing`,
 );

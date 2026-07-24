@@ -14,6 +14,8 @@
     "storybook": "storybook dev -p 6009 --host 127.0.0.1",
     "build-storybook": "storybook build -o storybook-static",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
+    "test:visual": "playwright test --config playwright.visual.config.ts",
+    "test:visual:update": "playwright test --config playwright.visual.config.ts --update-snapshots",
     "baseline:storybook": "node ../../scripts/generate-storybook-baseline.mjs",
     "baseline:storybook:check": "node ../../scripts/generate-storybook-baseline.mjs --check",
     "lint:storybook": "node ../../scripts/lint-storybook.mjs",
@@ -51,6 +53,7 @@
     "msw-storybook-addon": "2.0.7",
     "playwright": "1.61.1",
     "storybook": "10.5.3",
+    "storybook-addon-pseudo-states": "^10.5.3",
     "typescript": "^5.6.3",
     "vite": "^7.3.6",
     "vitest": "4.1.10"
