@@ -331,7 +331,7 @@ function useWorkspace() {
   return { ws, setWs, mk, ensure, choose, mkWorktree };
 }
 
-function ModelFields({
+export function ModelFields({
   provider,
   model,
   effort,

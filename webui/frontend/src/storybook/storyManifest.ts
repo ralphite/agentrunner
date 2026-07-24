@@ -1395,6 +1395,14 @@ const baseStoryManifest = [
       },
     },
   ),
+  coveredPrefixedStateTarget(
+    "ModelFields",
+    "src/components/Modals.tsx",
+    "components-overlays-modals",
+    "model-fields-default",
+    "model-fields-keyboard-navigation",
+    ["model-fields-custom-model"],
+  ),
   ...[
     "MainModal",
     "PromptModal",

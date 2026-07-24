@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 60,
-    "lines": 18920,
+    "lines": 19218,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -186,7 +186,7 @@
       },
       {
         "source": "src/components/Modals.tsx",
-        "lines": 962,
+        "lines": 1217,
         "exports": [
           "AgentModal",
           "ConfirmModal",
@@ -194,6 +194,7 @@
           "MainModal",
           "Modal",
           "Modals",
+          "ModelFields",
           "NewSessionModal",
           "PromptModal",
           "RenameModal",
@@ -448,7 +449,7 @@
       },
       {
         "source": "src/features/composer/ComposerController.tsx",
-        "lines": 1586,
+        "lines": 1645,
         "exports": [
           "Composer"
         ],
@@ -456,7 +457,7 @@
       },
       {
         "source": "src/features/composer/ComposerParts.tsx",
-        "lines": 1361,
+        "lines": 1345,
         "exports": [
           "AccessPicker",
           "AddMenu",
@@ -622,7 +623,7 @@
   },
   "tests": {
     "files": 82,
-    "declarations": 795
+    "declarations": 792
   },
   "storage": [
     {

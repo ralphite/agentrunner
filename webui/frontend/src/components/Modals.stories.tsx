@@ -12,6 +12,7 @@ import {
   ForkModal,
   MainModal,
   Modal,
+  ModelFields,
   Modals,
   NewSessionModal,
   PromptModal,
@@ -200,6 +201,35 @@ function StandaloneModalFixture({ startOpen = true }: { startOpen?: boolean }) {
   );
 }
 
+function ModelFieldsFixture({
+  custom = false,
+}: {
+  custom?: boolean;
+}) {
+  const [provider, setProvider] = useState(custom ? "custom" : "gemini");
+  const [model, setModel] = useState(
+    custom ? "organization-specialist" : "gemini-2.5-pro",
+  );
+  const [effort, setEffort] = useState("high" as const);
+  return (
+    <div className="max-w-lg p-6">
+      <ModelFields
+        provider={provider}
+        model={model}
+        effort={effort}
+        onModel={(nextProvider, nextModel) => {
+          setProvider(nextProvider);
+          setModel(nextModel);
+        }}
+        onEffort={setEffort}
+      />
+      <output className="mt-3 block text-xs text-muted">
+        {provider}/{model} · {effort}
+      </output>
+    </div>
+  );
+}
+
 const meta = {
   title: "Components/Overlays/Modals",
   component: Modals,
@@ -242,6 +272,42 @@ export const KeyboardNavigation: Story = {
     await expect(
       canvas.queryByRole("dialog", { name: "Remove demo project?" }),
     ).toBeNull();
+  },
+};
+
+export const ModelFieldsDefault: Story = {
+  render: () => <ModelFieldsFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByLabelText("Model")).toHaveValue(
+      "gemini/gemini-2.5-pro",
+    );
+    await expect(canvas.getByLabelText("Effort")).toHaveValue("high");
+  },
+};
+
+export const ModelFieldsCustomModel: Story = {
+  render: () => <ModelFieldsFixture custom />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByLabelText("Model")).toHaveValue(
+      "custom/organization-specialist",
+    );
+    await expect(
+      canvas.getByText("custom/organization-specialist · high"),
+    ).toBeVisible();
+  },
+};
+
+export const ModelFieldsKeyboardNavigation: Story = {
+  render: () => <ModelFieldsFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const model = canvas.getByLabelText("Model");
+    model.focus();
+    await expect(model).toHaveFocus();
+    await userEvent.tab();
+    await expect(canvas.getByLabelText("Effort")).toHaveFocus();
   },
 };
 
