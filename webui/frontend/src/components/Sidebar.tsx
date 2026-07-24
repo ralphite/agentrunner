@@ -1,25 +1,15 @@
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
-  ArrowsOutSimple,
   CaretRight,
-  ChatCircle,
-  CircleNotch,
   Clock,
   DotsThree,
-  EnvelopeSimple,
-  EnvelopeSimpleOpen,
-  Folder,
-  FolderOpen,
   GearSix,
-  GitBranch,
-  GitFork,
   type Icon,
   MagnifyingGlass,
   Monitor,
   Moon,
   NotePencil,
-  PencilSimple,
   PushPin,
   Question,
   Sun,
@@ -38,11 +28,19 @@ import { useAppServices } from "../app/appServices";
 import { sessionFriendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
-import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { buildSidebarModel, isManagedWorktreeWorkspace, projectDisplayName, projectLabel, scheduledUnread, sessionUpdatedDate, visibleProjectSessions } from "../viewModels";
+import { Menu, MenuItem } from "./Menu";
+import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, sessionUpdatedDate, visibleProjectSessions } from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
+import {
+  SidebarConnectionStatus,
+  SidebarPreviewCard,
+  SidebarProjectActions,
+  SidebarProjectItem,
+  SidebarSessionActions,
+  SidebarSessionItem,
+} from "./SidebarItems";
 
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
@@ -317,22 +315,16 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   };
 
   const renderSessionActions = (sid: string) => (
-    <>
-      <MenuLabel>{displayTitle(renames, sid, sessions.find((session) => session.id === sid)?.title)}</MenuLabel>
-      <MenuItem onClick={() => togglePin(sid)}>
-        <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} /> {pinned.includes(sid) ? "Unpin" : "Pin"}
-      </MenuItem>
-      <MenuItem onClick={() => store.getState().openModal({ kind: "rename", sid })}>
-        <PencilSimple size={16} /> Rename…
-      </MenuItem>
-      <MenuItem onClick={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}>
-        {unread.includes(sid) ? <EnvelopeSimpleOpen size={16} /> : <EnvelopeSimple size={16} />}
-        {unread.includes(sid) ? "Mark as read" : "Mark as unread"}
-      </MenuItem>
-      <MenuItem onClick={() => toggleArchive(sid)}>
-        <ArchiveBox size={16} /> {archived.includes(sid) ? "Unarchive" : "Archive"}
-      </MenuItem>
-    </>
+    <SidebarSessionActions
+      title={displayTitle(renames, sid, sessions.find((session) => session.id === sid)?.title)}
+      pinned={pinned.includes(sid)}
+      unread={unread.includes(sid)}
+      archived={archived.includes(sid)}
+      onTogglePin={() => togglePin(sid)}
+      onRename={() => store.getState().openModal({ kind: "rename", sid })}
+      onToggleRead={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}
+      onToggleArchive={() => toggleArchive(sid)}
+    />
   );
 
   // One source for the project group's actions: the desktop right-click
@@ -341,17 +333,17 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const renderProjectActions = (key: string, label: string, workspace: string | undefined, ids: string[]) => {
     const overlay = projects[key];
     return (
-      <>
-        <MenuItem onClick={() => void toggleProjectPinned(key, !overlay?.pinned)}>
-          <PushPin size={16} weight={overlay?.pinned ? "fill" : "regular"} /> {overlay?.pinned ? "Unpin project" : "Pin project"}
-        </MenuItem>
-        {workspace && (
-          <MenuItem onClick={() => openProjectIn(workspace, "finder")}>
-            <FolderOpen size={16} /> Reveal in Finder
-          </MenuItem>
-        )}
-        {workspace && (
-          <MenuItem onClick={() => openPrompt({
+      <SidebarProjectActions
+        pinned={overlay?.pinned}
+        removed={overlay?.removed}
+        workspace={workspace}
+        onTogglePin={() => void toggleProjectPinned(key, !overlay?.pinned)}
+        onReveal={() => {
+          if (workspace) openProjectIn(workspace, "finder");
+        }}
+        onCreateWorktree={() => {
+          if (!workspace) return;
+          openPrompt({
             title: "Create permanent worktree",
             label: "New branch name",
             placeholder: "feature/my-work",
@@ -361,57 +353,40 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 .then((result) => toast(`worktree created · ${result.path}`, "info"))
                 .catch((error: any) => toast(error.message, "error", error.details));
             },
-          })}>
-            <GitFork size={16} /> Create permanent worktree
-          </MenuItem>
-        )}
-        <MenuItem onClick={() => openPrompt({
+          });
+        }}
+        onRename={() => openPrompt({
           title: "Rename project",
           label: "Display name",
           initial: overlay?.displayName || "",
           placeholder: label,
           submitLabel: "Rename",
           onSubmit: (value) => setProjectName(key, value),
-        })}>
-          <PencilSimple size={16} /> Rename project
-        </MenuItem>
-        <MenuItem onClick={() => ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>
-          <ArchiveBox size={16} /> Archive chats
-        </MenuItem>
-        <MenuItem
-          danger={!overlay?.removed}
-          onClick={() => {
-            if (overlay?.removed) {
-              void setProjectRemoved(key, false);
-              return;
-            }
-            openModal({
-              kind: "confirm",
-              title: "Remove project from sidebar?",
-              body: `${label} will be hidden from Projects. Its chats, journal, and files stay intact, and you can restore it from Show removed projects.`,
-              confirmLabel: "Remove",
-              danger: true,
-              onConfirm: () => setProjectRemoved(key, true),
-            });
-          }}
-        >
-          <X size={16} /> {overlay?.removed ? "Restore project" : "Remove"}
-        </MenuItem>
-      </>
+        })}
+        onArchiveChats={() => ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}
+        onToggleRemoved={() => {
+          if (overlay?.removed) {
+            void setProjectRemoved(key, false);
+            return;
+          }
+          openModal({
+            kind: "confirm",
+            title: "Remove project from sidebar?",
+            body: `${label} will be hidden from Projects. Its chats, journal, and files stay intact, and you can restore it from Show removed projects.`,
+            confirmLabel: "Remove",
+            danger: true,
+            onConfirm: () => setProjectRemoved(key, true),
+          });
+        }}
+      />
     );
   };
 
   const renderSession = (session: (typeof sessions)[number], nested = false) => {
     const active = session.id === currentSid;
-    const status = sessionFriendlyStatus(session);
     const isUnread = unread.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTimeAgo(sessionUpdatedDate(session));
-    const isRunning = status.cls === "run";
-    const isWorktree = isManagedWorktreeWorkspace(session.workspace);
-    const actionCount =
-      (session.attention?.approvals || 0) +
-      (session.attention?.answers || 0);
     const openContext = (x: number, y: number) => {
       // Opening a context menu instantly dismisses any hover preview so the
       // two floating layers stay mutually exclusive (R3-1).
@@ -419,76 +394,27 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       setCtx({ kind: "session", x, y, sid: session.id });
     };
     return (
-      <div
+      <SidebarSessionItem
         key={session.id}
-        className={`project-session-wrap${nested ? " nested" : ""}${active ? " current" : ""}${isUnread ? " unread" : ""}${archived.includes(session.id) ? " archived" : ""}`}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          openContext(event.clientX, event.clientY);
+        session={session}
+        title={title}
+        when={when}
+        nested={nested}
+        active={active}
+        unread={isUnread}
+        archived={archived.includes(session.id)}
+        pinned={pinned.includes(session.id)}
+        onSelect={() => {
+          select(session.id);
+          onNavigate?.();
         }}
-        onMouseEnter={(event) => previewSession(session, event.currentTarget.getBoundingClientRect().top)}
-        onMouseLeave={() => setHoverPreview((current) => current?.kind === "session" && current.sid === session.id ? null : current)}
-      >
-        <button
-          className="project-session"
-          onClick={() => {
-            select(session.id);
-            onNavigate?.();
-          }}
-          onKeyDown={(event) => {
-            if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
-              event.preventDefault();
-              const rect = event.currentTarget.getBoundingClientRect();
-              openContext(rect.left + 20, rect.top + rect.height);
-            }
-          }}
-          title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
-          aria-label={`${title} · ${isUnread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
-        >
-          <span className="project-session-title">{title}</span>
-          {(isUnread || ["appr", "stranded", "crash"].includes(status.cls)) && (
-            actionCount > 1 && status.cls === "appr"
-              ? <span className="status-count" title={status.text} aria-hidden="true">{actionCount}</span>
-              : <span className={`status-dot ${isUnread && status.cls !== "appr" ? "unread" : status.cls}`} title={isUnread && status.cls !== "appr" ? "New activity" : status.text} />
-          )}
-        </button>
-        {(isWorktree || isRunning) && (
-          <span className={`session-state-icons${isRunning ? " running" : ""}`}>
-            {isWorktree && (
-              <span className="session-worktree-icon" title="Worktree session" aria-label="Worktree session">
-                <ArrowsOutSimple size={17} />
-              </span>
-            )}
-            {isRunning && (
-              <CircleNotch className="session-loading-icon" size={17} role="status" aria-label="Session running" />
-            )}
-          </span>
-        )}
-        {/* The row's complete menu already exists on right-click/Shift+F10 and
-            in the open session title. Hover/focus therefore spends its two quiet
-            slots on the frequent reversible actions instead of another `…`. */}
-        <span
-          className="session-quick-actions"
-          onMouseEnter={() => setHoverPreview(null)}
-        >
-          <button
-            className="session-quick-action"
-            aria-label={`${pinned.includes(session.id) ? "Unpin" : "Pin"} ${title}`}
-            title={pinned.includes(session.id) ? "Unpin" : "Pin"}
-            onClick={() => togglePin(session.id)}
-          >
-            <PushPin size={17} weight={pinned.includes(session.id) ? "fill" : "regular"} />
-          </button>
-          <button
-            className="session-quick-action"
-            aria-label={`${archived.includes(session.id) ? "Unarchive" : "Archive"} ${title}`}
-            title={archived.includes(session.id) ? "Unarchive" : "Archive"}
-            onClick={() => toggleArchive(session.id)}
-          >
-            <ArchiveBox size={17} />
-          </button>
-        </span>
-      </div>
+        onOpenContext={openContext}
+        onPreview={(top) => previewSession(session, top)}
+        onPreviewEnd={() => setHoverPreview((current) => current?.kind === "session" && current.sid === session.id ? null : current)}
+        onDismissPreview={() => setHoverPreview(null)}
+        onTogglePin={() => togglePin(session.id)}
+        onToggleArchive={() => toggleArchive(session.id)}
+      />
     );
   };
 
@@ -621,101 +547,46 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               setCtx({ kind: "project", x, y, key: project.key, label: name, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
             };
             return (
-              <div className="project-group" key={project.key}>
-                <div
-                  className="project-heading-row"
-                  onMouseEnter={(event) => {
-                    if (ctx) return;
-                    const top = event.currentTarget.getBoundingClientRect().top;
-                    setHoverPreview({ kind: "project", key: project.key, top: Math.max(10, Math.min(top - 6, window.innerHeight - 132)) });
-                  }}
-                  onMouseLeave={() => setHoverPreview((current) => current?.kind === "project" && current.key === project.key ? null : current)}
-                >
-                <button
-                  className="project-heading min-w-0 flex-1"
-                  onClick={() => setProjectCollapsed(project.key, !persistedFold)}
-                  title={project.workspace || name}
-                  aria-expanded={!folded}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    openMenu(event.clientX, event.clientY);
-                  }}
-                  onKeyDown={(event) => {
-                    if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
-                    event.preventDefault();
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    openMenu(rect.left + 20, rect.bottom);
-                  }}
-                >
-                  {/* SB-4 · the caret is the affordance: the heading is a
-                      collapse control, and Codex's group rows say so.
-                      SB-6 · caret and folder share one absolutely-positioned
-                      slot in the left gutter (see tw.css) so the group
-                      name's text lands on the same column as the session titles
-                      nested under it; the folder rests there and the caret
-                      takes the slot on hover/focus. */}
-                  <span className="proj-icon-slot">
-                    <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
-                    {/* SIDEBAR-FOLDER-ICON · the group icon is always a closed
-                        Folder, matching Codex's gold (codex-crop-sidebar-projects):
-                        every project group — expanded or not — keeps the same
-                        closed folder so the icon column stays quiet and uniform.
-                        Expanded state is encoded solely by the rotating caret
-                        (.proj-caret.open above), not by swapping to FolderOpen. */}
-                    <Folder className="proj-folder" size={16} />
-                  </span>
-                  {/* Duplicate project labels intentionally remain identical.
-                      The full workspace already lives in this button's title
-                      and hover preview, so a resting path subtitle would spend
-                      a second line on information that is only occasionally
-                      needed. */}
-                  <span className="proj-heading-text">
-                    <span className="proj-heading-name">{name}</span>
-                  </span>
-                </button>
-                {/* Desktop reveals the two quiet controls on row hover/focus;
-                    touch keeps the menu permanently reachable. The pencil is
-                    New chat for this project; Rename stays in the menu. */}
-                <span className="project-heading-actions" onClick={() => setHoverPreview(null)}>
-                  <Menu
-                    label={<DotsThree size={18} weight="bold" />}
-                    ariaLabel={`More actions for ${name}`}
-                  >
-                    {renderProjectActions(project.key, name, project.workspace, project.sessions.map((session) => session.id))}
-                  </Menu>
-                  <button
-                    className="project-quick-action max-[900px]:hidden!"
-                    aria-label={`New chat in ${name}`}
-                    title="New chat"
-                    onClick={() => {
-                      if (!project.workspace) return;
-                      newSessionForProject(project.workspace);
-                      onNavigate?.();
-                    }}
-                  >
-                    <PencilSimple size={16} />
-                  </button>
-                </span>
-                </div>
+              <SidebarProjectItem
+                key={project.key}
+                name={name}
+                workspace={project.workspace}
+                folded={folded}
+                removed={overlay?.removed}
+                actions={renderProjectActions(project.key, name, project.workspace, project.sessions.map((session) => session.id))}
+                overflow={
+                  !folded && !showAll && project.sessions.length > shown.length
+                    ? "more"
+                    : !folded && showAll && project.sessions.length > 6
+                      ? "less"
+                      : null
+                }
+                onToggle={() => setProjectCollapsed(project.key, !persistedFold)}
+                onOpenContext={openMenu}
+                onPreview={(top) => {
+                  if (ctx) return;
+                  setHoverPreview({
+                    kind: "project",
+                    key: project.key,
+                    top: Math.max(10, Math.min(top - 6, window.innerHeight - 132)),
+                  });
+                }}
+                onPreviewEnd={() => setHoverPreview((current) => current?.kind === "project" && current.key === project.key ? null : current)}
+                onDismissPreview={() => setHoverPreview(null)}
+                onNewChat={() => {
+                  if (!project.workspace) return;
+                  newSessionForProject(project.workspace);
+                  onNavigate?.();
+                }}
+                onToggleOverflow={() => setExpanded((current) => {
+                  const next = new Set(current);
+                  if (showAll) next.delete(project.key);
+                  else next.add(project.key);
+                  return next;
+                })}
+              >
                 {shown.map((session) => renderSession(session, true))}
-                {!folded && !showAll && project.sessions.length > shown.length && (
-                  <button className="show-more" onClick={() => setExpanded((current) => new Set(current).add(project.key))}>
-                    Show more
-                  </button>
-                )}
-                {!folded && showAll && project.sessions.length > 6 && (
-                  <button
-                    className="show-more"
-                    onClick={() => setExpanded((current) => {
-                      const next = new Set(current);
-                      next.delete(project.key);
-                      return next;
-                    })}
-                  >
-                    Show less
-                  </button>
-                )}
-              </div>
+              </SidebarProjectItem>
             );
           })}
           {/* SB-4 · section-level Show more. Same row language as the per-group
@@ -790,33 +661,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             offline" made every cold load flash a fake outage (and armed a
             restart click). Unknown is neutral and inert; only a health record
             that actually says daemonUp:false is an outage. */}
-        {health?.daemonUp === false ? (
-          <button
-            className="account-badge"
-            onClick={restartDaemon}
-            title="Daemon offline — click to restart"
-            aria-label="Daemon offline — click to restart"
-          >
-            <span className="account-avatar offline" aria-hidden="true">
-              <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
-              <span className="account-presence" />
-            </span>
-            <span className="account-meta"><span>Daemon offline — restart</span></span>
-          </button>
-        ) : (
-          <div
-            className="account-badge"
-            role="status"
-            title={!health ? "Checking daemon status…" : `Connected to daemon · ${health.version || "unknown version"}`}
-            aria-label={!health ? "Connecting to daemon" : "Connected to daemon"}
-          >
-            <span className={`account-avatar${!health ? " connecting" : " online"}`} aria-hidden="true">
-              <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
-              <span className="account-presence" />
-            </span>
-            <span className="account-meta"><span>{!health ? "Connecting…" : "Connected"}</span></span>
-          </div>
-        )}
+        <SidebarConnectionStatus
+          state={!health ? "checking" : health.daemonUp ? "connected" : "offline"}
+          version={health?.version}
+          onRestart={restartDaemon}
+        />
         {/* SB-12 · Three loose icon buttons — Settings, Help, Theme — sat on the
             account row spending a third of it on chrome nobody clicks in a
             session. Codex's bottom bar is identity only: avatar, name, presence
@@ -849,15 +698,14 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           const overlay = projects[project.key];
           const name = projectDisplayName(project, overlay);
           return (
-            <div className="project-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
-              <div className="project-preview-head">
-                <Folder size={18} />
-                <b>{name}</b>
-                <PushPin size={16} weight={overlay?.pinned ? "fill" : "regular"} />
-              </div>
-              <div><ChatCircle size={16} /><span>{project.sessions.length} {project.sessions.length === 1 ? "chat" : "chats"}</span></div>
-              <div className="project-preview-path"><FolderOpen size={16} /><span>{project.workspace || "No workspace"}</span></div>
-            </div>
+            <SidebarPreviewCard
+              kind="project"
+              top={hoverPreview.top}
+              name={name}
+              pinned={overlay?.pinned}
+              chats={project.sessions.length}
+              workspace={project.workspace}
+            />
           );
         }
         const session = sessions.find((item) => item.id === hoverPreview.sid);
@@ -868,14 +716,15 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         const branch = workspace ? branchByWorkspace[workspace] : "";
         const when = relTimeAgo(sessionUpdatedDate(session));
         return (
-          <div className="session-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
-            <div className="session-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
-            {/* SB-13: no workspace ⇒ no project, and the preview says so
-                plainly rather than inventing an "Other sessions" folder. */}
-            <div><Folder size={15} /><span>{projectLabel(workspace) || "No project"}</span></div>
-            <div><GitBranch size={15} /><span>{branch || "Local"}</span></div>
-            <div><span className={`status-dot ${status.cls}`} /><span>{status.text}</span></div>
-          </div>
+          <SidebarPreviewCard
+            kind="session"
+            top={hoverPreview.top}
+            title={title}
+            when={when}
+            project={projectLabel(workspace)}
+            branch={branch}
+            status={status}
+          />
         );
       })()}
 

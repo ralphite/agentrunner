@@ -8,19 +8,10 @@ import { paletteSessionGroups } from "../viewModels.nav";
 import { sessionFriendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
 import type { Session } from "../types";
-
-interface Item {
-  id: string;
-  label: string;
-  hint?: string;
-  group: string;
-  quickNum?: number; // ⌘1..9 quick-switch badge on recent-session rows
-  session?: boolean; // session rows reserve a leading status-dot gutter
-  dot?: string; // status-dot class: `unread`, or friendlyStatus().cls — never both
-  dotTitle?: string; // what the dot means, spelled out on hover
-  actionCount?: number;
-  run: () => void;
-}
+import {
+  CommandPaletteItem,
+  type CommandPaletteItemModel,
+} from "./CommandPaletteItem";
 
 // A session row shows a dot on exactly the terms the sidebar uses:
 // unread beats status, and only the statuses that actually want the user get a
@@ -65,7 +56,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
     inputRef.current?.focus();
   }, []);
 
-  const items = useMemo<Item[]>(() => {
+  const items = useMemo<CommandPaletteItemModel[]>(() => {
     const ql = q.trim().toLowerCase();
     const match = (s: string) => !ql || s.toLowerCase().includes(ql);
     const go = (fn: () => void) => () => {
@@ -74,7 +65,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
       onClose(false);
       fn();
     };
-    const cmds: Item[] = [
+    const cmds: CommandPaletteItemModel[] = [
       { id: "c-new", label: "New session", group: "Commands", run: go(() => showPage("home")) },
       { id: "c-run", label: "New run…", hint: "one-shot / scheduled", group: "Commands", run: go(() => openModal({ kind: "run" })) },
       // CP-8: Scheduled is the app's other top-level destination and Settings is
@@ -103,10 +94,10 @@ export function CommandPalette({ onClose, onOpenSettings }: {
     // Attention sessions past the ninth digit get a badge-less group. Typing a
     // query switches to a plain fuzzy search over every session.
     const unreadSet = new Set(unread);
-    let sess: Item[];
+    let sess: CommandPaletteItemModel[];
     if (!ql) {
       const { quick, attention: overflow } = paletteSessionGroups(sessions, { archived });
-      const row = (s: Session, quickNum?: number): Item => ({
+      const row = (s: Session, quickNum?: number): CommandPaletteItemModel => ({
         id: "s" + s.id,
         label: displayTitle(renames, s.id, s.title),
         hint: projectLabel(s.workspace),
@@ -137,13 +128,13 @@ export function CommandPalette({ onClose, onOpenSettings }: {
             session: true,
             ...sessionDot(s, !isArchived && unreadSet.has(s.id)),
             run: go(() => select(s.id)),
-          } satisfies Item;
+          } satisfies CommandPaletteItemModel;
         });
       // Group headers are drawn off runs of equal `group`, so archived hits sit
       // together at the bottom rather than interleaving with live sessions.
       sess = [...hits.filter((h) => h.group === "Sessions"), ...hits.filter((h) => h.group === "Archived")];
     }
-    const rn: Item[] = runs
+    const rn: CommandPaletteItemModel[] = runs
       .filter((r) => match(r.label || r.id))
       .slice(0, 4)
       .map((r) => ({
@@ -204,6 +195,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
             ref={inputRef}
             className="cmdk-input"
             placeholder="Search sessions or run a command"
+            aria-label="Search sessions or run a command"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             role="combobox"
@@ -229,38 +221,15 @@ export function CommandPalette({ onClose, onOpenSettings }: {
             return (
               <div key={it.id}>
                 {showGroup && <div className="cmdk-group">{it.group}</div>}
-                <button
-                  type="button"
-                  id={it.id}
-                  ref={i === idx ? selRef : undefined}
-                  className={"cmdk-item" + (i === idx ? " sel" : "")}
-                  role="option"
-                  aria-selected={i === idx}
-                  onMouseEnter={() => {
+                <CommandPaletteItem
+                  item={it}
+                  selected={i === idx}
+                  buttonRef={i === idx ? selRef : undefined}
+                  onHover={() => {
                     if (!kbdNav.current) setIdx(i);
                   }}
-                  onClick={() => it.run()}
-                >
-                  {it.session && (
-                    // The leading dot says the same thing here as in the rail:
-                    // blue for new activity, otherwise the status' own colour.
-                    // Dot-less session rows keep an equal-width gutter so labels
-                    // stay aligned.
-                    it.actionCount
-                      ? <span className="status-count" title={it.dotTitle} aria-hidden="true">{it.actionCount}</span>
-                      : <span
-                          className={"status-dot" + (it.dot ? " " + it.dot : "")}
-                          style={it.dot ? undefined : { visibility: "hidden" }}
-                          title={it.dotTitle}
-                          aria-hidden="true"
-                        />
-                  )}
-                  <span className="cmdk-label">{it.label}</span>
-                  {it.hint && <span className="cmdk-hint">{it.hint}</span>}
-                  {it.quickNum && it.quickNum <= 9 && (
-                    <span className="cmdk-kbd" aria-hidden="true">{modLabel}{it.quickNum}</span>
-                  )}
-                </button>
+                  onSelect={it.run}
+                />
               </div>
             );
           })}

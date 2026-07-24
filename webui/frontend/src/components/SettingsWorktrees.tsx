@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAppStoreApi, useStore } from "../store";
 import { matchesQuery } from "./SettingsSearch";
+import { WorktreeCard } from "./WorktreeCard";
 
 const PAGE_SIZE = 40;
 
@@ -39,26 +40,12 @@ export function SettingsWorktrees({ query }: { query: string }) {
       {all.length > 0 && filtered.length === 0 && <div className="rs-noresults">No worktrees match “{query}”.</div>}
 
       {visible.map(([ws, sessions]) => (
-        <section className="rs-wt-card min-w-0 overflow-hidden max-[500px]:rounded-[8px] max-[500px]:p-2.5" key={ws}>
-          <div className="rs-wt-head min-w-0 max-[500px]:flex-col max-[500px]:items-start max-[500px]:gap-1">
-            <span className="rs-wt-path mono min-w-0 max-w-full flex-1 whitespace-normal [overflow-wrap:anywhere]" title={ws}>
-              {ws}
-            </span>
-            <span className="rs-wt-count shrink-0 whitespace-nowrap">{sessions.length} conversation{sessions.length === 1 ? "" : "s"}</span>
-          </div>
-          <div className="rs-wt-sessions min-w-0">
-            {sessions.map((t) => (
-              <button
-                key={t.id}
-                className="rs-wt-session min-w-0 max-w-full w-full whitespace-normal break-words [overflow-wrap:anywhere] text-left"
-                onClick={() => store.getState().select(t.id)}
-                title="Open this session"
-              >
-                {t.title}
-              </button>
-            ))}
-          </div>
-        </section>
+        <WorktreeCard
+          key={ws}
+          workspace={ws}
+          sessions={sessions}
+          onOpenSession={(sessionId) => store.getState().select(sessionId)}
+        />
       ))}
       {visible.length < filtered.length && (
         <button
