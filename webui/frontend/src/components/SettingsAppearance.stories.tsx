@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
+import { APPEARANCE_DEFAULTS, applyAppearance } from "../theme";
 import {
   FontRow as FontRowView,
   SettingsAppearance,
@@ -126,6 +127,48 @@ export const FontRow: Story = {
     await expect(decrease).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     await expect(canvas.getByText("14px")).toBeVisible();
+  },
+};
+
+function GlobalTypeScaleFixture() {
+  useEffect(() => {
+    applyAppearance(APPEARANCE_DEFAULTS);
+    return () => applyAppearance(APPEARANCE_DEFAULTS);
+  }, []);
+  return (
+    <StoryAppFrame services={{ local: { "arwebui.appearance": appearance } }}>
+      <div className="mx-auto grid max-w-[760px] gap-6 p-6">
+        <div className="grid gap-2 rounded-xl border border-line bg-panel p-4">
+          <span data-testid="ui-font-probe">Interface text follows UI font size.</span>
+          <code className="mono" data-testid="code-font-probe">
+            code text follows code font size
+          </code>
+        </div>
+        <SettingsAppearance query="font size" />
+      </div>
+    </StoryAppFrame>
+  );
+}
+
+export const GlobalTypeScaleApplication: Story = {
+  render: () => <GlobalTypeScaleFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const uiProbe = canvas.getByTestId("ui-font-probe");
+    const codeProbe = canvas.getByTestId("code-font-probe");
+    await expect(getComputedStyle(uiProbe).fontSize).toBe("14px");
+    await expect(getComputedStyle(codeProbe).fontSize).toBe("12px");
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Increase UI font size" }),
+    );
+    await expect(getComputedStyle(uiProbe).fontSize).toBe("15px");
+    await expect(getComputedStyle(codeProbe).fontSize).toBe("12px");
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Increase Code font size" }),
+    );
+    await expect(getComputedStyle(codeProbe).fontSize).toBe("13px");
   },
 };
 
