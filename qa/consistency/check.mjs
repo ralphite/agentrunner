@@ -54,11 +54,23 @@ const diffFiles = async (sid, scope) => {
 const eq = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 const show = (s) => (s.size ? [...s].sort().join(",") : "∅");
 const QA_MODEL = process.env.QA_MODEL || "gemini/gemini-flash-latest";
+const QA_EFFORT = process.env.QA_EFFORT || "medium";
 
 const newSession = (prompt, spec = "base.yaml") => {
   const out = execFileSync(
     AR,
-    ["new", "--detach", "--model", QA_MODEL, "--workspace", WS, path.join(WS, "..", spec), prompt],
+    [
+      "new",
+      "--detach",
+      "--model",
+      QA_MODEL,
+      "--effort",
+      QA_EFFORT,
+      "--workspace",
+      WS,
+      path.join(WS, "..", spec),
+      prompt,
+    ],
     { encoding: "utf8" },
   );
   const sid = out.trim().split("\n").pop().trim();
