@@ -72,9 +72,13 @@ export function Popover({
   const close = () => {
     setPlace(null);
     setOpen(false);
-    requestAnimationFrame(() => {
+    // A background browser tab may throttle requestAnimationFrame indefinitely,
+    // leaving keyboard focus on <body> after a menu selection. A zero-delay
+    // task still runs after React commits the closed panel and works in both
+    // visible product tabs and headless Storybook workers.
+    window.setTimeout(() => {
       wrapRef.current?.querySelector<HTMLElement>(":scope > button, :scope > * > button")?.focus();
-    });
+    }, 0);
   };
 
   // Measure the anchor, then pin the panel to those viewport coordinates.
