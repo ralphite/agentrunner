@@ -361,6 +361,47 @@ export const AgentModalKeyboardNavigation: Story = {
   },
 };
 
+export const AgentModalBusy: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        switchAgent: () => new Promise<void>(() => {}),
+      })}
+    >
+      <AgentModal sid={storySession.id} />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const action = canvas.getByRole("button", { name: "Switch" });
+    await userEvent.click(action);
+    await expect(action).toBeDisabled();
+    await expect(action).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const AgentModalFailure: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        switchAgent: async () => {
+          throw new Error("The agent spec could not be switched.");
+        },
+      })}
+    >
+      <AgentModal sid={storySession.id} />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Switch" }));
+    await expect(
+      await canvas.findByText("The agent spec could not be switched."),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Switch" })).toBeEnabled();
+  },
+};
+
 const safeConfirmModal: Extract<NonNullable<ModalKind>, { kind: "confirm" }> = {
   kind: "confirm",
   title: "Apply reviewed changes?",
@@ -885,6 +926,59 @@ export const TrustModalKeyboardNavigation: Story = {
     await expect(trust).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     await expect(trustAction).toHaveBeenCalledWith("/workspace/agentrunner");
+  },
+};
+
+export const TrustModalBusy: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        trust: () => new Promise<void>(() => {}),
+      })}
+    >
+      <TrustModal />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      canvas.getByPlaceholderText("/path/to/workspace"),
+      "/workspace/agentrunner",
+    );
+    const action = canvas.getByRole("button", { name: "Trust directory" });
+    await userEvent.click(action);
+    await expect(action).toBeDisabled();
+    await expect(action).toHaveAttribute("aria-busy", "true");
+  },
+};
+
+export const TrustModalFailure: Story = {
+  render: () => (
+    <LeafFrame
+      api={failClosedApi({
+        trust: async () => {
+          throw new Error("The workspace directory could not be trusted.");
+        },
+      })}
+    >
+      <TrustModal />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      canvas.getByPlaceholderText("/path/to/workspace"),
+      "/workspace/agentrunner",
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Trust directory" }),
+    );
+    await expect(
+      await canvas.findByText("The workspace directory could not be trusted."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Trust directory" }),
+    ).toBeEnabled();
   },
 };
 
