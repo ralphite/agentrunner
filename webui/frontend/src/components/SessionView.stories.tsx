@@ -488,7 +488,7 @@ export const TerminalLimit: Story = {
     const alert = await canvas.findByRole("alert");
     await expect(alert).toHaveTextContent("Step limit reached");
     await expect(
-      canvas.getByRole("button", { name: "Continue in new session" }),
+      canvas.getByRole("button", { name: "Continue here" }),
     ).toBeEnabled();
     await expect(canvas.queryByText("Goal cancelled")).toBeNull();
   },

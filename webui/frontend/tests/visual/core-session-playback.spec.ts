@@ -42,8 +42,12 @@ test("Core Session Playback supports manual control, autoplay, and replay", asyn
   await controls.getByRole("button", { name: "Pause" }).click();
   await expect(status.locator("b")).toHaveText("paused");
 
+  const pausedStatus = await status.textContent();
+  const pausedStep = Number(pausedStatus?.match(/Step (\d+) \/ 19/)?.[1]);
+  expect(pausedStep).toBeGreaterThanOrEqual(1);
+  expect(pausedStep).toBeLessThan(19);
   await controls.getByRole("button", { name: "Next" }).click();
-  await expect(status).toContainText("Step 2 / 19");
+  await expect(status).toContainText(`Step ${pausedStep + 1} / 19`);
   await controls.getByRole("button", { name: "Reset" }).click();
   await expect(status.locator("b")).toHaveText("idle");
   await expect(status).toContainText("Step 1 / 19");

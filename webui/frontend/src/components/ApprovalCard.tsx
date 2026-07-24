@@ -36,7 +36,7 @@ export function ApprovalCard({
 }) {
   const [reason, setReason] = useState("");
   const [denying, setDenying] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"approve" | "always" | "deny" | null>(null);
   const presentation = useMemo(() => describeApproval(approval.tool, approval.args), [approval.tool, approval.args]);
   const workspaceName = useMemo(() => compactWorkspaceName(workspace), [workspace]);
   const isolatedChild = !!approval.agent && workspaceMode === "isolated";
@@ -47,12 +47,12 @@ export function ApprovalCard({
   const workspaceLabel = isolatedChild ? `${approval.agent} · isolated` : workspaceName;
 
   const decide = async (decision: "approve" | "deny", always = false) => {
-    setBusy(true);
+    setBusy(decision === "deny" ? "deny" : always ? "always" : "approve");
     try {
       await onDecide(approval.id, decision, reason.trim(), always);
     } catch (error: any) {
       onError(error.message);
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -119,8 +119,8 @@ export function ApprovalCard({
                 placeholder="Reason (optional)"
               />
               <div className="flex shrink-0 justify-end gap-2">
-                <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-none" variant="outline" disabled={busy} onClick={() => setDenying(false)}>Cancel</Button>
-                <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-none" variant="outline" tone="danger" loading={busy} onClick={() => decide("deny")}>Deny</Button>
+                <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-none" variant="outline" disabled={!!busy} onClick={() => setDenying(false)}>Cancel</Button>
+                <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-none" variant="outline" tone="danger" disabled={!!busy} onClick={() => decide("deny")}>{busy === "deny" ? "Denying…" : "Deny"}</Button>
               </div>
             </div>
           ) : (
@@ -128,21 +128,21 @@ export function ApprovalCard({
               <Button
                 variant="solid"
                 className="min-h-11 flex-[1_1_100%] sm:min-h-[var(--control-md)] sm:flex-initial"
-                loading={busy}
+                disabled={!!busy}
                 onClick={() => decide("approve")}
               >
-                Approve once
+                {busy === "approve" ? "Approving…" : "Approve once"}
               </Button>
               <Button
                 variant="outline"
                 className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-initial"
-                disabled={busy}
+                disabled={!!busy}
                 title="Approve AND save an exact allow rule to your user config, so this same call never asks again (any session)"
                 onClick={() => decide("approve", true)}
               >
-                Always allow
+                {busy === "always" ? "Approving always…" : "Always allow"}
               </Button>
-              <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-initial" variant="outline" tone="danger" disabled={busy} onClick={() => setDenying(true)}>Deny</Button>
+              <Button className="min-h-11 flex-1 sm:min-h-[var(--control-md)] sm:flex-initial" variant="outline" tone="danger" disabled={!!busy} onClick={() => setDenying(true)}>Deny</Button>
               {/* 平台感知:mac 显示 ⌘,其余显示 Ctrl(QA-0718 实测 Linux 上显示 ⌘,与
                   sidebar 的 CtrlAltN 提示不一致)。 */}
               <span className="approval-shortcut ml-auto max-[680px]:hidden">{modLabel}↵ approve · {modLabel}⌫ deny</span>

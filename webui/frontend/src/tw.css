@@ -1634,13 +1634,13 @@
       @apply flex-wrap gap-x-[2px] gap-y-1 px-2;
     }
     .cx-bar-leading { @apply max-w-full shrink gap-[2px]; }
-    .cx-bar-trailing { @apply ml-auto max-w-full shrink-0 gap-px justify-end; }
+    .cx-bar-trailing { @apply ml-auto w-full max-w-full shrink-0 flex-wrap gap-px justify-end; }
     /* MODEL-PILL-POSITION — model pill now lives in the trailing group beside
        mic+send. trailing is justify-end shrink-0, so the pill must NOT stretch
        (no flex-1/w-full); it only keeps its size clamp so the model name
        truncates instead of pushing send out of view. */
     .cx-bar-trailing .cx-model-wrap {
-      @apply min-w-[80px] max-w-[104px] shrink-0;
+      @apply min-w-[80px] max-w-[80px] shrink-0;
     }
     .cx-pill { @apply max-w-[126px] overflow-hidden px-2 text-[11px]; }
     .cx-mode {
@@ -1652,7 +1652,7 @@
       @apply hidden;
     }
     .cx-goal-mode { @apply min-h-11 min-w-11 justify-center px-2; }
-    .cx-model { @apply min-h-11 min-w-[80px] max-w-[104px]; }
+    .cx-model { @apply min-h-11 min-w-[80px] max-w-[80px]; }
     .cx-model-name { @apply min-w-0 truncate; }
     .cx-icon, .cx-send { @apply h-11 w-11; }
     .cx-delivery { @apply gap-[2px]; }

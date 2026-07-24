@@ -75,7 +75,7 @@ export const BusyDecision: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Approve once" }));
-    await expect(canvas.getByRole("button", { name: "Approve once" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Approving…" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Always allow" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Deny" })).toBeDisabled();
   },

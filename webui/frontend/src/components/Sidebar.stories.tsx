@@ -607,7 +607,7 @@ export const ProjectGroupOverflow: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const showAll = canvas.getByRole("button", { name: "Show all 9 projects" });
-    await expect(showAll).toHaveTextContent("Show more · 1");
+    await expect(showAll).toHaveTextContent("Show more");
     await userEvent.click(showAll);
     await expect(canvas.getByRole("button", { name: "Show only the 8 most recent projects" })).toBeVisible();
     await expect(canvas.getAllByRole("button", { name: /project-overflow-/i })).toHaveLength(9);
@@ -639,9 +639,11 @@ export const WorkspaceLessSessionOverflow: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const more = canvas.getByRole("button", { name: "Show more · 1" });
+    const more = canvas.getByRole("button", { name: "Show all 7 sessions" });
     await userEvent.click(more);
     await expect(canvas.getByText("Workspace-less session 7")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Show less" })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Show only the 6 most recent sessions" }),
+    ).toBeVisible();
   },
 };

@@ -132,6 +132,65 @@ describe("TH-14 · one terminal banner above the composer", () => {
     expect(meta.closest(".terminal-alert")).not.toBeNull();
   });
 
+  it("replaces the stale step-limit action while a follow-up is already queued", async () => {
+    arMock.queue = async () => [
+      {
+        command_id: "continue-same-session",
+        text: "Continue the unfinished work in this conversation.",
+        revoked: false,
+      },
+    ];
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Follow-up queued — continuing in this conversation.")).toBeTruthy(),
+    );
+    expect(container.querySelector(".terminal-alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Continue here" })).toBeNull();
+  });
+
+  it("does not hide a budget-recovery action merely because an old follow-up is queued", async () => {
+    useStore.setState({
+      sessions: [{
+        id: SID,
+        title: "budget-limited session",
+        status: "limit_exceeded",
+        workspace: "/tmp/wt-th14",
+      } as any],
+    });
+    arMock.queue = async () => [
+      {
+        command_id: "old-queued-follow-up",
+        text: "This cannot continue the exhausted budget in place.",
+        revoked: false,
+      },
+    ];
+    render(<SessionView sid={SID} />);
+
+    expect(await screen.findByText("Budget limit reached")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue in new session" })).toBeTruthy();
+    expect(screen.queryByText("Follow-up queued — continuing in this conversation.")).toBeNull();
+  });
+
+  it("keeps unfinished progress visible at a step limit without requiring a goal banner", async () => {
+    arMock.inspect = async () => ({
+      goal: null,
+      children: [],
+      artifacts: [],
+      progress: [
+        { id: "implementation", title: "Implementation", status: "done" },
+        { id: "tests", title: "Run the full test suite", status: "running" },
+        { id: "readme", title: "Update README", status: "pending" },
+      ],
+    });
+    render(<SessionView sid={SID} />);
+
+    const progress = await screen.findByRole("button", { name: "Open progress details" });
+    expect(progress.textContent).toContain("Step 2 / 3");
+    expect(progress.textContent).toContain("Run the full test suite");
+    expect(screen.getByText("Step limit reached")).toBeTruthy();
+  });
+
   it("collapses the rail's settled-goal block to one line (the banner already said it)", async () => {
     const { container } = render(<SessionView sid={SID} />);
 

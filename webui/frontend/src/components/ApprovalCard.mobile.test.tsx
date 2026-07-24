@@ -77,6 +77,24 @@ describe("ApprovalCard mobile decision flow", () => {
     expect(buttons[2].getAttribute("data-tone")).toBe("danger");
   });
 
+  it("keeps an explicit approving label visible during a slow decision", async () => {
+    const onDecide = vi.fn(
+      () =>
+        new Promise<void>(() => {
+          // Keep the real slow-response state visible.
+        }),
+    );
+    render(
+      <ApprovalCard approval={approval} readonly={false} onDecide={onDecide} onError={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve once" }));
+
+    expect((screen.getByRole("button", { name: "Approving…" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Always allow" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Deny" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("stacks the denial reason above reachable secondary and destructive actions", async () => {
     const onDecide = vi.fn().mockResolvedValue(undefined);
     const { container } = render(

@@ -180,6 +180,20 @@ describe("TH-3 · groups with content are untouched", () => {
     expect(screen.queryByText("Attention")).toBeNull();
   });
 
+  it("does not claim nothing needs you while unfinished progress is visible", () => {
+    renderPanel({
+      progress: [
+        { id: "implementation", title: "Implementation", status: "done" },
+        { id: "tests", title: "Run tests", status: "running" },
+        { id: "readme", title: "Update README", status: "pending" },
+      ],
+    });
+
+    expect(screen.getByText("Progress")).toBeTruthy();
+    expect(screen.getByText("Run tests")).toBeTruthy();
+    expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
+  });
+
   it("renders the Agents section when subagents exist", () => {
     const { container } = renderPanel({ children: [child] });
 

@@ -337,6 +337,8 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const listSession = sessions.find((s) => s.id === sid);
   const listStatus = listSession?.status;
   const live = folded.active || openApprovals.length > 0;
+  const continuationPending =
+    pending.length > 0 || queued.some((message) => !message.revoked);
   const currentActionCount =
     openApprovals.length +
     (askQuestions.length > 0 ? 1 : 0) +
@@ -513,7 +515,15 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // and retry action. A generic "Session failed" terminal card below it says
   // the same fact with less help, so it is only a fallback when no detailed
   // failure was recovered from the journal.
-  const terminalNotice = live || failure ? null : terminalNoticeFor(listStatus || folded.status.text, isDriver);
+  const durableTerminalNotice =
+    live || failure
+      ? null
+      : terminalNoticeFor(listStatus || folded.status.text, isDriver);
+  const stepLimitContinuationPending =
+    continuationPending && durableTerminalNotice?.action === "message";
+  const terminalNotice = stepLimitContinuationPending
+    ? null
+    : durableTerminalNotice;
   const runTerminalAction = () => {
     if (!terminalNotice) return;
     if (terminalNotice.action === "message") {
@@ -562,6 +572,11 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // the action-row verdict. Either one on screen suppresses the thread's
   // echo chips (TH-12: a terminal fact is said once).
   const goalChromeShown = goalBannerShown || goalInAlert || !!goalVerdict;
+  const showProgressSummary =
+    (goalBannerShown && !!goalState && !goalTerminal && progress.length > 0) ||
+    (!live &&
+      durableTerminalNotice?.action === "message" &&
+      progress.some((item) => item.status !== "done"));
   // The goal's label + elapsed, folded into the terminal alert's meta segment.
   // The goal *text* stays on the tooltip (and in the thread + Environment rail):
   // a banner that ellipsizes a sentence it has no room for said nothing anyway.
@@ -757,7 +772,10 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                   onAction={runTerminalAction}
                 />
               )}
-              {goalBannerShown && goalState && !goalTerminal && progress.length > 0 && (
+              {!live && stepLimitContinuationPending && !isDriver && (
+                <SessionNotice>Follow-up queued — continuing in this conversation.</SessionNotice>
+              )}
+              {showProgressSummary && (
                 <ProgressSummary progress={progress} onOpenDetails={openSupervision} />
               )}
               {goalBannerShown && goalState && (

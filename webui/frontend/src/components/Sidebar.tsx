@@ -731,12 +731,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             <div className="section-label">Sessions</div>
             {shownSessions.map((session) => renderSession(session))}
             {!showAllSessions && model.workspaceLessSessions.length > shownSessions.length && (
-              <button className="show-more" onClick={() => setShowAllSessions(true)}>
+              <button
+                className="show-more"
+                onClick={() => setShowAllSessions(true)}
+                aria-label={`Show all ${model.workspaceLessSessions.length} sessions`}
+              >
                 Show more
               </button>
             )}
             {showAllSessions && model.workspaceLessSessions.length > 6 && (
-              <button className="show-more" onClick={() => setShowAllSessions(false)}>
+              <button
+                className="show-more"
+                onClick={() => setShowAllSessions(false)}
+                aria-label="Show only the 6 most recent sessions"
+              >
                 Show less
               </button>
             )}

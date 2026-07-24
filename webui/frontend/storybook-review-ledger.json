@@ -42,9 +42,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "bf7d36bdc526865f9d0c26d2af07ba70fc7aa36046c84d3057c216e99a9178ec",
+      "reviewedDigest": "bc2d7b1d59d16e77e2895561bac0c87cca0f9e944a2a72612d756bafd184d383",
       "owner": "webui",
-      "familyDigest": "bf7d36bdc526865f9d0c26d2af07ba70fc7aa36046c84d3057c216e99a9178ec",
+      "familyDigest": "bc2d7b1d59d16e77e2895561bac0c87cca0f9e944a2a72612d756bafd184d383",
       "storyCount": 18,
       "storyFiles": [
         "src/components/ApprovalCard.stories.tsx",
@@ -81,9 +81,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "6a09c3ddbcd8feefaa22b5125ed52ecc7eddeffdcf7069c5b4abed42df2c3f07",
+      "reviewedDigest": "99654c2dcac9a3f41a36528a239d80d51945d1f2365a6a7be7557c5299403b28",
       "owner": "webui",
-      "familyDigest": "6a09c3ddbcd8feefaa22b5125ed52ecc7eddeffdcf7069c5b4abed42df2c3f07",
+      "familyDigest": "99654c2dcac9a3f41a36528a239d80d51945d1f2365a6a7be7557c5299403b28",
       "storyCount": 39,
       "storyFiles": [
         "src/components/ChangesOutcome.stories.tsx",
@@ -134,9 +134,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "163b3dd689da047b6e48c4bd3a98d8594f34f28d471a9f4a05b4f23266c71be9",
+      "reviewedDigest": "c4cc0a2268716189eb08bf21def86433b85dc3980ab3b03079dd23b1ea162cc1",
       "owner": "webui",
-      "familyDigest": "163b3dd689da047b6e48c4bd3a98d8594f34f28d471a9f4a05b4f23266c71be9",
+      "familyDigest": "c4cc0a2268716189eb08bf21def86433b85dc3980ab3b03079dd23b1ea162cc1",
       "storyCount": 10,
       "storyFiles": [
         "src/components/Markdown.stories.tsx",
@@ -173,9 +173,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "7266a9d67ab127feca7b411d1924f2c6f8236142cc189fd1fff71f32861f5bba",
+      "reviewedDigest": "5fd5125f3f1a5660d287b879ad8594d7aa44c916387d42fb02186753a04941bb",
       "owner": "webui",
-      "familyDigest": "7266a9d67ab127feca7b411d1924f2c6f8236142cc189fd1fff71f32861f5bba",
+      "familyDigest": "5fd5125f3f1a5660d287b879ad8594d7aa44c916387d42fb02186753a04941bb",
       "storyCount": 15,
       "storyFiles": [
         "src/components/ErrorBoundary.stories.tsx",
@@ -214,9 +214,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "9a6d77f77d2a07815a52f38d1c0c28d20e979c91b009dad72374e28435e2e6b0",
+      "reviewedDigest": "8acfd38583afc1380a8d81f947d4f1fc76bf09d8cc24400fd9b939c4354cdda2",
       "owner": "webui",
-      "familyDigest": "9a6d77f77d2a07815a52f38d1c0c28d20e979c91b009dad72374e28435e2e6b0",
+      "familyDigest": "8acfd38583afc1380a8d81f947d4f1fc76bf09d8cc24400fd9b939c4354cdda2",
       "storyCount": 13,
       "storyFiles": [
         "src/components/HomeStarterCard.stories.tsx",
@@ -251,9 +251,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-24",
-      "reviewedDigest": "d344677f9adbfe7761a3653abb2401c136270d76623e6567ea89edd3a50e31ad",
+      "reviewedDigest": "a16fec53aae22955c9d902e47966a726b0566c9409177eb7713e6f0a99c2eedf",
       "owner": "webui",
-      "familyDigest": "d344677f9adbfe7761a3653abb2401c136270d76623e6567ea89edd3a50e31ad",
+      "familyDigest": "a16fec53aae22955c9d902e47966a726b0566c9409177eb7713e6f0a99c2eedf",
       "storyCount": 90,
       "storyFiles": [
         "src/components/Composer.stories.tsx",
@@ -304,9 +304,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "35f2b97579ea630a133c6953cbe200571d6b69925a2fb98b64bab78a5721d1e9",
+      "reviewedDigest": "076045d26746777445ded1d9ed2a64446d47c7ca3e1b4a1bd420d19dbe5cee3d",
       "owner": "webui",
-      "familyDigest": "35f2b97579ea630a133c6953cbe200571d6b69925a2fb98b64bab78a5721d1e9",
+      "familyDigest": "076045d26746777445ded1d9ed2a64446d47c7ca3e1b4a1bd420d19dbe5cee3d",
       "storyCount": 6,
       "storyFiles": [
         "src/components/Lightbox.stories.tsx"
@@ -339,9 +339,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-24",
-      "reviewedDigest": "5504ef1f19a33c31e00692528319997dadbfe0d246872be75e1f6d459848785f",
+      "reviewedDigest": "7d34df4850379a33f7109b186e4f8dc0378e0281c70ef004afb3bc5aacc2ddd3",
       "owner": "webui",
-      "familyDigest": "5504ef1f19a33c31e00692528319997dadbfe0d246872be75e1f6d459848785f",
+      "familyDigest": "7d34df4850379a33f7109b186e4f8dc0378e0281c70ef004afb3bc5aacc2ddd3",
       "storyCount": 52,
       "storyFiles": [
         "src/components/CommandPalette.stories.tsx",
@@ -389,9 +389,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-24",
-      "reviewedDigest": "b4dca07c95830a8c163964f637cefade14fe16dba446ce62d4ef1018eebc9b3b",
+      "reviewedDigest": "ac8a722fc4e9139332b885b153d26582f2f04ab5153093780134c63fc677becb",
       "owner": "webui",
-      "familyDigest": "b4dca07c95830a8c163964f637cefade14fe16dba446ce62d4ef1018eebc9b3b",
+      "familyDigest": "ac8a722fc4e9139332b885b153d26582f2f04ab5153093780134c63fc677becb",
       "storyCount": 58,
       "storyFiles": [
         "src/components/ContextMenu.stories.tsx",
@@ -447,9 +447,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "41a72ad691660fe914e127180958fac49fa9d21d44661e82495366d060708d87",
+      "reviewedDigest": "05af1cfeaab6d8e6dda5b68c18fa1188b0de9beaac8bd532cd4b558f951f2d88",
       "owner": "webui",
-      "familyDigest": "41a72ad691660fe914e127180958fac49fa9d21d44661e82495366d060708d87",
+      "familyDigest": "05af1cfeaab6d8e6dda5b68c18fa1188b0de9beaac8bd532cd4b558f951f2d88",
       "storyCount": 16,
       "storyFiles": [
         "src/components/RunHeader.stories.tsx",
@@ -487,9 +487,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "845f429c8b72ea18eb0a62e7a8c58dc66128b3b481cb6f96e26e726812c52a09",
+      "reviewedDigest": "566270428c5bb9269825db699a74756d16e3d2b9c4638f380e4b60432ec227e2",
       "owner": "webui",
-      "familyDigest": "845f429c8b72ea18eb0a62e7a8c58dc66128b3b481cb6f96e26e726812c52a09",
+      "familyDigest": "566270428c5bb9269825db699a74756d16e3d2b9c4638f380e4b60432ec227e2",
       "storyCount": 15,
       "storyFiles": [
         "src/components/ScheduledParts.stories.tsx"
@@ -527,9 +527,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "09274e8dced561958d23e2a6da351e3b5cfe1868f0f3cf70d53b808f25e37b8a",
+      "reviewedDigest": "a39525429fbf5b7a71d1597ce594679ca2c4c9d71b0e9fead3d3c65f72dd0654",
       "owner": "webui",
-      "familyDigest": "09274e8dced561958d23e2a6da351e3b5cfe1868f0f3cf70d53b808f25e37b8a",
+      "familyDigest": "a39525429fbf5b7a71d1597ce594679ca2c4c9d71b0e9fead3d3c65f72dd0654",
       "storyCount": 41,
       "storyFiles": [
         "src/components/SessionChrome.stories.tsx",
@@ -572,9 +572,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "f2652ff16c7a9d792fcc754552fbc9b381a0dbedf1752d5daeb658ef3ca37ed0",
+      "reviewedDigest": "3444659188e090fa8e345396fb2a41f01f77161854a9a8de8f0ffb0ed877879e",
       "owner": "webui",
-      "familyDigest": "f2652ff16c7a9d792fcc754552fbc9b381a0dbedf1752d5daeb658ef3ca37ed0",
+      "familyDigest": "3444659188e090fa8e345396fb2a41f01f77161854a9a8de8f0ffb0ed877879e",
       "storyCount": 46,
       "storyFiles": [
         "src/components/SettingsAppearance.stories.tsx",
@@ -627,9 +627,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "7a93784f124bf17c29aadc15bdf10dec338a575efc469917d9858eca7fa06f07",
+      "reviewedDigest": "d030e0b21659d4211e92c32477598aa9d2a6ad1a9df5b3b96e972ec703abc3bb",
       "owner": "webui",
-      "familyDigest": "7a93784f124bf17c29aadc15bdf10dec338a575efc469917d9858eca7fa06f07",
+      "familyDigest": "d030e0b21659d4211e92c32477598aa9d2a6ad1a9df5b3b96e972ec703abc3bb",
       "storyCount": 35,
       "storyFiles": [
         "src/components/SubagentItem.stories.tsx",
@@ -686,9 +686,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "990d7ed3499831b885686482c86de07dffd656f73cf73444ec6ea1db5bdb7dfb",
+      "reviewedDigest": "24c8b25cef4f6029dcab7d2d82172ada7afd98d3715f0f667f205568f896d459",
       "owner": "webui",
-      "familyDigest": "990d7ed3499831b885686482c86de07dffd656f73cf73444ec6ea1db5bdb7dfb",
+      "familyDigest": "24c8b25cef4f6029dcab7d2d82172ada7afd98d3715f0f667f205568f896d459",
       "storyCount": 39,
       "storyFiles": [
         "src/components/Timeline.stories.tsx",
@@ -747,9 +747,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "92d2c81d99727a9814d7a07904b539a1a625c7bef1f57affef42298033553c11",
+      "reviewedDigest": "43d212cdabd315e6cb07213e81ef8007281da2555a159b0a107cddf909e6dccb",
       "owner": "webui",
-      "familyDigest": "92d2c81d99727a9814d7a07904b539a1a625c7bef1f57affef42298033553c11",
+      "familyDigest": "43d212cdabd315e6cb07213e81ef8007281da2555a159b0a107cddf909e6dccb",
       "storyCount": 5,
       "storyFiles": [
         "src/storybook/cujs/CoreSessionJourneys.stories.tsx"
@@ -780,9 +780,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "c83613ac3726afc58f37baab0fc232f4f337fcbc50b9b05c71c91ed47f75574f",
+      "reviewedDigest": "9eb7c64f543b4d1613985a8d68567239a447c99ffca86568fb4f2bacf8b4154c",
       "owner": "webui",
-      "familyDigest": "c83613ac3726afc58f37baab0fc232f4f337fcbc50b9b05c71c91ed47f75574f",
+      "familyDigest": "9eb7c64f543b4d1613985a8d68567239a447c99ffca86568fb4f2bacf8b4154c",
       "storyCount": 1,
       "storyFiles": [
         "src/storybook/demos/CoreSessionPlayback.stories.tsx"
@@ -813,9 +813,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "e08753008a023df6e0dfb5dc9d7cc9c3a776d614ea120e2f6af489ebdf8d1609",
+      "reviewedDigest": "106315ec5900cceec299086d5303e52f9b27289afe1a765069868abfd5bb3c20",
       "owner": "webui",
-      "familyDigest": "e08753008a023df6e0dfb5dc9d7cc9c3a776d614ea120e2f6af489ebdf8d1609",
+      "familyDigest": "106315ec5900cceec299086d5303e52f9b27289afe1a765069868abfd5bb3c20",
       "storyCount": 2,
       "storyFiles": [
         "src/storybook/scenarios/ScenarioControls.stories.tsx"
@@ -846,9 +846,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "9a9898b8828d718b8b9c43265f04c222aa7bc6f33c6d292c0ab3c72791e66495",
+      "reviewedDigest": "caacad023add69bd55f464f281e190dcf5889bf501190ef04228f2a1f2fa9a4f",
       "owner": "webui",
-      "familyDigest": "9a9898b8828d718b8b9c43265f04c222aa7bc6f33c6d292c0ab3c72791e66495",
+      "familyDigest": "caacad023add69bd55f464f281e190dcf5889bf501190ef04228f2a1f2fa9a4f",
       "storyCount": 7,
       "storyFiles": [
         "src/ui/ActionPrimitives.stories.tsx"
@@ -883,9 +883,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "f466b5728848259899898b9cf4bfaff60f10f187db7d9c0c306014322769df51",
+      "reviewedDigest": "d0670d5f7ca1669a0003622a0eafa8ccd243b197a7c5597c0ff8d90feeb41983",
       "owner": "webui",
-      "familyDigest": "f466b5728848259899898b9cf4bfaff60f10f187db7d9c0c306014322769df51",
+      "familyDigest": "d0670d5f7ca1669a0003622a0eafa8ccd243b197a7c5597c0ff8d90feeb41983",
       "storyCount": 10,
       "storyFiles": [
         "src/ui/FocusScope.stories.tsx"
@@ -918,9 +918,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "f22628da4e61fb5d136ce8b358330fd4d35a067c693b037223c3292b21e0458d",
+      "reviewedDigest": "c95c8d06da3da674554b114f8d39df1e36c0fe97620b0ee16f41af2819abeae1",
       "owner": "webui",
-      "familyDigest": "f22628da4e61fb5d136ce8b358330fd4d35a067c693b037223c3292b21e0458d",
+      "familyDigest": "c95c8d06da3da674554b114f8d39df1e36c0fe97620b0ee16f41af2819abeae1",
       "storyCount": 11,
       "storyFiles": [
         "src/ui/LifecycleStatus.stories.tsx",
@@ -956,9 +956,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "582059b54e44337d1346dd317efad8b3fadec2e60df4d4a6841405497d5b4cd1",
+      "reviewedDigest": "22fd1d64924a933dd99dd7a905ff7363bc03e617c764dc5854e6ca7b2dc2f648",
       "owner": "webui",
-      "familyDigest": "582059b54e44337d1346dd317efad8b3fadec2e60df4d4a6841405497d5b4cd1",
+      "familyDigest": "22fd1d64924a933dd99dd7a905ff7363bc03e617c764dc5854e6ca7b2dc2f648",
       "storyCount": 5,
       "storyFiles": [
         "src/ui/FieldPrimitives.stories.tsx"
@@ -995,9 +995,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "a41b9353c9e07b37a29b8b7def706923812b8bcfbbd69a74170f709aea9cd040",
+      "reviewedDigest": "04ab8a91f7e172e0e3900050de1a24041d75472851d07e14d81817cc188568c5",
       "owner": "webui",
-      "familyDigest": "a41b9353c9e07b37a29b8b7def706923812b8bcfbbd69a74170f709aea9cd040",
+      "familyDigest": "04ab8a91f7e172e0e3900050de1a24041d75472851d07e14d81817cc188568c5",
       "storyCount": 2,
       "storyFiles": [
         "src/app/AppRuntime.stories.tsx"
@@ -1030,9 +1030,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "8c257826de6ca30a5d49c6552bef650ca95dee608bcfa628dda578b66b64c1dc",
+      "reviewedDigest": "bdd348455e0ad5007057c2ba33dde2716805e7b0423b6e4f7988aaa1a49ab12a",
       "owner": "webui",
-      "familyDigest": "8c257826de6ca30a5d49c6552bef650ca95dee608bcfa628dda578b66b64c1dc",
+      "familyDigest": "bdd348455e0ad5007057c2ba33dde2716805e7b0423b6e4f7988aaa1a49ab12a",
       "storyCount": 2,
       "storyFiles": [
         "src/App.stories.tsx"
@@ -1065,9 +1065,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "bfc2d6c25d058fda42079e7368b2d6f7c1154ae73b0440f9b709c007622bea5b",
+      "reviewedDigest": "739f5ec7017a7641158013c99199d5139ca5b6919ac9492096fb1e0ec989a21e",
       "owner": "webui",
-      "familyDigest": "bfc2d6c25d058fda42079e7368b2d6f7c1154ae73b0440f9b709c007622bea5b",
+      "familyDigest": "739f5ec7017a7641158013c99199d5139ca5b6919ac9492096fb1e0ec989a21e",
       "storyCount": 5,
       "storyFiles": [
         "src/components/Home.stories.tsx"
@@ -1100,9 +1100,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "23900b6926794e7d35ebaa9b0a6c85933c5c0fefae3ac9b3ba39c7ca92ef8248",
+      "reviewedDigest": "843c81af4ffb2d0710be464c9898e880c639a20dc5a5d99ebfad1cfa5394a097",
       "owner": "webui",
-      "familyDigest": "23900b6926794e7d35ebaa9b0a6c85933c5c0fefae3ac9b3ba39c7ca92ef8248",
+      "familyDigest": "843c81af4ffb2d0710be464c9898e880c639a20dc5a5d99ebfad1cfa5394a097",
       "storyCount": 4,
       "storyFiles": [
         "src/pages/PageHost.stories.tsx"
@@ -1135,9 +1135,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "b7e3a9d44b63fab7ffdf63858cd567b792d7e47d81aa6738ae4e77cd96f75c58",
+      "reviewedDigest": "a076359d3c20428c19bb71bde17ae45b5f1d6b815aa0eb35102a5719263ae27b",
       "owner": "webui",
-      "familyDigest": "b7e3a9d44b63fab7ffdf63858cd567b792d7e47d81aa6738ae4e77cd96f75c58",
+      "familyDigest": "a076359d3c20428c19bb71bde17ae45b5f1d6b815aa0eb35102a5719263ae27b",
       "storyCount": 16,
       "storyFiles": [
         "src/components/Scheduled.stories.tsx"
@@ -1172,9 +1172,9 @@
         "contract-evidence"
       ],
       "reviewedAt": "2026-07-23",
-      "reviewedDigest": "0ee22bb358184a91312419f24da47518243f6068574cfcc0b1a26e2770d4864b",
+      "reviewedDigest": "2a351101393cce4b9d54a06907b40541cbab33e08f1c681f4fa85905b1d0acf1",
       "owner": "webui",
-      "familyDigest": "0ee22bb358184a91312419f24da47518243f6068574cfcc0b1a26e2770d4864b",
+      "familyDigest": "2a351101393cce4b9d54a06907b40541cbab33e08f1c681f4fa85905b1d0acf1",
       "storyCount": 4,
       "storyFiles": [
         "src/components/Settings.stories.tsx"

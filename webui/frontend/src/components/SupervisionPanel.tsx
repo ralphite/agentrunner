@@ -229,7 +229,12 @@ export function SupervisionPanel({
     sessionIdle,
   );
   const hasGoal = !!goal || !!settledGoal;
-  const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
+  const resting =
+    !loading &&
+    !hasGoal &&
+    progress.length === 0 &&
+    children.length === 0 &&
+    attention.length === 0;
   return (
     // TH-15 · the rail is named `Environment` — in the topbar pill that opens it,
     // in its first section's label, and here in its accessible name. It used to
