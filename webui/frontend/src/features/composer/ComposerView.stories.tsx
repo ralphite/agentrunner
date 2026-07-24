@@ -30,6 +30,14 @@ function ComposerViewFixture() {
             planMode: false,
             kind: "chat",
             persona: "dev",
+            agents: [
+              {
+                name: "dev",
+                description: "Build and change code",
+                source: "shipped",
+                yaml: "name: dev",
+              },
+            ],
             onOpen: fn(),
             onPageChange: fn(),
             onPickFiles: fn(),
@@ -54,14 +62,12 @@ function ComposerViewFixture() {
             modelLabel: "Gemini Flash",
             effort: "medium",
             effortLabel: "Medium",
-            budgetOverride: null,
             page: "root",
             onOpen: fn(),
             onPageChange: fn(),
             onSelectModel: fn(),
             onSelectEffort: fn(),
             onCustomModel: fn(),
-            onCustomBudget: fn(),
           }}
           assistActions={{
             hasText: !!text.trim(),

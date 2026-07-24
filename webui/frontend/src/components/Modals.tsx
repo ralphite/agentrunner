@@ -5,7 +5,16 @@ import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
 import { scheduleFieldError } from "../scheduleValidate";
 import type { SpecFile } from "../types";
-import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
+import {
+  DEFAULT_DRIVER,
+  DEFAULT_EFFORT,
+  DEFAULT_MODEL,
+  EFFORT_LEVELS,
+  legacyModelFromSpec,
+  MODELS,
+  stripLegacyModel,
+  type EffortId,
+} from "../specs";
 import { displayTitle } from "../title";
 import { compactCount, summarizeInspect } from "../inspectPresentation";
 import { Button } from "../ui/Button";
@@ -13,7 +22,14 @@ import { FocusScope } from "../ui/FocusScope";
 import { IconButton } from "../ui/IconButton";
 import { Input, Select, Textarea } from "../ui/Field";
 import { friendlyStatus } from "./pill";
-import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
+import {
+  recallAccess,
+  recallModel,
+  recallSpec,
+  rememberAccess,
+  rememberModel,
+  rememberSpec,
+} from "./sessionSpecs";
 
 // "Image" (input modality) and "Images" (capability flag) state the same fact
 // twice, so the chip row read like a plural typo (FB-3). Dedupe on a
@@ -107,13 +123,29 @@ export function Modals() {
 export function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
   switch (modal.kind) {
     case "new":
-      return <NewSessionModal initialMessage={modal.message} initialSpec={modal.spec} initialWorker={modal.worker} />;
+      return (
+        <NewSessionModal
+          initialMessage={modal.message}
+          initialSpec={modal.spec}
+          initialWorker={modal.worker}
+          initialProvider={modal.provider}
+          initialModel={modal.model}
+          initialEffort={modal.effort}
+        />
+      );
     case "run":
       return <RunModal initialPrompt={modal.prompt} preset={modal.preset} cadence={modal.cadence} returnFocus={modal.returnFocus} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
-      return <AgentModal sid={modal.sid} />;
+      return (
+        <AgentModal
+          sid={modal.sid}
+          provider={modal.provider}
+          model={modal.model}
+          effort={modal.effort}
+        />
+      );
     case "rename":
       return <RenameModal sid={modal.sid} />;
     case "trust":
@@ -299,24 +331,121 @@ function useWorkspace() {
   return { ws, setWs, mk, ensure, choose, mkWorktree };
 }
 
+function ModelFields({
+  provider,
+  model,
+  effort,
+  onModel,
+  onEffort,
+}: {
+  provider: string;
+  model: string;
+  effort: EffortId;
+  onModel: (provider: string, model: string) => void;
+  onEffort: (effort: EffortId) => void;
+}) {
+  return (
+    <div className="row-flex">
+      <div style={{ flex: 1 }}>
+        <label className="field" htmlFor="modal-model">
+          Model
+        </label>
+        <Select
+          id="modal-model"
+          value={`${provider}/${model}`}
+          onChange={(event) => {
+            const selected = MODELS.find(
+              (choice) =>
+                `${choice.provider}/${choice.id}` === event.target.value,
+            );
+            if (selected) onModel(selected.provider, selected.id);
+          }}
+        >
+          {MODELS.map((choice) => (
+            <option
+              key={`${choice.provider}/${choice.id}`}
+              value={`${choice.provider}/${choice.id}`}
+            >
+              {choice.label}
+            </option>
+          ))}
+          {!MODELS.some(
+            (choice) =>
+              choice.provider === provider && choice.id === model,
+          ) && <option value={`${provider}/${model}`}>{model}</option>}
+        </Select>
+      </div>
+      <div style={{ flex: 1 }}>
+        <label className="field" htmlFor="modal-effort">
+          Effort
+        </label>
+        <Select
+          id="modal-effort"
+          value={effort}
+          onChange={(event) =>
+            onEffort(event.target.value as EffortId)}
+        >
+          {EFFORT_LEVELS.map((level) => (
+            <option key={level.id} value={level.id}>
+              {level.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 export function NewSessionModal({
   initialMessage,
   initialSpec,
   initialWorker,
+  initialProvider,
+  initialModel,
+  initialEffort,
 }: {
   initialMessage?: string;
   initialSpec?: string;
   initialWorker?: string;
+  initialProvider?: string;
+  initialModel?: string;
+  initialEffort?: string;
 }) {
   const { api, storage } = useAppServices();
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose, mkWorktree } = useWorkspace();
   const [msg, setMsg] = useState(initialMessage || "");
   const [mode, setMode] = useState("");
-  const [spec, setSpec] = useState(initialSpec || DEFAULT_SPEC);
-  const [worker, setWorker] = useState(initialWorker === undefined ? DEFAULT_WORKER : initialWorker);
+  const [spec, setSpec] = useState(initialSpec || "");
+  const [worker, setWorker] = useState(initialWorker || "");
+  const [provider, setProvider] = useState(
+    initialProvider || DEFAULT_MODEL.provider,
+  );
+  const [model, setModel] = useState(initialModel || DEFAULT_MODEL.id);
+  const [effort, setEffort] = useState<EffortId>(
+    EFFORT_LEVELS.some((level) => level.id === initialEffort)
+      ? (initialEffort as EffortId)
+      : DEFAULT_EFFORT,
+  );
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
+
+  useEffect(() => {
+    if (spec.trim()) return;
+    api
+      .agents()
+      .then((catalog) =>
+        setSpec((current) =>
+          current.trim()
+            ? current
+            : (
+                catalog.find((entry) => entry.name === "dev") ||
+                catalog[0]
+              )?.yaml || "",
+        ),
+      )
+      .catch((error: Error) => toast(error.message));
+  }, []);
 
   const create = async () => {
     setBusy(true);
@@ -324,8 +453,18 @@ export function NewSessionModal({
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
       const workspace = await ensure();
-      const r = await api.newSession({ spec, extraSpecs, workspace, message: msg.trim(), mode });
+      const r = await api.newSession({
+        provider,
+        model,
+        effort,
+        spec,
+        extraSpecs,
+        workspace,
+        message: msg.trim(),
+        mode,
+      });
       rememberSpec(r.sid, spec, storage.local);
+      rememberModel(r.sid, { provider, model, effort }, storage.local);
       close();
       await refreshSessions();
       select(r.sid);
@@ -343,7 +482,12 @@ export function NewSessionModal({
       footer={
         <>
           <Button variant="outline" onClick={() => openModal({ kind: "run", prompt: msg })}>Create a background run…</Button>
-          <Button variant="solid" disabled={!msg.trim()} loading={busy} onClick={create}>
+          <Button
+            variant="solid"
+            disabled={!msg.trim() || !spec.trim()}
+            loading={busy}
+            onClick={create}
+          >
             Start session
           </Button>
         </>
@@ -365,6 +509,16 @@ export function NewSessionModal({
         <option value="plan">plan</option>
         <option value="acceptEdits">acceptEdits</option>
       </Select>
+      <ModelFields
+        provider={provider}
+        model={model}
+        effort={effort}
+        onModel={(nextProvider, nextModel) => {
+          setProvider(nextProvider);
+          setModel(nextModel);
+        }}
+        onEffort={setEffort}
+      />
       <label className="field" htmlFor="new-session-spec">Agent specification (YAML)</label>
       <Textarea id="new-session-spec" code className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
       <label className="field" htmlFor="new-session-worker">Worker specification (optional YAML)</label>
@@ -415,9 +569,11 @@ export function RunModal({
   const [prompt, setPrompt] = useState(initialPrompt || "");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
-  const [spec, setSpec] = useState(DEFAULT_SPEC);
+  const [spec, setSpec] = useState("");
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
-  const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
+  const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
+  const [model, setModel] = useState(DEFAULT_MODEL.id);
+  const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
   const [schedule, setSchedule] = useState<ScheduleKind>(formDefaults.schedule);
   const [interval, setInterval] = useState(formDefaults.interval);
   const [cron, setCron] = useState(formDefaults.cron);
@@ -425,17 +581,34 @@ export function RunModal({
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
+  useEffect(() => {
+    api
+      .agents()
+      .then((catalog) =>
+        setSpec((current) =>
+          current.trim()
+            ? current
+            : (
+                catalog.find((entry) => entry.name === "dev") ||
+                catalog[0]
+              )?.yaml || "",
+        ),
+      )
+      .catch((error: Error) => toast(error.message));
+  }, []);
+
   const start = async () => {
     setBusy(true);
     try {
       const workspace = await ensure();
       const driverSpec = withSchedule(withDriverPrompt(driver, prompt), schedule, interval, cron, nAttempts);
       const r = await api.startRun({
+        provider,
+        model,
+        effort,
         kind,
         spec: kind === "submit" ? spec : driverSpec,
-        // drive needs the child agent spec as an agent.yaml sibling (driver's
-        // agent_spec field points at it); submit needs no sibling.
-        extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
+        extraSpecs: [],
         prompt,
         workspace,
         mode,
@@ -488,7 +661,16 @@ export function RunModal({
       onClose={close}
       returnFocus={returnFocus}
       footer={
-        <Button variant="solid" disabled={!prompt.trim() || scheduleBlocked} loading={busy} onClick={start}>
+        <Button
+          variant="solid"
+          disabled={
+            !prompt.trim() ||
+            scheduleBlocked ||
+            (kind === "submit" && !spec.trim())
+          }
+          loading={busy}
+          onClick={start}
+        >
           {kind === "submit" ? "Start run" : "Start schedule"}
         </Button>
       }
@@ -509,6 +691,16 @@ export function RunModal({
         <Input id="run-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
         <Button variant="outline" onClick={choose}>Use folder…</Button>
       </div>
+      <ModelFields
+        provider={provider}
+        model={model}
+        effort={effort}
+        onModel={(nextProvider, nextModel) => {
+          setProvider(nextProvider);
+          setModel(nextModel);
+        }}
+        onEffort={setEffort}
+      />
       {kind === "submit" ? (
         <details className="advanced-settings">
           <summary>Advanced settings</summary>
@@ -590,8 +782,6 @@ export function RunModal({
             <summary>Advanced settings</summary>
             <label className="field" htmlFor="run-driver-spec">Driver specification (YAML)</label>
             <Textarea id="run-driver-spec" code className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
-            <label className="field" htmlFor="run-iteration-agent">Iteration agent (YAML)</label>
-            <Textarea id="run-iteration-agent" code className="code" rows={7} value={driverAgent} onChange={(e) => setDriverAgent(e.target.value)} />
           </details>
         </>
       )}
@@ -742,21 +932,71 @@ export function ForkModal({ sid }: { sid: string }) {
   );
 }
 
-export function AgentModal({ sid }: { sid: string }) {
+export function AgentModal({
+  sid,
+  provider: initialProvider,
+  model: initialModel,
+  effort: initialEffort,
+}: {
+  sid: string;
+  provider?: string;
+  model?: string;
+  effort?: string;
+}) {
   const { api, storage } = useAppServices();
   const { openModal, toast } = useStore();
-  const [spec, setSpec] = useState(() => recallSpec(sid, storage.local) || DEFAULT_SPEC);
-  const [worker, setWorker] = useState(DEFAULT_WORKER);
+  const rawRememberedSpec = recallSpec(sid, storage.local) || "";
+  const remembered =
+    recallModel(sid, storage.local) ||
+    legacyModelFromSpec(rawRememberedSpec);
+  const [spec, setSpec] = useState(() =>
+    stripLegacyModel(rawRememberedSpec));
+  const [worker, setWorker] = useState("");
+  const [provider, setProvider] = useState(
+    initialProvider || remembered?.provider || DEFAULT_MODEL.provider,
+  );
+  const [model, setModel] = useState(
+    initialModel || remembered?.model || DEFAULT_MODEL.id,
+  );
+  const [effort, setEffort] = useState<EffortId>(
+    EFFORT_LEVELS.some(
+      (level) => level.id === (initialEffort || remembered?.effort),
+    )
+      ? ((initialEffort || remembered?.effort) as EffortId)
+      : DEFAULT_EFFORT,
+  );
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
+
+  useEffect(() => {
+    if (spec.trim()) return;
+    api
+      .agents()
+      .then((catalog) =>
+        setSpec((current) =>
+          current.trim()
+            ? current
+            : (
+                catalog.find((entry) => entry.name === "dev") ||
+                catalog[0]
+              )?.yaml || "",
+        ),
+      )
+      .catch((error: Error) => toast(error.message));
+  }, []);
 
   const swap = async () => {
     setBusy(true);
     try {
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
-      await api.switchAgent(sid, spec, extraSpecs);
+      await api.switchAgent(sid, spec, extraSpecs, {
+        provider,
+        model,
+        effort,
+      });
       rememberSpec(sid, spec, storage.local);
+      rememberModel(sid, { provider, model, effort }, storage.local);
       close();
       toast("agent spec switched", "info");
     } catch (e: any) {
@@ -771,12 +1011,27 @@ export function AgentModal({ sid }: { sid: string }) {
       title={`Switch agent · ${sid}`}
       onClose={close}
       footer={
-        <Button variant="solid" loading={busy} onClick={swap}>
+        <Button
+          variant="solid"
+          disabled={!spec.trim()}
+          loading={busy}
+          onClick={swap}
+        >
           Switch
         </Button>
       }
     >
       <div className="dim">Same session, context carries over; takes effect at the next safe boundary (decision #32) and lands in the journal as spec_changed. The new spec is written to runtime/specs.</div>
+      <ModelFields
+        provider={provider}
+        model={model}
+        effort={effort}
+        onModel={(nextProvider, nextModel) => {
+          setProvider(nextProvider);
+          setModel(nextModel);
+        }}
+        onEffort={setEffort}
+      />
       <label className="field" htmlFor="agent-base-spec">base.yaml (new main agent spec)</label>
       <Textarea id="agent-base-spec" code className="code" rows={12} value={spec} onChange={(e) => setSpec(e.target.value)} />
       <label className="field" htmlFor="agent-worker-spec">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>

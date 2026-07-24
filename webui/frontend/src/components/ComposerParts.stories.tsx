@@ -47,6 +47,21 @@ type Story = StoryObj<typeof meta>;
 const body = (canvasElement: HTMLElement) =>
   within(canvasElement.ownerDocument.body);
 
+const agents = [
+  {
+    name: "dev",
+    description: "Build and change code",
+    source: "shipped" as const,
+    yaml: "name: dev",
+  },
+  {
+    name: "reviewer",
+    description: "Review implementation quality",
+    source: "shipped" as const,
+    yaml: "name: reviewer",
+  },
+];
+
 async function openPopover(canvasElement: HTMLElement, name: string | RegExp) {
   const canvas = within(canvasElement);
   await userEvent.click(canvas.getByRole("button", { name }));
@@ -827,6 +842,7 @@ function AddMenuHarness({
         planMode={planMode}
         kind={kind}
         persona={persona}
+        agents={agents}
         onOpen={() => {}}
         onPageChange={setPage}
         onPickFiles={fn()}
@@ -1187,11 +1203,9 @@ export const AccessHomeKeyboardSelection: Story = {
 
 function ModelPickerHarness({
   initialPage = "root",
-  budgetOverride = null,
   initialModelLabel = "Gemini Flash",
 }: {
   initialPage?: "root" | "model" | "effort" | "advanced";
-  budgetOverride?: number | null;
   initialModelLabel?: string;
 }) {
   const [page, setPage] = useState(initialPage);
@@ -1211,14 +1225,12 @@ function ModelPickerHarness({
         modelLabel={model.label}
         effort={effort}
         effortLabel="Medium"
-        budgetOverride={budgetOverride}
         page={page}
         onOpen={() => {}}
         onPageChange={setPage}
         onSelectModel={(provider, id) => setModel({ provider, id, label: id })}
         onSelectEffort={setEffort}
         onCustomModel={fn()}
-        onCustomBudget={fn()}
       />
     </div>
   );
@@ -1267,7 +1279,7 @@ export const ModelPickerEffort: Story = {
 export const ModelPickerAdvanced: Story = {
   render: () => (
     <StorySurface>
-      <ModelPickerHarness initialPage="advanced" budgetOverride={8192} />
+      <ModelPickerHarness initialPage="advanced" />
     </StorySurface>
   ),
   play: async ({ canvasElement }) => {
@@ -1276,7 +1288,6 @@ export const ModelPickerAdvanced: Story = {
     await expect(
       page.getByRole("menuitem", { name: /Custom model id/ }),
     ).toBeVisible();
-    await expect(page.getByText("8192 tokens")).toBeVisible();
   },
 };
 
@@ -1285,13 +1296,12 @@ export const ModelPickerCustomLongSummary: Story = {
     <StorySurface>
       <ModelPickerHarness
         initialModelLabel="provider/custom-model-with-an-intentionally-long-version-suffix"
-        budgetOverride={8192}
       />
     </StorySurface>
   ),
   play: async ({ canvasElement }) => {
     const trigger = within(canvasElement).getByTitle("Model & effort");
-    await expect(trigger).toHaveTextContent("Custom");
+    await expect(trigger).toHaveTextContent("Medium");
     await expect(trigger).toHaveTextContent(
       "provider/custom-model-with-an-intentionally-long-version-suffix",
     );

@@ -5,24 +5,21 @@ import { useAppStoreApi, useStore, type NewSessionProject } from "../store";
 import {
   ACCESS_LEVELS,
   accessById,
+  agentById,
+  agentLabel,
   buildBestOfNDriver,
-  buildDriverAgent,
   buildLoopDriver,
   buildSpec,
   DEFAULT_ACCESS,
   DEFAULT_EFFORT,
   DEFAULT_MODEL,
   DEFAULT_PERSONA,
-  DEFAULT_WORKER,
   EFFORT_LEVELS,
   effortById,
-  effortFromSpec,
+  legacyModelFromSpec,
   MODELS,
   modelById,
-  modelFromSpec,
-  personaById,
   personaFromSpec,
-  replaceModel,
   type AccessId,
   type EffortId,
 } from "../specs";
@@ -31,9 +28,19 @@ import { useVoice } from "./useVoice";
 import { useDictation } from "./useDictation";
 import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
 import { parseSlash, SLASH, type SlashCmd } from "./slash";
-import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
+import {
+  recallAccess,
+  recallDraft,
+  recallModel,
+  recallSpec,
+  rememberAccess,
+  rememberDraft,
+  rememberModel,
+  rememberSpec,
+} from "./sessionSpecs";
 import { isScratchWorkspace, projectLabel, projectSubtitles } from "../viewModels";
 import { ComposerView } from "../features/composer/ComposerView";
+import type { AgentCatalogEntry } from "../types";
 
 export { ComposerView } from "../features/composer/ComposerView";
 export { GoalLoopLauncher } from "../features/composer/GoalLoopLauncher";
@@ -174,9 +181,6 @@ export function Composer(props: ComposerProps) {
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
   const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
-  // Advanced → thinking-budget override: an exact budget the effort presets
-  // don't cover. null = use the effort preset. Chosen effort clears it.
-  const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
   // The compact root mirrors Codex's Model / Effort / Advanced summary. Each
   // dimension swaps to its own page, so short phones never have to scroll past
   // the full model list just to reach effort or advanced settings.
@@ -186,6 +190,7 @@ export function Composer(props: ComposerProps) {
   // editor, which is the same subject) live one level down, reusing the model
   // menu's page-swap pattern.
   const [addMenuPage, setAddMenuPage] = useState<"root" | "advanced" | "agent">("root");
+  const [agents, setAgents] = useState<AgentCatalogEntry[]>([]);
   // The home composer remembers the last chosen access level (W15); session
   // composers show the session's fixed posture instead and never read this.
   const [access, setAccessState] = useState<AccessId>(() => {
@@ -232,6 +237,35 @@ export function Composer(props: ComposerProps) {
     close();
   };
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
+  const selectedAgent = agentById(agents, persona);
+  const requireSelectedAgent = async (): Promise<AgentCatalogEntry> => {
+    if (selectedAgent) return selectedAgent;
+    const catalog = await api.agents();
+    setAgents(catalog);
+    const entry = agentById(catalog, persona);
+    if (!entry) throw new Error("No Agents are configured");
+    return entry;
+  };
+
+  useEffect(() => {
+    let live = true;
+    api
+      .agents()
+      .then((catalog) => {
+        if (!live) return;
+        setAgents(catalog);
+        if (
+          catalog.length &&
+          !catalog.some((entry) => entry.name === persona)
+        ) {
+          setPersona(catalog[0].name);
+        }
+      })
+      .catch((error: Error) => props.onError(error.message));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // Narrow phones (≤480px) can't fit the full "…, or type / for commands"
   // placeholder — it wraps to a second line that the single-row textarea clips
@@ -376,18 +410,23 @@ export function Composer(props: ComposerProps) {
     taRef.current?.focus();
   };
 
-  // Seed model + persona pills from the session's remembered spec (if we made it).
+  // Seed Agent and model pills from the independent values this UI submitted.
   useEffect(() => {
     if (!isSession) return;
-    const sp = recallSpec((props as any).sid, storage.local);
-    const m = sp ? modelFromSpec(sp) : null;
+    const sessionID = (props as any).sid as string;
+    const sp = recallSpec(sessionID, storage.local);
+    const m =
+      recallModel(sessionID, storage.local) ||
+      (sp ? legacyModelFromSpec(sp) : null);
     if (m) {
       setProvider(m.provider);
-      setModel(m.id);
+      setModel(m.model);
+      if (EFFORT_LEVELS.some((level) => level.id === m.effort)) {
+        setEffort(m.effort as EffortId);
+      }
     }
     const p = sp ? personaFromSpec(sp) : null;
     if (p) setPersona(p);
-    if (sp) setEffort(effortFromSpec(sp));
   }, [isSession, isSession ? (props as any).sid : ""]);
 
   // Cold start (nothing remembered yet): seed the project from the most recent
@@ -724,18 +763,23 @@ export function Composer(props: ComposerProps) {
         );
         resetInput();
       } else if (kind === "chat") {
+        const activeAgent = await requireSelectedAgent();
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
+        const spec = buildSpec({ agent: activeAgent, access });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await api.newSession({
+          provider,
+          model,
+          effort,
           spec,
-          extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
+          extraSpecs: [],
           workspace,
           message: t,
           mode: accessById(access).mode,
         });
         rememberSpec(r.sid, spec, storage.local);
+        rememberModel(r.sid, { provider, model, effort }, storage.local);
         rememberAccess(r.sid, access, storage.local);
         resetInput();
         // The create response is already the durable navigation fact. Route to
@@ -755,9 +799,21 @@ export function Composer(props: ComposerProps) {
           }
         }
       } else {
+        const activeAgent = await requireSelectedAgent();
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
-        const r = await api.startRun({ kind: "submit", spec, extraSpecs: [], prompt: t, workspace, mode: accessById(access).mode, idem: "" });
+        const spec = buildSpec({ agent: activeAgent, access });
+        const r = await api.startRun({
+          provider,
+          model,
+          effort,
+          kind: "submit",
+          spec,
+          extraSpecs: [],
+          prompt: t,
+          workspace,
+          mode: accessById(access).mode,
+          idem: "",
+        });
         resetInput();
         await refreshRuns();
         selectRun(r.runId);
@@ -770,17 +826,29 @@ export function Composer(props: ComposerProps) {
   };
 
   // ---- model / effort switch ----
-  // Model and reasoning effort both live in the spec's model block, so a change
-  // to either rebuilds that block (replaceModel) and, mid-session, re-agents the
-  // session (the conversation carries over; it takes effect on the next message).
-  const applyModelSpec = async (p: string, id: string, eff: EffortId, budget: number | null = budgetOverride) => {
+  // The Web UI always sends the visible model choice explicitly. Agent YAML
+  // stays unchanged; `ar agent --model/--effort` freezes both values together.
+  const applyModelSpec = async (p: string, id: string, eff: EffortId) => {
     if (!isSession) return;
     const sid = (props as any).sid as string;
     try {
-      const base = recallSpec(sid, storage.local) || buildSpec({ provider: p, model: id, access: "full", persona, effort: eff, budgetOverride: budget });
-      const spec = replaceModel(base, p, id, eff, budget);
-      await api.switchAgent(sid, spec, personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : []);
-      rememberSpec(sid, spec, storage.local);
+      const base =
+        recallSpec(sid, storage.local) ||
+        buildSpec({
+          agent: await requireSelectedAgent(),
+          access: "full",
+        });
+      await api.switchAgent(sid, base, [], {
+        provider: p,
+        model: id,
+        effort: eff,
+      });
+      rememberSpec(sid, base, storage.local);
+      rememberModel(
+        sid,
+        { provider: p, model: id, effort: eff },
+        storage.local,
+      );
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -795,19 +863,8 @@ export function Composer(props: ComposerProps) {
 
   const chooseEffort = async (eff: EffortId) => {
     setEffort(eff);
-    // Picking a preset effort clears any custom thinking-budget override — the
-    // two feed the same budget and the explicit choice should win.
-    setBudgetOverride(null);
-    await applyModelSpec(provider, model, eff, null);
+    await applyModelSpec(provider, model, eff);
     if (isSession) toast(`Reasoning → ${effortById(eff).label} (from your next message)`, "info");
-  };
-
-  // Advanced → thinking-budget override: an exact budget (0 / empty ⇒ back to
-  // the effort preset). Rebuilds the model block just like an effort switch.
-  const chooseBudgetOverride = async (budget: number | null) => {
-    setBudgetOverride(budget);
-    await applyModelSpec(provider, model, effort, budget);
-    if (isSession) toast(budget ? `Thinking budget → ${budget} tokens (from your next message)` : "Thinking budget → effort preset", "info");
   };
 
   // ---- persona (agent template) switch ----
@@ -819,11 +876,13 @@ export function Composer(props: ComposerProps) {
     const sid = (props as any).sid as string;
     try {
       const acc = (recallAccess(sid, storage.local) as AccessId) || "full";
-      const spec = buildSpec({ provider, model, access: acc, persona: id, effort, budgetOverride });
-      const sib = personaById(id).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [];
-      await api.switchAgent(sid, spec, sib);
+      const next = agentById(agents, id);
+      if (!next) throw new Error(`Unknown Agent ${id}`);
+      const spec = buildSpec({ agent: next, access: acc });
+      await api.switchAgent(sid, spec, [], { provider, model, effort });
       rememberSpec(sid, spec, storage.local);
-      toast(`Agent → ${personaById(id).label} (from your next message)`, "info");
+      rememberModel(sid, { provider, model, effort }, storage.local);
+      toast(`Agent → ${agentLabel(id)} (from your next message)`, "info");
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -842,17 +901,22 @@ export function Composer(props: ComposerProps) {
       if (isSession) {
         sid = (props as any).sid as string;
       } else {
+        const activeAgent = await requireSelectedAgent();
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
-        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
+        const spec = buildSpec({ agent: activeAgent, access });
         const r = await api.newSession({
+          provider,
+          model,
+          effort,
           spec,
-          extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
+          extraSpecs: [],
           workspace,
           message: goalText,
           mode: accessById(access).mode,
         });
         rememberSpec(r.sid, spec, storage.local);
+        rememberModel(r.sid, { provider, model, effort }, storage.local);
         rememberAccess(r.sid, access, storage.local);
         sid = r.sid;
       }
@@ -909,9 +973,16 @@ export function Composer(props: ComposerProps) {
     setBusy(true);
     try {
       const r = await api.startRun({
+        provider,
+        model,
+        effort,
         kind: "drive",
-        spec: buildLoopDriver({ prompt, interval, maxIterations: iterations, provider, model }),
-        extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
+        spec: buildLoopDriver({
+          prompt,
+          interval,
+          maxIterations: iterations,
+        }),
+        extraSpecs: [],
         prompt: "",
         workspace,
         mode: "",
@@ -936,9 +1007,12 @@ export function Composer(props: ComposerProps) {
     setBusy(true);
     try {
       const r = await api.startRun({
+        provider,
+        model,
+        effort,
         kind: "drive",
-        spec: buildBestOfNDriver({ prompt, n: attempts, verifier, provider, model }),
-        extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
+        spec: buildBestOfNDriver({ prompt, n: attempts, verifier }),
+        extraSpecs: [],
         prompt: "",
         workspace,
         mode: "",
@@ -1430,6 +1504,7 @@ export function Composer(props: ComposerProps) {
         planMode: access === "plan",
         kind,
         persona,
+        agents,
         onOpen: () => setAddMenuPage("root"),
         onPageChange: setAddMenuPage,
         onPickFiles: () => anyRef.current?.click(),
@@ -1448,21 +1523,22 @@ export function Composer(props: ComposerProps) {
         onEditSpec: () =>
           openModal(
             isSession
-              ? { kind: "agent", sid: (props as any).sid }
+              ? {
+                  kind: "agent",
+                  sid: (props as any).sid,
+                  provider,
+                  model,
+                  effort,
+                }
               : {
                   kind: "new",
                   message: text,
-                  spec: buildSpec({
-                    provider,
-                    model,
-                    access,
-                    persona,
-                    effort,
-                    budgetOverride,
-                  }),
-                  worker: personaById(persona).withWorker
-                    ? DEFAULT_WORKER
+                  spec: selectedAgent
+                    ? buildSpec({ agent: selectedAgent, access })
                     : "",
+                  provider,
+                  model,
+                  effort,
                 },
           ),
       }}
@@ -1499,7 +1575,6 @@ export function Composer(props: ComposerProps) {
         modelLabel,
         effort,
         effortLabel: effortLevel.label,
-        budgetOverride,
         page: modelMenuPage,
         onOpen: () => setModelMenuPage("root"),
         onPageChange: setModelMenuPage,
@@ -1511,21 +1586,6 @@ export function Composer(props: ComposerProps) {
             label: "model id (provider stays " + provider + ")",
             initial: model,
             onSubmit: (id) => chooseModel(provider, id),
-          }),
-        onCustomBudget: () =>
-          openPrompt({
-            title: "Thinking budget override",
-            label: "budget tokens (0 or empty = use the effort preset)",
-            initial:
-              budgetOverride != null ? String(budgetOverride) : "",
-            onSubmit: (value) => {
-              const next = Number(value.trim());
-              chooseBudgetOverride(
-                Number.isFinite(next) && next > 0
-                  ? Math.floor(next)
-                  : null,
-              );
-            },
           }),
       }}
       assistActions={{
