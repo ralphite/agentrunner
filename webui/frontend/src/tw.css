@@ -405,10 +405,13 @@
   .section-toggle { @apply w-full rounded-[7px] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
-  /* Project name owns the full text track. Duplicate labels stay identical;
-     their paths are progressive disclosure in title/hover preview. */
+  /* Project name owns the full text track. When two groups collide on the
+     same basename, a short de-noised parent-path hint rides one dim line
+     below the name (W20) so the rail never reads as a duplicate. Non-twin
+     repos have no hint → no second line → single-row rhythm unchanged. */
   .proj-heading-text { @apply flex min-w-0 flex-1 flex-col text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
+  .proj-heading-hint { @apply min-w-0 truncate text-[11px] leading-tight text-dim; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
@@ -1791,5 +1794,5 @@
 /* 批次 2 尾件:最后两个纯包装节点,布局归位后全库真裸元素清零 */
 @layer components {
   .scheduled-create { @apply shrink-0 self-start; }
-  .project-group { @apply flex min-w-0 flex-col; }
+  .project-group { @apply flex min-w-0 flex-col mb-1.5; }
 }
