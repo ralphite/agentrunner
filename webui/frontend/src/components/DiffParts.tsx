@@ -22,6 +22,7 @@ import {
 } from "@phosphor-icons/react";
 import { splitPath, type FileStatus } from "../diffSummary";
 import type { DiffScope } from "../types";
+import { IconButton } from "../ui/IconButton";
 import { Popover, PopItem, PopSection } from "./Popover";
 
 const STATUS_GLYPH: Record<FileStatus, string> = {
@@ -285,14 +286,13 @@ export function ChangedFilesMenu({
         panelRole="dialog"
         ariaLabel="Changed files"
         trigger={(open, toggle) => (
-        <button
-          className={
-            "sm ghost diff-iconbtn" +
-            (open || filtering ? " active" : "")
-          }
-            onClick={toggle}
-            aria-label="Changed files"
-            aria-haspopup="dialog"
+        <IconButton
+          size="md"
+          variant="ghost"
+          pressed={open || filtering}
+          onClick={toggle}
+          aria-label="Changed files"
+          aria-haspopup="dialog"
           aria-expanded={open}
           title={
             filtering
@@ -301,7 +301,7 @@ export function ChangedFilesMenu({
           }
         >
           <TreeStructure size={15} />
-        </button>
+        </IconButton>
       )}
     >
       {(close) => (
@@ -435,10 +435,10 @@ export function DiffMoreActionsMenu({
       align="right"
       panelClass="diff-more-menu"
       trigger={(open, toggle) => (
-        <button
-          className={
-            "sm ghost diff-iconbtn" + (open ? " active" : "")
-          }
+        <IconButton
+          size="md"
+          variant="ghost"
+          pressed={open}
           onClick={toggle}
           aria-label="More changes actions"
           aria-haspopup="menu"
@@ -446,7 +446,7 @@ export function DiffMoreActionsMenu({
           title="More actions"
         >
           <DotsThree size={18} weight="bold" />
-        </button>
+        </IconButton>
       )}
     >
       {(close) => (
@@ -708,14 +708,15 @@ export type DiffToolbarProps =
 function DiffCloseButton({ onClose }: { onClose?: () => void }) {
   if (!onClose) return null;
   return (
-    <button
-      className="sm ghost diff-iconbtn diff-closebtn"
+    <IconButton
+      size="md"
+      variant="ghost"
       onClick={onClose}
       aria-label="Close changes"
       title="Close changes (back to the conversation)"
     >
       <X size={15} />
-    </button>
+    </IconButton>
   );
 }
 
@@ -732,14 +733,15 @@ export function DiffToolbar(props: DiffToolbarProps) {
       <div className="diffbar diffbar-state">
         {scope}
         <span className="spacer" />
-        <button
-          className="sm ghost diff-iconbtn"
+        <IconButton
+          size="md"
+          variant="ghost"
           onClick={props.onRefresh}
           aria-label="Refresh changes"
           title="Refresh changes"
         >
           <ArrowClockwise size={15} />
-        </button>
+        </IconButton>
         <DiffCloseButton onClose={props.onClose} />
       </div>
     );
@@ -816,24 +818,23 @@ export function DiffToolbar(props: DiffToolbarProps) {
         onFocusFile={props.onFocusFile}
       />
       {!props.empty && !props.barTight && (
-        <button
-          className="sm ghost diff-iconbtn"
+        <IconButton
+          size="md"
+          variant="ghost"
           onClick={props.onCopy}
           aria-label="Copy diff"
           title="Copy the whole diff to the clipboard"
         >
           <Copy size={15} />
-        </button>
+        </IconButton>
       )}
       {!props.empty && !props.barTight && (
-        <button
-          className={
-            "sm ghost diff-iconbtn diff-wrap-btn" +
-            (props.wrap ? " active" : "")
-          }
+        <IconButton
+          size="md"
+          variant="ghost"
+          pressed={props.wrap}
           onClick={props.onToggleWrap}
           aria-label="Wrap long lines"
-          aria-pressed={props.wrap}
           title={props.wrap ? "Disable line wrap" : "Wrap long lines"}
         >
           {props.wrap ? (
@@ -841,7 +842,7 @@ export function DiffToolbar(props: DiffToolbarProps) {
           ) : (
             <ArrowsHorizontal size={15} />
           )}
-        </button>
+        </IconButton>
       )}
       {!props.empty && !props.barTight && (
         <div className="diff-viewtoggle" role="group" aria-label="Diff layout">

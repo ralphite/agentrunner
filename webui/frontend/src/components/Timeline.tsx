@@ -54,6 +54,7 @@ import {
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { sessionImageURL, uploadURL } from "../api";
+import { IconButton } from "../ui/IconButton";
 import { Lightbox } from "./Lightbox";
 
 // absTime renders an event timestamp for hover titles: local, second-precise.
@@ -174,17 +175,45 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
   const time = shortTime(ts);
   return (
     <div className="msg-actions" aria-live="polite">
-      {text && <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
-        {copied ? <Check size={15} /> : <Copy size={15} />}
-      </button>}
-      {onContinue && <button className="msg-copy icon-only" disabled={continuing}
-        aria-busy={continuing} onClick={async () => {
-          setContinuing(true); setContinueError("");
-          try { await onContinue(); } catch (e: any) { setContinueError(e?.message || "Couldn't continue from this message"); }
-          finally { setContinuing(false); }
-        }} title="Continue in new session" aria-label="Continue in new session">
-        <ArrowUpRight size={15} />
-      </button>}
+      {text && (
+        <IconButton
+          size="sm"
+          variant="ghost"
+          className="msg-copy"
+          onClick={copy}
+          title={copied ? "Copied message" : "Copy message"}
+          aria-label={copied ? "Copied message" : "Copy message"}
+        >
+          {copied ? <Check size={15} /> : <Copy size={15} />}
+        </IconButton>
+      )}
+      {onContinue && (
+        <IconButton
+          size="sm"
+          variant="ghost"
+          className="msg-copy"
+          loading={continuing}
+          onClick={async () => {
+            setContinuing(true);
+            setContinueError("");
+            try {
+              await onContinue();
+            } catch (e: any) {
+              setContinueError(
+                e?.message || "Couldn't continue from this message",
+              );
+            } finally {
+              setContinuing(false);
+            }
+          }}
+          title="Continue in new session"
+          aria-label={
+            continuing ? "Continuing in new session" : "Continue in new session"
+          }
+        >
+          <ArrowUpRight size={15} />
+        </IconButton>
+      )}
       {continueError && <span className="sr-only">{continueError}</span>}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
@@ -261,15 +290,16 @@ export function ShellDetail({ t }: { t: ToolItem }) {
           {ok ? <><Check size={12} /> {statusText}</> : cancelled ? <><Circle size={9} /> {statusText}</> : <><X size={12} /> {statusText}</>}
         </div>
         {copyBody && (
-          <button
-            type="button"
-            className="msg-copy icon-only"
+          <IconButton
+            size="sm"
+            variant="ghost"
+            className="msg-copy"
             onClick={copy}
             title={copied ? "Copied command and result" : "Copy command and result"}
             aria-label={copied ? "Copied command and result" : "Copy command and result"}
           >
             {copied ? <Check size={15} /> : <Copy size={15} />}
-          </button>
+          </IconButton>
         )}
       </div>
     </div>

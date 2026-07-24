@@ -20,6 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import type { FailureNotice } from "../timeline";
 import { formatElapsed } from "../timeline";
+import { IconButton } from "../ui/IconButton";
 import type { TerminalNotice } from "./pill";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 
@@ -103,15 +104,15 @@ export function SessionTopbar({
         />
       )}
       {isSub && (
-        <button
-          type="button"
-          className="topbar-icon"
+        <IconButton
+          size="md"
+          variant="ghost"
           onClick={onBackToParent}
           title="Back to parent session"
           aria-label="Back to parent session"
         >
           <ArrowLeft size={16} />
-        </button>
+        </IconButton>
       )}
       <div className="tt-left">
         <div

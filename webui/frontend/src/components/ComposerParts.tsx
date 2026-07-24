@@ -42,6 +42,7 @@ import {
 import type { AgentCatalogEntry } from "../types";
 import type { SlashCmd } from "./slash";
 import { Popover, PopItem, PopSection } from "./Popover";
+import { IconButton } from "../ui/IconButton";
 
 function usePickerPageFocus(page: string) {
   const ref = useRef<HTMLDivElement>(null);
@@ -182,13 +183,14 @@ export function ProjectPicker({
           ) : (
             <>
               <div className="pop-menu-title">
-                <button
-                  className="pop-back"
+                <IconButton
+                  size="lg"
+                  variant="ghost"
                   onClick={onBack}
                   aria-label="Back to projects"
                 >
                   ‹
-                </button>
+                </IconButton>
                 <b>New project</b>
               </div>
               <PopItem
@@ -596,9 +598,11 @@ export function AddMenu({
       panelClass="cx-pop-codex"
       onOpen={onOpen}
       trigger={(open, toggle) => (
-        <button
-          type="button"
-          className={"cx-icon" + (open ? " active" : "")}
+        <IconButton
+          size="md"
+          variant="ghost"
+          className="cx-icon"
+          pressed={open}
           onClick={toggle}
           title="Add & advanced options"
           aria-label="Add and advanced options"
@@ -606,7 +610,7 @@ export function AddMenu({
           aria-expanded={open}
         >
           <Plus size={16} />
-        </button>
+        </IconButton>
       )}
     >
       {(close) => (
@@ -680,14 +684,15 @@ export function AddMenu({
           ) : page === "advanced" ? (
             <>
               <div className="pop-menu-title">
-                <button
-                  className="pop-back"
+                <IconButton
+                  size="lg"
+                  variant="ghost"
                   role="menuitem"
                   onClick={() => onPageChange("root")}
                   aria-label="Back to add menu"
                 >
                   ‹
-                </button>
+                </IconButton>
                 <b>Automation</b>
               </div>
               <PopItem
@@ -733,14 +738,15 @@ export function AddMenu({
           ) : (
             <>
               <div className="pop-menu-title">
-                <button
-                  className="pop-back"
+                <IconButton
+                  size="lg"
+                  variant="ghost"
                   role="menuitem"
                   onClick={() => onPageChange("advanced")}
                   aria-label="Back to automation menu"
                 >
                   ‹
-                </button>
+                </IconButton>
                 <b>Agent</b>
               </div>
               {agents.map((item) => (
@@ -1075,15 +1081,15 @@ function PickerBack({
 }) {
   return (
     <div className="pop-menu-title">
-      <button
-        type="button"
-        className="pop-back"
+      <IconButton
+        size="lg"
+        variant="ghost"
         role="menuitem"
         onClick={onBack}
         aria-label="Back to model menu"
       >
         ‹
-      </button>
+      </IconButton>
       <b>{title}</b>
     </div>
   );
@@ -1193,40 +1199,49 @@ export function AssistActions({
   return (
     <>
       {canUndo ? (
-        <button
-          type="button"
+        <IconButton
+          size="md"
+          variant="ghost"
           className="cx-icon cx-undo"
           onClick={onUndo}
           title="Undo optimize — restore your original draft"
+          aria-label="Undo optimized prompt"
         >
           <ArrowUUpLeft size={15} />
-        </button>
+        </IconButton>
       ) : (
         hasText && (
-          <button
-            type="button"
-            className={"cx-icon cx-optimize" + (optimizing ? " working" : "")}
+          <IconButton
+            size="md"
+            variant="ghost"
+            className="cx-icon cx-optimize"
             onClick={onOptimize}
-            disabled={optimizing}
+            loading={optimizing}
             title="Optimize prompt — rewrite this draft to be clearer"
+            aria-label={optimizing ? "Optimizing prompt" : "Optimize prompt"}
           >
             <Sparkle
               size={15}
               weight={optimizing ? "fill" : "regular"}
             />
-          </button>
+          </IconButton>
         )
       )}
       {micVisible && (
-        <button
-          type="button"
-          className={
-            "cx-icon cx-mic" +
-            (micActive ? " listening" : "") +
-            (dictationBusy ? " working" : "")
-          }
+        <IconButton
+          size="md"
+          variant="ghost"
+          className="cx-icon cx-mic"
+          pressed={micActive}
+          loading={dictationBusy}
           onClick={onToggleMic}
-          disabled={dictationBusy}
+          aria-label={
+            dictationBusy
+              ? "Transcribing prompt"
+              : micActive
+                ? "Stop dictation"
+                : "Dictate"
+          }
           title={
             dictationBusy
               ? "Transcribing…"
@@ -1236,7 +1251,7 @@ export function AssistActions({
           }
         >
           <Microphone size={15} />
-        </button>
+        </IconButton>
       )}
     </>
   );

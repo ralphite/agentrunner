@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { IconButton } from "../ui/IconButton";
 
 // FindBar is Codex's in-chat Find (⌘F): a search box over the current
 // conversation that highlights matches and steps through them with ↑/↓. It
@@ -166,16 +167,36 @@ export function FindBar({ scope, onClose }: { scope: () => HTMLElement | null; o
         {unsupported ? "N/A" : q ? (count ? `${cur + 1} / ${count}` : "0 / 0") : ""}
       </span>
       <div className="fb-nav">
-        <button className="fb-arrow" title="Previous (⇧Enter)" disabled={count === 0} onClick={() => step(-1)}>
+        <IconButton
+          size="md"
+          variant="ghost"
+          aria-label="Previous match"
+          title="Previous (⇧Enter)"
+          disabled={count === 0}
+          onClick={() => step(-1)}
+        >
           <ArrowUp size={14} />
-        </button>
-        <button className="fb-arrow" title="Next (Enter)" disabled={count === 0} onClick={() => step(1)}>
+        </IconButton>
+        <IconButton
+          size="md"
+          variant="ghost"
+          aria-label="Next match"
+          title="Next (Enter)"
+          disabled={count === 0}
+          onClick={() => step(1)}
+        >
           <ArrowDown size={14} />
-        </button>
+        </IconButton>
       </div>
-      <button className="fb-x" title="Close (Esc)" aria-label="Close find" onClick={onClose}>
+      <IconButton
+        size="md"
+        variant="ghost"
+        title="Close (Esc)"
+        aria-label="Close find"
+        onClick={onClose}
+      >
         <X size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { FindBar } from "./FindBar";
 import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "./pill";
 import { displayTitle } from "../title";
 import { dedupeInspectNodes } from "../viewModels";
+import { IconButton } from "../ui/IconButton";
 import { ChangesOutcome } from "./ChangesOutcome";
 import { DaemonAlert } from "./DaemonAlert";
 import { SessionNotFound } from "./NotFound";
@@ -1297,9 +1298,15 @@ export function GoalBanner({
           {checks && <span>{checks}</span>}
           {elapsed && <span>{elapsed}</span>}
         </span>
-        <button className="gbar-btn" onClick={onDismiss} title="Dismiss" aria-label="Dismiss goal banner">
+        <IconButton
+          size="sm"
+          variant="ghost"
+          onClick={onDismiss}
+          title="Dismiss"
+          aria-label="Dismiss goal banner"
+        >
           <X size={15} />
-        </button>
+        </IconButton>
       </div>
     );
   }
@@ -1327,12 +1334,44 @@ export function GoalBanner({
       <span className="gbar-actions">
         {editing === null ? (
           <>
-            <button className="gbar-btn" onClick={onEditStart} title={updatePending ? "Goal update queued" : "Edit goal"} aria-label="Edit goal" disabled={updatePending}><PencilSimple size={15} /></button>
-            <button className="gbar-btn" onClick={() => onAction(paused ? "resume" : "pause")} title={paused ? "Resume goal" : "Pause goal"} aria-label={paused ? "Resume goal" : "Pause goal"}>
+            <IconButton
+              size="sm"
+              variant="ghost"
+              onClick={onEditStart}
+              title={updatePending ? "Goal update queued" : "Edit goal"}
+              aria-label="Edit goal"
+              disabled={updatePending}
+            >
+              <PencilSimple size={15} />
+            </IconButton>
+            <IconButton
+              size="sm"
+              variant="ghost"
+              onClick={() => onAction(paused ? "resume" : "pause")}
+              title={paused ? "Resume goal" : "Pause goal"}
+              aria-label={paused ? "Resume goal" : "Pause goal"}
+            >
               {paused ? <Play size={15} weight="fill" /> : <Pause size={15} weight="fill" />}
-            </button>
-            <button className="gbar-btn danger" onClick={() => onAction("cancel")} title="Cancel goal" aria-label="Cancel goal"><Trash size={15} /></button>
-            <button className="gbar-btn" onClick={(event) => onOpenDetails(event.currentTarget)} title="Open goal details" aria-label="Open goal details"><CaretRight size={15} /></button>
+            </IconButton>
+            <IconButton
+              size="sm"
+              variant="ghost"
+              tone="danger"
+              onClick={() => onAction("cancel")}
+              title="Cancel goal"
+              aria-label="Cancel goal"
+            >
+              <Trash size={15} />
+            </IconButton>
+            <IconButton
+              size="sm"
+              variant="ghost"
+              onClick={(event) => onOpenDetails(event.currentTarget)}
+              title="Open goal details"
+              aria-label="Open goal details"
+            >
+              <CaretRight size={15} />
+            </IconButton>
           </>
         ) : (
           <>

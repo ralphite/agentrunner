@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { formatElapsed, type GoalDerived } from "../timeline";
 import type { BackgroundWork } from "../types";
+import { IconButton } from "../ui/IconButton";
 import { Subagents, type InspectNode } from "./Subagents";
 
 export interface GoalState {
@@ -74,14 +75,16 @@ export function backgroundLabel(work: BackgroundWork): string {
 export function SupervisionCloseButton({ onClose }: { onClose: () => void }) {
   return (
     <div className="supervision-close-slot sticky top-0 z-10 flex h-0 justify-end">
-      <button
-        className="supervision-close icon-only h-6 w-6 shrink-0"
+      <IconButton
+        size="sm"
+        variant="ghost"
+        className="supervision-close shrink-0"
         onClick={onClose}
         title="Hide Environment"
         aria-label="Hide Environment"
       >
         <X size={15} />
-      </button>
+      </IconButton>
     </div>
   );
 }
