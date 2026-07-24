@@ -31,6 +31,8 @@ describe("cadenceText (mirror of webui/schedule.go cadenceOf)", () => {
     [{ schedule: "interval", interval: "30m" }, "Every 30m"],
     [{ schedule: "interval", interval: "1h30m" }, "Every 1h30m"],
     [{ schedule: "interval", interval: "24h" }, "Every 1d"],
+    [{ schedule: "interval", interval: "25h" }, "Every 1d1h"],
+    [{ schedule: "interval", interval: "171h" }, "Every 7d3h"],
     [{ schedule: "interval", interval: "" }, "Continuously"],
     [{ schedule: "parallel", n: 4 }, "Best of 4"],
     [{ schedule: "parallel" }, "Best of N"],

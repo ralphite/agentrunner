@@ -104,18 +104,24 @@ export function goDurationSeconds(d: string): number | null {
   return total;
 }
 
-// humanDuration renders a cadence duration compactly: 30m, 2h, 1h30m, 1d.
+// humanDuration renders a cadence duration compactly: 30m, 2h, 1h30m, 1d, 7d3h.
+// Mirror of webui/schedule.go's humanDuration: whole-minute spans roll up through
+// days → hours → minutes and drop empty units, so a multi-day interval reads as
+// "7d3h" rather than a raw "171h". Sub-minute spans stay as seconds.
 function humanDuration(sec: number): string {
   const s = Math.round(sec);
-  const day = 86400;
-  if (s % day === 0) return `${s / day}d`;
-  if (s % 3600 === 0) return `${s / 3600}h`;
-  if (s % 60 === 0) {
-    const min = s / 60;
-    if (min > 60) return `${Math.floor(min / 60)}h${min % 60}m`;
-    return `${min}m`;
-  }
-  return `${s}s`;
+  if (s % 60 !== 0) return `${s}s`;
+  let rem = s;
+  const days = Math.floor(rem / 86400);
+  rem -= days * 86400;
+  const hours = Math.floor(rem / 3600);
+  rem -= hours * 3600;
+  const mins = Math.floor(rem / 60);
+  let out = "";
+  if (days > 0) out += `${days}d`;
+  if (hours > 0) out += `${hours}h`;
+  if (mins > 0) out += `${mins}m`;
+  return out;
 }
 
 // ---- cron (five fields: minute hour dom month dow; *, n, a-b, a,b, */n) ----

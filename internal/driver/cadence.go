@@ -2,6 +2,7 @@ package driver
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/cron"
@@ -64,23 +65,33 @@ func (s *DriverSpec) NextRunAt(last, now time.Time) (time.Time, bool) {
 	}
 }
 
-// humanDuration renders a cadence duration compactly: 30m, 2h, 1h30m, 1d.
+// humanDuration renders a cadence duration compactly: 30m, 2h, 1h30m, 1d, 7d3h.
+// Whole-minute durations roll up through days → hours → minutes and drop empty
+// units, so a multi-day interval reads as "7d3h" rather than a raw "171h" (Codex
+// never surfaces >24h as bare hours). Sub-minute or ragged-seconds spans defer to
+// Go's own compact form (90s → 1m30s).
 func humanDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 	if d <= 0 {
 		return "0s"
 	}
-	switch {
-	case d%(24*time.Hour) == 0:
-		return fmt.Sprintf("%dd", int(d/(24*time.Hour)))
-	case d%time.Hour == 0:
-		return fmt.Sprintf("%dh", int(d/time.Hour))
-	case d%time.Minute == 0:
-		if d > time.Hour {
-			return fmt.Sprintf("%dh%dm", int(d/time.Hour), int((d%time.Hour)/time.Minute))
-		}
-		return fmt.Sprintf("%dm", int(d/time.Minute))
-	default:
+	if d%time.Minute != 0 {
 		return d.String()
 	}
+	days := int(d / (24 * time.Hour))
+	d -= time.Duration(days) * 24 * time.Hour
+	hours := int(d / time.Hour)
+	d -= time.Duration(hours) * time.Hour
+	mins := int(d / time.Minute)
+	var b strings.Builder
+	if days > 0 {
+		fmt.Fprintf(&b, "%dd", days)
+	}
+	if hours > 0 {
+		fmt.Fprintf(&b, "%dh", hours)
+	}
+	if mins > 0 {
+		fmt.Fprintf(&b, "%dm", mins)
+	}
+	return b.String()
 }

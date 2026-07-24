@@ -16,6 +16,8 @@ func TestCadencePhrases(t *testing.T) {
 		{DriverSpec{Schedule: ScheduleInterval, Interval: "30m"}, "Every 30m"},
 		{DriverSpec{Schedule: ScheduleInterval, Interval: "90m"}, "Every 1h30m"},
 		{DriverSpec{Schedule: ScheduleInterval, Interval: "24h"}, "Every 1d"},
+		{DriverSpec{Schedule: ScheduleInterval, Interval: "25h"}, "Every 1d1h"},
+		{DriverSpec{Schedule: ScheduleInterval, Interval: "171h"}, "Every 7d3h"},
 		{DriverSpec{Schedule: ScheduleInterval, Interval: ""}, "Continuously"},
 		{DriverSpec{Schedule: ScheduleCron, Cron: "0 4 * * 6"}, "Saturdays at 4:00 AM"},
 		{DriverSpec{Schedule: ScheduleCron, Cron: "0 8 * * 1-5"}, "Weekdays at 8:00 AM"},
