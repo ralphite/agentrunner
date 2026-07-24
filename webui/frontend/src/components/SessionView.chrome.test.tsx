@@ -664,6 +664,16 @@ describe("mobile session topbar", () => {
     expect(screen.getByRole("menuitem", { name: "Continue in new session…" })).toBeTruthy();
   });
 
+  it("shows a short session access label instead of a bare unknown icon", async () => {
+    (window as any).innerWidth = 390;
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    const access = container.querySelector<HTMLButtonElement>(".cx .cx-mode.session")!;
+    expect(access.textContent).toContain("Spec");
+    expect(access.getAttribute("aria-label")).toBe("Access: set by agent spec");
+  });
+
   it("does not spend title width on a navigation slot in desktop chrome", async () => {
     const { container } = render(<SessionView sid={SID} />);
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());

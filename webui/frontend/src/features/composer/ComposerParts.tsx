@@ -3,6 +3,7 @@ import {
   ArrowClockwise,
   ArrowUUpLeft,
   ArrowUp,
+  CaretLeft,
   CaretDown,
   CaretRight,
   ChartBar,
@@ -21,7 +22,6 @@ import {
   Paperclip,
   PencilSimple,
   Plus,
-  Question,
   ShieldCheck,
   Sparkle,
   Stop as StopIcon,
@@ -178,7 +178,7 @@ export function ProjectPicker({
                   <PopItem
                     icon={<Plus size={16} />}
                     title="New project"
-                    right={<span aria-hidden>›</span>}
+                    right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
                     className="max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
                     onClick={onShowNew}
                   />
@@ -205,7 +205,7 @@ export function ProjectPicker({
                   onClick={onBack}
                   aria-label="Back to projects"
                 >
-                  ‹
+                  <CaretLeft size={16} aria-hidden="true" />
                 </IconButton>
                 <b>New project</b>
               </div>
@@ -706,7 +706,7 @@ export function AddMenu({
                       ? "Background run"
                       : agentLabel(persona)
                   }
-                  right={<span aria-hidden>›</span>}
+                  right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
                   onClick={() => onPageChange("advanced")}
                 />
               </PopSection>
@@ -721,7 +721,7 @@ export function AddMenu({
                   onClick={() => onPageChange("root")}
                   aria-label="Back to add menu"
                 >
-                  ‹
+                  <CaretLeft size={16} aria-hidden="true" />
                 </IconButton>
                 <b>Automation</b>
               </div>
@@ -761,7 +761,7 @@ export function AddMenu({
                 desc={
                   agentLabel(persona)
                 }
-                right={<span aria-hidden>›</span>}
+                right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
                 onClick={() => onPageChange("agent")}
               />
             </>
@@ -775,7 +775,7 @@ export function AddMenu({
                   onClick={() => onPageChange("advanced")}
                   aria-label="Back to automation menu"
                 >
-                  ‹
+                  <CaretLeft size={16} aria-hidden="true" />
                 </IconButton>
                 <b>Agent</b>
               </div>
@@ -818,12 +818,27 @@ const accessIconById: Record<AccessId, typeof LockOpen> = {
 };
 
 function AccessIcon({ id, risk }: { id?: AccessId; risk: string }) {
-  const Icon = id ? accessIconById[id] : Question;
+  const Icon = id ? accessIconById[id] : ShieldCheck;
   return (
     <span className={`cx-access-ico ${risk}`} data-access-id={id || "unknown"}>
       <Icon size={16} />
     </span>
   );
+}
+
+function mobileAccessLabel(id?: AccessId): string {
+  switch (id) {
+    case "acceptEdits":
+      return "Auto";
+    case "ask":
+      return "Ask";
+    case "full":
+      return "Full";
+    case "plan":
+      return "Plan";
+    default:
+      return "Spec";
+  }
 }
 
 function RiskGlyph({ risk }: { risk: string }) {
@@ -874,7 +889,7 @@ export function AccessPicker({
         <button
           type="button"
           ref={triggerRef}
-          className={`cx-pill cx-mode ${risk}${open ? " active" : ""}`}
+          className={`cx-pill cx-mode${session ? " session" : ""} ${risk}${open ? " active" : ""}`}
           onClick={toggle}
           aria-label={label}
           aria-haspopup={session ? "dialog" : "menu"}
@@ -890,6 +905,11 @@ export function AccessPicker({
           <span className="cx-mode-mobile-icon" aria-hidden>
             <AccessIcon id={active} risk={risk} />
           </span>
+          {session && (
+            <span className="cx-mode-mobile-text" aria-hidden>
+              {mobileAccessLabel(active)}
+            </span>
+          )}
           <RiskGlyph risk={risk} />
           <span className="cx-mode-label">{label}</span>
         </button>
@@ -1128,7 +1148,7 @@ function PickerBack({
         onClick={onBack}
         aria-label="Back to model menu"
       >
-        ‹
+        <CaretLeft size={16} aria-hidden="true" />
       </IconButton>
       <b>{title}</b>
     </div>

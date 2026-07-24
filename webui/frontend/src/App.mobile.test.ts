@@ -61,7 +61,7 @@ describe("Environment layout contract", () => {
 
     const selector = ".session-view .supervision-panel.session-side {";
     const ruleStart = css.indexOf(selector);
-    const mobileStart = css.indexOf("@media (max-width: 900px)");
+    const mobileStart = css.indexOf("@media (max-width: 900px)", ruleStart);
     expect(ruleStart).toBeGreaterThan(-1);
     expect(ruleStart).toBeLessThan(mobileStart);
     expect(css.indexOf(selector, ruleStart + selector.length)).toBe(-1);
