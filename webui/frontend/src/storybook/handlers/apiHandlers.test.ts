@@ -68,6 +68,7 @@ describe("Storybook API handlers", () => {
 
     const urls = [
       "/api/health",
+      "/api/agents",
       "/api/sessions?limit=40&offset=0",
       "/api/runs",
       "/api/projects",

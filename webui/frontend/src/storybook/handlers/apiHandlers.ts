@@ -1,5 +1,6 @@
 import { HttpResponse, http, type RequestHandler } from "msw";
 import type {
+  AgentCatalogEntry,
   BackgroundWork,
   DiffResp,
   Envelope,
@@ -39,6 +40,7 @@ export interface StoryFileSearch {
 
 export interface StoryApiSeed {
   health?: Health;
+  agents?: AgentCatalogEntry[];
   sessions?: Session[];
   runs?: Run[];
   projects?: Record<string, ProjectMeta>;
@@ -54,6 +56,7 @@ export interface StoryApiSeed {
 
 export interface StoryApiState {
   health: Health;
+  agents: AgentCatalogEntry[];
   sessions: Session[];
   runs: Run[];
   projects: Record<string, ProjectMeta>;
@@ -111,6 +114,20 @@ function initialState(seed: StoryApiSeed): StoryApiState {
   const defaultRun = buildRun({ sessionId: defaultSession.id });
   return {
     health: cloneFixture(seed.health ?? buildHealth()),
+    agents: cloneFixture(seed.agents ?? [
+      {
+        name: "dev",
+        description: "Build and change code",
+        source: "shipped",
+        yaml: "name: dev\nsystem_prompt: Build and change code.\ntools: []\n",
+      },
+      {
+        name: "reviewer",
+        description: "Review implementation quality",
+        source: "shipped",
+        yaml: "name: reviewer\nsystem_prompt: Review implementation quality.\ntools: []\n",
+      },
+    ]),
     sessions: cloneFixture(seed.sessions ?? [defaultSession]),
     runs: cloneFixture(seed.runs ?? [defaultRun]),
     projects: cloneFixture(seed.projects ?? buildProjects()),
@@ -189,6 +206,7 @@ export function createStoryApiHandlers(
 
   const runtime: RequestHandler[] = [
     http.get("/api/health", () => HttpResponse.json(cloneFixture(state.health))),
+    http.get("/api/agents", () => HttpResponse.json(cloneFixture(state.agents))),
     http.post("/api/daemon/start", () => {
       state.health.daemonUp = true;
       return HttpResponse.json({ status: "started" });
