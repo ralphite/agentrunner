@@ -7604,3 +7604,24 @@ QA-90 使用 production `http://127.0.0.1:8809/`、全局 daemon 与共享 store
 仅 `seq=3` 一条 `input_received(source=cli,delivery_seq=1)`，同 event 含 file part；
 未 interrupt、无第二次 send，deep-link reload 恢复 opening 与 reply，console 为空、
 workspace diff 为空。QA-90 的完成断言只使用该 session 与 text+attachment session。
+
+---
+
+## 2026-07-23 · INC-99.2 Web UI controller/view 与 page boundary 收口
+
+组件体系从 leaf extraction 继续收口为真实 production boundary：`AppShell` 实现归
+`app/`，`pages/PageHost` 独占 Home/Session/Scheduled/Run route precedence 与
+page error isolation；Composer 抽出纯 `ComposerView` 与独立
+`GoalLoopLauncher`；Session 抽出 polling/SSE/queue/approval controller 与 typed
+command hook；Timeline 抽出 scroll restore/stick/unseen/persistence controller；
+Scheduled 抽出 filter/detail/control/edit controller。旧 public import 只作兼容，
+不再以 re-export 冒充实现边界。
+
+最终 inventory 为 174 targets、559 Stories、13 semantic interaction states、
+5 global state pairs、12 个有证据的 private render/decorative exclusion，0 missing。
+浏览器 QA 发现并关闭两条仅人工控制才会暴露的 Demo 缺陷：播放控制点击曾被
+production Popover 的 outside-click 关闭；修后又发现 fixed Popover 覆盖控制条。
+ScenarioControls 现隔离 pointer/mousedown 并建立高于 product overlay 的 transport
+stacking layer，`Reset→Next→Next` 与 `Play→Step7→Pause→Next→Step8` 均真浏览器
+通过。AppShell、360px Composer、四个 PageHost route 与最终 Story console 证据归档
+在 `qa/runs/2026-07-23-QA-89-webui-storybook-components/`。

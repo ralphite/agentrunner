@@ -26,8 +26,12 @@ Web UI `http://127.0.0.1:5188/`
 | mobile 390×844 | `clientWidth = scrollWidth = 390`，无横向溢出 |
 | mobile sidebar | 打开时 main 为 `inert` 且 `aria-hidden=true`；关闭后恢复 |
 | theme | system → light → dark 可实时切换；最终恢复 system |
-| AppShell Story | 1200×598 下 sidebar、Home、composer 填满 canvas，无裁切或错误外层 margin |
-| browser log | 本次 Web UI 路径无相关 error/warning；Storybook 仅有 manager 自身的 PopoverProvider warning |
+| AppShell Story | 最新模块在 1120×678 canvas 下 sidebar=320、main=800、composer=712×135.6；body 无 X/Y overflow，无裁切或错误外层 margin |
+| Composer 360 | 使用 Storybook viewport toolbar 将 canonical Running Queued Story 设为 360px；body `clientWidth=scrollWidth=360`，全部控件右边界 ≤319px |
+| Demo human pacing | Play 后 0.7s 仍停 Step 1、约 1.35s 才进 Step 2；Autoplay 同样保留可见停留；Play/Pause/Reset/Next 均可人工观察 |
+| Demo manual control | `Reset→Next→Next` 保留 project Popover；`Play→Step 7→Pause→Next` 保留 access Popover 且进入 Paused Step 8，控制条不再被 production Popover 关闭或遮挡 |
+| PageHost routes | Home/Session/Scheduled/Run 四个 route Story 均真实渲染；820×378 下 body `client=scroll`，无 overflow |
+| browser log | Web UI 与最终 Story 页面无 Vite/React/runtime crash；Storybook manager 仅有自身 `PopoverProvider ariaLabel` deprecation warning |
 
 ## 截图
 
@@ -37,6 +41,14 @@ Web UI `http://127.0.0.1:5188/`
 - `webui-session-mobile-sidebar.png`
 - `webui-session-mobile-dark.png`
 - `storybook-appshell-desktop.png`
+- `storybook-appshell-desktop-final.png`
+- `storybook-composer-running-queued-360-final.png`
+- `storybook-demo-human-pacing-subagent.png`
+- `storybook-demo-step7-pause-next-pass.png`
+- `storybook-pagehost-home-route.png`
+- `storybook-pagehost-session-route.png`
+- `storybook-pagehost-scheduled-route.png`
+- `storybook-pagehost-run-route.png`
 
 ## 诚实边界
 
