@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 60,
-    "lines": 19209,
+    "lines": 19220,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -357,7 +357,7 @@
       },
       {
         "source": "src/components/Shortcuts.tsx",
-        "lines": 81,
+        "lines": 92,
         "exports": [
           "Shortcuts"
         ],
@@ -622,8 +622,8 @@
     ]
   },
   "tests": {
-    "files": 82,
-    "declarations": 793
+    "files": 83,
+    "declarations": 794
   },
   "storage": [
     {
