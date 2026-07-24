@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ReactNode } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { createStoryApiHandlers } from "../storybook/handlers";
 import { humanPause } from "../storybook/humanPlayback";
@@ -989,6 +989,27 @@ export const Thumbs: Story = {
     await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(thumbs[0]).toHaveFocus();
+  },
+};
+
+export const ThumbsUnavailable: Story = {
+  render: () => (
+    <LeafFrame>
+      <ThumbsLeaf
+        paths={["missing-a.png", "missing-b.png"]}
+        fallback={<span>2 images unavailable</span>}
+      />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const first = canvasElement.querySelector("img");
+    if (!first) throw new Error("First thumbnail did not render");
+    fireEvent.error(first);
+    const second = canvasElement.querySelector("img");
+    if (!second) throw new Error("Second thumbnail did not render");
+    fireEvent.error(second);
+    await expect(canvas.getByText("2 images unavailable")).toBeVisible();
   },
 };
 
