@@ -17,6 +17,8 @@ import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "./pill
 import { displayTitle } from "../title";
 import { dedupeInspectNodes } from "../viewModels";
 import { IconButton } from "../ui/IconButton";
+import { Button } from "../ui/Button";
+import { Input } from "../ui/Field";
 import { ChangesOutcome } from "./ChangesOutcome";
 import { DaemonAlert } from "./DaemonAlert";
 import { SessionNotFound } from "./NotFound";
@@ -1319,7 +1321,7 @@ export function GoalBanner({
       {editing === null ? (
         elapsed && <span className="gbar-meta">{elapsed}</span>
       ) : (
-        <input
+        <Input
           className="gbar-input"
           aria-label="Goal"
           autoFocus
@@ -1375,8 +1377,8 @@ export function GoalBanner({
           </>
         ) : (
           <>
-            <button className="gbar-btn text" onClick={onSave}>Save</button>
-            <button className="gbar-btn text" onClick={onDiscard}>Discard</button>
+            <Button size="sm" variant="solid" className="gbar-btn text" onClick={onSave}>Save</Button>
+            <Button size="sm" variant="ghost" className="gbar-btn text" onClick={onDiscard}>Discard</Button>
           </>
         )}
       </span>

@@ -14,6 +14,7 @@ import { formatElapsed, type GoalDerived } from "../timeline";
 import type { BackgroundWork } from "../types";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { Input } from "../ui/Field";
 import { Subagents, type InspectNode } from "./Subagents";
 
 export interface GoalState {
@@ -161,7 +162,7 @@ export function GoalSection({
           {goalEdit === null ? (
             <div className="goal-copy">{goal.goal}</div>
           ) : (
-            <input
+            <Input
               className="goal-input"
               aria-label="Goal"
               autoFocus

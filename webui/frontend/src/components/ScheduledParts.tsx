@@ -19,6 +19,7 @@ import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { SearchField } from "../ui/Field";
 
 export type ScheduledFilter = "all" | "active" | "paused";
 
@@ -324,15 +325,16 @@ export function ScheduledToolbar({
 }: ScheduledToolbarProps) {
   return (
     <div className="sched-toolbar">
-      <div className="sched-search">
-        <MagnifyingGlass size={15} />
-        <input
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search scheduled runs"
-          aria-label="Search scheduled runs"
-        />
-      </div>
+      <SearchField
+        type="text"
+        containerClassName="sched-search !rounded-full"
+        className="text-[14px]"
+        icon={<MagnifyingGlass size={15} />}
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        placeholder="Search scheduled runs"
+        aria-label="Search scheduled runs"
+      />
       <div className="sched-filters">
         <div
           className="sched-tabs"

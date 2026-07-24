@@ -24,6 +24,7 @@ import { splitPath, type FileStatus } from "../diffSummary";
 import type { DiffScope } from "../types";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { SearchField } from "../ui/Field";
 import { Popover, PopItem, PopSection } from "./Popover";
 
 const STATUS_GLYPH: Record<FileStatus, string> = {
@@ -318,17 +319,17 @@ export function ChangedFilesMenu({
                 : `${fileCount} files changed`
             }
           >
-            <label className="mx-[6px] flex items-center gap-[6px] rounded-[8px] border border-line bg-panel px-[9px] py-[5px] text-dim focus-within:border-[var(--rs-accent)]">
-              <MagnifyingGlass size={13} className="shrink-0" />
-              <input
-                data-popover-autofocus
-                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] text-ink outline-none"
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value)}
-                placeholder="Filter files…"
-                aria-label="Filter files by path"
-              />
-            </label>
+            <SearchField
+              data-popover-autofocus
+              type="text"
+              containerClassName="mx-[6px] py-[5px]"
+              className="text-[12px]"
+              icon={<MagnifyingGlass size={13} />}
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="Filter files…"
+              aria-label="Filter files by path"
+            />
             {files.length === 0 ? (
               <div className="diff-filelist-empty">
                 No changed file’s path contains “{query}”.

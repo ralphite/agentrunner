@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
 import { FocusScope } from "../ui/FocusScope";
+import { SearchField } from "../ui/Field";
 
 // Shortcuts is Codex's Keyboard-shortcuts reference: a searchable, grouped list
 // of every binding the app has, rendered as key badges. Opened globally with
@@ -36,9 +37,11 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
       >
         <div className="sc-head">
           <div className="sc-title" id={titleId}>Keyboard shortcuts</div>
-          <input
+          <SearchField
             ref={inputRef}
-            className="cmdk-input sc-search"
+            containerClassName="sc-search"
+            className="cmdk-input"
+            type="text"
             aria-label="Search keyboard shortcuts"
             placeholder="Search shortcuts…"
             value={q}

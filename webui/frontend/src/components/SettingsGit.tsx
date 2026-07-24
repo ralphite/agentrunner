@@ -2,6 +2,7 @@ import { useState } from "react";
 import { type GitPrefs, loadGitPrefs, saveGitPrefs } from "../theme";
 import { matchesQuery } from "./SettingsSearch";
 import { useAppServices } from "../app/appServices";
+import { Textarea } from "../ui/Field";
 
 // SettingsGit is Codex's Settings → Git (INC-41 H4). Only settings with a
 // wired effect live here: the commit-message template seeds the DiffView
@@ -35,7 +36,7 @@ export function SettingsGit({ query }: { query: string }) {
             </div>
             <div className="rs-row-desc max-w-[430px] min-w-0 leading-[1.5] max-[500px]:max-w-none">Pre-fills commit messages in Changes.</div>
           </div>
-          <textarea
+          <Textarea
             className="rs-textarea mt-3 min-w-0 max-w-full resize-y"
             aria-label="Commit message template"
             rows={2}
