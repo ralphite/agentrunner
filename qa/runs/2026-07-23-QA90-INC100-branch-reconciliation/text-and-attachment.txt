@@ -1,0 +1,2 @@
+INC100-TEXT-ATTACH-FILE
+This fixture proves that the first Web UI turn preserves an attached file.

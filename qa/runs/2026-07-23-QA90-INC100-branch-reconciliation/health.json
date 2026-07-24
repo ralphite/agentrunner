@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "daemonUp": true,
+  "versionMatch": true,
+  "version": "agentrunner cadd08e7-215130 (go1.26.5)",
+  "webuiVersion": "cadd08e7-215130",
+  "runtimeDir": "/Users/yadong/dev2/agentrunner/webui/runtime",
+  "store": "/Users/yadong/.local/share/agentrunner/"
+}

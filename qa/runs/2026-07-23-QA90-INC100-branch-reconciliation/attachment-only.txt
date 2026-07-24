@@ -1,0 +1,2 @@
+INC100-ATTACH-ONLY-FILE
+This fixture proves that an attachment-only Web UI session opens with exactly one turn.

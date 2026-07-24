@@ -75,16 +75,9 @@ INC-98 将该方法固化为持续循环：
   textarea 上限放宽为 `min(320px, 38dvh)`，JS autosize 同步封顶 `320px`；窄屏仍保持
   `180px`，避免移动端 composer 挤出 viewport。以同 viewport/state 拼图复验，不把这项
   可见修复误写成真实 IME 已通过。
-- **98.2e branch reconciliation（2026-07-23）**：全分支审计发现旧分支
-  `893bb11f` 的“新聊天首条消息直接携带附件”仍有一项未被当前 Web UI 等价覆盖。
-  当前 CLI/daemon 已有 DESIGN §17 的 durable opening attachment 契约，但 Home composer
-  先建纯文本 session、再补发附件，既把同一用户意图拆成两个 turn，attachment-only
-  还会因空 opening message 在第二步前失败。修复复用现有 `ar new --image/--file`：
-  `/api/sessions` 校验附件可读后原样转发，Home 创建请求一次携带 text/images/files；
-  只有 attachment-only 时补一条中性 caption。不得新增第二条 `send`，不得改变
-  CAS/blob-before-event、durable opening recovery 或普通后续附件语义。A 闸以
-  `TestHandleNewSessionForwardsOpeningAttachments` 和
-  `Composer.createLifecycle` attachment-only case 钉住。
+- **编号更正（2026-07-23）**：提交 `cadd08e7` 误复用了 `INC-98.2e`；
+  全分支审计与 Web UI 原子开场附件属于独立增量 `INC-100`，权威记录与 Gate B
+  证据见 `docs/increments/INC-100-branch-reconciliation.md`。
 - **98.2f Goal/Plan/Automation evidence note**：当前 Codex Add root 实窗为 Files and
   folders / Attach Google Chrome / Work in a project / Goal / Plan mode / plugin artifacts；
   AgentRunner 不复制浏览器绑定或 artifact plugin，占位能力仍禁止。`Goal` 只打开 launcher

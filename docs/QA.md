@@ -2256,3 +2256,20 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 本次真实浏览器证据覆盖 Home/Session、route/reload/Back/Forward、desktop/mobile、
 sidebar focus containment、light/dark/system 与 AppShell layout。daemon restart、
 WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测，不以隔离 store 冒充。
+
+---
+
+## QA-90 Web UI 原子开场附件（INC-100，UJ-04/24）
+
+**环境**：production `http://127.0.0.1:8809/`、真实 Gemini、全局 daemon 与
+共享 `~/.local/share/agentrunner/`；证据
+`qa/runs/2026-07-23-QA90-INC100-branch-reconciliation/`。
+
+| 动作 | 硬断言 |
+|---|---|
+| text + attachment | Home 同时输入 text 与 file 后只创建一个 session/turn；唯一 `input_received` 的 typed content/files 同时含 text/file，模型实际读到附件并返回指定 marker |
+| attachment only | Home 只选 file 时补中性 caption；唯一 `input_received` 同 event 携 file，不出现创建后的第二次 send |
+| reload / journal | 两条 deep-link 可重新打开；原始 journal 各只有一次 `input_received`，`delivery_seq=1` |
+| 安全边界 | 既有定时 session 正在运行，故只重启 Web UI、不重启 daemon；该 session 前后保持 `running` |
+| 数据纪律 | 两条 session/worktree/journal、fixture、workspace diff 与截图全保留；不 close、不删除 |
+| Gate | production health `daemonUp/versionMatch=true`；browser warning/error=`[]`；两个 workspace diff 均为空；A 闸与 `./scripts/check.sh` 全绿 |

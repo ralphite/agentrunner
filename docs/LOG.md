@@ -7571,3 +7571,20 @@ component test、production build 与全量检查作为 A 闸；不改变 daemon
 共 14 个已被当前 main 的拆分/重写实现与后续修复语义覆盖。唯一仍有净产品价值的是
 远端 `codex/conduct-comprehensive-quality-assurance-testing@893bb11f` 的原子开场附件，
 已按当前 durable opening 架构适配，不引入旧分支其余过时代码。
+
+---
+
+## 2026-07-23 · INC-100 全分支取舍与真实环境证据收口
+
+编号更正：上一节及提交 `cadd08e7` 误复用了既有 `INC-98.2e`；本项权威编号为
+`INC-100`。229 个本地/远端 ref 的最终裁决不变：203 个已在 main，11 个仅有
+patch-equivalent 历史，14 个已被当前 main 的拆分实现与后续修复语义覆盖；仅
+`893bb11f` 的 Web UI 原子开场附件仍有净价值，并已按当前 durable opening 架构重做。
+逐 ref 的代码、测试与 history 锚见 `docs/increments/INC-100-branch-reconciliation.md`。
+
+QA-90 使用 production `http://127.0.0.1:8809/`、全局 daemon 与共享 store 真浏览器
+验证 text+attachment、attachment-only 两条路径。两条 journal 均只有一次
+`input_received`，附件在该 opening event 的 typed content/files 内，未出现第二次
+`send`；浏览器 warning/error 为 0，两个 session workspace diff 均为空。因共享 store
+已有定时 session 正在运行，仅重启 Web UI、不重启 daemon；重启前后的定时 session
+持续为 `running`。会话、worktree、原始 journal、截图全部保留在 QA-90 证据目录。
