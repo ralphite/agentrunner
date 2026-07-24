@@ -206,8 +206,6 @@ export const KeyboardNavigation: Story = {
     (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
 
     await userEvent.tab();
-    await expect(canvas.getByRole("button", { name: /Undo/ })).toHaveFocus();
-    await userEvent.tab();
     const review = canvas.getByRole("button", { name: "Review" });
     await expect(review).toHaveFocus();
     await userEvent.keyboard("{Enter}");

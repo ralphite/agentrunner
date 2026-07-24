@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -67,6 +68,61 @@ func TestPlanLastTurnDiffBaseline(t *testing.T) {
 	}
 	if got, reason, err := planLastTurnDiffBaseline(events[2:3]); err != nil || got != nil || !strings.Contains(reason, "no human") {
 		t.Fatalf("machine-only: got=%+v reason=%q err=%v", got, reason, err)
+	}
+}
+
+func TestPlanLastTurnDiffPairsMessageSnapshotsByTurnID(t *testing.T) {
+	start := strings.Repeat("a", 40)
+	end := strings.Repeat("b", 40)
+	other := strings.Repeat("c", 40)
+	events := []event.Envelope{
+		diffEnv(t, 1, event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+			BarrierID: "bar-msg-before-user", SnapshotRef: start,
+			MessageAnchor: &event.MessageAnchor{Side: "before_user", ItemID: "u1", TurnID: "turn-1"},
+		}),
+		diffEnv(t, 2, event.TypeInputReceived, &event.InputReceived{
+			Text: "work", Source: "user", ItemID: "u1", TurnID: "turn-1",
+		}),
+		diffEnv(t, 3, event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+			BarrierID: "bar-wrong-turn", SnapshotRef: other,
+			MessageAnchor: &event.MessageAnchor{Side: "after_assistant", ItemID: "a0", TurnID: "turn-0"},
+		}),
+		diffEnv(t, 4, event.TypeAssistantMessage, &event.AssistantMessage{
+			TurnID: "turn-1", ItemID: "a1",
+			Message: provider.Message{Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}},
+		}),
+		diffEnv(t, 5, event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+			BarrierID: "bar-msg-after-assistant", SnapshotRef: end,
+			MessageAnchor: &event.MessageAnchor{Side: "after_assistant", ItemID: "a1", TurnID: "turn-1"},
+		}),
+	}
+	got, reason, err := planLastTurnDiffBaseline(events)
+	if err != nil || reason != "" || got == nil {
+		t.Fatalf("baseline = %+v reason=%q err=%v", got, reason, err)
+	}
+	if got.TurnID != "turn-1" || got.SnapshotRef != start || got.EndSnapshotRef != end ||
+		!got.Completed || got.BarrierSeq != 1 || got.EndBarrierSeq != 5 {
+		t.Fatalf("wrong same-turn comparison: %+v", got)
+	}
+
+	active, reason, err := planLastTurnDiffBaseline(events[:2])
+	if err != nil || reason != "" || active == nil || active.Completed || active.EndSnapshotRef != "" {
+		t.Fatalf("active baseline = %+v reason=%q err=%v", active, reason, err)
+	}
+
+	if got, reason, err := planLastTurnDiffBaseline(events[:4]); err != nil || got != nil ||
+		!strings.Contains(reason, "no durable end") {
+		t.Fatalf("completed without end: got=%+v reason=%q err=%v", got, reason, err)
+	}
+
+	cleanEmpty := append([]event.Envelope{}, events[:3]...)
+	cleanEmpty = append(cleanEmpty, diffEnv(t, 4, event.TypeAssistantMessage, &event.AssistantMessage{
+		TurnID: "turn-1", ItemID: "a-empty",
+		Message: provider.Message{},
+	}))
+	if got, reason, err := planLastTurnDiffBaseline(cleanEmpty); err != nil || got != nil ||
+		!strings.Contains(reason, "no durable end") {
+		t.Fatalf("clean empty completion without end: got=%+v reason=%q err=%v", got, reason, err)
 	}
 }
 
@@ -149,5 +205,113 @@ func TestCLIDiffLastTurnJSON(t *testing.T) {
 		got.UntrackedReasons["binary.bin"] != "binary" || got.UntrackedReasons["large.txt"] != "large" ||
 		got.HiddenUntracked != 1 {
 		t.Fatalf("response = %+v", got)
+	}
+}
+
+func TestCLIDiffCompletedTurnStopsAtAfterAssistantSnapshot(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", filepath.Join(t.TempDir(), "xdg"))
+	ws := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(ws, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "state.txt"), []byte("A\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	shadow, err := openShadow(ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refA, err := shadow.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "state.txt"), []byte("B\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	refB, err := shadow.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "state.txt"), []byte("C\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "later.txt"), []byte("not this turn\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		id      string
+		endRef  string
+		want    string
+		forbids []string
+	}{
+		{
+			name: "A_to_A_ignores_live_C", id: "20260711-120001-completed-same-aaaa",
+			endRef: refA, forbids: []string{"state.txt", "later.txt", "+C"},
+		},
+		{
+			name: "A_to_B_ignores_live_C", id: "20260711-120002-completed-change-bbbb",
+			endRef: refB, want: "+B", forbids: []string{"+C", "later.txt"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := filepath.Join(mustDataDir(t), "sessions", tc.id)
+			es, err := store.OpenEventStore(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := []struct {
+				typ string
+				p   any
+			}{
+				{event.TypeSessionStarted, &event.SessionStarted{SpecName: "qa", Model: "scripted", Prompt: "turn", WorkspaceRoot: ws}},
+				{event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+					BarrierID: "bar-msg-before-u1", SnapshotRef: refA,
+					MessageAnchor: &event.MessageAnchor{Side: "before_user", ItemID: "u1", TurnID: "turn-1"},
+				}},
+				{event.TypeInputReceived, &event.InputReceived{Text: "work", Source: "user", ItemID: "u1", TurnID: "turn-1"}},
+				{event.TypeAssistantMessage, &event.AssistantMessage{
+					TurnID: "turn-1", ItemID: "a1",
+					Message: provider.Message{Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}},
+				}},
+				{event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+					BarrierID: "bar-msg-after-a1", SnapshotRef: tc.endRef,
+					MessageAnchor: &event.MessageAnchor{Side: "after_assistant", ItemID: "a1", TurnID: "turn-1"},
+				}},
+			}
+			for _, item := range items {
+				env, err := event.New(item.typ, item.p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := es.Append(env); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := es.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			var stdout, stderr bytes.Buffer
+			if code := Run([]string{"diff", tc.id, "--scope", "last-turn", "--json"}, "dev", &stdout, &stderr); code != ExitOK {
+				t.Fatalf("diff exit=%d stderr=%s", code, stderr.String())
+			}
+			var got lastTurnDiffResponse
+			if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+				t.Fatalf("json: %v\n%s", err, stdout.String())
+			}
+			if !got.Available || !got.Completed || got.EndBarrierID != "bar-msg-after-a1" {
+				t.Fatalf("response = %+v", got)
+			}
+			if tc.want != "" && !strings.Contains(got.Diff, tc.want) {
+				t.Errorf("diff missing %q:\n%s", tc.want, got.Diff)
+			}
+			for _, forbidden := range tc.forbids {
+				if strings.Contains(got.Diff, forbidden) || strings.Contains(got.Numstat, forbidden) {
+					t.Errorf("completed diff leaked %q:\ndiff=%s\nnumstat=%s", forbidden, got.Diff, got.Numstat)
+				}
+			}
+		})
 	}
 }

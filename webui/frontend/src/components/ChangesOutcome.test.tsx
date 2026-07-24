@@ -340,7 +340,10 @@ describe("ChangesOutcome mobile layout parity (INC-48)", () => {
     expect(title.className).toMatch(/grid min-w-0 flex-1/);
     expect(title.children).toHaveLength(2);
     expect(actions.className).toMatch(/ml-auto flex shrink-0/);
-    expect(actions.querySelectorAll("button")).toHaveLength(2);
+    // Completed-turn cards expose Review only; workspace-wide Undo would act
+    // on a different, potentially newer source.
+    expect(actions.querySelectorAll("button")).toHaveLength(1);
+    expect(actions.querySelector("button")?.textContent).toContain("Review");
     expect(container.querySelector(".changes-outcome-icon")!.className).toMatch(/h-\[38px\].*w-\[38px\].*shrink-0/);
   });
 
@@ -390,6 +393,20 @@ describe("ChangesOutcome scope pairing (QA-0719)", () => {
     expect(onReview).toHaveBeenCalledWith("turn");
   });
 
+  it("never offers workspace-wide Undo for a completed-turn card, even when its 116 files differ from the live tree", async () => {
+    diffMock.mockImplementation((_sid: string, scope: string) =>
+      Promise.resolve(scope === "last-turn" ? okDiff(116) : emptyDiff));
+
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={() => {}} />);
+
+    await screen.findByText("Edited 116 files");
+    expect(screen.queryByRole("button", { name: /Undo/ })).toBeNull();
+    // A turn card does not need a speculative working-tree request merely to
+    // prove it is unsafe: its snapshot source can never authorize live revert.
+    expect(diffMock).toHaveBeenCalledTimes(1);
+    expect(diffMock).toHaveBeenCalledWith("s1", "last-turn");
+  });
+
   it("reports scope 'workspace' from the workspace-fallback card — Review button and file rows alike", async () => {
     diffMock.mockImplementation((_sid: string, scope: string) =>
       Promise.resolve(scope === "last-turn" ? emptyDiff : okDiff(1)));
@@ -400,6 +417,7 @@ describe("ChangesOutcome scope pairing (QA-0719)", () => {
     expect(onReview).toHaveBeenCalledWith("workspace");
     fireEvent.click(screen.getByLabelText("Review changes to mod0.ts"));
     expect(onReview).toHaveBeenLastCalledWith("workspace");
+    expect(screen.getByRole("button", { name: /Undo/ })).toBeTruthy();
   });
 });
 

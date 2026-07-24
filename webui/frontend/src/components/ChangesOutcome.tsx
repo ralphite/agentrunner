@@ -418,7 +418,12 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         if (turnSummary?.files.length) {
           setScope("turn");
           setSummary(turnSummary);
-          setCanUndo(data.isRepo && !data.nested);
+          // The turn card is bounded by durable turn snapshots, while revert
+          // discards the live working tree. Those are intentionally different
+          // sources, so offering workspace-wide Undo here can destroy edits
+          // made after this turn. Workspace fallback below remains undoable
+          // because its card and action both use working-tree.
+          setCanUndo(false);
           setPhase("ready");
           return;
         }
@@ -450,10 +455,8 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     setBump((b) => b + 1);
   };
 
-  // Undo ↺ — discard the whole change set back to HEAD (destructive; confirmed).
-  // 卡显示的是 last-turn,而 revert 吞的是整个 working tree——两者可能不同
-  // (workspace 带着本 turn 之前的未提交改动)。确认弹窗必须报 revert 的
-  // 真实范围,所以先取 working-tree 计数;超出卡集合时明说(QA-0718)。
+  // Undo ↺ is rendered only for a working-tree-backed workspace card. Re-read
+  // that same source before confirming so the destructive count is current.
   const undo = async () => {
     const cardN = summary?.files.length ?? 0;
     let n = cardN;
@@ -463,11 +466,10 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     } catch {
       /* fall back to the card count */
     }
-    const beyond = n > cardN ? ` — including ${n - cardN} file${n - cardN === 1 ? "" : "s"} changed before this turn` : "";
     openModal({
       kind: "confirm",
       title: "Undo all changes?",
-      body: `Discards all ${n} uncommitted file${n === 1 ? "" : "s"} in the workspace back to the last commit and deletes any new files${beyond}. This can't be undone.`,
+      body: `Discards all ${n} uncommitted file${n === 1 ? "" : "s"} in the workspace back to the last commit and deletes any new files. This can't be undone.`,
       confirmLabel: "Undo changes",
       danger: true,
       onConfirm: async () => {

@@ -673,7 +673,7 @@ const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-attention":
     "fa1df71c0e60024c30eb50e20f27a0658fff8e5033bc29dbf94cfed9880e6e32",
   "components-changes":
-    "318ab86f345a8a442d35aa143ce8f69f8b1eb8efcb6a2cd8e3f54b5c9ac7ac49",
+    "7026651b1695cc657a10f2da70196b3972bad3983f8b5a5e32d31d793ffafab2",
   "components-content":
     "7352ac54db99658a351fa0eb429e75607df341a45a36cbcbb9800ee8d6b1da21",
   "components-feedback":

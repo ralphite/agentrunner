@@ -177,6 +177,51 @@ func TestShadowRepoDiffAgainstSnapshot(t *testing.T) {
 	}
 }
 
+func TestShadowRepoDiffSnapshotsIgnoresNewerLiveWorkspace(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "state.txt", "A\n")
+	s := newStore(t, ws)
+	ctx := context.Background()
+	refA, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, ws, "state.txt", "B\n")
+	write(t, ws, "turn-only.txt", "from turn\n")
+	refB, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, ws, "state.txt", "C\n")
+	if err := os.Remove(filepath.Join(ws, "turn-only.txt")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, ws, "later.txt", "after turn\n")
+
+	got, err := s.DiffSnapshots(ctx, refA, refB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"-A", "+B", "turn-only.txt"} {
+		if !strings.Contains(got.Diff, want) {
+			t.Errorf("durable diff missing %q:\n%s", want, got.Diff)
+		}
+	}
+	for _, forbidden := range []string{"+C", "later.txt"} {
+		if strings.Contains(got.Diff, forbidden) || strings.Contains(got.Numstat, forbidden) {
+			t.Errorf("durable diff leaked live workspace %q:\ndiff=%s\nnumstat=%s", forbidden, got.Diff, got.Numstat)
+		}
+	}
+
+	same, err := s.DiffSnapshots(ctx, refA, refA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same.Diff != "" || same.Numstat != "" || len(same.Untracked) != 0 {
+		t.Fatalf("A→A must stay empty despite live C: %+v", same)
+	}
+}
+
 func TestShadowRepoDiffQuietsNewGeneratedLargeAndBinaryFiles(t *testing.T) {
 	ws := t.TempDir()
 	write(t, ws, "seed.txt", "baseline\n")

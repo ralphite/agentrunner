@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -261,6 +262,54 @@ func (s *ShadowRepo) Diff(ctx context.Context, ref string) (DiffResult, error) {
 	}, nil
 }
 
+// DiffSnapshots compares two durable cuts without consulting the live
+// workspace. This distinction is essential for completed-turn attribution:
+// files changed after the assistant's final cut must not be charged to that
+// already-finished turn.
+func (s *ShadowRepo) DiffSnapshots(ctx context.Context, fromRef, toRef string) (DiffResult, error) {
+	if !snapshotRefPattern.MatchString(fromRef) || !snapshotRefPattern.MatchString(toRef) {
+		return DiffResult{}, fmt.Errorf("snapshot: invalid snapshot ref")
+	}
+	f, err := os.CreateTemp(s.gitDir, "review-index-*")
+	if err != nil {
+		return DiffResult{}, fmt.Errorf("snapshot: create review index: %w", err)
+	}
+	index := f.Name()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(index)
+		return DiffResult{}, fmt.Errorf("snapshot: close review index: %w", err)
+	}
+	if err := os.Remove(index); err != nil {
+		return DiffResult{}, fmt.Errorf("snapshot: prepare review index: %w", err)
+	}
+	defer func() {
+		_ = os.Remove(index)
+		_ = os.Remove(index + ".lock")
+	}()
+	env := []string{"GIT_INDEX_FILE=" + index}
+	if _, err := s.gitWithEnv(ctx, env, "read-tree", toRef); err != nil {
+		return DiffResult{}, err
+	}
+	untracked, untrackedReasons, hiddenUntracked, err :=
+		s.quietSnapshotReviewFiles(ctx, env, fromRef, toRef)
+	if err != nil {
+		return DiffResult{}, err
+	}
+	diff, err := s.gitWithEnv(ctx, env, "diff", "--cached", "--no-ext-diff",
+		"--no-color", "--find-renames", fromRef, "--")
+	if err != nil {
+		return DiffResult{}, err
+	}
+	numstat, err := s.gitWithEnv(ctx, env, "diff", "--cached", "--numstat", fromRef, "--")
+	if err != nil {
+		return DiffResult{}, err
+	}
+	return DiffResult{
+		Diff: diff, Numstat: numstat, Untracked: untracked,
+		UntrackedReasons: untrackedReasons, HiddenUntracked: hiddenUntracked,
+	}, nil
+}
+
 // quietNewReviewFiles applies the same review-density contract as the Web UI's
 // Working Tree projection, but only to paths added after the durable baseline.
 // The temporary index remains the sole mutation target: snapshots and workspace
@@ -298,6 +347,62 @@ func (s *ShadowRepo) quietNewReviewFiles(ctx context.Context, env []string, ref 
 				reasons[path] = "large"
 				hide = true
 			} else if content, readErr := os.ReadFile(full); readErr != nil {
+				untracked = append(untracked, path)
+				reasons[path] = "unavailable"
+				hide = true
+			} else if bytes.Contains(content, []byte{0}) {
+				untracked = append(untracked, path)
+				reasons[path] = "binary"
+				hide = true
+			}
+		}
+		if hide {
+			if _, err := s.gitWithEnv(ctx, env, "update-index", "--force-remove", "--", path); err != nil {
+				return nil, nil, 0, err
+			}
+		}
+	}
+	return untracked, reasons, hidden, nil
+}
+
+// quietSnapshotReviewFiles is quietNewReviewFiles' durable-cut counterpart.
+// It reads additions from toRef itself, never from the possibly-newer live
+// workspace.
+func (s *ShadowRepo) quietSnapshotReviewFiles(ctx context.Context, env []string,
+	fromRef, toRef string) ([]string, map[string]string, int, error) {
+	raw, err := s.gitRawWithEnv(ctx, env, "diff", "--cached", "--name-only",
+		"--diff-filter=A", "-z", fromRef, "--")
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	untracked := []string{}
+	reasons := map[string]string{}
+	hidden := 0
+	visible := 0
+	const maxVisible = 500
+	const maxInlineBytes = 256 * 1024
+	for _, item := range bytes.Split(raw, []byte{0}) {
+		if len(item) == 0 {
+			continue
+		}
+		path := string(item)
+		hide := reviewHiddenUntrackedPath(path) || visible >= maxVisible
+		if hide {
+			hidden++
+		} else {
+			visible++
+			object := toRef + ":" + path
+			sizeRaw, sizeErr := s.gitRawWithEnv(ctx, nil, "cat-file", "-s", object)
+			size, parseErr := strconv.ParseInt(strings.TrimSpace(string(sizeRaw)), 10, 64)
+			if sizeErr != nil || parseErr != nil {
+				untracked = append(untracked, path)
+				reasons[path] = "unavailable"
+				hide = true
+			} else if size > maxInlineBytes {
+				untracked = append(untracked, path)
+				reasons[path] = "large"
+				hide = true
+			} else if content, readErr := s.gitRawWithEnv(ctx, nil, "cat-file", "blob", object); readErr != nil {
 				untracked = append(untracked, path)
 				reasons[path] = "unavailable"
 				hide = true
