@@ -157,7 +157,11 @@ describe("Markdown inline images (INC-41 RT-1)", () => {
     // group of two → counter shows the clicked one as #2
     expect(lb?.querySelector(".lb-count")?.textContent).toBe("2 / 2");
     expect((lb?.querySelector("img.lb-img") as HTMLImageElement).src).toContain("path=b.png");
-    fireEvent.keyDown(window, { key: "Escape" });
+    // Real keyboard input originates at the focused element and propagates
+    // through document, where FocusScope captures Escape. Dispatching directly
+    // on window skips that real browser path.
+    expect(document.activeElement).toBe(lb);
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Escape" });
     expect(document.querySelector(".lightbox")).toBeNull();
   });
 
