@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 60,
-    "lines": 19218,
+    "lines": 19221,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -449,7 +449,7 @@
       },
       {
         "source": "src/features/composer/ComposerController.tsx",
-        "lines": 1645,
+        "lines": 1646,
         "exports": [
           "Composer"
         ],
@@ -457,7 +457,7 @@
       },
       {
         "source": "src/features/composer/ComposerParts.tsx",
-        "lines": 1345,
+        "lines": 1347,
         "exports": [
           "AccessPicker",
           "AddMenu",
