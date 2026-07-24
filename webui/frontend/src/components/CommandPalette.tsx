@@ -36,6 +36,19 @@ function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTit
   return {};
 }
 
+// Selecting a session is a keyboard navigation action, not a dismissal. The
+// palette deliberately suppresses focus restoration to its opener, so hand the
+// caret to the destination composer after React swaps the page. Read-only or
+// missing sessions have no composer; their stable landing target is main.
+function focusSessionDestination() {
+  requestAnimationFrame(() => {
+    const main = document.getElementById("main");
+    const composer = main?.querySelector<HTMLTextAreaElement>(".cx-session textarea");
+    const target = composer && !composer.disabled ? composer : main;
+    target?.focus({ preventScroll: true });
+  });
+}
+
 // CommandPalette is Codex's ⌘K: one fuzzy search over sessions + a set of
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
@@ -105,7 +118,10 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
         quickNum,
         session: true,
         ...sessionDot(s, unreadSet.has(s.id)),
-        run: go(() => select(s.id)),
+        run: go(() => {
+          select(s.id);
+          focusSessionDestination();
+        }),
       });
       sess = [...quick.map((s, i) => row(s, i + 1)), ...overflow.map((s) => row(s))];
     } else {
@@ -127,7 +143,10 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
             group: isArchived ? "Archived" : "Sessions",
             session: true,
             ...sessionDot(s, !isArchived && unreadSet.has(s.id)),
-            run: go(() => select(s.id)),
+            run: go(() => {
+              select(s.id);
+              focusSessionDestination();
+            }),
           } satisfies CommandPaletteItemModel;
         });
       // Group headers are drawn off runs of equal `group`, so archived hits sit

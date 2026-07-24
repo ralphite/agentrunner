@@ -31,6 +31,79 @@ const rows = () => Array.from(screen.getByRole("listbox").querySelectorAll(".cmd
 
 afterEach(cleanup);
 
+describe("CommandPalette session focus handoff", () => {
+  it("lands Enter on the selected session composer instead of document body", () => {
+    const select = vi.fn();
+    const onClose = vi.fn();
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+    useStore.setState({
+      sessions: [session("focus-target", "idle")],
+      runs: [],
+      archived: [],
+      unread: [],
+      renames: {},
+      select,
+    });
+    const { container } = render(
+      <>
+        <main id="main" tabIndex={-1}>
+          <div className="cx-session">
+            <textarea aria-label="Session composer" />
+          </div>
+        </main>
+        <CommandPalette onClose={onClose} />
+      </>,
+    );
+
+    const search = screen.getByRole("combobox");
+    fireEvent.change(search, { target: { value: "focus-target" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(select).toHaveBeenCalledWith("focus-target");
+    expect(onClose).toHaveBeenCalledWith(false);
+    expect(document.activeElement).toBe(
+      container.querySelector(".cx-session textarea"),
+    );
+    requestFrame.mockRestore();
+  });
+
+  it("lands on main when the selected destination has no composer", () => {
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+    useStore.setState({
+      sessions: [session("read-only-target", "idle")],
+      runs: [],
+      archived: [],
+      unread: [],
+      renames: {},
+    });
+    render(
+      <>
+        <main id="main" tabIndex={-1}>
+          <div>Read-only session</div>
+        </main>
+        <CommandPalette onClose={() => {}} />
+      </>,
+    );
+
+    const search = screen.getByRole("combobox");
+    fireEvent.change(search, { target: { value: "read-only-target" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(document.activeElement).toBe(document.getElementById("main"));
+    requestFrame.mockRestore();
+  });
+});
+
 describe("CommandPalette mobile dismissal", () => {
   it("offers a direct close control and requests focus restoration", () => {
     const onClose = vi.fn();
