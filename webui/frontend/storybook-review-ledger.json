@@ -240,20 +240,20 @@
         "contrast-theme",
         "zoom-overflow"
       ],
-      "visualVerdict": "ALIGNED",
+      "visualVerdict": "GAP",
       "codexParity": "UNTESTED",
-      "decision": "Composer controls, pickers, attachments, delivery states, long content, disabled/busy/error, and touch geometry reuse production primitives with no workflow change.",
+      "decision": "Model Picker compact-canvas containment and drill-in chevrons are fixed. The family remains GAP: Project Picker still clips footer actions in short mobile viewports, several Composer controls miss 44px touch geometry, long attachments can crowd out the action bar, and async failure states need honest recovery UI.",
       "codexEvidence": "CODEX-PARITY NS input rows contain mixed PASS/GAP/UNTESTED states; no family-wide PASS is claimed.",
-      "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+      "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
       "reviewedBy": [
         "visual-design",
         "interaction-a11y",
         "contract-evidence"
       ],
-      "reviewedAt": "2026-07-23",
-      "reviewedDigest": "0396a1474ce2878cc328bdac804b636babbfc3c92c12245477ea4c9d3fbc95ca",
+      "reviewedAt": "2026-07-24",
+      "reviewedDigest": "a6cfb5621aa720b7c7b2caec8846535e0c07febf47b5b5895d55f56ee9e7cda8",
       "owner": "webui",
-      "familyDigest": "0396a1474ce2878cc328bdac804b636babbfc3c92c12245477ea4c9d3fbc95ca",
+      "familyDigest": "a6cfb5621aa720b7c7b2caec8846535e0c07febf47b5b5895d55f56ee9e7cda8",
       "storyCount": 90,
       "storyFiles": [
         "src/components/Composer.stories.tsx",
@@ -378,20 +378,20 @@
         "contrast-theme",
         "zoom-overflow"
       ],
-      "visualVerdict": "FIXED",
+      "visualVerdict": "GAP",
       "codexParity": "UNTESTED",
-      "decision": "Menu, context menu, popover, and modal Stories use the shared overlay review surface while preserving trap, Escape, outside-dismiss, focus return, nesting, and short-viewport containment.",
+      "decision": "Model Picker now remains within a 389x160 viewport without hidden scrolling. The family remains GAP: pointer-open focus, roving menu focus, Tab dismissal, dialog-popover containment, and Project Picker short-viewport footer behavior do not yet satisfy the declared overlay contract.",
       "codexEvidence": "Only selected overlay journeys have same-state Codex evidence; family parity remains UNTESTED.",
-      "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+      "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
       "reviewedBy": [
         "visual-design",
         "interaction-a11y",
         "contract-evidence"
       ],
-      "reviewedAt": "2026-07-23",
-      "reviewedDigest": "9059e993b2be38a59fd862da5245ce4d391132dbd6fe2c48229f185278f19818",
+      "reviewedAt": "2026-07-24",
+      "reviewedDigest": "9cd10625d779562ef3969359d545190321573795a498cac2d0e42ea261066106",
       "owner": "webui",
-      "familyDigest": "9059e993b2be38a59fd862da5245ce4d391132dbd6fe2c48229f185278f19818",
+      "familyDigest": "9cd10625d779562ef3969359d545190321573795a498cac2d0e42ea261066106",
       "storyCount": 58,
       "storyFiles": [
         "src/components/ContextMenu.stories.tsx",
@@ -8811,14 +8811,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -8874,14 +8874,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -8937,14 +8937,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9000,14 +9000,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9063,14 +9063,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9126,14 +9126,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9189,14 +9189,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9252,14 +9252,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9315,14 +9315,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9378,14 +9378,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9442,14 +9442,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9505,14 +9505,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9568,14 +9568,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9645,14 +9645,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9722,14 +9722,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9785,14 +9785,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9848,14 +9848,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9911,14 +9911,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -9974,14 +9974,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10037,14 +10037,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10100,14 +10100,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10163,14 +10163,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10226,14 +10226,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10289,14 +10289,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10352,14 +10352,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10415,14 +10415,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10478,14 +10478,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10541,14 +10541,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10604,14 +10604,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10667,14 +10667,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10730,14 +10730,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10793,14 +10793,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10856,14 +10856,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10919,14 +10919,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -10982,14 +10982,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11045,14 +11045,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11108,14 +11108,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11171,14 +11171,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11234,14 +11234,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11297,14 +11297,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11360,14 +11360,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11431,14 +11431,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11494,14 +11494,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11565,14 +11565,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11628,14 +11628,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11691,14 +11691,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11754,14 +11754,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11817,14 +11817,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11880,14 +11880,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -11943,14 +11943,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12006,14 +12006,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12069,14 +12069,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12132,14 +12132,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12195,14 +12195,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12258,14 +12258,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12321,14 +12321,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12384,14 +12384,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12447,14 +12447,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12510,14 +12510,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12573,14 +12573,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12636,14 +12636,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12699,14 +12699,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12762,14 +12762,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12825,14 +12825,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12888,14 +12888,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -12951,14 +12951,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13014,14 +13014,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13077,14 +13077,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13140,14 +13140,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13203,14 +13203,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13266,14 +13266,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13329,14 +13329,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13392,14 +13392,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13455,14 +13455,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13518,14 +13518,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13581,14 +13581,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13644,14 +13644,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13707,14 +13707,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13770,14 +13770,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13833,14 +13833,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13904,14 +13904,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -13967,14 +13967,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14031,14 +14031,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14094,14 +14094,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14157,14 +14157,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14220,14 +14220,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14283,14 +14283,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14346,14 +14346,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14409,14 +14409,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -14472,14 +14472,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "ALIGNED",
-        "agentEvidence": "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18196,14 +18196,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18259,14 +18259,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18322,14 +18322,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18385,14 +18385,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18464,14 +18464,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18543,14 +18543,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18606,14 +18606,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18669,14 +18669,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18732,14 +18732,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18795,14 +18795,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18858,14 +18858,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18921,14 +18921,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -18984,14 +18984,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19047,14 +19047,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19110,14 +19110,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19173,14 +19173,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19236,14 +19236,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19299,14 +19299,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19362,14 +19362,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19425,14 +19425,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19488,14 +19488,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19551,14 +19551,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19614,14 +19614,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19677,14 +19677,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19740,14 +19740,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19803,14 +19803,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19866,14 +19866,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19929,14 +19929,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -19992,14 +19992,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20055,14 +20055,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20118,14 +20118,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20181,14 +20181,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20244,14 +20244,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20307,14 +20307,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20370,14 +20370,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20447,14 +20447,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20524,14 +20524,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20587,14 +20587,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20650,14 +20650,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20713,14 +20713,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20776,14 +20776,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20839,14 +20839,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20902,14 +20902,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -20965,14 +20965,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21028,14 +21028,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21091,14 +21091,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21154,14 +21154,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21217,14 +21217,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21280,14 +21280,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21343,14 +21343,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21406,14 +21406,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21469,14 +21469,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21548,14 +21548,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21611,14 +21611,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21674,14 +21674,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21753,14 +21753,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21816,14 +21816,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",
@@ -21879,14 +21879,14 @@
           "contrast-theme",
           "zoom-overflow"
         ],
-        "visualVerdict": "FIXED",
-        "agentEvidence": "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+        "visualVerdict": "GAP",
+        "agentEvidence": "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
         "reviewedBy": [
           "visual-design",
           "interaction-a11y",
           "contract-evidence"
         ],
-        "reviewedAt": "2026-07-23"
+        "reviewedAt": "2026-07-24"
       },
       "interactionA11y": {
         "status": "REVIEWED",

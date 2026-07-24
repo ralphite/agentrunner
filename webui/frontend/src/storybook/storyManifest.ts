@@ -53,7 +53,11 @@ export type StoryReviewAxis =
   | "contrast-theme"
   | "zoom-overflow";
 
-export type StoryReviewVerdict = "ALIGNED" | "FIXED" | "INTENTIONAL";
+export type StoryReviewVerdict =
+  | "ALIGNED"
+  | "FIXED"
+  | "GAP"
+  | "INTENTIONAL";
 export type CodexParityVerdict =
   | "PASS"
   | "UNTESTED"
@@ -677,13 +681,13 @@ const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-home":
     "185b48f2887973bffd37876a59e6b617cf150ff0034f6bc8bf701ba583d23434",
   "components-input":
-    "0396a1474ce2878cc328bdac804b636babbfc3c92c12245477ea4c9d3fbc95ca",
+    "a6cfb5621aa720b7c7b2caec8846535e0c07febf47b5b5895d55f56ee9e7cda8",
   "components-media":
     "8c4e3c5047195658cc7707e93064ad33171d4c4d2f1af5877996d71b8a1fb033",
   "components-navigation":
     "73f3d9d856dd9343c876b36c36bafd837af1c921e21d9746639a00cc2afbbac9",
   "components-overlays":
-    "9059e993b2be38a59fd862da5245ce4d391132dbd6fe2c48229f185278f19818",
+    "9cd10625d779562ef3969359d545190321573795a498cac2d0e42ea261066106",
   "components-runs":
     "fd27e026779c6209f19f882b735b423faf0a28d0c0b41e3d9bd60f771d5e285e",
   "components-scheduled":
@@ -732,6 +736,7 @@ function reviewedFamily(
   decision: string,
   codexEvidence: string,
   agentEvidence: string,
+  reviewedAt = "2026-07-23",
 ): StoryReviewFamily {
   return {
     reviewId,
@@ -747,7 +752,7 @@ function reviewedFamily(
       "interaction-a11y",
       "contract-evidence",
     ],
-    reviewedAt: "2026-07-23",
+    reviewedAt,
     reviewedDigest: REVIEWED_FAMILY_DIGESTS[reviewId] ?? "",
     owner: "webui",
   };
@@ -825,20 +830,22 @@ export const storyReviewFamilies = [
   reviewedFamily(
     "components-input",
     "Components/Input",
-    "ALIGNED",
+    "GAP",
     "UNTESTED",
-    "Composer controls, pickers, attachments, delivery states, long content, disabled/busy/error, and touch geometry reuse production primitives with no workflow change.",
+    "Model Picker compact-canvas containment and drill-in chevrons are fixed. The family remains GAP: Project Picker still clips footer actions in short mobile viewports, several Composer controls miss 44px touch geometry, long attachments can crowd out the action bar, and async failure states need honest recovery UI.",
     "CODEX-PARITY NS input rows contain mixed PASS/GAP/UNTESTED states; no family-wide PASS is claimed.",
-    "Composer, ComposerParts, and ComposerView Story families plus interaction/a11y review.",
+    "2026-07-24 fresh Composer/Navigation audit: 390px touch geometry, 390x500 Project Picker, long attachments, async states, and 389x160 Model Picker visual comparison.",
+    "2026-07-24",
   ),
   reviewedFamily(
     "components-overlays",
     "Components/Overlays",
-    "FIXED",
+    "GAP",
     "UNTESTED",
-    "Menu, context menu, popover, and modal Stories use the shared overlay review surface while preserving trap, Escape, outside-dismiss, focus return, nesting, and short-viewport containment.",
+    "Model Picker now remains within a 389x160 viewport without hidden scrolling. The family remains GAP: pointer-open focus, roving menu focus, Tab dismissal, dialog-popover containment, and Project Picker short-viewport footer behavior do not yet satisfy the declared overlay contract.",
     "Only selected overlay journeys have same-state Codex evidence; family parity remains UNTESTED.",
-    "QA-92 overlay preset review and ContextMenu/Menu/Modals/Popover Stories.",
+    "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Composer/Navigation audit found remaining focus-model and Project Picker P1 gaps.",
+    "2026-07-24",
   ),
   reviewedFamily(
     "components-feedback",

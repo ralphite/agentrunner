@@ -352,6 +352,7 @@ export function PopItem({
   right,
   danger,
   disabled,
+  className = "",
 }: {
   onClick?: () => void;
   active?: boolean;
@@ -361,12 +362,19 @@ export function PopItem({
   right?: React.ReactNode;
   danger?: boolean;
   disabled?: boolean;
+  className?: string;
 }) {
   const inMenu = useContext(PopoverMenuContext);
   return (
     <button
       type="button"
-      className={"pop-item" + (active ? " active" : "") + (danger ? " danger" : "") + (disabled ? " disabled" : "")}
+      className={
+        "pop-item" +
+        (active ? " active" : "") +
+        (danger ? " danger" : "") +
+        (disabled ? " disabled" : "") +
+        (className ? ` ${className}` : "")
+      }
       onClick={onClick}
       disabled={disabled}
       role={inMenu ? "menuitem" : undefined}

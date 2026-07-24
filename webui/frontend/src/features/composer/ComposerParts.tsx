@@ -944,7 +944,7 @@ export function ModelPicker({
   return (
     <Popover
       align="right"
-      panelClass="cx-pop-codex cx-model-popover"
+      panelClass="cx-model-popover w-[360px] max-w-[calc(100vw-32px)] [@media(max-height:220px)]:py-px"
       onOpen={onOpen}
       trigger={(open, toggle) => (
         <button
@@ -965,7 +965,7 @@ export function ModelPicker({
     >
       {(close) => (
         <div
-          className="cx-menu cx-model-menu"
+          className="cx-menu cx-model-menu w-full min-w-0 [@media(max-height:220px)]:p-0"
           ref={pageRef}
           onClick={(event) => event.preventDefault()}
         >
@@ -973,12 +973,13 @@ export function ModelPicker({
             <>
               <div className="cx-model-roots">
                 <PopItem
+                  className="[@media(max-height:220px)]:!min-h-0 [@media(max-height:220px)]:!py-px"
                   title="Model"
                   right={
                     <span className="inline-flex max-w-[210px] items-center gap-2">
                       <span className="truncate">{modelLabel}</span>
                       <CaretRight
-                        className="cx-model-page-chev"
+                        className="cx-model-page-chev shrink-0"
                         size={13}
                         aria-hidden="true"
                       />
@@ -987,6 +988,7 @@ export function ModelPicker({
                   onClick={() => onPageChange("model")}
                 />
                 <PopItem
+                  className="[@media(max-height:220px)]:!min-h-0 [@media(max-height:220px)]:!py-px"
                   title="Effort"
                   right={
                     <span className="inline-flex max-w-[210px] items-center gap-2">
@@ -994,7 +996,7 @@ export function ModelPicker({
                         {effortLabel}
                       </span>
                       <CaretRight
-                        className="cx-model-page-chev"
+                        className="cx-model-page-chev shrink-0"
                         size={13}
                         aria-hidden="true"
                       />
@@ -1003,12 +1005,13 @@ export function ModelPicker({
                   onClick={() => onPageChange("effort")}
                 />
               </div>
-              <div className="cx-model-advanced">
+              <div className="cx-model-advanced [@media(max-height:220px)]:p-0">
                 <PopItem
+                  className="[@media(max-height:220px)]:!min-h-0 [@media(max-height:220px)]:!py-px"
                   title="Advanced"
                   right={
                     <CaretRight
-                      className="cx-model-page-chev"
+                      className="cx-model-page-chev shrink-0"
                       size={13}
                       aria-hidden="true"
                     />

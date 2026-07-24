@@ -160,7 +160,9 @@ for (const family of storyReviewFamilies) {
     fail(`${family.reviewId}: Story review must decide every required axis`);
   }
   if (
-    !["ALIGNED", "FIXED", "INTENTIONAL"].includes(family.visualVerdict) ||
+    !["ALIGNED", "FIXED", "GAP", "INTENTIONAL"].includes(
+      family.visualVerdict,
+    ) ||
     !["PASS", "UNTESTED", "GAP", "INTENTIONAL"].includes(family.codexParity)
   ) {
     fail(`${family.reviewId}: invalid visual or Codex parity verdict`);
