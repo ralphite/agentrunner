@@ -33,6 +33,7 @@ import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, s
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
+import { Spinner } from "../ui/Spinner";
 import {
   SidebarConnectionStatus,
   SidebarPreviewCard,
@@ -654,7 +655,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         )}
 
         {sessionsLoadingOlder && (
-          <div className="sidebar-history-loading" role="status">Loading older sessions…</div>
+          <Spinner className="sidebar-history-loading" label="Loading older sessions…" />
         )}
         {archivedCount > 0 && (
           <button className="archive-toggle" onClick={toggleShowArchived}>

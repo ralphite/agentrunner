@@ -4,7 +4,6 @@ import {
   CaretRight,
   CheckCircle,
   FileText,
-  Hourglass,
   Info,
   Terminal,
   WarningCircle,
@@ -16,6 +15,7 @@ import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { Input } from "../ui/Field";
 import { Subagents, type InspectNode } from "./Subagents";
+import { Spinner } from "../ui/Spinner";
 
 export interface GoalState {
   goal: string;
@@ -112,9 +112,7 @@ export function BackgroundProcessesSection({ work }: { work: BackgroundWork[] })
 
 export function SupervisionLoadingState() {
   return (
-    <div className="supervision-quiet supervision-loading">
-      <Hourglass size={14} className="spin" /> Checking…
-    </div>
+    <Spinner className="supervision-quiet supervision-loading" label="Checking…" />
   );
 }
 
@@ -216,7 +214,7 @@ export function ProgressItemRow({ item }: { item: ProgressItem }) {
   return (
     <div className={"progress-row " + item.status} title={item.title}>
       {item.status === "running" ? (
-        <Hourglass size={13} className="spin" />
+        <Spinner size="sm" aria-hidden="true" />
       ) : item.status === "done" ? (
         <CheckCircle size={13} weight="fill" />
       ) : item.status === "failed" ? (

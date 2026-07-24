@@ -388,7 +388,7 @@
   .project-session-title { @apply min-w-0 flex-1 truncate; }
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
   .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
-  .session-loading-icon { @apply shrink-0 animate-spin; }
+  .session-loading-icon { @apply shrink-0; }
   .session-quick-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
   .session-quick-action {
     @apply grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;

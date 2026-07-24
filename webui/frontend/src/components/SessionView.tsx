@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CaretRight, CheckCircle, CircleNotch, Crosshair, Pause, PencilSimple, Play, Prohibit, Trash, WarningCircle, X } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle, Crosshair, Pause, PencilSimple, Play, Prohibit, Trash, WarningCircle, X } from "@phosphor-icons/react";
 import { type ForkDraft } from "../api";
 import { useAppServices, type AppEventStream } from "../app/appServices";
 import { useAppStoreApi, useStore } from "../store";
@@ -19,6 +19,7 @@ import { dedupeInspectNodes } from "../viewModels";
 import { IconButton } from "../ui/IconButton";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Field";
+import { Spinner } from "../ui/Spinner";
 import { ChangesOutcome } from "./ChangesOutcome";
 import { DaemonAlert } from "./DaemonAlert";
 import { SessionNotFound } from "./NotFound";
@@ -1241,7 +1242,7 @@ export function ProgressSummary({
       onClick={(event) => onOpenDetails(event.currentTarget)}
     >
       {current.status === "running" ? (
-        <CircleNotch size={15} className="spin" />
+        <Spinner size="sm" aria-hidden="true" />
       ) : current.status === "failed" ? (
         <WarningCircle size={15} weight="fill" />
       ) : current.status === "done" ? (

@@ -4,7 +4,6 @@ import {
   ArrowsOutSimple,
   CaretRight,
   ChatCircle,
-  CircleNotch,
   DotsThree,
   EnvelopeSimple,
   EnvelopeSimpleOpen,
@@ -21,6 +20,19 @@ import { isManagedWorktreeWorkspace } from "../viewModels";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { sessionFriendlyStatus } from "./pill";
 import { IconButton } from "../ui/IconButton";
+import { Spinner } from "../ui/Spinner";
+import {
+  StatusIndicator,
+  type StatusIndicatorTone,
+} from "../ui/StatusIndicator";
+
+function statusTone(cls: string): StatusIndicatorTone {
+  if (cls === "run") return "success";
+  if (cls === "idle") return "info";
+  if (cls === "appr" || cls === "stranded") return "warning";
+  if (cls === "crash") return "danger";
+  return "neutral";
+}
 
 export interface SidebarSessionItemProps {
   session: Session;
@@ -93,9 +105,12 @@ export function SidebarSessionItem({
           actionCount > 1 && status.cls === "appr"
             ? <span className="status-count" title={status.text} aria-hidden="true">{actionCount}</span>
             : (
-              <span
+              <StatusIndicator
                 className={`status-dot ${unread && status.cls !== "appr" ? "unread" : status.cls}`}
+                label={unread && status.cls !== "appr" ? "New activity" : status.text}
+                tone={statusTone(unread && status.cls !== "appr" ? "run" : status.cls)}
                 title={unread && status.cls !== "appr" ? "New activity" : status.text}
+                aria-hidden="true"
               />
             )
         )}
@@ -108,7 +123,7 @@ export function SidebarSessionItem({
             </span>
           )}
           {isRunning && (
-            <CircleNotch className="session-loading-icon" size={17} role="status" aria-label="Session running" />
+            <Spinner className="session-loading-icon" size="md" label="Session running" />
           )}
         </span>
       )}
@@ -374,7 +389,15 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
       <div className="session-preview-head"><b>{props.title}</b>{props.when && <span>{props.when}</span>}</div>
       <div><Folder size={15} /><span>{props.project || "No project"}</span></div>
       <div><GitBranch size={15} /><span>{props.branch || "Local"}</span></div>
-      <div><span className={`status-dot ${props.status.cls}`} /><span>{props.status.text}</span></div>
+      <div>
+        <StatusIndicator
+          className={`status-dot ${props.status.cls}`}
+          label={props.status.text}
+          tone={statusTone(props.status.cls)}
+          aria-hidden="true"
+        />
+        <span>{props.status.text}</span>
+      </div>
     </div>
   );
 }

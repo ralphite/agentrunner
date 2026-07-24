@@ -51,6 +51,7 @@ import {
   type ToolItem,
   type WorkFold,
 } from "../timeline";
+import { Spinner } from "../ui/Spinner";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { sessionImageURL, uploadURL } from "../api";
@@ -219,7 +220,7 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
 }
 
 function StepIcon({ status }: { status: ToolItem["status"] }) {
-  if (status === "running") return <span className="step-ic spin shrink-0" />;
+  if (status === "running") return <Spinner className="step-ic shrink-0" size="sm" aria-hidden="true" />;
   if (status === "done") return <span className="step-ic ok shrink-0"><Check size={12} /></span>;
   if (status === "cancelled") return <span className="step-ic warn shrink-0"><Circle size={8} /></span>;
   return <span className="step-ic err shrink-0"><X size={11} /></span>;
