@@ -55,9 +55,9 @@ export const instantScenarioTiming: ScenarioTiming<unknown> = Object.freeze({
 
 // Canvas demos can use human-visible pacing without slowing interaction tests.
 export function createDemoScenarioTiming<Context>(
-  beforeStepMs = 650,
+  beforeStepMs: ScenarioTiming<Context>["beforeStepMs"] = 650,
 ): ScenarioTiming<Context> {
-  assertDelay(beforeStepMs);
+  if (typeof beforeStepMs === "number") assertDelay(beforeStepMs);
   return Object.freeze({ beforeStepMs });
 }
 

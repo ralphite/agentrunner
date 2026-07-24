@@ -484,6 +484,11 @@ describe("ScenarioRunner", () => {
     expect(instantScenarioTiming.beforeStepMs).toBe(0);
     expect(createDemoScenarioTiming().beforeStepMs).toBe(650);
     expect(
+      typeof createDemoScenarioTiming(({ step }) =>
+        step.id === "review" ? 3000 : 1200,
+      ).beforeStepMs,
+    ).toBe("function");
+    expect(
       new ScenarioRunner({
         context: { kind: "typed-context" },
         steps: [],

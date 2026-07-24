@@ -36,10 +36,31 @@ const SESSION_STREAM = `/api/sessions/${SESSION_SID}/stream`;
 const PROMPT =
   "Build a deterministic Storybook demo for the core Agent Runner session journey.";
 const IS_COMPONENT_TEST = String(import.meta.env.VITEST) === "true";
-const HUMAN_STEP_DELAY_MS = 1600;
+const DEFAULT_HUMAN_STEP_DELAY_MS = 1600;
 const AUTOMATED_STEP_DELAY_MS = 400;
-const HUMAN_TYPE_CHUNK_DELAY_MS = 60;
-const TYPE_CHUNK_SIZE = 3;
+const HUMAN_TYPE_CHUNK_DELAY_MS = 48;
+const TYPE_CHUNK_SIZE = 1;
+const HUMAN_STEP_DELAY_MS: Readonly<Record<string, number>> = Object.freeze({
+  "open-project": 1400,
+  "select-project": 1400,
+  "choose-build": 1800,
+  "choose-build-ui": 1800,
+  "type-request": 1200,
+  "open-access": 1600,
+  "select-access": 1600,
+  "open-model": 1600,
+  "open-model-list": 1800,
+  "select-model": 1600,
+  send: 2400,
+  "stream-first-chunk": 2800,
+  "stream-second-chunk": 2800,
+  "persist-response": 3800,
+  environment: 2400,
+  "publish-completion": 3400,
+  "complete-session": 3400,
+  review: 3000,
+  "return-to-session": 2800,
+});
 
 const historySession = buildSession({
   id: HISTORY_SID,
@@ -715,7 +736,8 @@ export function CoreSessionPlayback({
     ? 0
     : playbackPace === "automated"
       ? AUTOMATED_STEP_DELAY_MS
-      : HUMAN_STEP_DELAY_MS;
+      : ({ step }: { step: DemoStep<DemoContext> }) =>
+          HUMAN_STEP_DELAY_MS[step.id] ?? DEFAULT_HUMAN_STEP_DELAY_MS;
   const typeChunkDelayMs = instantPlayback
     ? 0
     : playbackPace === "automated"
