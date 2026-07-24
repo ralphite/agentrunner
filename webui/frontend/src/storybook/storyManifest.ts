@@ -685,7 +685,7 @@ const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-media":
     "8c4e3c5047195658cc7707e93064ad33171d4c4d2f1af5877996d71b8a1fb033",
   "components-navigation":
-    "31e1ad8dfbab14d58deaaa28f028c433304effa251011dc66834655ac3548ada",
+    "78fb1a2a52c602afb68894cca21bc324af22f69d439890863be8fe06e8585c86",
   "components-overlays":
     "9cd10625d779562ef3969359d545190321573795a498cac2d0e42ea261066106",
   "components-runs":

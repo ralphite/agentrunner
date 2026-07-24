@@ -356,13 +356,17 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         restoreSessionActionFocusAfterMutation(sid);
       }}
       onRename={() => {
-        // Menu closes and restores its trigger in a zero-delay callback. Open
-        // the dialog on the next frame so its FocusScope wins last and the
-        // rename field, not the now-closed menu trigger, owns final focus.
+        // Menu's bubble-phase close queues a zero-delay trigger restore after
+        // this handler returns. The inner timer is registered only when this
+        // outer timer runs, so the already-queued restore runs first and the
+        // modal FocusScope deterministically owns final focus.
         const openRename = store.getState().openModal;
-        requestAnimationFrame(() =>
-          openRename({ kind: "rename", sid }),
-        );
+        window.setTimeout(() => {
+          window.setTimeout(
+            () => openRename({ kind: "rename", sid }),
+            0,
+          );
+        }, 0);
       }}
       onToggleRead={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}
       onToggleArchive={() => {
