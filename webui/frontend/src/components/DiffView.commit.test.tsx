@@ -378,7 +378,7 @@ describe("the ✕ never leaves the panel (INC-41 RD-8)", () => {
   });
 });
 
-describe("narrow reviews use the full code width", () => {
+describe("reviews use the full code width (DIFF-FILE-EDGETOEDGE)", () => {
   it("runs tracked and untracked file sections edge-to-edge at 390px", async () => {
     barWidth(390);
     (window as any).matchMedia = (query: string) => ({
@@ -401,19 +401,23 @@ describe("narrow reviews use the full code width", () => {
     }
   });
 
-  it("keeps desktop cards framed when the split review rail is 604px", async () => {
+  it("runs the desktop split review rail edge-to-edge too (was card-framed)", async () => {
+    // DIFF-FILE-EDGETOEDGE · a code review is one continuous surface. The desktop
+    // split rail used to keep each file in a rounded card; now it runs edge-to-edge
+    // like the phone review and like Codex — no side margins/borders/rounding, so
+    // the whole ~590px rail goes to code.
     barWidth(604);
     localStorage.setItem("ar.diff.scope", "working-tree");
     arMock.diff = () => Promise.resolve(baseDiff({ untracked: ["assets/logo.png"] }));
-    const { container } = render(<DiffView sid="desktop-card" />);
+    const { container } = render(<DiffView sid="desktop-edge" />);
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     const cards = [...container.querySelectorAll("details.filediff")];
     expect(cards).toHaveLength(2);
     for (const card of cards) {
-      expect(card.className).not.toContain("!m-0");
-      expect(card.className).not.toContain("!rounded-none");
-      expect(card.className).not.toContain("!border-x-0");
+      expect(card.className).toContain("!m-0");
+      expect(card.className).toContain("!rounded-none");
+      expect(card.className).toContain("!border-x-0");
     }
   });
 });

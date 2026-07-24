@@ -196,12 +196,15 @@ const saveScope = (storage: Storage, s: DiffScope) => {
 // walking the bar back over its own edge.
 const BAR_TIGHT_PX = 640;
 
-// A phone review has no width to spend framing code inside another card. Codex
-// lets file sections run edge-to-edge in the review rail; dropping our 12px
-// card margins gives a 390px phone 24px more path/code width while the top and
-// bottom borders still separate adjacent files. Use the viewport signal, not
-// barTight: an ordinary desktop split rail is also narrower than 640px and must
-// keep the card shape.
+// DIFF-FILE-EDGETOEDGE · a code review is one continuous surface, not a stack of
+// boxes. Codex runs its file sections edge-to-edge in the review rail — a single
+// header + hairline separates adjacent files, no card frame, no side margins —
+// so the whole panel width goes to code. We used to keep the rounded card on
+// desktop (only the phone dropped it, ee5a2f51), but that double-framed the
+// review (panel border + card border) and spent 24px of an already ~590px split
+// rail on margins. Now every viewport runs edge-to-edge: the top/bottom borders
+// still separate adjacent files (matching the shipping phone behaviour), and the
+// scope toolbar's own bottom edge meets the first file flush, the way Codex does.
 const fileCardClass = (edgeToEdge: boolean, untracked = false) =>
   "filediff" +
   (untracked ? " filediff-untracked" : "") +
@@ -812,7 +815,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
               // already refused — and reports back what it learns itself.
               knownReason={facts[e.path]?.reason ?? data.untrackedReasons?.[e.path] ?? (isBinaryPath(e.path) ? "binary" : undefined)}
               onFact={reportFact}
-              edgeToEdge={narrow}
+              edgeToEdge={true}
             />
           );
         const f = e.file;
@@ -825,7 +828,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
         const open = isOpen(f.path);
         return (
           <details
-            className={fileCardClass(narrow)}
+            className={fileCardClass(true)}
             key={fileKey(f.path)}
             open={open}
             ref={f.path === focusPath ? focusRef : undefined}
@@ -984,9 +987,10 @@ export function UntrackedFile({
 // hunk, between hunks, and (INC-41 RD-2) after the last hunk, so every file can
 // be walked all the way to EOF. Clicking a band fetches the file's current text
 // once (api.blob) and reveals the hidden unmodified region in place; clicking the
-// revealed region's header collapses it again. The split view keeps the plain
-// hunk-separator rendering (its paired-column model has no per-row anchor to
-// hang a band on), so context expansion lives in the default inline layout.
+// revealed region's header collapses it again. DIFF-SPLIT-FOLD-BAND wired the same
+// collapser bands into the split view too (SplitRow carries the row index so its
+// paired columns can hang a full-width band on the shared hunkGaps map), so context
+// expansion now works identically in both the inline and split layouts.
 export function FileBody({
   sid,
   path,
