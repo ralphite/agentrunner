@@ -14,6 +14,35 @@ import {
 
 const noop = () => {};
 
+function StorySessionActions({
+  title,
+  pinned = false,
+  unread = false,
+  archived = false,
+  onTogglePin,
+  onToggleArchive,
+}: {
+  title: string;
+  pinned?: boolean;
+  unread?: boolean;
+  archived?: boolean;
+  onTogglePin: () => void;
+  onToggleArchive: () => void;
+}) {
+  return (
+    <SidebarSessionActions
+      title={title}
+      pinned={pinned}
+      unread={unread}
+      archived={archived}
+      onTogglePin={onTogglePin}
+      onRename={noop}
+      onToggleRead={noop}
+      onToggleArchive={onToggleArchive}
+    />
+  );
+}
+
 function StateMatrix({ children }: { children: ReactNode }) {
   return (
     <div
@@ -95,7 +124,19 @@ const meta = {
   render: (args) => (
     <div className="sidebar" style={{ width: 300, minHeight: 170 }}>
       <div className="project-list" style={{ paddingTop: 12 }}>
-        <SidebarSessionItem {...args} />
+        <SidebarSessionItem
+          {...args}
+          actions={(
+            <StorySessionActions
+              title={args.title}
+              pinned={args.pinned}
+              unread={args.unread}
+              archived={args.archived}
+              onTogglePin={args.onTogglePin}
+              onToggleArchive={args.onToggleArchive}
+            />
+          )}
+        />
       </div>
     </div>
   ),
@@ -253,25 +294,98 @@ export const SessionStateMatrix: Story = {
 };
 
 export const SessionInteraction: Story = {
-  args: {
-    active: true,
-    unread: true,
-    pinned: true,
+  name: "Mobile session actions",
+  globals: {
+    viewport: { value: "phone", isRotated: false },
+  },
+  render: (args) => {
+    const rows = [
+      {
+        session: buildSession({
+          id: "touch-running-worktree",
+          title: "Keep the exceptionally long running worktree title readable beside persistent state and actions",
+          status: "running",
+          workspace: "/Users/demo/.local/share/agentrunner/worktrees/touch-running-worktree",
+        }),
+        unread: true,
+      },
+      {
+        session: buildSession({
+          id: "touch-attention",
+          title: "Resolve multiple approval and answer requests without losing the attention count",
+          status: "waiting_approval",
+          attention: { approvals: 2, answers: 1 },
+        }),
+        unread: true,
+      },
+    ];
+    return (
+      <div className="sidebar" style={{ width: 320, minHeight: "100dvh" }}>
+        <div className="project-list" style={{ paddingTop: 12 }}>
+          {rows.map(({ session, unread }) => (
+            <SidebarSessionItem
+              key={session.id}
+              session={session}
+              title={session.title || session.id}
+              unread={unread}
+              onSelect={args.onSelect}
+              onOpenContext={args.onOpenContext}
+              onPreview={args.onPreview}
+              onPreviewEnd={args.onPreviewEnd}
+              onDismissPreview={args.onDismissPreview}
+              onTogglePin={args.onTogglePin}
+              onToggleArchive={args.onToggleArchive}
+              actions={(
+                <StorySessionActions
+                  title={session.title || session.id}
+                  unread={unread}
+                  onTogglePin={args.onTogglePin}
+                  onToggleArchive={args.onToggleArchive}
+                />
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    );
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const row = canvas.getByRole("button", { name: /Prepare reusable Sidebar items · New activity/ });
-    await userEvent.click(row);
+    const triggers = canvas.getAllByRole("button", { name: /More actions for/ });
+    await expect(triggers).toHaveLength(2);
+    for (const trigger of triggers) {
+      const rect = trigger.getBoundingClientRect();
+      await expect(rect.width).toBeGreaterThanOrEqual(44);
+      await expect(rect.height).toBeGreaterThanOrEqual(44);
+    }
+
+    const runningRow = canvas.getByRole("button", {
+      name: /^Keep the exceptionally long running worktree title readable/,
+    }).closest<HTMLElement>(".project-session-wrap")!;
+    await expect(within(runningRow).getByRole("status", { name: "Session running" })).toBeVisible();
+    await expect(within(runningRow).getByLabelText("Worktree session")).toBeVisible();
+    const longTitle = runningRow.querySelector<HTMLElement>(".project-session-title")!;
+    await expect(longTitle.clientWidth).toBeGreaterThan(0);
+    await expect(longTitle.scrollWidth).toBeGreaterThan(longTitle.clientWidth);
+    await expect(canvas.getByTitle("3 actions needed")).toBeVisible();
+
+    await userEvent.click(runningRow.querySelector(".project-session")!);
     await expect(args.onSelect).toHaveBeenCalledOnce();
-
-    row.focus();
-    await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-    await expect(args.onOpenContext).toHaveBeenCalledOnce();
-
-    await userEvent.click(canvas.getByRole("button", { name: "Unpin Prepare reusable Sidebar items" }));
-    await expect(args.onTogglePin).toHaveBeenCalledOnce();
-    await userEvent.click(canvas.getByRole("button", { name: "Archive Prepare reusable Sidebar items" }));
-    await expect(args.onToggleArchive).toHaveBeenCalledOnce();
+    await userEvent.click(triggers[0]);
+    await expect(args.onSelect).toHaveBeenCalledOnce();
+    const items = canvas.getAllByRole("menuitem");
+    await expect(items.map((item) => item.textContent?.trim())).toEqual([
+      "Pin",
+      "Rename…",
+      "Mark as read",
+      "Archive",
+    ]);
+    await waitFor(() => expect(document.activeElement).toBe(items[0]));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(document.activeElement).toBe(triggers[0]));
+    await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      document.documentElement.clientWidth,
+    );
   },
 };
 

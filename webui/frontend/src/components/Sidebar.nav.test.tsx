@@ -10,6 +10,7 @@ vi.mock("../api", async () => ({
 }));
 
 import { Sidebar } from "./Sidebar";
+import { Modals } from "./Modals";
 import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
 import {
   clampSidebarWidth,
@@ -19,7 +20,18 @@ import {
   useStore,
 } from "../store";
 
-afterEach(cleanup);
+const realToggleArchive = useStore.getState().toggleArchive;
+const realTogglePin = useStore.getState().togglePin;
+const realOpenModal = useStore.getState().openModal;
+const originalInnerWidth = window.innerWidth;
+
+afterEach(() => {
+  cleanup();
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: originalInnerWidth,
+  });
+});
 
 describe("sidebar search entry point (RH-5)", () => {
   it("magnifier opens the ⌘K command palette instead of an inline filter", () => {
@@ -41,8 +53,12 @@ describe("mobile sidebar dismissal", () => {
     expect(onHide).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the row menu-free while preserving the complete right-click menu", () => {
+  it("offers one complete touch menu without selecting the session", async () => {
     const select = vi.fn();
+    const togglePin = vi.fn();
+    const toggleArchive = vi.fn();
+    const markUnread = vi.fn();
+    const openModal = vi.fn();
     useStore.setState({
       sessions: [{
         id: "20260712-120000-mobile-actions",
@@ -59,21 +75,183 @@ describe("mobile sidebar dismissal", () => {
       renames: {},
       projects: {},
       select,
+      togglePin,
+      toggleArchive,
+      markUnread,
+      openModal,
     });
     const { container } = render(<Sidebar />);
 
     const row = container.querySelector(".project-session-wrap")!;
-    expect(row.querySelector(".menu-trigger")).toBeNull();
     expect(container.querySelector(".session-open")).toBeNull();
     expect(row.querySelector(".session-quick-actions")).toBeTruthy();
+    const trigger = screen.getByRole("button", { name: "More actions for Mobile actions" });
+    expect(trigger.className).toContain("session-touch-trigger");
+    expect(row.querySelectorAll(".session-touch-actions")).toHaveLength(1);
+    fireEvent.contextMenu(trigger, { clientX: 20, clientY: 30 });
+    expect(screen.queryByRole("menu")).toBeNull();
 
-    fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
-    const labels = screen.getAllByRole("menuitem").map((item) => item.textContent?.trim());
-    expect(labels).toEqual(expect.arrayContaining(["Pin", "Rename…", "Mark as unread", "Archive"]));
-    expect(labels).not.toContain("Session ID");
-    expect(labels).not.toContain("Session link");
-    // Opening management actions must not also navigate into the session.
+    fireEvent.click(trigger);
+    let items = screen.getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      "Pin", "Rename…", "Mark as unread", "Archive",
+    ]);
     expect(select).not.toHaveBeenCalled();
+    fireEvent.contextMenu(items[0], { clientX: 20, clientY: 30 });
+    expect(screen.getAllByRole("menu")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(4);
+    await waitFor(() => expect(document.activeElement).toBe(items[0]));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
+    expect(togglePin).toHaveBeenCalledWith("20260712-120000-mobile-actions");
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename…" }));
+    await waitFor(() =>
+      expect(openModal).toHaveBeenCalledWith({
+        kind: "rename",
+        sid: "20260712-120000-mobile-actions",
+      }),
+    );
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mark as unread" }));
+    expect(markUnread).toHaveBeenCalledWith("20260712-120000-mobile-actions");
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    expect(toggleArchive).toHaveBeenCalledWith("20260712-120000-mobile-actions");
+    expect(select).not.toHaveBeenCalled();
+
+    // Desktop keeps its compact hover pair and complete context-menu path.
+    fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
+    items = screen.getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      "Pin", "Rename…", "Mark as unread", "Archive",
+    ]);
+  });
+
+  it("keeps focus meaningful when menu actions move, open, or remove a real session row", async () => {
+    localStorage.clear();
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 390,
+    });
+    useStore.setState({
+      sessions: [
+        {
+          id: "20260712-130000-mobile-focus",
+          status: "idle",
+          turns: 1,
+          title: "Mobile focus",
+          workspace: "/repo/mobile-focus",
+        },
+        {
+          id: "20260712-120000-mobile-backup",
+          status: "idle",
+          turns: 1,
+          title: "Backup session",
+          workspace: "/repo/mobile-focus",
+        },
+      ] as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      modal: null,
+      prompt: null,
+      toggleArchive: realToggleArchive,
+      togglePin: realTogglePin,
+      openModal: realOpenModal,
+    });
+    render(<><Sidebar /><Modals /></>);
+
+    let trigger = screen.getByRole("button", { name: "More actions for Mobile focus" });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
+    trigger = await screen.findByRole("button", { name: "More actions for Mobile focus" });
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename…" }));
+    const rename = await screen.findByRole("textbox", {
+      name: "Keep it short and recognizable",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(rename));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(document.activeElement).toBe(rename);
+    fireEvent.keyDown(rename, { key: "Escape" });
+
+    trigger = await screen.findByRole("button", { name: "More actions for Mobile focus" });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "More actions for Mobile focus" }),
+      ).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", {
+          name: "More actions for Backup session",
+        }),
+      ),
+    );
+  });
+
+  it("returns desktop quick-action focus to the relocated session row", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1280,
+    });
+    useStore.setState({
+      sessions: [
+        {
+          id: "20260712-140000-desktop-focus",
+          status: "idle",
+          turns: 1,
+          title: "Desktop focus",
+          workspace: "/repo/desktop-focus",
+        },
+        {
+          id: "20260712-130000-desktop-backup",
+          status: "idle",
+          turns: 1,
+          title: "Desktop backup",
+          workspace: "/repo/desktop-focus",
+        },
+      ] as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      modal: null,
+      prompt: null,
+      toggleArchive: realToggleArchive,
+      togglePin: realTogglePin,
+      openModal: realOpenModal,
+    });
+    const { container } = render(<Sidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pin Desktop focus" }));
+    await waitFor(() => {
+      const row = container.querySelector<HTMLElement>(
+        '[data-session-id="20260712-140000-desktop-focus"]',
+      );
+      expect(document.activeElement).toBe(
+        row?.querySelector<HTMLButtonElement>(".project-session"),
+      );
+    });
   });
 });
 
@@ -118,7 +296,7 @@ describe("sidebar session row states and hover actions (INC-92)", () => {
 
   afterEach(() => localStorage.clear());
 
-  it("shows managed-worktree and running state without a row ellipsis", () => {
+  it("shows managed-worktree and running state alongside the responsive actions", () => {
     const { container } = mount();
     const rows = [...container.querySelectorAll(".project-session-wrap")];
     const worktreeRow = rows.find((row) => row.textContent?.includes("Managed worktree session"))!;
@@ -130,8 +308,10 @@ describe("sidebar session row states and hover actions (INC-92)", () => {
     expect(worktreeRow.querySelector(".session-state-icons.running")).toBeTruthy();
     expect(localRow.querySelector('[aria-label="Worktree session"]')).toBeNull();
     expect(localRow.querySelector('[aria-label="Session running"]')).toBeNull();
-    expect(worktreeRow.querySelector(".menu-trigger")).toBeNull();
-    expect(localRow.querySelector(".menu-trigger")).toBeNull();
+    expect(worktreeRow.querySelector(".session-touch-trigger")).toBeTruthy();
+    expect(localRow.querySelector(".session-touch-trigger")).toBeTruthy();
+    expect(worktreeRow.querySelector(".session-quick-actions")).toBeTruthy();
+    expect(localRow.querySelector(".session-quick-actions")).toBeTruthy();
   });
 
   it("switches the reversible hover actions between pin/archive states", () => {

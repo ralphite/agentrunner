@@ -316,16 +316,59 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       .catch(() => setBranchByWorkspace((current) => ({ ...current, [workspace]: "Local workspace" })));
   };
 
+  const restoreSessionActionFocusAfterMutation = (sid: string) => {
+    requestAnimationFrame(() => {
+      const touchActionsVisible =
+        window.innerWidth <= 900 ||
+        window.matchMedia?.("(any-pointer: coarse)").matches;
+      const rows = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".sidebar .project-session-wrap",
+        ),
+      );
+      const sameRow = rows.find((row) => row.dataset.sessionId === sid);
+      const sameSession = touchActionsVisible
+        ? sameRow?.querySelector<HTMLButtonElement>(".session-touch-trigger")
+        : sameRow?.querySelector<HTMLButtonElement>(".project-session");
+      const firstSession = touchActionsVisible
+        ? document.querySelector<HTMLButtonElement>(
+          ".sidebar .session-touch-trigger",
+        )
+        : document.querySelector<HTMLButtonElement>(
+          ".sidebar .project-session",
+        );
+      (
+        sameSession ||
+        firstSession ||
+        document.querySelector<HTMLButtonElement>(".sidebar .brand-main")
+      )?.focus();
+    });
+  };
+
   const renderSessionActions = (sid: string) => (
     <SidebarSessionActions
       title={displayTitle(renames, sid, sessions.find((session) => session.id === sid)?.title)}
       pinned={pinned.includes(sid)}
       unread={unread.includes(sid)}
       archived={archived.includes(sid)}
-      onTogglePin={() => togglePin(sid)}
-      onRename={() => store.getState().openModal({ kind: "rename", sid })}
+      onTogglePin={() => {
+        togglePin(sid);
+        restoreSessionActionFocusAfterMutation(sid);
+      }}
+      onRename={() => {
+        // Menu closes and restores its trigger in a zero-delay callback. Open
+        // the dialog on the next frame so its FocusScope wins last and the
+        // rename field, not the now-closed menu trigger, owns final focus.
+        const openRename = store.getState().openModal;
+        requestAnimationFrame(() =>
+          openRename({ kind: "rename", sid }),
+        );
+      }}
       onToggleRead={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}
-      onToggleArchive={() => toggleArchive(sid)}
+      onToggleArchive={() => {
+        toggleArchive(sid);
+        restoreSessionActionFocusAfterMutation(sid);
+      }}
     />
   );
 
@@ -406,6 +449,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         unread={isUnread}
         archived={archived.includes(session.id)}
         pinned={pinned.includes(session.id)}
+        actions={renderSessionActions(session.id)}
         onSelect={() => {
           select(session.id);
           onNavigate?.();
@@ -414,8 +458,14 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         onPreview={(top) => previewSession(session, top)}
         onPreviewEnd={() => setHoverPreview((current) => current?.kind === "session" && current.sid === session.id ? null : current)}
         onDismissPreview={() => setHoverPreview(null)}
-        onTogglePin={() => togglePin(session.id)}
-        onToggleArchive={() => toggleArchive(session.id)}
+        onTogglePin={() => {
+          togglePin(session.id);
+          restoreSessionActionFocusAfterMutation(session.id);
+        }}
+        onToggleArchive={() => {
+          toggleArchive(session.id);
+          restoreSessionActionFocusAfterMutation(session.id);
+        }}
       />
     );
   };

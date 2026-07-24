@@ -685,7 +685,7 @@ const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-media":
     "8c4e3c5047195658cc7707e93064ad33171d4c4d2f1af5877996d71b8a1fb033",
   "components-navigation":
-    "73f3d9d856dd9343c876b36c36bafd837af1c921e21d9746639a00cc2afbbac9",
+    "31e1ad8dfbab14d58deaaa28f028c433304effa251011dc66834655ac3548ada",
   "components-overlays":
     "9cd10625d779562ef3969359d545190321573795a498cac2d0e42ea261066106",
   "components-runs":
@@ -821,11 +821,12 @@ export const storyReviewFamilies = [
   reviewedFamily(
     "components-navigation",
     "Components/Navigation",
-    "FIXED",
+    "GAP",
     "UNTESTED",
-    "Sidebar status is glyph-only, session current semantics use aria-current, Home stays chromeless like Codex fresh New chat, and menus/search retain keyboard and focus-return behavior.",
+    "At mobile or coarse-input breakpoints, each session row now exposes one stable 44×44 More action without selecting the session. Its viewport-clamped menu preserves Pin, Rename, Mark read/unread, and Archive actions, meaningful focus handoff and return, long-title context, and running, worktree, unread, and attention states. Desktop retains quiet hover quick actions and the context-menu path without a persistent ellipsis. This touch-action defect is fixed, while other navigation-family gaps remain, so the family stays GAP.",
     "CODEX-PARITY GL-03/GL-07 pass selected interactions, while GL-05/GL-06 remain UNTESTED; the family therefore remains UNTESTED.",
-    "QA-92 manager/AppShell evidence and navigation Story/interaction review.",
+    "Fresh visual and accessibility review of components-navigation-sidebar-items--session-interaction (“Mobile session actions”) at 390×844 plus the current four-file diff: row and trigger measure 44×44; the 220px panel stays within x=91…311; all four actions are visible; Pin receives initial focus; Escape and mutating actions preserve meaningful focus; running, worktree, unread, and three-action attention states remain visible; document overflow is zero. Evidence: 05-session-interaction-final-390x844.png. Scoped P0/P1/P2 = 0.",
+    "2026-07-24",
   ),
   reviewedFamily(
     "components-input",

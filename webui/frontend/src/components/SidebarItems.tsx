@@ -29,6 +29,7 @@ import {
 export interface SidebarSessionItemProps {
   session: Session;
   title: string;
+  actions?: ReactNode;
   when?: string;
   nested?: boolean;
   active?: boolean;
@@ -47,6 +48,7 @@ export interface SidebarSessionItemProps {
 export function SidebarSessionItem({
   session,
   title,
+  actions,
   when = "",
   nested = false,
   active = false,
@@ -77,7 +79,8 @@ export function SidebarSessionItem({
 
   return (
     <div
-      className={`project-session-wrap${nested ? " nested" : ""}${active ? " current" : ""}${unread ? " unread" : ""}${archived ? " archived" : ""}`}
+      className={`project-session-wrap max-[900px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11${nested ? " nested" : ""}${active ? " current" : ""}${unread ? " unread" : ""}${archived ? " archived" : ""}`}
+      data-session-id={session.id}
       onContextMenu={(event: MouseEvent<HTMLDivElement>) => {
         event.preventDefault();
         onOpenContext(event.clientX, event.clientY);
@@ -86,7 +89,7 @@ export function SidebarSessionItem({
       onMouseLeave={onPreviewEnd}
     >
       <button
-        className="project-session"
+        className="project-session max-[900px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
         onClick={onSelect}
         onKeyDown={openContextFromKeyboard}
         title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
@@ -127,9 +130,9 @@ export function SidebarSessionItem({
         )}
       </button>
       {(isWorktree || isRunning) && (
-        <span className={`session-state-icons${isRunning ? " running" : ""}`}>
+        <span className={`session-state-icons max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!${isRunning ? " running" : ""}`}>
           {isWorktree && (
-            <span className="session-worktree-icon" role="img" title="Worktree session" aria-label="Worktree session">
+            <span className="session-worktree-icon max-[900px]:inline-grid! [@media(any-pointer:coarse)]:inline-grid!" role="img" title="Worktree session" aria-label="Worktree session">
               <ArrowsOutSimple size={17} />
             </span>
           )}
@@ -145,7 +148,7 @@ export function SidebarSessionItem({
         </span>
       )}
       <span
-        className="session-quick-actions"
+        className="session-quick-actions max-[900px]:hidden! [@media(any-pointer:coarse)]:hidden!"
         onMouseEnter={onDismissPreview}
       >
         <IconButton
@@ -169,6 +172,25 @@ export function SidebarSessionItem({
           <ArchiveBox size={17} />
         </IconButton>
       </span>
+      {actions && (
+        <span
+          className="session-touch-actions hidden shrink-0 items-center max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!"
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onMouseEnter={onDismissPreview}
+        >
+          <Menu
+            label={<DotsThree size={18} weight="bold" />}
+            ariaLabel={`More actions for ${title}`}
+            triggerClassName="session-touch-trigger max-[900px]:h-11! max-[900px]:w-11! [@media(any-pointer:coarse)]:h-11! [@media(any-pointer:coarse)]:w-11!"
+          >
+            {actions}
+          </Menu>
+        </span>
+      )}
     </div>
   );
 }
@@ -196,7 +218,7 @@ export function SidebarSessionActions({
 }: SidebarSessionActionsProps) {
   return (
     <>
-      <MenuLabel>{title}</MenuLabel>
+      <MenuLabel><span className="block max-w-[188px] truncate">{title}</span></MenuLabel>
       <MenuItem onClick={onTogglePin}>
         <PushPin size={16} weight={pinned ? "fill" : "regular"} /> {pinned ? "Unpin" : "Pin"}
       </MenuItem>
