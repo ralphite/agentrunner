@@ -2325,6 +2325,7 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 | 3 | 中途插话提问 | agent 凭记忆一句话列出全部 3 个已审文件 |
 | 4 | Scheduled 页 | 会话以 cadence/next-run 列出(kind session 投影);**行点击直接进对话**;菜单 "Schedule details…" 开 G56 面板;会话内 `/loop` 分支同验(同会话二次 attach) |
 | 5 | 旧 series 行 | 照常渲染(completed/paused/failed),兼容不回归 |
+| 6 | (review 后补)attach→pause→resume→cancel→发消息 | pause 行/detail 显 paused、resume 回 active+next run;cancel 走 `ar schedule cancel` 落 `schedule_cancelled`;**后续消息不复活**(schedule 事件零新增) |
 
 ---
 
