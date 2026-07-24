@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { AppShell } from "../../App";
 import { AppRuntime } from "../../app/AppRuntime";
-import type { AppEventStream } from "../../app/appServices";
 import { createAppStore, type AppStore } from "../../store";
 import {
   buildAssistantMessage,
@@ -15,10 +14,7 @@ import {
   buildTimeline,
   fixtureDefaults,
 } from "../fixtures";
-import {
-  createStoryApiHandlers,
-  type StoryApiHarness,
-} from "../handlers";
+import { createStoryApiHandlers, type StoryApiHarness } from "../handlers";
 import { createStoryAppServices } from "../appServices";
 import { ScenarioClock } from "../scenarios/ScenarioClock";
 import { ScenarioControls } from "../scenarios/ScenarioControls";
@@ -29,6 +25,7 @@ import {
 } from "../scenarios/ScenarioRunner";
 import {
   createScriptedStreamController,
+  type ScriptedEventStream,
   type ScriptedStreamController,
 } from "../streams";
 import "./CoreSessionPlayback.css";
@@ -38,6 +35,10 @@ const SESSION_SID = "story-session-1";
 const SESSION_STREAM = `/api/sessions/${SESSION_SID}/stream`;
 const PROMPT =
   "Build a deterministic Storybook demo for the core Agent Runner session journey.";
+const IS_COMPONENT_TEST = String(import.meta.env.VITEST) === "true";
+const STEP_DELAY_MS = IS_COMPONENT_TEST ? 0 : 1300;
+const TYPE_CHUNK_DELAY_MS = IS_COMPONENT_TEST ? 0 : 45;
+const TYPE_CHUNK_SIZE = 3;
 
 const historySession = buildSession({
   id: HISTORY_SID,
@@ -75,7 +76,10 @@ interface DemoContext {
   store: AppStore;
   services: ReturnType<typeof createStoryAppServices>["services"];
   root: HTMLElement | null;
-  waitForStream(path: string, signal: AbortSignal): Promise<AppEventStream>;
+  waitForStream(
+    path: string,
+    signal: AbortSignal,
+  ): Promise<ScriptedEventStream>;
 }
 
 type ElementQuery<T extends Element> = (root: HTMLElement) => T | null;
@@ -120,10 +124,11 @@ function waitForElement<T extends Element>(
 }
 
 function buttonWithText(root: HTMLElement, text: string) {
-  return [...root.querySelectorAll<HTMLButtonElement>("button")].find(
-    (button) =>
+  return (
+    [...root.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
       button.textContent?.replace(/\s+/g, " ").trim().includes(text),
-  ) ?? null;
+    ) ?? null
+  );
 }
 
 function activate(control: HTMLElement) {
@@ -131,7 +136,11 @@ function activate(control: HTMLElement) {
   control.click();
 }
 
-function replaceText(editor: HTMLTextAreaElement, value: string) {
+function replaceText(
+  editor: HTMLTextAreaElement,
+  value: string,
+  inserted = value,
+) {
   editor.focus();
   const setValue = Object.getOwnPropertyDescriptor(
     HTMLTextAreaElement.prototype,
@@ -141,10 +150,59 @@ function replaceText(editor: HTMLTextAreaElement, value: string) {
   editor.dispatchEvent(
     new InputEvent("input", {
       bubbles: true,
-      data: value,
-      inputType: "insertReplacementText",
+      data: inserted,
+      inputType: "insertText",
     }),
   );
+}
+
+function waitForPresentation(
+  delayMs: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Scenario reset", "AbortError"));
+  }
+  if (delayMs === 0) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      globalThis.clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      reject(new DOMException("Scenario reset", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function typePrompt(
+  editor: HTMLTextAreaElement,
+  value: string,
+  signal: AbortSignal,
+) {
+  if (TYPE_CHUNK_DELAY_MS === 0) {
+    replaceText(editor, value);
+    return;
+  }
+  replaceText(editor, "");
+  let previousEnd = 0;
+  while (previousEnd < value.length) {
+    if (signal.aborted) {
+      throw new DOMException("Scenario reset", "AbortError");
+    }
+    const nextEnd = Math.min(previousEnd + TYPE_CHUNK_SIZE, value.length);
+    replaceText(
+      editor,
+      value.slice(0, nextEnd),
+      value.slice(previousEnd, nextEnd),
+    );
+    previousEnd = nextEnd;
+    if (nextEnd === value.length) return;
+    await waitForPresentation(TYPE_CHUNK_DELAY_MS, signal);
+  }
 }
 
 function createDemoContext(api: StoryApiHarness): DemoContext {
@@ -172,7 +230,7 @@ function createDemoContext(api: StoryApiHarness): DemoContext {
   });
   const streamWaiters = new Map<
     string,
-    Set<(stream: AppEventStream) => void>
+    Set<(stream: ScriptedEventStream) => void>
   >();
   const servicesHarness = createStoryAppServices({
     clock,
@@ -199,12 +257,20 @@ function createDemoContext(api: StoryApiHarness): DemoContext {
     root: null,
     waitForStream(path, signal) {
       const openedStreams = controller.streams(path);
-      const opened = openedStreams[openedStreams.length - 1];
+      let opened: ScriptedEventStream | undefined;
+      for (let index = openedStreams.length - 1; index >= 0; index -= 1) {
+        const candidate = openedStreams[index];
+        if (!candidate.closed && candidate.onmessage !== null) {
+          opened = candidate;
+          break;
+        }
+      }
       if (opened) return Promise.resolve(opened);
-      return new Promise<AppEventStream>((resolve, reject) => {
+      return new Promise<ScriptedEventStream>((resolve, reject) => {
         const listeners =
-          streamWaiters.get(path) ?? new Set<(stream: AppEventStream) => void>();
-        const settle = (stream: AppEventStream) => {
+          streamWaiters.get(path) ??
+          new Set<(stream: ScriptedEventStream) => void>();
+        const settle = (stream: ScriptedEventStream) => {
           signal.removeEventListener("abort", onAbort);
           resolve(stream);
         };
@@ -223,17 +289,29 @@ function createDemoContext(api: StoryApiHarness): DemoContext {
 
 const steps: readonly DemoStep<DemoContext>[] = [
   {
-    id: "project",
-    title: "Choose the project",
+    id: "open-project",
+    title: "Open the project picker",
     async run(context, signal) {
       const trigger = await waitForElement(
         context,
-        (root) => root.querySelector<HTMLButtonElement>(
-          'button[title="Select project"]',
-        ),
+        (root) =>
+          root.querySelector<HTMLButtonElement>(
+            'button[title="Select project"]',
+          ),
         signal,
       );
       activate(trigger);
+      await waitForElement(
+        context,
+        (root) => root.querySelector(".cx-project-popover"),
+        signal,
+      );
+    },
+  },
+  {
+    id: "select-project",
+    title: "Choose storybook-demo",
+    async run(context, signal) {
       const project = await waitForElement(
         context,
         (root) => {
@@ -246,8 +324,8 @@ const steps: readonly DemoStep<DemoContext>[] = [
     },
   },
   {
-    id: "request",
-    title: "Choose Build and write the request",
+    id: "choose-build",
+    title: "Choose Build",
     async run(context, signal) {
       const build = await waitForElement(
         context,
@@ -255,25 +333,51 @@ const steps: readonly DemoStep<DemoContext>[] = [
         signal,
       );
       activate(build);
+      await waitForElement(
+        context,
+        (root) => buttonWithText(root, "Build UI changes"),
+        signal,
+      );
+    },
+  },
+  {
+    id: "choose-build-ui",
+    title: "Choose Build UI changes",
+    async run(context, signal) {
       const followup = await waitForElement(
         context,
         (root) => buttonWithText(root, "Build UI changes"),
         signal,
       );
       activate(followup);
-      const editor = await waitForElement(
+      await waitForElement(
         context,
-        (root) => root.querySelector<HTMLTextAreaElement>(
-          ".home-empty-state .cx-home textarea",
-        ),
+        (root) =>
+          root.querySelector<HTMLTextAreaElement>(
+            ".home-empty-state .cx-home textarea",
+          ),
         signal,
       );
-      replaceText(editor, PROMPT);
     },
   },
   {
-    id: "configuration",
-    title: "Set access and model",
+    id: "type-request",
+    title: "Type the request",
+    async run(context, signal) {
+      const editor = await waitForElement(
+        context,
+        (root) =>
+          root.querySelector<HTMLTextAreaElement>(
+            ".home-empty-state .cx-home textarea",
+          ),
+        signal,
+      );
+      await typePrompt(editor, PROMPT, signal);
+    },
+  },
+  {
+    id: "open-access",
+    title: "Open access options",
     async run(context, signal) {
       const access = await waitForElement(
         context,
@@ -281,29 +385,77 @@ const steps: readonly DemoStep<DemoContext>[] = [
         signal,
       );
       activate(access);
+      await waitForElement(
+        context,
+        (root) => buttonWithText(root, "Auto-accept edits"),
+        signal,
+      );
+    },
+  },
+  {
+    id: "select-access",
+    title: "Select Auto-accept edits",
+    async run(context, signal) {
       const acceptEdits = await waitForElement(
         context,
         (root) => buttonWithText(root, "Auto-accept edits"),
         signal,
       );
       activate(acceptEdits);
-
+    },
+  },
+  {
+    id: "open-model",
+    title: "Open model options",
+    async run(context, signal) {
       const model = await waitForElement(
         context,
         (root) => root.querySelector<HTMLButtonElement>(".cx-home .cx-model"),
         signal,
       );
       activate(model);
+      await waitForElement(
+        context,
+        (root) =>
+          [...root.querySelectorAll<HTMLButtonElement>("button")].find(
+            (button) =>
+              button.textContent
+                ?.replace(/\s+/g, " ")
+                .trim()
+                .startsWith("Model"),
+          ) ?? null,
+        signal,
+      );
+    },
+  },
+  {
+    id: "open-model-list",
+    title: "Open the model list",
+    async run(context, signal) {
       const modelPage = await waitForElement(
         context,
         (root) =>
           [...root.querySelectorAll<HTMLButtonElement>("button")].find(
             (button) =>
-              button.textContent?.replace(/\s+/g, " ").trim().startsWith("Model"),
+              button.textContent
+                ?.replace(/\s+/g, " ")
+                .trim()
+                .startsWith("Model"),
           ) ?? null,
         signal,
       );
       activate(modelPage);
+      await waitForElement(
+        context,
+        (root) => buttonWithText(root, "Gemini Pro"),
+        signal,
+      );
+    },
+  },
+  {
+    id: "select-model",
+    title: "Select Gemini Pro",
+    async run(context, signal) {
       const geminiPro = await waitForElement(
         context,
         (root) => buttonWithText(root, "Gemini Pro"),
@@ -314,13 +466,14 @@ const steps: readonly DemoStep<DemoContext>[] = [
   },
   {
     id: "send",
-    title: "Send and open the running session",
+    title: "Send the request",
     async run(context, signal) {
       const send = await waitForElement(
         context,
-        (root) => root.querySelector<HTMLButtonElement>(
-          'button[aria-label="Send message"]',
-        ),
+        (root) =>
+          root.querySelector<HTMLButtonElement>(
+            'button[aria-label="Send message"]',
+          ),
         signal,
       );
       activate(send);
@@ -333,12 +486,29 @@ const steps: readonly DemoStep<DemoContext>[] = [
     },
   },
   {
-    id: "stream",
-    title: "Stream the agent response",
+    id: "stream-first-chunk",
+    title: "Stream the first response chunk",
     async run(context, signal) {
-      await context.waitForStream(SESSION_STREAM, signal);
-      context.controller.next(SESSION_STREAM);
-      context.controller.next(SESSION_STREAM);
+      const stream = await context.waitForStream(SESSION_STREAM, signal);
+      if (!context.controller.next(stream)) {
+        throw new Error("First response chunk was not available");
+      }
+    },
+  },
+  {
+    id: "stream-second-chunk",
+    title: "Stream the second response chunk",
+    async run(context, signal) {
+      const stream = await context.waitForStream(SESSION_STREAM, signal);
+      if (!context.controller.next(stream)) {
+        throw new Error("Second response chunk was not available");
+      }
+    },
+  },
+  {
+    id: "persist-response",
+    title: "Persist the streamed response",
+    async run(context, signal) {
       // The stream owns the transient typing projection. The matching durable
       // journal page arrives independently, exactly as it does in production;
       // advancing the fixed clock triggers SessionView's real poll without a
@@ -371,9 +541,7 @@ const steps: readonly DemoStep<DemoContext>[] = [
         context,
         (root) =>
           [...root.querySelectorAll<HTMLElement>("*")].find((element) =>
-            element.textContent?.includes(
-              "while the session remains active",
-            ),
+            element.textContent?.includes("while the session remains active"),
           ) ?? null,
         signal,
       );
@@ -381,13 +549,14 @@ const steps: readonly DemoStep<DemoContext>[] = [
   },
   {
     id: "environment",
-    title: "Inspect Environment",
+    title: "Open Environment",
     async run(context, signal) {
       const environment = await waitForElement(
         context,
-        (root) => root.querySelector<HTMLButtonElement>(
-          'button[aria-label="Environment"]',
-        ),
+        (root) =>
+          root.querySelector<HTMLButtonElement>(
+            'button[aria-label="Environment"]',
+          ),
         signal,
       );
       activate(environment);
@@ -399,8 +568,8 @@ const steps: readonly DemoStep<DemoContext>[] = [
     },
   },
   {
-    id: "complete",
-    title: "Complete the implementation",
+    id: "publish-completion",
+    title: "Publish the completion message",
     async run(context, signal) {
       context.api.appendEvents(SESSION_SID, [
         buildAssistantMessage({
@@ -418,6 +587,25 @@ const steps: readonly DemoStep<DemoContext>[] = [
             },
           },
         }),
+      ]);
+      await context.clock.advanceBy(1000);
+      await waitForElement(
+        context,
+        (root) =>
+          [...root.querySelectorAll<HTMLElement>("*")].find((element) =>
+            element.textContent?.includes(
+              "Implemented the deterministic Core Session Playback demo",
+            ),
+          ) ?? null,
+        signal,
+      );
+    },
+  },
+  {
+    id: "complete-session",
+    title: "Complete the session",
+    async run(context, signal) {
+      context.api.appendEvents(SESSION_SID, [
         buildEnvelope({
           seq: 5,
           type: "waiting_entered",
@@ -446,30 +634,27 @@ const steps: readonly DemoStep<DemoContext>[] = [
           ],
         }),
       );
-      context.controller.next(SESSION_STREAM);
-      context.controller.next(SESSION_STREAM);
+      const stream = await context.waitForStream(SESSION_STREAM, signal);
+      context.controller.next(stream);
+      context.controller.next(stream);
       await context.clock.advanceBy(4000);
       await waitForElement(
         context,
-        (root) =>
-          [...root.querySelectorAll<HTMLElement>("*")].find((element) =>
-            element.textContent?.includes(
-              "Implemented the deterministic Core Session Playback demo",
-            ),
-          ) ?? null,
+        (root) => root.querySelector('button[aria-label="Send message"]'),
         signal,
       );
     },
   },
   {
     id: "review",
-    title: "Open Changes and Review",
+    title: "Open Changes",
     async run(context, signal) {
       const changes = await waitForElement(
         context,
-        (root) => root.querySelector<HTMLButtonElement>(
-          'button[title="Review workspace changes"]',
-        ),
+        (root) =>
+          root.querySelector<HTMLButtonElement>(
+            'button[title="Review workspace changes"]',
+          ),
         signal,
       );
       activate(changes);
@@ -486,15 +671,15 @@ interface CoreSessionPlaybackProps {
   autoPlay: boolean;
 }
 
-function CoreSessionPlayback({ autoPlay: initialAutoPlay }: CoreSessionPlaybackProps) {
+function CoreSessionPlayback({
+  autoPlay: initialAutoPlay,
+}: CoreSessionPlaybackProps) {
   const [runner] = useState(
     () =>
       new ScenarioRunner<DemoContext>({
         context: createDemoContext(demoApi),
         steps,
-        timing: createDemoScenarioTiming(
-          import.meta.env.MODE === "test" ? 0 : 900,
-        ),
+        timing: createDemoScenarioTiming(STEP_DELAY_MS),
         recreateContext: () => createDemoContext(demoApi),
         disposeContext: async (context) => {
           context.controller.reset();
