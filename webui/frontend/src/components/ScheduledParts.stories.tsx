@@ -312,14 +312,25 @@ export const RunItemFocusAndMenuOpen: Story = {
     await waitFor(() => {
       expect(interactive).toBeVisible();
       expect(getComputedStyle(more).opacity).toBe("0");
+      expect(getComputedStyle(more).pointerEvents).toBe("none");
     });
+    const restingRect = more.getBoundingClientRect();
+    const restingHit = more.ownerDocument.elementFromPoint(
+      restingRect.left + restingRect.width / 2,
+      restingRect.top + restingRect.height / 2,
+    );
+    await expect(restingHit).not.toBe(more);
+    await expect(restingHit?.closest(".sched-more")).toBeNull();
     const rowButton = within(interactive).getByTitle(
       "Review every component state and interaction " +
         "Weekdays at 8:00 AM · Next run in 12h agentrunner",
     );
     rowButton.focus();
     await expect(rowButton).toHaveFocus();
-    await waitFor(() => expect(getComputedStyle(more).opacity).toBe("1"));
+    await waitFor(() => {
+      expect(getComputedStyle(more).opacity).toBe("1");
+      expect(getComputedStyle(more).pointerEvents).toBe("auto");
+    });
 
     const menuOpenMore = within(
       canvas.getByTestId("menu-open-row"),
@@ -327,12 +338,45 @@ export const RunItemFocusAndMenuOpen: Story = {
       name: "Actions for Open menu keeps actions visible",
     });
     await expect(getComputedStyle(menuOpenMore).opacity).toBe("1");
+    await expect(getComputedStyle(menuOpenMore).pointerEvents).toBe("auto");
     await expect(
       within(canvas.getByTestId("settled-transient-row")).queryByRole(
         "button",
         { name: /Actions for/ },
       ),
     ).toBeNull();
+  },
+};
+
+export const RunItemTouchActionVisibility: Story = {
+  globals: {
+    viewport: { value: "phone", isRotated: false },
+  },
+  render: () => (
+    <Matrix>
+      <ScheduledRunItem
+        row={row({
+          id: "touch-actions",
+          key: "touch-actions",
+          title: "Touch actions stay discoverable",
+        })}
+        onOpenMenu={noOp}
+      />
+    </Matrix>
+  ),
+  play: async ({ canvasElement }) => {
+    const more = within(canvasElement).getByRole("button", {
+      name: "Actions for Touch actions stay discoverable",
+    });
+
+    await waitFor(() => {
+      const style = getComputedStyle(more);
+      const rect = more.getBoundingClientRect();
+      expect(style.opacity).toBe("1");
+      expect(style.pointerEvents).toBe("auto");
+      expect(rect.width).toBe(44);
+      expect(rect.height).toBe(44);
+    });
   },
 };
 

@@ -1416,15 +1416,16 @@
      (68a8a69b). Scheduled.tsx documents the row action as "invisible at rest,
      appears on hover/focus"; Codex keeps rows clean with only the unread dot at
      rest. Hidden at rest; revealed on row hover, keyboard focus-within, or when
-     its menu is open. Touch devices (no hover) keep it always visible. */
-  .sched-more { @apply shrink-0 opacity-0 transition-opacity; }
+     its menu is open. Narrow screens and coarse/no-hover pointers keep the
+     44px action visible because they cannot depend on hover discovery. */
+  .sched-more { @apply pointer-events-none shrink-0 opacity-0 transition-opacity; }
   .scheduled-row-wrap:hover .sched-more,
   .scheduled-row-wrap.pseudo-hover .sched-more,
   .pseudo-hover .scheduled-row-wrap .sched-more,
   .scheduled-row-wrap:focus-within .sched-more,
-  .scheduled-row-wrap.menu-open .sched-more { @apply opacity-100; }
-  @media (hover: none) {
-    .sched-more { @apply opacity-100; }
+  .scheduled-row-wrap.menu-open .sched-more { @apply pointer-events-auto opacity-100; }
+  @media (max-width: 680px), (hover: none), (pointer: coarse) {
+    .sched-more { @apply pointer-events-auto opacity-100; }
   }
   /* R41: Codex renders "✓ Mark all as read" as plain muted text, not a button
      pill — strip the base button chrome (border/bg/shadow). */
