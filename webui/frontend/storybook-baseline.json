@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 56,
-    "lines": 19359,
+    "lines": 19388,
     "files": [
       {
         "source": "src/App.tsx",
@@ -55,7 +55,7 @@
       },
       {
         "source": "src/components/CommandPalette.tsx",
-        "lines": 258,
+        "lines": 271,
         "exports": [
           "CommandPalette"
         ],
@@ -252,7 +252,7 @@
       },
       {
         "source": "src/components/Popover.tsx",
-        "lines": 364,
+        "lines": 376,
         "exports": [
           "PopItem",
           "PopSection",
@@ -506,7 +506,7 @@
       },
       {
         "source": "src/components/ToastItem.tsx",
-        "lines": 56,
+        "lines": 60,
         "exports": [
           "ToastItem"
         ],
