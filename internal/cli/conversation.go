@@ -905,12 +905,20 @@ func sessionScheduleStatus(sessionID string, sc *state.Schedule) scheduleStatusR
 	if sc.Paused {
 		status = "paused"
 	}
-	return scheduleStatusReport{
+	report := scheduleStatusReport{
 		Kind: "session", SessionID: sessionID, Status: status,
 		Prompt: sc.Prompt, Schedule: schedule, Cadence: cadence,
 		Interval: sc.Interval, Cron: sc.Cron,
 		Iterations: sc.Wakes, MaxIterations: sc.MaxWakes,
 	}
+	// Same display-only projection the sessions list uses (INC-102): the
+	// durable timer stays the engine truth.
+	if !sc.Paused {
+		if t, ok := scheduleNextWake(sc, time.Now()); ok {
+			report.NextRunAt = t.Format(time.RFC3339)
+		}
+	}
+	return report
 }
 
 func scheduleCmd(args []string, stdout, stderr io.Writer) int {

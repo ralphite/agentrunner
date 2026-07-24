@@ -2310,3 +2310,18 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 | F shared-store page | `http://127.0.0.1:5199/` current-source Vite 经现有 `http://127.0.0.1:8788/` backend 使用全局 daemon 与 `~/.local/share/agentrunner/`；已有 Home/Session/Scheduled/Settings 可达，Scheduled/Session direct reload 与导航交互通过；8809 仅作旧部署非空 spot check，不冒充当前 bundle |
 | G safety / evidence | 不 restart/kill daemon；不 close/delete/cleanup session/workspace/journal；Codex 无同态证据的 surface 继续 `UNTESTED/GAP/INTENTIONAL`；current-source Changes、shared-store mobile、真实 OS reduced-motion、storage 全 key 与 production 8809 deploy/restart 本批 `UNTESTED` |
 | H final gate | `./scripts/check-webui.sh --skip-install && ./scripts/check.sh` 在最新 `db2bdffc` baseline 上全绿：86 files / 832 unit、65 passed + 2 skipped files / 564 Story interaction、18 visual、production build、Storybook build/lint、Codex capture、Go lint/wiring/test/install；fresh visual/interaction/contract reviewer 均 PASS、P0/P1=0 |
+
+## QA-0724 /loop 会话化 + Scheduled 点开进对话(INC-102,UJ-14/24)
+
+**状态**:PASS(2026-07-24,真 Gemini Flash Medium,真浏览器全程,部署
+05a19ad9;证据 `qa/runs/2026-07-24-QA-0724/`,会话
+20260724-195853-session-01f444a6a83d33a8 保留共享 store)。断言只钉 runtime
+红线,不钉模型措辞。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | Home `/loop`(45s,3 轮,editable_mermaid2) | 落**普通对话会话**(kind session),开场消息即 round 1,composer 全程可用 |
+| 2 | 等 2 次 wake | 同一对话续跑;第 2/3 轮**凭记忆**报出上一轮所审文件(context 延续硬证据);零重复;max_wakes 尽自动摘除 + "Schedule detached" chip |
+| 3 | 中途插话提问 | agent 凭记忆一句话列出全部 3 个已审文件 |
+| 4 | Scheduled 页 | 会话以 cadence/next-run 列出(kind session 投影);**行点击直接进对话**;菜单 "Schedule details…" 开 G56 面板;会话内 `/loop` 分支同验(同会话二次 attach) |
+| 5 | 旧 series 行 | 照常渲染(completed/paused/failed),兼容不回归 |

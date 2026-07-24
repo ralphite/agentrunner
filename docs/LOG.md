@@ -7788,3 +7788,43 @@ Story 生命周期可在两步间切换 canvas。四个 nested transition 改为
 menuitem 的 click，同时保留 ArrowDown 打开与每页自动 focus hand-off 断言；两位
 fresh reviewer 独立批准更新后的 `components-input` digest。ComposerParts 67/67
 连续五轮、全量 564/564 Story interaction 与完整 Web UI/repository gate 再次通过。
+
+---
+
+## 2026-07-24 · INC-102 loop 与 scheduled 对话化(决策 #21 修订:driver 收窄为 best-of-N 专用)
+
+**背景**:用户产品要求——composer 的 loop/goal 应像普通消息一样以对话渲染;
+Scheduled 每个 item 点开也应是对话 UI。对码(main dc2c58d2):`/goal` 已会话化
+(前期并发工作);`/loop` 仍 fresh-child series(不是对话、composer 被禁);
+Scheduled 点开三分裂(run 日志/series 页/设置面板,面板无对话入口)。
+
+**裁决(决策 #21 修订,不变量流程,修订与实现同 commit 8ef52b69)**:
+IterationDriver 收窄为 best-of-N/one-shot 专用;**loop 用户默认形态 =
+in-session schedule**(INC-74 底座):standing prompt 每 wake 在同一对话跑
+普通 turn。批式 loop/driver-goal 降 legacy 兼容。CODEX-PARITY #112 ❌→✅。
+
+**落地**:102.1 webui HTTP `action:"attach"`(映射 CLI,argv 单测);102.2
+`/loop` 改道(Home=newSession(prompt 即 round1)+attach(maxWakes=rounds-1),
+会话内=send+attach)、Scheduled 行点击统一 select(sid)、G56 detail 挪行菜单
+"Schedule details…"、timeline 补 schedule_attached/wake(skipped=warn)/paused/
+resumed/cancelled chips(不置 isDriver);102.2b(真机揪出)sessions 列表补
+in-session schedule 投影(kind 保持 session,cancelled 折 nil 自动掉行,
+scheduleNextWake 仅显示用)+ 前端 rows 放行 kind"session"+schedule;附带补
+in-session detail 的 NextRunAt。
+
+**验收**:闸门 A——go cli 全包绿 + vitest 861/861 + build 绿(新增
+TestCLISessionsProjectsInSessionSchedule、schedule chips 测试、row-click 进
+对话测试;G56 六用例改经菜单入口)。闸门 B(QA-0724,真浏览器,05a19ad9)
+PASS 5/5:落普通对话、wake 轮凭记忆报上轮文件(context 延续硬证据)、中途
+插话即答、Scheduled 行点击直进对话+G56 面板保留、旧 series 兼容。韧性加分:
+attach 恰逢无 key daemon,durable 命令在 daemon 修复后自动应用零丢失。
+
+**环境记档(非本增量代码)**:deploy.sh 直启 daemon 继承调用 shell env,本机
+shell 无 GEMINI_API_KEY 时重启出的 daemon 无法 host 唤醒(daemon.log
+`GEMINI_API_KEY not set`);以 SIGTERM+kickstart webui(--env-file)恢复。
+建议 deploy.sh env 透传或交 webui 托管,待立项。
+
+**遗留(小,记档)**:in-session schedule 的 detail 面板 ScheduleControl 仍按
+既有契约为 false(pause 按钮不显——CLI/行菜单可 pause);面板 Model/Reasoning
+对 in-session 形态显 Not recorded/Off(未投影 spec)。均属可见性小项,待
+review 裁级。
