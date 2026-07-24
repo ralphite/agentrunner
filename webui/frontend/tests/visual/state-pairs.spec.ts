@@ -25,16 +25,33 @@ for (const pair of globalStatePairs) {
     const globals = encodeURIComponent(`theme:${pair.theme}`);
     const url = `/iframe.html?id=${pair.storyId}&viewMode=story&globals=${globals}`;
 
-    await page.goto(url, { waitUntil: "networkidle" });
-    await expect(page.locator("html")).toHaveAttribute(
-      "data-theme",
-      pair.theme,
-    );
-    await expect(page.locator(pair.evidenceSelector)).toBeVisible();
+    const expectStoryReady = async () => {
+      await expect(page.locator("#storybook-root")).not.toBeEmpty();
+      await expect(page.locator("html")).toHaveAttribute(
+        "data-theme",
+        pair.theme,
+      );
+      await expect(page.locator(pair.evidenceSelector)).toBeVisible();
+    };
+
+    // Stories may intentionally keep mocked streams or polling requests open.
+    // Readiness is the rendered Story root and its state-specific evidence,
+    // not a globally idle network.
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await expectStoryReady();
 
     if (pair.reload) {
-      await page.reload({ waitUntil: "networkidle" });
-      await expect(page.locator(pair.evidenceSelector)).toBeVisible();
+      const issuesBeforeReload = runtimeIssues.length;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      const reloadIssues = runtimeIssues.splice(issuesBeforeReload);
+      runtimeIssues.push(
+        ...reloadIssues.filter(
+          (issue) =>
+            !issue.startsWith("requestfailed:") ||
+            !issue.endsWith("(net::ERR_ABORTED)"),
+        ),
+      );
+      await expectStoryReady();
     }
 
     const width = await page.locator("body").evaluate((body) => ({

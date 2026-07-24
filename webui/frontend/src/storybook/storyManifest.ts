@@ -568,7 +568,7 @@ export const globalStatePairs = [
     states: ["loading", "reload"],
     theme: "light",
     viewport: { width: 1280, height: 720 },
-    evidenceSelector: '[aria-label="Loading session"]',
+    evidenceSelector: '[aria-label="Loading conversation"]',
     reload: true,
     evidence: "Session loading projection survives a document reload without an empty shell.",
     owner: "webui",

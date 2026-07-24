@@ -479,7 +479,11 @@
   .home-intent-icon { @apply grid h-4 w-4 shrink-0 place-items-center text-dim; }
   .home-intent-icon svg { @apply h-[14px] w-[14px]; }
 
-  .cx { @apply relative w-full; }
+  .cx {
+    @apply relative w-full;
+    container-name: composer;
+    container-type: inline-size;
+  }
   .cx-card {
     @apply relative mx-auto w-full max-w-[720px] overflow-visible rounded-[22px] border border-line bg-panel shadow-xl;
   }
@@ -708,6 +712,19 @@
   @container session-primary (max-width: 500px) {
     .tl-inner { @apply px-[14px]; }
     .cx-session { @apply px-[14px] pb-3; }
+    .cx-session .cx-bar { @apply gap-1 px-2; }
+    .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
+    .cx-session .cx-mode-label { @apply hidden; }
+    .cx-session .cx-model { @apply max-w-[116px] overflow-hidden px-2 text-[11px]; }
+    .cx-session .cx-optimize { @apply hidden; }
+    .cx-session .cx-delivery { @apply gap-[2px]; }
+    .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
+    .cx-session .cx-deliv-label { @apply hidden; }
+  }
+  /* Composer stories and embedded surfaces can be narrower than the viewport
+     without living under `.session-primary`. Compact against the component's
+     own inline size so the send action never escapes the card. */
+  @container composer (max-width: 380px) {
     .cx-session .cx-bar { @apply gap-1 px-2; }
     .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
     .cx-session .cx-mode-label { @apply hidden; }
