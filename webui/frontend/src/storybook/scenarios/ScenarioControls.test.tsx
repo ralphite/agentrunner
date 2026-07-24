@@ -6,6 +6,24 @@ import { ScenarioControls } from "./ScenarioControls";
 import { ScenarioRunner } from "./ScenarioRunner";
 
 describe("ScenarioControls", () => {
+  it("does not dismiss production overlays when transport controls are pressed", () => {
+    const runner = new ScenarioRunner({
+      context: {},
+      steps: [{ id: "inspect", title: "Inspect the canvas", run: vi.fn() }],
+      recreateContext: () => ({}),
+    });
+    const outsideMouseDown = vi.fn();
+    document.addEventListener("mousedown", outsideMouseDown);
+    render(<ScenarioControls runner={runner} />);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Next" }));
+    expect(outsideMouseDown).not.toHaveBeenCalled();
+
+    fireEvent.mouseDown(document.body);
+    expect(outsideMouseDown).toHaveBeenCalledTimes(1);
+    document.removeEventListener("mousedown", outsideMouseDown);
+  });
+
   it("drives Next, Reset, Replay and speed through one runner", async () => {
     const step = vi.fn();
     const runner = new ScenarioRunner({

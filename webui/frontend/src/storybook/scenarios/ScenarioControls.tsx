@@ -39,7 +39,16 @@ export function ScenarioControls<Context>({
   );
 
   return (
-    <section className="scenario-controls" aria-label={label}>
+    <section
+      className="scenario-controls"
+      aria-label={label}
+      // The controls are an out-of-product transport layered over the same
+      // document as the production UI. Do not let their pointer gesture reach
+      // document-level outside-click handlers: a manual Pause/Next must not
+      // close the Popover that the current scenario step is demonstrating.
+      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
       <div className="scenario-controls-actions">
         <Button
           size="sm"
