@@ -94,6 +94,25 @@ describe("ChangesOutcome phases (INC-41 TH-7)", () => {
     await waitFor(() => expect(container.querySelector(".changes-outcome")).toBeNull());
   });
 
+  it("shows a durable nested last-turn snapshot without offering an invalid Undo", async () => {
+    diffMock.mockResolvedValue({
+      ...okDiff(2),
+      available: true,
+      isRepo: false,
+      nested: true,
+    });
+    const onReview = vi.fn();
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={onReview} />);
+
+    await screen.findByText("Edited 2 files");
+    expect(screen.getByText("+4")).toBeTruthy();
+    expect(screen.getByText("-2")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Undo/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(onReview).toHaveBeenCalledWith("turn");
+    expect(diffMock).toHaveBeenCalledTimes(1);
+  });
+
   it("does not strobe back to the skeleton when refreshKey ticks mid-stream", async () => {
     diffMock.mockResolvedValue(okDiff(2));
     const { rerender } = render(<ChangesOutcome sid="s1" refreshKey={0} onReview={() => {}} />);
@@ -245,13 +264,13 @@ describe("ChangesOutcome preview cap (INC-41 TH-8)", () => {
     await screen.findByText("Edited 9 files");
     const rows = () => container.querySelectorAll(".changes-outcome-files > div");
     expect(rows().length).toBe(3);
-    expect(screen.getByText("mod0.ts")).toBeTruthy();
-    expect(screen.queryByText("mod3.ts")).toBeNull();
+    expect(screen.getByText("src/mod0.ts")).toBeTruthy();
+    expect(screen.queryByText("src/mod3.ts")).toBeNull();
     // N = total − 3
     const more = screen.getByRole("button", { name: /Show 6 more files/ });
     fireEvent.click(more);
     expect(rows().length).toBe(9);
-    expect(screen.getByText("mod8.ts")).toBeTruthy();
+    expect(screen.getByText("src/mod8.ts")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Show less/ }));
     expect(rows().length).toBe(3);
   });

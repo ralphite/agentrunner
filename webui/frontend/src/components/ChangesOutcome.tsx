@@ -353,6 +353,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   // "turn" = last-turn 快照有内容(标题 Edited N files);"workspace" =
   // 回退到 working-tree(标题 Changes in workspace,不谎称本 turn 编辑)。
   const [scope, setScope] = useState<"turn" | "workspace">("turn");
+  const [canUndo, setCanUndo] = useState(false);
   const [expanded, setExpanded] = useState(false);
   // Local bump re-fetches the summary after an Undo (or a Retry) without needing
   // the parent to change refreshKey (a reverted card should collapse to nothing).
@@ -369,6 +370,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       setPhase("loading");
       setSummary(null);
       setConflicts([]);
+      setCanUndo(false);
     }
     // QA-0718 用户实机(两张截图,两个方向的错):
     // 1. 无参 diff = working-tree 全量——新会话接手带历史未提交改动的
@@ -386,10 +388,18 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       .then(async (data) => {
         if (!alive) return;
         setConflicts(data.conflicts || []);
-        const turnSummary = !data.known || !data.isRepo || data.nested ? null : dropGeneratedFiles(summarizeChanges(data));
+        // A durable last-turn snapshot is already scoped to this session's
+        // captured files, even when the workspace lives inside a parent repo.
+        // The working-tree endpoint must reject that nested shape to avoid
+        // leaking the parent's diff, but applying that guard here hid a valid
+        // turn snapshot from the timeline.
+        const turnSummary = !data.known || data.available === false
+          ? null
+          : dropGeneratedFiles(summarizeChanges(data));
         if (turnSummary?.files.length) {
           setScope("turn");
           setSummary(turnSummary);
+          setCanUndo(data.isRepo && !data.nested);
           setPhase("ready");
           return;
         }
@@ -399,6 +409,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : dropGeneratedFiles(summarizeChanges(wt));
         setScope("workspace");
         setSummary(wtSummary?.files.length ? wtSummary : null);
+        setCanUndo(!!wtSummary?.files.length);
         setPhase("ready");
       })
       .catch(() => {
@@ -517,23 +528,25 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             </span>
           </div>
           <div className="changes-outcome-actions ml-auto flex shrink-0 items-center gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              tone="neutral"
-              type="button"
-              className="shrink-0"
-              onClick={undo}
-              title="Discard all these changes (git checkout . + remove new files)"
-            >
-              Undo <ArrowCounterClockwise size={13} />
-            </Button>
+            {canUndo && (
+              <Button
+                size="sm"
+                variant="ghost"
+                tone="neutral"
+                type="button"
+                className="shrink-0"
+                onClick={undo}
+                title="Discard all these changes (git checkout . + remove new files)"
+              >
+                Undo <ArrowCounterClockwise size={13} />
+              </Button>
+            )}
             <Button size="md" variant="outline" type="button" className="shrink-0" onClick={() => onReview(scope)}>Review</Button>
           </div>
         </header>
         <div className="changes-outcome-files -mx-3 -mb-3 mt-3 grid gap-0 overflow-hidden border-t border-line-2">
           {shown.map((file) => {
-            const { dir, base } = splitPath(file.path);
+            const { base } = splitPath(file.path);
             // INC-41 TH-5 — the file row is NAVIGATION, not a label. Codex's
             // change card sends you to the file's diff when you click its name;
             // ours rendered the same three columns and then swallowed the click,
@@ -562,9 +575,8 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                   }
                 }}
               >
-                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>
-                  {dir && <span style={{ color: "var(--dim)" }}>{dir}</span>}
-                  <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-ink" title={file.path}>
+                  {file.path}
                 </span>
                 {file.countsKnown && (
                   <small className="flex shrink-0 items-center gap-[7px] text-[13px]">
