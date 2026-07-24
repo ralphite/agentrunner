@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 60,
-    "lines": 19221,
+    "lines": 19209,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -449,7 +449,7 @@
       },
       {
         "source": "src/features/composer/ComposerController.tsx",
-        "lines": 1646,
+        "lines": 1634,
         "exports": [
           "Composer"
         ],
@@ -623,7 +623,7 @@
   },
   "tests": {
     "files": 82,
-    "declarations": 792
+    "declarations": 793
   },
   "storage": [
     {
