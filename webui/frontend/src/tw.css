@@ -739,6 +739,14 @@
      `.cmdk-kbd` loses the border + font-mono; the real shortcut sheet `.kbd/.rs-kbd`
      keep the keycap look (they document actual pressable keys). */
   .cmdk-kbd { @apply rounded-[5px] bg-panel-2 px-[6px] py-[2px] text-[12px] text-dim; }
+  /* CMDK-KBD-SELVIS (R94): on the selected/hover row the row fill is bg-panel-2 —
+     the very same token as the ⌘N badge above — so the badge dissolved into the
+     cursor row and read as plain text (Codex golden codex-crop-command-palette.jpg
+     keeps its ⌘1 pill one shade darker than the cursor row, always legible). Step
+     the badge one level darker than its row (panel-2 -> line) only while the row is
+     selected/hovered; white/default rows keep the R78 soft-grey pill unchanged. */
+  .cmdk-item.sel .cmdk-kbd,
+  .cmdk-item:hover .cmdk-kbd { @apply bg-line; }
   .kbd, .rs-kbd { @apply rounded-[5px] border border-line bg-panel-2 px-[5px] py-[1px] font-mono text-[11px] text-dim; }
   .shortcuts { @apply max-w-[720px]; }
   .sc-head { @apply flex items-center gap-3 border-b border-line p-3; }
