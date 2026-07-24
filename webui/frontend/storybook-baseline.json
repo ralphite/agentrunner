@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 61,
-    "lines": 19510,
+    "lines": 19752,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -168,7 +168,7 @@
       },
       {
         "source": "src/components/Menu.tsx",
-        "lines": 55,
+        "lines": 63,
         "exports": [
           "Menu",
           "MenuItem",
@@ -215,7 +215,7 @@
       },
       {
         "source": "src/components/Popover.tsx",
-        "lines": 391,
+        "lines": 625,
         "exports": [
           "PopItem",
           "PopSection",
@@ -631,7 +631,7 @@
   },
   "tests": {
     "files": 83,
-    "declarations": 797
+    "declarations": 799
   },
   "storage": [
     {

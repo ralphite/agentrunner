@@ -1,23 +1,18 @@
-import { useRef } from "react";
 import { Popover } from "./Popover";
 
 // Menu is a small click-to-open dropdown used to tuck the low-level /
 // developer actions (journal, inspect, fork, resume…) out of the primary UX,
 // the way Codex keeps a clean session surface and hides plumbing.
 export function Menu({ label, children, ariaLabel, triggerClassName = "" }: { label: React.ReactNode; children: React.ReactNode; ariaLabel?: string; triggerClassName?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
   return (
-    <div className="menu" ref={ref}>
+    <div className="menu">
       <Popover
         align="right"
         panelClass="menu-pop"
         trigger={(open, toggle) => (
           <button
             className={`menu-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
-            onClick={() => {
-              toggle();
-              if (!open) requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus());
-            }}
+            onClick={toggle}
             aria-label={ariaLabel}
             aria-haspopup="menu"
             aria-expanded={open}
@@ -37,14 +32,27 @@ export function MenuItem({
   children,
   danger,
   title,
+  disabled,
 }: {
   onClick: () => void;
   children: React.ReactNode;
   danger?: boolean;
   title?: string;
+  disabled?: boolean;
 }) {
   return (
-    <button className={"menu-item" + (danger ? " danger" : "")} role="menuitem" onClick={onClick} title={title}>
+    <button
+      className={
+        "menu-item" +
+        (danger ? " danger" : "") +
+        (disabled ? " opacity-45" : "")
+      }
+      role="menuitem"
+      tabIndex={-1}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+    >
       {children}
     </button>
   );

@@ -46,21 +46,82 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 
 export const KeyboardNavigation: Story = {
+  parameters: {
+    layout: "fullscreen",
+  },
+  render: () => (
+    <div
+      style={{
+        alignItems: "center",
+        boxSizing: "border-box",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 12,
+        justifyContent: "center",
+        minHeight: "100vh",
+        overflow: "hidden",
+        padding: 16,
+        width: "100%",
+      }}
+    >
+      <button type="button">Before actions</button>
+      <Menu label={<DotsThree size={18} />} ariaLabel="Session actions">
+        <MenuLabel>Component migration</MenuLabel>
+        <MenuItem onClick={onRename}>
+          <PencilSimple size={16} /> Rename…
+        </MenuItem>
+        <MenuItem onClick={() => {}} disabled>
+          Unavailable action
+        </MenuItem>
+        <MenuItem onClick={onDelete} danger>
+          <Trash size={16} /> Delete
+        </MenuItem>
+      </Menu>
+      <button type="button">After actions</button>
+    </div>
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const before = canvas.getByRole("button", { name: "Before actions" });
     const trigger = canvas.getByRole("button", { name: "Session actions" });
+    const after = canvas.getByRole("button", { name: "After actions" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    const rename = canvas.getByRole("menuitem", { name: "Rename…" });
+    const unavailable = canvas.getByRole("menuitem", {
+      name: "Unavailable action",
+    });
+    const remove = canvas.getByRole("menuitem", { name: "Delete" });
+    await waitFor(() =>
+      expect(rename).toHaveFocus(),
+    );
+    await expect(
+      canvas.getAllByRole("menuitem").filter((item) => item.tabIndex === 0),
+    ).toEqual([rename]);
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(remove).toHaveFocus();
+    await expect(unavailable).not.toHaveFocus();
+    await humanPause();
+    await userEvent.keyboard("{Escape}");
+    await expect(trigger).toHaveFocus();
+
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
       expect(canvas.getByRole("menuitem", { name: "Rename…" })).toHaveFocus(),
     );
-    await userEvent.keyboard("{ArrowDown}");
-    await expect(
-      canvas.getByRole("menuitem", { name: "Delete" }),
-    ).toHaveFocus();
-    await humanPause();
-    await userEvent.keyboard("{Escape}");
-    await expect(trigger).toHaveFocus();
+    await userEvent.keyboard("{End}{Tab}");
+    await expect(canvas.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(after).toHaveFocus();
+
+    trigger.focus();
+    await userEvent.keyboard(" ");
+    await waitFor(() =>
+      expect(canvas.getByRole("menuitem", { name: "Rename…" })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+    await expect(canvas.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(before).toHaveFocus();
   },
 };
 

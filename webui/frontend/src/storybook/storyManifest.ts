@@ -687,7 +687,7 @@ const REVIEWED_FAMILY_DIGESTS: Readonly<Record<string, string>> = {
   "components-navigation":
     "78fb1a2a52c602afb68894cca21bc324af22f69d439890863be8fe06e8585c86",
   "components-overlays":
-    "f0f5d0dc1655d868e5f28eaa128015bfe779881b0e1896d25fed95e99b4baeba",
+    "d2823a144399138f22255570df379dde8ddc6f046ed59f96e4cc47011b8e03ff",
   "components-runs":
     "fd27e026779c6209f19f882b735b423faf0a28d0c0b41e3d9bd60f771d5e285e",
   "components-scheduled":
@@ -843,9 +843,9 @@ export const storyReviewFamilies = [
     "Components/Overlays",
     "GAP",
     "UNTESTED",
-    "Model Picker remains within a 389x160 viewport, and Project Picker now keeps its persistent actions reachable in short mobile viewports with only the result list scrolling. The family remains GAP: pointer-open focus, roving menu focus, Tab dismissal, and dialog-popover containment do not yet satisfy the declared overlay contract.",
+    "Model and Project Picker containment remain fixed. Anchored Popover and Menu now share one focus contract: pointer, Enter, Space, and ArrowDown focus the first available item; enabled-only roving skips hidden and disabled content; Tab exits to the trigger-adjacent control; and Escape or selection restores the trigger. The family remains GAP because cursor ContextMenu Tab/disabled parity, dialog-popover edge containment, and 44px generic mobile overlay comfort are not yet complete.",
     "Only selected overlay journeys have same-state Codex evidence; family parity remains UNTESTED.",
-    "2026-07-24 fresh overlay comparison passed the Model Picker hard case; Project Picker passed 390x500 and 390x844 containment/focus review; remaining gaps are the shared focus-model contracts.",
+    "Fresh review of 04-after-menu-disabled-tab-390x500.png, 05-after-popover-focus-390x500.png, and 06-after-popover-focus-1280x800.png plus live Storybook: exactly one enabled menuitem owns tabIndex=0; hidden, inert, CSS-hidden, closed-details, and disabled rows are excluded; bidirectional Tab, wrap, dynamic item removal/loading, Escape, selection return, and dialog ArrowDown opening pass; document overflow and current console errors are zero on the dedicated 390x500 and 1280x800 surfaces. Code and dialog-regression reviewers APPROVE with P0/P1/P2=0; visual review APPROVES with one non-blocking 44px touch-comfort P2 retained as GAP.",
     "2026-07-24",
   ),
   reviewedFamily(

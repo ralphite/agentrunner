@@ -64,8 +64,27 @@ export function Popover({
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const autoFocusedRef = useRef(false);
-  const keyboardOpenRef = useRef(false);
+  const rovingItemRef = useRef<HTMLElement | null>(null);
   const placed = place !== null;
+  const triggerElement = () =>
+    wrapRef.current?.querySelector<HTMLElement>(
+      ":scope > button, :scope > * > button",
+    ) ?? null;
+  const allMenuItems = () =>
+    [
+      ...(panelRef.current?.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]',
+      ) ?? []),
+    ];
+  const enabledMenuItems = () =>
+    allMenuItems().filter(isAvailableMenuItem);
+  const focusMenuItem = (target: HTMLElement) => {
+    allMenuItems().forEach((item) => {
+      item.tabIndex = item === target ? 0 : -1;
+    });
+    rovingItemRef.current = target;
+    target.focus();
+  };
   // An item selection is a completed visit to this temporary surface. Return
   // keyboard focus to the trigger after React removes the chosen row; outside
   // clicks and anchor-loss keep their own target.
@@ -73,11 +92,7 @@ export function Popover({
     setPlace(null);
     setOpen(false);
     const focusTrigger = () => {
-      wrapRef.current
-        ?.querySelector<HTMLElement>(
-          ":scope > button, :scope > * > button",
-        )
-        ?.focus();
+      triggerElement()?.focus();
     };
     // Selection handlers run after pointer focus has already settled. Restore
     // synchronously so keyboard continuation is never stranded on <body>.
@@ -129,7 +144,7 @@ export function Popover({
   useLayoutEffect(() => {
     if (!open) {
       autoFocusedRef.current = false;
-      keyboardOpenRef.current = false;
+      rovingItemRef.current = null;
       return;
     }
     warnIfClipped(wrapRef.current);
@@ -143,27 +158,94 @@ export function Popover({
     // steal focus again during scroll/resize re-measures.
     if (!open || !placed || autoFocusedRef.current) return;
     const target =
-      wrapRef.current?.querySelector<HTMLElement>(
-        "[data-popover-autofocus]",
-      ) ||
-      (keyboardOpenRef.current
-        ? wrapRef.current?.querySelector<HTMLElement>(
-            '[role="menuitem"]:not([disabled])',
-          )
-        : null);
+      panelRole === "menu"
+        ? enabledMenuItems()[0]
+        : panelRef.current?.querySelector<HTMLElement>(
+            "[data-popover-autofocus]",
+          );
     if (!target) return;
-    target.focus();
+    if (panelRole === "menu") focusMenuItem(target);
+    else target.focus();
     if (document.activeElement === target) autoFocusedRef.current = true;
     // Testing-library completes its synthetic pointer sequence after React
     // layout effects and can restore focus to the trigger. Reassert once after
     // the event callback; the connected check makes this harmless if the popover
     // closed in the meantime.
     window.setTimeout(() => {
-      if (!target.isConnected || document.activeElement === target) return;
-      target.focus();
+      if (
+        !target.isConnected ||
+        document.activeElement === target ||
+        panelRef.current?.contains(document.activeElement)
+      ) {
+        return;
+      }
+      if (panelRole === "menu") focusMenuItem(target);
+      else target.focus();
       if (document.activeElement === target) autoFocusedRef.current = true;
     }, 50);
-  }, [open, placed]);
+  }, [open, panelRole, placed]);
+
+  // Menu contents can change while the temporary surface stays open (loading,
+  // filtering, permissions). Keep exactly one available item in the roving tab
+  // order and recover focus if the current item disappears or becomes
+  // unavailable. Attribute observation deliberately excludes tabindex so our
+  // own normalization cannot create an observer loop.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!open || !placed || panelRole !== "menu" || !panel) return;
+
+    const syncRovingItem = () => {
+      const items = enabledMenuItems();
+      const active =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      const previous = rovingItemRef.current;
+      const target =
+        (active && items.includes(active) ? active : null) ||
+        (previous && items.includes(previous) ? previous : null) ||
+        items.find((item) => item.tabIndex === 0) ||
+        items[0] ||
+        null;
+
+      allMenuItems().forEach((item) => {
+        item.tabIndex = item === target ? 0 : -1;
+      });
+      rovingItemRef.current = target;
+      if (!target) {
+        autoFocusedRef.current = false;
+        return;
+      }
+
+      const previousBecameUnavailable =
+        !!previous &&
+        (!previous.isConnected || !items.includes(previous));
+      if (!autoFocusedRef.current || previousBecameUnavailable) {
+        target.focus();
+        if (document.activeElement === target) {
+          autoFocusedRef.current = true;
+        }
+      }
+    };
+
+    syncRovingItem();
+    const observer = new MutationObserver(syncRovingItem);
+    observer.observe(panel, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: [
+        "aria-disabled",
+        "aria-hidden",
+        "class",
+        "disabled",
+        "hidden",
+        "inert",
+        "style",
+      ],
+    });
+    return () => observer.disconnect();
+  }, [open, panelRole, placed]);
 
   // A viewport-pinned panel does not ride its scroller, so re-measure whenever
   // anything moves (capture phase: the scroll may be an inner pane, not the
@@ -201,7 +283,6 @@ export function Popover({
       return;
     }
     onOpen?.();
-    keyboardOpenRef.current = false;
     setPlace(null);
     setOpen(true);
   };
@@ -218,11 +299,37 @@ export function Popover({
       if (e.key === "Escape") {
         setPlace(null);
         setOpen(false);
-        wrapRef.current?.querySelector<HTMLElement>(":scope > button, :scope > * > button")?.focus();
+        triggerElement()?.focus();
+        return;
+      }
+      if (panelRole !== "menu") return;
+      if (e.key === "Tab") {
+        const trigger = triggerElement();
+        if (!trigger) return;
+        const panel = panelRef.current;
+        const candidates = getTabbableElements().filter(
+          (element) => !panel?.contains(element),
+        );
+        const triggerIndex = candidates.indexOf(trigger);
+        const adjacent =
+          triggerIndex < 0
+            ? null
+            : candidates[triggerIndex + (e.shiftKey ? -1 : 1)] ?? null;
+        const target = adjacent ?? trigger;
+        e.preventDefault();
+        setPlace(null);
+        setOpen(false);
+        // Move from the temporary menu as though focus had remained on its
+        // trigger in the page's tab order. The target is outside the panel and
+        // survives its unmount.
+        target?.focus();
+        window.setTimeout(() => {
+          if (target?.isConnected) target.focus();
+        }, 0);
         return;
       }
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-      const items = [...(wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') || [])];
+      const items = enabledMenuItems();
       if (!items.length) return;
       const active = document.activeElement as HTMLElement | null;
       const index = items.indexOf(active as HTMLElement);
@@ -232,7 +339,7 @@ export function Popover({
       else if (e.key === "ArrowUp") next = index <= 0 ? items.length - 1 : index - 1;
       else next = index < 0 || index === items.length - 1 ? 0 : index + 1;
       e.preventDefault();
-      items[next].focus();
+      focusMenuItem(items[next]);
     };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -240,15 +347,16 @@ export function Popover({
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, panelRole]);
 
   const onKeyDownCapture = (event: React.KeyboardEvent) => {
+    // ArrowDown is the established keyboard opener for both anchored menus and
+    // picker dialogs. Once open, only menu panels adopt arrow-key roving.
     if (open || event.key !== "ArrowDown") return;
     const target = event.target as HTMLElement;
     if (!target.closest("button")) return;
     event.preventDefault();
     onOpen?.();
-    keyboardOpenRef.current = true;
     setPlace(null);
     setOpen(true);
   };
@@ -263,6 +371,18 @@ export function Popover({
             className={`pop-panel pop-${align} pop-${place?.drop ?? "up"} ${panelClass}`}
             role={panelRole}
             aria-label={ariaLabel}
+            onFocusCapture={(event) => {
+              if (panelRole !== "menu") return;
+              const item = (event.target as HTMLElement).closest<HTMLElement>(
+                '[role="menuitem"]',
+              );
+              if (item && enabledMenuItems().includes(item)) {
+                allMenuItems().forEach((candidate) => {
+                  candidate.tabIndex = candidate === item ? 0 : -1;
+                });
+                rovingItemRef.current = item;
+              }
+            }}
             style={{
               // Every offset is stated, none inherited: the stylesheet's
               // `.pop-up { bottom: calc(100% + 8px) }` / `.pop-right { right: 0 }`
@@ -298,6 +418,119 @@ const GAP = 8; // between the anchor and the panel
 const MIN_PANEL_HEIGHT = 48;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+const TABBABLE_SELECTOR = [
+  'a[href]',
+  'area[href]',
+  'button',
+  'input:not([type="hidden"])',
+  'select',
+  'textarea',
+  'iframe',
+  'object',
+  'embed',
+  'audio[controls]',
+  'video[controls]',
+  'summary',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[tabindex]',
+].join(",");
+
+function getTabbableElements() {
+  const candidates = [
+    ...document.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR),
+  ].filter(
+    (element) =>
+      element.tabIndex >= 0 &&
+      !element.matches(":disabled") &&
+      !hasUnavailableAncestor(element),
+  );
+  const radios = candidates.filter(
+    (element): element is HTMLInputElement =>
+      element instanceof HTMLInputElement &&
+      element.type === "radio" &&
+      element.name !== "",
+  );
+  const radioStops = new Set<HTMLElement>();
+  for (const radio of radios) {
+    const group = radios.filter(
+      (candidate) =>
+        candidate.name === radio.name && candidate.form === radio.form,
+    );
+    radioStops.add(group.find((candidate) => candidate.checked) ?? group[0]);
+  }
+
+  return candidates
+    .filter(
+      (element) =>
+        !(element instanceof HTMLInputElement) ||
+        element.type !== "radio" ||
+        element.name === "" ||
+        radioStops.has(element),
+    )
+    .map((element, domIndex) => ({ element, domIndex }))
+    .sort((a, b) => {
+      const aPositive = a.element.tabIndex > 0;
+      const bPositive = b.element.tabIndex > 0;
+      if (aPositive && bPositive) {
+        return a.element.tabIndex - b.element.tabIndex || a.domIndex - b.domIndex;
+      }
+      if (aPositive) return -1;
+      if (bPositive) return 1;
+      return a.domIndex - b.domIndex;
+    })
+    .map(({ element }) => element);
+}
+
+function isAvailableMenuItem(element: HTMLElement) {
+  return (
+    !element.matches(":disabled") &&
+    element.getAttribute("aria-disabled") !== "true" &&
+    !hasUnavailableAncestor(element, true)
+  );
+}
+
+function hasUnavailableAncestor(
+  element: HTMLElement,
+  includeAriaDisabled = false,
+) {
+  for (
+    let current: HTMLElement | null = element;
+    current;
+    current = current.parentElement
+  ) {
+    if (
+      current instanceof HTMLDetailsElement &&
+      !current.open &&
+      element !== current
+    ) {
+      const summary = [...current.children].find(
+        (child): child is HTMLElement =>
+          child instanceof HTMLElement && child.tagName === "SUMMARY",
+      );
+      if (!summary?.contains(element)) return true;
+    }
+    if (
+      current.hidden ||
+      current.hasAttribute("inert") ||
+      current.getAttribute("aria-hidden") === "true" ||
+      (includeAriaDisabled &&
+        current.getAttribute("aria-disabled") === "true")
+    ) {
+      return true;
+    }
+    const style = getComputedStyle(current);
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.visibility === "collapse" ||
+      style.contentVisibility === "hidden"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // The one thing that can still clip a fixed panel: an ancestor that makes itself
 // the containing block for fixed descendants. Nothing in the app does today
@@ -378,6 +611,7 @@ export function PopItem({
       onClick={onClick}
       disabled={disabled}
       role={inMenu ? "menuitem" : undefined}
+      tabIndex={inMenu ? -1 : undefined}
       aria-current={active ? "true" : undefined}
     >
       {icon !== undefined && <span className="pop-ico">{icon}</span>}

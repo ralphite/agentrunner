@@ -262,16 +262,133 @@ describe("Popover plumbing survives the reposition", () => {
     expect(panel()).toBeNull();
   });
 
-  it("still walks the menu with the arrow keys", () => {
+  it("still walks the menu with the arrow keys without an autofocus retry stealing focus", async () => {
     renderInScrollingCard({ left: 1196, right: 1420, top: 285, bottom: 313 });
     openMenu();
 
-    fireEvent.keyDown(document, { key: "ArrowDown" });
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Commit" }));
     fireEvent.keyDown(document, { key: "ArrowDown" });
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Commit & push" }));
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 60));
+    });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Commit & push" }));
     fireEvent.keyDown(document, { key: "End" });
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Push" }));
+  });
+
+  it("owns the menu focus order and exits to the trigger's adjacent tabbables", () => {
+    render(
+      <>
+        <button>Before actions</button>
+        <Popover
+          trigger={(_open, toggle) => (
+            <button onClick={toggle}>Actions</button>
+          )}
+        >
+          {() => (
+            <>
+              <div hidden>
+                <PopItem title="Hidden" onClick={() => {}} />
+              </div>
+              <PopItem title="First" onClick={() => {}} />
+              <PopItem title="Unavailable" disabled />
+              <PopItem title="Last" onClick={() => {}} />
+            </>
+          )}
+        </Popover>
+        <button tabIndex={-1}>Programmatic only</button>
+        <details>
+          <button>Closed details action</button>
+        </details>
+        <button>After actions</button>
+      </>,
+    );
+    measure({ left: 1196, right: 1420, top: 285, bottom: 313 });
+
+    const trigger = screen.getByRole("button", { name: "Actions" });
+    fireEvent.click(trigger);
+    const first = screen.getByRole("menuitem", { name: "First" });
+    const unavailable = screen.getByRole("menuitem", { name: "Unavailable" });
+    const last = screen.getByRole("menuitem", { name: "Last" });
+    const hidden = document.querySelectorAll<HTMLElement>(
+      '[role="menuitem"]',
+    )[0];
+    expect(document.activeElement).toBe(first);
+    expect(hidden.textContent).toContain("Hidden");
+    expect(hidden.tabIndex).toBe(-1);
+    expect(first.tabIndex).toBe(0);
+    expect(unavailable.tabIndex).toBe(-1);
+    expect(last.tabIndex).toBe(-1);
+
+    fireEvent.keyDown(document, { key: "End" });
+    expect(document.activeElement).toBe(last);
+    expect(last.tabIndex).toBe(0);
+    expect(first.tabIndex).toBe(-1);
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(panel()).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "After actions" }),
+    );
+
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(panel()).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Before actions" }),
+    );
+  });
+
+  it("recovers the roving item when dynamic menu content changes", async () => {
+    function DynamicMenu({ items }: { items: string[] }) {
+      return (
+        <Popover
+          trigger={(_open, toggle) => (
+            <button onClick={toggle}>Dynamic actions</button>
+          )}
+        >
+          {() => (
+            <>
+              {items.map((label) => (
+                <PopItem key={label} title={label} onClick={() => {}} />
+              ))}
+            </>
+          )}
+        </Popover>
+      );
+    }
+
+    const { rerender } = render(
+      <DynamicMenu items={["First dynamic", "Last dynamic"]} />,
+    );
+    measure({ left: 1196, right: 1420, top: 285, bottom: 313 });
+    fireEvent.click(screen.getByRole("button", { name: "Dynamic actions" }));
+    const firstDynamic = screen.getByRole("menuitem", {
+      name: "First dynamic",
+    });
+    const lastDynamic = screen.getByRole("menuitem", {
+      name: "Last dynamic",
+    });
+    expect(document.activeElement).toBe(firstDynamic);
+    lastDynamic.focus();
+    expect(document.activeElement).toBe(lastDynamic);
+
+    await act(async () => {
+      rerender(<DynamicMenu items={["First dynamic"]} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(document.activeElement).toBe(firstDynamic);
+
+    await act(async () => {
+      rerender(<DynamicMenu items={[]} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      rerender(<DynamicMenu items={["Loaded dynamic"]} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    const loaded = screen.getByRole("menuitem", { name: "Loaded dynamic" });
+    expect(document.activeElement).toBe(loaded);
+    expect(loaded.tabIndex).toBe(0);
   });
 
   it("uses dialog semantics for form popovers without leaking menuitem roles", () => {

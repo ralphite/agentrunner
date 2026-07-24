@@ -60,9 +60,13 @@ const meta = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Appearance" }));
     await expect(canvas.getByRole("menu")).toBeVisible();
-    await expect(
-      canvas.getByRole("menuitem", { name: /System/ }),
-    ).toBeVisible();
+    const system = canvas.getByRole("menuitem", { name: /System/ });
+    await waitFor(() => expect(system).toHaveFocus());
+    const items = canvas.getAllByRole("menuitem");
+    await expect(items.filter((item) => item.tabIndex === 0)).toEqual([system]);
+    for (const item of items.slice(1)) {
+      await expect(item).toHaveAttribute("tabindex", "-1");
+    }
   },
 } satisfies Meta<typeof Popover>;
 
@@ -72,19 +76,76 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 
 export const KeyboardNavigation: Story = {
+  parameters: {
+    layout: "fullscreen",
+    reviewSurface: "full-page",
+  },
+  render: () => (
+    <div
+      style={{
+        alignItems: "center",
+        boxSizing: "border-box",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 12,
+        justifyContent: "center",
+        minHeight: "100vh",
+        overflow: "hidden",
+        padding: 16,
+        width: "100%",
+      }}
+    >
+      <button type="button">Before appearance</button>
+      <Popover
+        trigger={(open, toggle) => (
+          <button onClick={toggle} aria-label="Appearance" aria-expanded={open}>
+            <GearSix size={17} />
+          </button>
+        )}
+      >
+        {(close) => (
+          <PopSection label="Theme">
+            <PopItem title="System" active onClick={close} />
+            <PopItem title="Unavailable theme" disabled />
+            <PopItem title="Dark" onClick={close} />
+          </PopSection>
+        )}
+      </Popover>
+      <button type="button">After appearance</button>
+    </div>
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const before = canvas.getByRole("button", { name: "Before appearance" });
     const trigger = canvas.getByRole("button", { name: "Appearance" });
+    const after = canvas.getByRole("button", { name: "After appearance" });
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
     await waitFor(() =>
-      expect(canvas.getByRole("menuitem", { name: /System/ })).toHaveFocus(),
+      expect(canvas.getByRole("menuitem", { name: "System" })).toHaveFocus(),
     );
     await userEvent.keyboard("{End}");
     await expect(canvas.getByRole("menuitem", { name: "Dark" })).toHaveFocus();
     await humanPause();
     await userEvent.keyboard("{Escape}");
     await expect(trigger).toHaveFocus();
+
+    await userEvent.click(trigger);
+    await waitFor(() =>
+      expect(canvas.getByRole("menuitem", { name: "System" })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Tab}");
+    await expect(canvas.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(after).toHaveFocus();
+
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(canvas.getByRole("menuitem", { name: "System" })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+    await expect(canvas.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(before).toHaveFocus();
   },
 };
 
@@ -96,9 +157,15 @@ export const KeyboardWrapSkipAndSelectionReturn: Story = {
     await userEvent.keyboard("{ArrowDown}");
     const system = canvas.getByRole("menuitem", { name: /System/ });
     const dark = canvas.getByRole("menuitem", { name: "Dark" });
+    const unavailable = canvas.getByRole("menuitem", {
+      name: "Unavailable theme",
+    });
     await waitFor(() => expect(system).toHaveFocus());
     await userEvent.keyboard("{ArrowUp}");
     await expect(dark).toHaveFocus();
+    await expect(unavailable).not.toHaveFocus();
+    await expect(dark).toHaveAttribute("tabindex", "0");
+    await expect(system).toHaveAttribute("tabindex", "-1");
     await userEvent.keyboard("{Home}");
     await expect(system).toHaveFocus();
     await humanPause();
@@ -137,6 +204,12 @@ export const DialogAutofocus: Story = {
         canvas.getByRole("textbox", { name: "Choice query" }),
       ).toHaveFocus(),
     );
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(
+      canvas.getByRole("textbox", { name: "Choice query" }),
+    ).toHaveFocus();
+    await userEvent.keyboard("{Tab}");
+    await expect(canvas.getByRole("dialog", { name: "Search choices" })).toBeVisible();
   },
 };
 
