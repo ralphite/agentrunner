@@ -310,7 +310,11 @@ export function useScheduledController(): ScheduledController {
     }
 
     for (const session of sessions) {
-      if (session.kind !== "driver" || !hasRhythm(session)) continue;
+      // INC-102: schedule-attached CONVERSATIONS (kind "session" + rhythm)
+      // list alongside driver series — a /loop now lives in an ordinary
+      // session, and the Scheduled page is how the user finds it again.
+      if (!hasRhythm(session)) continue;
+      if (session.kind !== "driver" && !session.schedule) continue;
       const date = sessionDate(session.id);
       output.push(
         row(

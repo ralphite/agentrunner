@@ -14,6 +14,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
@@ -547,6 +548,26 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						}
 					}
 				}
+				// An in-session schedule (INC-74; the /loop form since INC-102)
+				// projects its rhythm onto the row WITHOUT flipping kind: the
+				// session IS a conversation — the Scheduled page keys off these
+				// fields while the session page stays an ordinary thread. A
+				// cancelled schedule folds to nil, so finished loops drop off
+				// the Scheduled page by construction.
+				if s.Series == nil && s.Schedule != nil {
+					sc := s.Schedule
+					r.Schedule, r.Cadence = driver.ScheduleInterval, "Every "+sc.Interval
+					if sc.Cron != "" {
+						r.Schedule, r.Cadence = driver.ScheduleCron, "Cron "+sc.Cron
+					}
+					r.ScheduleDetail = true
+					r.ScheduleControl = true
+					if !sc.Paused {
+						if t, ok := scheduleNextWake(sc, now); ok {
+							r.NextRunAt = t.Format(time.RFC3339)
+						}
+					}
+				}
 				if attention := sessionHumanAttention(filepath.Join(root, e.Name()), events, s, map[string]bool{e.Name(): true}); attention.Approvals > 0 || attention.Answers > 0 {
 					r.Attention = &attention
 				}
@@ -583,4 +604,41 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%-45s %-18s %d\n", r.ID, status, r.Turns)
 	}
 	return ExitOK
+}
+
+// scheduleNextWake computes the display-only next tick of an in-session
+// schedule (INC-102 Scheduled-page projection). Interval cadence advances from
+// the last tick (attach Base before any wake) to the first future slot; cron
+// takes the next match after max(lastTick, now). Purely informational — the
+// durable timer remains the engine's truth.
+func scheduleNextWake(sc *state.Schedule, now time.Time) (time.Time, bool) {
+	base := sc.LastTick
+	if base.IsZero() {
+		base = now
+	}
+	if sc.Interval != "" {
+		d, err := time.ParseDuration(sc.Interval)
+		if err != nil || d <= 0 {
+			return time.Time{}, false
+		}
+		next := base.Add(d)
+		for !next.After(now) {
+			next = next.Add(d)
+		}
+		return next, true
+	}
+	if sc.Cron != "" {
+		sched, err := cron.Parse(sc.Cron)
+		if err != nil {
+			return time.Time{}, false
+		}
+		from := base
+		if now.After(from) {
+			from = now
+		}
+		if next, ok := sched.Next(from); ok {
+			return next, true
+		}
+	}
+	return time.Time{}, false
 }

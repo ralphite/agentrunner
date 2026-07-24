@@ -111,6 +111,13 @@ describe("typed Scheduled detail journey (G56)", () => {
     expect(useStore.getState().unread).toEqual([]);
   });
 
+  it("lists a schedule-attached conversation (kind session) and its click opens the thread (INC-102)", () => {
+    mount({ ...canonical, kind: "session" });
+    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    expect(useStore.getState().currentSid).toBe(sid);
+    expect(useStore.getState().scheduledDetailSid).toBeNull();
+  });
+
   it("opens the safe detail route, marks the row read, and shows the product projection", async () => {
     const { container } = mount();
     openDetail();
