@@ -4,6 +4,7 @@ import {
   ArrowUUpLeft,
   ArrowUp,
   CaretDown,
+  CaretRight,
   ChartBar,
   Code,
   Cpu,
@@ -943,7 +944,7 @@ export function ModelPicker({
   return (
     <Popover
       align="right"
-      panelClass="cx-pop-codex"
+      panelClass="cx-pop-codex cx-model-popover"
       onOpen={onOpen}
       trigger={(open, toggle) => (
         <button
@@ -964,9 +965,8 @@ export function ModelPicker({
     >
       {(close) => (
         <div
-          className="cx-menu wide cx-model-menu"
+          className="cx-menu cx-model-menu"
           ref={pageRef}
-          style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
           onClick={(event) => event.preventDefault()}
         >
           {page === "root" ? (
@@ -977,7 +977,11 @@ export function ModelPicker({
                   right={
                     <span className="inline-flex max-w-[210px] items-center gap-2">
                       <span className="truncate">{modelLabel}</span>
-                      <span aria-hidden>›</span>
+                      <CaretRight
+                        className="cx-model-page-chev"
+                        size={13}
+                        aria-hidden="true"
+                      />
                     </span>
                   }
                   onClick={() => onPageChange("model")}
@@ -989,7 +993,11 @@ export function ModelPicker({
                       <span className="truncate">
                         {effortLabel}
                       </span>
-                      <span aria-hidden>›</span>
+                      <CaretRight
+                        className="cx-model-page-chev"
+                        size={13}
+                        aria-hidden="true"
+                      />
                     </span>
                   }
                   onClick={() => onPageChange("effort")}
@@ -997,15 +1005,13 @@ export function ModelPicker({
               </div>
               <div className="cx-model-advanced">
                 <PopItem
-                  title={
-                    <span className="inline-flex items-center gap-1">
-                      Advanced
-                      <CaretDown
-                        size={14}
-                        className="cx-model-adv-chev open"
-                        aria-hidden="true"
-                      />
-                    </span>
+                  title="Advanced"
+                  right={
+                    <CaretRight
+                      className="cx-model-page-chev"
+                      size={13}
+                      aria-hidden="true"
+                    />
                   }
                   onClick={() => onPageChange("advanced")}
                 />

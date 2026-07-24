@@ -98,8 +98,8 @@ describe("Composer model / effort menu mobile hierarchy", () => {
 
     openMenu(container);
     const menu = container.querySelector<HTMLElement>(".cx-model-menu")!;
-    expect(menu.style.width).toBe("320px");
-    expect(menu.style.maxWidth).toBe("calc(100vw - 32px)");
+    expect(menu.style.width).toBe("");
+    expect(menu.classList.contains("wide")).toBe(false);
     expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent?.trim())).toEqual(["Model", "Effort", "Advanced"]);
     expect(menu.querySelector('[role="slider"]')).toBeNull();
     expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Flash");
@@ -122,9 +122,10 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     // Advanced's title lives outside .cx-model-roots (so it is not semibold)…
     expect(item("Advanced").closest(".cx-model-roots")).toBeNull();
     expect(item("Advanced").closest(".cx-model-advanced")).toBeTruthy();
-    // …and its caret is inline inside the label rather than pushed to .pop-right.
-    expect(item("Advanced").querySelector(".pop-title .cx-model-adv-chev")).toBeTruthy();
-    expect(item("Advanced").querySelector(".pop-right")).toBeNull();
+    // …and its right caret uses the same page-navigation grammar as the two
+    // primary rows instead of looking like an already-expanded disclosure.
+    expect(item("Advanced").querySelector(".pop-right .cx-model-page-chev")).toBeTruthy();
+    expect(item("Advanced").querySelector(".pop-title .cx-model-page-chev")).toBeNull();
   });
 
   it("swaps between pages and restores the selected Model and Effort state", () => {

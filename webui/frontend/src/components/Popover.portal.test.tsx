@@ -148,6 +148,32 @@ describe("Popover panel escapes its ancestors' overflow", () => {
     expect(panel().style.bottom).toBe("auto");
     expect(panel().style.maxHeight).toBe(`${VH - 88 - 16}px`);
   });
+
+  it("never restores the old 160px floor inside a short split pane", () => {
+    Object.defineProperty(window, "innerWidth", {
+      value: 389,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 151,
+      configurable: true,
+    });
+
+    try {
+      renderInScrollingCard(
+        { left: 320, right: 381, top: 118, bottom: 146 },
+        "right",
+      );
+      openMenu();
+
+      expect(panel().className).toContain("pop-up");
+      expect(panel().style.bottom).toBe("41px");
+      expect(panel().style.maxHeight).toBe("102px");
+      expect(Number.parseFloat(panel().style.maxHeight)).toBeLessThan(160);
+    } finally {
+      setViewport();
+    }
+  });
 });
 
 describe("Popover follows or lets go when the page moves", () => {

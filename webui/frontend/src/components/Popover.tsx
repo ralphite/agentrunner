@@ -108,7 +108,7 @@ export function Popover({
     const vh = window.innerHeight;
     const above = rect.top;
     const below = vh - rect.bottom;
-    const drop: Drop = above < 360 && below > above ? "down" : "up";
+    const drop: Drop = below > above ? "down" : "up";
     const width = panel.offsetWidth;
     const left = clamp(align === "left" ? rect.left : rect.right - width, PAD, Math.max(PAD, vw - PAD - width));
     setPlace({
@@ -116,7 +116,13 @@ export function Popover({
       left,
       top: drop === "down" ? rect.bottom + GAP : undefined,
       bottom: drop === "up" ? vh - rect.top + GAP : undefined,
-      maxH: Math.max(160, (drop === "down" ? below : above) - 16),
+      // A hard 160px floor made compact menus escape short Storybook canvases
+      // and small split panes. Respect the actual larger side of the viewport;
+      // the panel already scrolls when its content genuinely needs more room.
+      maxH: Math.max(
+        MIN_PANEL_HEIGHT,
+        (drop === "down" ? below : above) - GAP - PAD,
+      ),
     });
   }, [align]);
 
@@ -289,6 +295,7 @@ type Place = { drop: Drop; left: number; top?: number; bottom?: number; maxH: nu
 
 const PAD = 8; // breathing room between the panel and the viewport edge
 const GAP = 8; // between the anchor and the panel
+const MIN_PANEL_HEIGHT = 48;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
