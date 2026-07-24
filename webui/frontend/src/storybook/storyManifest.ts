@@ -610,6 +610,11 @@ const baseStoryManifest = [
         storyId:
           "foundations-actions-button-and-iconbutton--icon-link-sizes-variants-and-tones",
       },
+      "state:interaction": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--interaction-states",
+      },
     },
   },
   {
@@ -846,6 +851,18 @@ const baseStoryManifest = [
       "focus:unavailable-targets": {
         status: "covered",
         storyId: "foundations-behavior-focusscope--filters-unavailable-targets",
+      },
+      "focus:function-root": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--function-root-resolver",
+      },
+      "focus:suppressed-restore-transfer": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--suppressed-restore-transfer",
+      },
+      "focus:disconnected-trigger-fallback": {
+        status: "covered",
+        storyId: "foundations-behavior-focusscope--disconnected-trigger-fallback",
       },
     },
   },
@@ -2332,6 +2349,9 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
     "components-input-composer-parts--submit-running-steer",
     "components-input-composer-parts--semantic-control-pseudo-states",
   ],
+  Thumbs: [
+    "components-timeline-timelineview--thumbs-unavailable",
+  ],
   ContextMenu: ["components-overlays-contextmenu--viewport-edge-long-content"],
   ChangedFilesMenu: ["components-changes-diffparts--changed-files-no-matches"],
   DiffMoreActionsMenu: ["components-changes-diffparts--more-actions-empty"],
@@ -2348,6 +2368,10 @@ const additionalStateStoriesByComponent: Record<string, readonly string[]> = {
   Lightbox: [
     "components-media-lightbox--single-image",
     "components-media-lightbox--maximum-zoom",
+    "components-media-lightbox--image-unavailable",
+  ],
+  ImageCard: [
+    "components-changes-changesoutcome--image-card-unavailable",
   ],
   CodeBlock: ["components-content-markdown--plain-code-block"],
   MdImage: ["components-content-markdown--md-image-failure"],

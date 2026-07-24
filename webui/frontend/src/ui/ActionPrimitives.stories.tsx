@@ -227,6 +227,35 @@ export const InteractionStates: Story = {
           <X size={16} />
         </IconButton>
       </Section>
+      <Section title="Icon link default · hover · focus-visible · active">
+        <IconLink href="#link-default" variant="ghost" aria-label="Open link, default">
+          <DownloadSimple size={16} />
+        </IconLink>
+        <IconLink
+          href="#link-hover"
+          variant="ghost"
+          aria-label="Open link, hover"
+          data-story-state="hover"
+        >
+          <DownloadSimple size={16} />
+        </IconLink>
+        <IconLink
+          href="#link-focus"
+          variant="ghost"
+          aria-label="Open link, focus visible"
+          data-story-state="focus-visible"
+        >
+          <DownloadSimple size={16} />
+        </IconLink>
+        <IconLink
+          href="#link-active"
+          variant="ghost"
+          aria-label="Open link, active"
+          data-story-state="active"
+        >
+          <DownloadSimple size={16} />
+        </IconLink>
+      </Section>
       <Section title="Danger pressed · disabled · loading">
         <Button tone="danger" variant="outline" pressed>
           Pressed
@@ -251,6 +280,9 @@ export const InteractionStates: Story = {
     await expect(
       canvas.getByRole("button", { name: "Removing" }),
     ).toHaveAttribute("aria-busy", "true");
+    await expect(
+      canvas.getByRole("link", { name: "Open link, focus visible" }),
+    ).toHaveAttribute("href", "#link-focus");
   },
 };
 

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import type { FileDiffSummary } from "../diffSummary";
@@ -274,6 +274,26 @@ export const ImageCard: Story = {
     await expect(preview).toHaveAttribute("alt", "");
     await userEvent.click(card);
     await expect(openImage).toHaveBeenCalled();
+  },
+};
+
+export const ImageCardUnavailable: Story = {
+  render: () => (
+    <LeafFrame>
+      <RenderImageCard
+        sid={SID}
+        path="qa/missing-preview.png"
+        onOpen={openImage}
+      />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const preview = canvasElement.querySelector("img");
+    if (!preview) throw new Error("Image preview did not render");
+    fireEvent.error(preview);
+    await expect(canvas.getByRole("button", { name: "Open missing-preview.png" })).toBeVisible();
+    await expect(canvasElement.querySelector("img")).not.toBeInTheDocument();
   },
 };
 

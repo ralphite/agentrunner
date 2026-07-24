@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { FocusScope } from "./FocusScope";
+import { FocusScope, useFocusScope } from "./FocusScope";
 
 const meta = {
   title: "Foundations/Behavior/FocusScope",
@@ -149,6 +149,111 @@ export const FiltersUnavailableTargets: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", { name: "Available" }),
+    ).toHaveFocus();
+  },
+};
+
+function ResolverRootFixture() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const resolveRoot = useCallback(() => rootRef.current, []);
+  useFocusScope(resolveRoot, {
+    initialFocus: "[data-resolver-target]",
+  });
+  return (
+    <div ref={rootRef} style={scopeStyle}>
+      <button type="button">Before resolver target</button>
+      <input data-resolver-target aria-label="Resolver target" />
+    </div>
+  );
+}
+
+export const FunctionRootResolver: Story = {
+  render: () => <ResolverRootFixture />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("textbox", { name: "Resolver target" }),
+    ).toHaveFocus();
+  },
+};
+
+function TransferWithoutRestoreFixture() {
+  const [open, setOpen] = useState(false);
+  const destination = useRef<HTMLButtonElement>(null);
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <button type="button" onClick={() => setOpen(true)}>Open transfer scope</button>
+      <button ref={destination} type="button">Transfer destination</button>
+      {open && (
+        <FocusScope
+          style={scopeStyle}
+          shouldRestoreFocus={() => false}
+          initialFocus="[data-transfer]"
+        >
+          <button
+            data-transfer
+            type="button"
+            onClick={() => {
+              destination.current?.focus();
+              setOpen(false);
+            }}
+          >
+            Transfer focus
+          </button>
+        </FocusScope>
+      )}
+    </div>
+  );
+}
+
+export const SuppressedRestoreTransfer: Story = {
+  render: () => <TransferWithoutRestoreFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Open transfer scope" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Transfer focus" }));
+    await expect(
+      canvas.getByRole("button", { name: "Transfer destination" }),
+    ).toHaveFocus();
+  },
+};
+
+function DisconnectedTriggerFallbackFixture() {
+  const [open, setOpen] = useState(false);
+  const [triggerVisible, setTriggerVisible] = useState(true);
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {triggerVisible && (
+        <button type="button" onClick={() => setOpen(true)}>Open fallback scope</button>
+      )}
+      <button data-focus-restore-fallback type="button">Stable fallback</button>
+      {open && (
+        <FocusScope
+          style={scopeStyle}
+          initialFocus="[data-remove-trigger]"
+          onEscape={() => setOpen(false)}
+        >
+          <button
+            data-remove-trigger
+            type="button"
+            onClick={() => setTriggerVisible(false)}
+          >
+            Remove opener
+          </button>
+        </FocusScope>
+      )}
+    </div>
+  );
+}
+
+export const DisconnectedTriggerFallback: Story = {
+  render: () => <DisconnectedTriggerFallbackFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Open fallback scope" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Remove opener" }));
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      canvas.getByRole("button", { name: "Stable fallback" }),
     ).toHaveFocus();
   },
 };

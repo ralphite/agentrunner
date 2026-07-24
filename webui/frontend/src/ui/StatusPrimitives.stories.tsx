@@ -127,7 +127,6 @@ export const SpinnerInlineAndStandalone: Story = {
 export const SpinnerReducedMotion: Story = {
   render: () => (
     <Spinner
-      className="[&>svg]:!animate-none"
       display="standalone"
       label="Motion stops; loading remains announced"
       size="lg"

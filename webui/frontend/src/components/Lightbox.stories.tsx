@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { Lightbox } from "./Lightbox";
 
 const images = [
@@ -128,5 +128,19 @@ export const MaximumZoom: Story = {
     await expect(page.getByText("300%")).toBeVisible();
     await expect(zoomIn).toBeDisabled();
     await expect(page.getByRole("img", { name: "architecture.svg" })).toHaveClass("is-zoomed");
+  },
+};
+
+export const ImageUnavailable: Story = {
+  args: {
+    images: ["missing-image.png"],
+    resolve: () => "data:image/png;base64,not-a-valid-image",
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    fireEvent.error(page.getByRole("img", { name: "missing-image.png" }));
+    await expect(page.getByRole("alert")).toHaveTextContent("Image unavailable");
+    await expect(page.getByRole("button", { name: "Zoom in" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Zoom out" })).toBeDisabled();
   },
 };
