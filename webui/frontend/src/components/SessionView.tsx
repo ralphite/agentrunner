@@ -35,6 +35,7 @@ import {
   isSessionNotFound,
   isValidSessionId,
 } from "../features/session/sessionIdentity";
+import { useSessionCommands } from "../features/session/useSessionCommands";
 
 export { isSessionNotFound, isValidSessionId };
 
@@ -66,7 +67,8 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string; mobileNavigationOpen?: boolean }) {
-  const { api, clock, storage } = useAppServices();
+  const { clock, storage } = useAppServices();
+  const commands = useSessionCommands(sid);
   const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
@@ -226,7 +228,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const saveGoalEdit = () => {
     const g = (goalEdit || "").trim();
     if (!g) return;
-    api.goal(sid, { action: "update", goal: g })
+    commands.updateGoal(g)
       .then(() => {
         setGoalPendingUpdate(g);
         setGoalEdit(null);
@@ -272,7 +274,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     return () => clock.clearInterval(t);
   }, [goalState?.phase, goalState?.attachedAt, goalTerminal]);
   const goalAction = (action: "pause" | "resume" | "cancel") =>
-    api.goal(sid, { action }).then(() => pollInspect()).catch((e) => toast(e.message));
+    commands.goal(action).then(() => pollInspect()).catch((e) => toast(e.message));
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
   const openApprovals: (ApprovalRef & {
@@ -444,7 +446,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const act = {
     interrupt: async () => {
       try {
-        await api.interrupt(sid);
+        await commands.interrupt();
         toast("interrupt sent", "info");
       } catch (e: any) {
         toast(e.message);
@@ -452,7 +454,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     resume: async () => {
       try {
-        await api.resume(sid);
+        await commands.resume();
         toast("resume sent", "info");
       } catch (e: any) {
         toast(e.message);
@@ -460,7 +462,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     retry: async () => {
       try {
-        await api.retry(sid);
+        await commands.retry();
         toast("retrying your last message as a new turn", "info");
       } catch (e: any) {
         toast(e.message);
@@ -468,7 +470,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     barrier: async () => {
       try {
-        const r = await api.barrier(sid);
+        const r = await commands.barrier();
         toast(`checkpoint ${r.barrier || "created"} — fork from it anytime`, "info");
       } catch (e: any) {
         toast(e.message);
@@ -476,7 +478,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     },
     inspect: async () => {
       try {
-        const data = await api.inspect(sid);
+        const data = await commands.inspect();
         // Reuse the product Run details projection already used elsewhere.
         // The terminal banner previously dumped the entire inspect JSON as the
         // modal body, making a two-iteration schedule several screens of debug
@@ -494,7 +496,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const failure = !live && !isSub && !isDriver ? folded.failure : undefined;
   const runFailureRetry = () => {
     setFailureRetrying(true);
-    api.retry(sid)
+    commands.retry()
       .then(() => {
         toast("retrying your last message as a new turn", "info");
         return poll();
@@ -772,7 +774,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                     title: `Apply the ${isBestOfN ? "winning attempt's" : "selected iteration's"} changes onto the project workspace (clean-or-nothing, lands unstaged)`,
                     onClick: async () => {
                       try {
-                        const r = await api.promote(sid);
+                        const r = await commands.promote();
                         toast(r.status || "winner applied", "info");
                       } catch (e: any) {
                         toast(String(e?.message || e), "error");
@@ -867,12 +869,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}
             onOpenArtifact={(stream, version) =>
-              api.artifact(sid, stream, version)
+              commands.artifact(stream, version)
                 .then((text) => openModal({ kind: "viewer", title: `${stream} · v${version}`, body: text }))
                 .catch((error) => toast(error.message))}
-            onGoalAction={(action) => api.goal(sid, { action }).then(() => pollInspect()).catch((error) => toast(error.message))}
+            onGoalAction={(action) => commands.goal(action).then(() => pollInspect()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
-            onInspect={() => api.inspect(sid).then((data) => openModal({
+            onInspect={() => commands.inspect().then((data) => openModal({
               kind: "inspect",
               data,
               status: sessions.find((session) => session.id === sid)?.status,
