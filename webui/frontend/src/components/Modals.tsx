@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Folder, Globe, Terminal, X } from "@phosphor-icons/react";
 import { useAppServices } from "../app/appServices";
 import { useStore, type ModalKind } from "../store";
@@ -8,6 +8,7 @@ import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
 import { compactCount, summarizeInspect } from "../inspectPresentation";
+import { FocusScope } from "../ui/FocusScope";
 import { friendlyStatus } from "./pill";
 import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
 
@@ -37,9 +38,6 @@ export function Modal({
   footer?: React.ReactNode;
   returnFocus?: HTMLElement;
 }) {
-  const modalRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   // Keyboard avoidance (phone): the backdrop centers the modal, so when the
   // iOS keyboard opens it covers the lower fields. Mirror the visual viewport
   // height into --app-vvh so the backdrop shrinks to the VISIBLE area and the
@@ -57,56 +55,22 @@ export function Modal({
       document.documentElement.style.removeProperty("--app-vvh");
     };
   }, []);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const root = modalRef.current;
-    const focusable = () => Array.from(root?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])") || []);
-    requestAnimationFrame(() => {
-      const firstField = root?.querySelector<HTMLElement>(
-        ".mbody input:not(:disabled), .mbody textarea:not(:disabled)",
-      );
-      const firstChoice = root?.querySelector<HTMLElement>(
-        ".mbody select:not(:disabled), .mbody button:not(:disabled)",
-      );
-      (firstField || firstChoice || focusable()[0] || root)?.focus();
-    });
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusable();
-      if (!items.length) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      (returnFocus?.isConnected ? returnFocus : previous)?.focus({ preventScroll: true });
-    };
-  }, []);
   return (
     <div
       className="backdrop bottom-auto h-[var(--app-vvh,100dvh)] overflow-hidden max-[640px]:p-2"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div
+      <FocusScope
         className="modal mx-auto flex max-h-[calc(var(--app-vvh,100dvh)-16vh)] min-h-0 flex-col max-[640px]:max-h-[calc(var(--app-vvh,100dvh)-1rem)]"
-        ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        tabIndex={-1}
+        initialFocus={[
+          ".mbody input:not(:disabled), .mbody textarea:not(:disabled)",
+          ".mbody select:not(:disabled), .mbody button:not(:disabled)",
+        ]}
+        restoreFocus={returnFocus ?? true}
+        onEscape={onClose}
       >
         <div className="mhead shrink-0">
           <span className="min-w-0 truncate">{title}</span>
@@ -116,7 +80,7 @@ export function Modal({
         </div>
         <div className="mbody min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
         {footer && <div className="mfoot shrink-0 max-[640px]:flex-wrap max-[640px]:justify-end">{footer}</div>}
-      </div>
+      </FocusScope>
     </div>
   );
 }

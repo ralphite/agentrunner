@@ -30,7 +30,7 @@ export function AppShell() {
   const unread = useStore((s) => s.unread);
   const [palette, setPalette] = useState(false);
   const paletteOpenRef = useRef(false);
-  const paletteReturnFocusRef = useRef<HTMLElement | null>(null);
+  const paletteRestoreFocusRef = useRef(true);
   paletteOpenRef.current = palette;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsOpenRef = useRef(false);
@@ -41,17 +41,12 @@ export function AppShell() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const openPalette = () => {
-    const active = document.activeElement;
-    paletteReturnFocusRef.current = active instanceof HTMLElement ? active : null;
+    paletteRestoreFocusRef.current = true;
     setPalette(true);
   };
   const closePalette = (restoreFocus = true) => {
-    const returnTarget = paletteReturnFocusRef.current;
+    paletteRestoreFocusRef.current = restoreFocus;
     setPalette(false);
-    if (!restoreFocus) return;
-    requestAnimationFrame(() => {
-      if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) returnTarget.focus();
-    });
   };
 
   const openSettings = () => {
@@ -63,12 +58,7 @@ export function AppShell() {
     setSettingsOpen(true);
   };
   const closeSettings = () => {
-    const returnTarget = settingsReturnFocusRef.current;
     setSettingsOpen(false);
-    requestAnimationFrame(() => {
-      if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) returnTarget.focus();
-      else document.querySelector<HTMLElement>(".sidebar-show")?.focus();
-    });
   };
 
   // Apply the full appearance record (fonts, contrast, diff markers, motion,
@@ -120,7 +110,7 @@ export function AppShell() {
         const target = quickSwitchSessions(state.sessions, { archived: state.archived })[Number(e.key) - 1];
         if (target) {
           e.preventDefault();
-          setPalette(false);
+          closePalette(false);
           state.select(target.id);
         }
         return;
@@ -139,7 +129,7 @@ export function AppShell() {
         // Never steal a keystroke out of a field the user is typing in.
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
         e.preventDefault();
-        setPalette(false);
+        closePalette(false);
         store.getState().showPage("home");
         // …and land ready to type (INC-41 HM-1). A fresh mount focuses itself
         // (Composer's home effect), but when we were ALREADY on home nothing
@@ -246,9 +236,26 @@ export function AppShell() {
       <Modals />
       {/* The palette's `Open settings` row reuses the gear's / ⌘,'s own opener
           (CP-8) rather than a second, drifting copy of it. */}
-      {palette && <CommandPalette onClose={closePalette} onOpenSettings={openSettings} />}
+      {palette && (
+        <CommandPalette
+          onClose={closePalette}
+          onOpenSettings={openSettings}
+          shouldRestoreFocus={() => paletteRestoreFocusRef.current}
+        />
+      )}
       {helpOpen && <Shortcuts onClose={closeHelp} />}
-      {settingsOpen && <Settings onClose={closeSettings} />}
+      {settingsOpen && (
+        <Settings
+          onClose={closeSettings}
+          restoreFocus={() => {
+            const returnTarget = settingsReturnFocusRef.current;
+            if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) {
+              return returnTarget;
+            }
+            return document.querySelector<HTMLElement>(".sidebar-show");
+          }}
+        />
+      )}
       <Toasts />
     </div>
   );

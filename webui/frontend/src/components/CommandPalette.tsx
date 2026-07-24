@@ -8,6 +8,7 @@ import { paletteSessionGroups } from "../viewModels.nav";
 import { sessionFriendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
 import type { Session } from "../types";
+import { FocusScope } from "../ui/FocusScope";
 import {
   CommandPaletteItem,
   type CommandPaletteItemModel,
@@ -36,9 +37,10 @@ function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTit
 // CommandPalette is Codex's ⌘K: one fuzzy search over sessions + a set of
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
-export function CommandPalette({ onClose, onOpenSettings }: {
+export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: {
   onClose: (restoreFocus?: boolean) => void;
   onOpenSettings?: () => void;
+  shouldRestoreFocus?: () => boolean;
 }) {
   const { sessions, runs, archived, unread, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
     useStore();
@@ -51,10 +53,6 @@ export function CommandPalette({ onClose, onOpenSettings }: {
   // the mouse happens to sit. Hover only claims the selection after a real
   // pointer move.
   const kbdNav = useRef(false);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const items = useMemo<CommandPaletteItemModel[]>(() => {
     const ql = q.trim().toLowerCase();
@@ -172,8 +170,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
   }, [idx]);
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") onClose(true);
-    else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       kbdNav.current = true;
       setIdx((i) => Math.min(i + 1, items.length - 1));
@@ -189,7 +186,16 @@ export function CommandPalette({ onClose, onOpenSettings }: {
 
   return (
     <div className="backdrop cmdk-back command-palette-back" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
-      <div className="cmdk" onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Command palette">
+      <FocusScope
+        className="cmdk"
+        initialFocus={inputRef}
+        shouldRestoreFocus={shouldRestoreFocus}
+        onEscape={() => onClose(true)}
+        onKeyDown={onKey}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+      >
         <div className="cmdk-search">
           <input
             ref={inputRef}
@@ -234,7 +240,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
             );
           })}
         </div>
-      </div>
+      </FocusScope>
     </div>
   );
 }

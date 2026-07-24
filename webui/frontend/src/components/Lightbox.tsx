@@ -1,7 +1,8 @@
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CaretLeft, CaretRight, DownloadSimple, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from "@phosphor-icons/react";
 import { uploadURL } from "../api";
+import { FocusScope } from "../ui/FocusScope";
 
 // Lightbox is the full-screen image viewer (W9): a dark overlay with the image
 // centered, a bottom zoom bar (− 100% +, 25% steps clamped 50–300%), a top-right
@@ -34,7 +35,6 @@ export function Lightbox({
 }) {
   const [zoom, setZoom] = useState(100);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const restoreFocus = useRef<HTMLElement | null>(null);
   const multi = images.length > 1;
   const src = images[index] ? resolve(images[index]) : "";
   const name = images[index] ? basename(images[index]) : "image";
@@ -53,21 +53,9 @@ export function Lightbox({
   // shouldn't carry over to the next.
   useEffect(() => setZoom(100), [index]);
 
-  // Focus management: remember what had focus, move focus into the overlay so
-  // keys land here and screen readers announce the dialog, restore on unmount.
-  useLayoutEffect(() => {
-    restoreFocus.current = document.activeElement as HTMLElement | null;
-    overlayRef.current?.focus();
-    return () => restoreFocus.current?.focus?.();
-  }, []);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       switch (e.key) {
-        case "Escape":
-          e.preventDefault();
-          onClose();
-          break;
         case "ArrowLeft":
           if (multi) { e.preventDefault(); go(-1); }
           break;
@@ -92,13 +80,14 @@ export function Lightbox({
   }, [index, multi]);
 
   return createPortal(
-    <div
+    <FocusScope
       className="lightbox"
       ref={overlayRef}
       role="dialog"
       aria-modal="true"
       aria-label="Image viewer"
-      tabIndex={-1}
+      initialFocus={overlayRef}
+      onEscape={onClose}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="lb-top">
@@ -148,7 +137,7 @@ export function Lightbox({
           </button>
         ) : <span />}
       </div>
-    </div>,
+    </FocusScope>,
     document.body,
   );
 }

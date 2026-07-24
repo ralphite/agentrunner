@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   MagnifyingGlass,
@@ -18,6 +18,7 @@ import { SettingsGit } from "./SettingsGit";
 import { SettingsWorktrees } from "./SettingsWorktrees";
 import { SettingsConfiguration } from "./SettingsConfiguration";
 import { SettingsArchived } from "./SettingsArchived";
+import { FocusScope, type FocusTarget } from "../ui/FocusScope";
 
 // Settings is Codex's full-window Settings surface (INC-41 H1): a left nav rail
 // (grouped sections + "Search settings…"), a "← Back to app" affordance, and a
@@ -43,15 +44,19 @@ const SECTIONS: SectionDef[] = [
   { id: "archived", label: "Archived sessions", group: "Archived", icon: Archive, keywords: "sessions conversations history project search unarchive restore" },
 ];
 
-export function Settings({ onClose, initialSection = "general" }: { onClose: () => void; initialSection?: SettingsSection }) {
+export function Settings({
+  onClose,
+  initialSection = "general",
+  restoreFocus,
+}: {
+  onClose: () => void;
+  initialSection?: SettingsSection;
+  restoreFocus?: FocusTarget;
+}) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [query, setQuery] = useState("");
   const [rev, setRev] = useState(0); // bump to remount panels after a reset
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
 
   const visible = useMemo(() => SECTIONS.filter((s) => matchesQuery(query, `${s.label} ${s.group} ${s.keywords}`)), [query]);
 
@@ -79,17 +84,13 @@ export function Settings({ onClose, initialSection = "general" }: { onClose: () 
   const panelQuery = activeDef && matchesQuery(query, `${activeDef.label} ${activeDef.group}`) ? "" : query;
 
   return (
-    <div
+    <FocusScope
       className="fixed inset-0 z-[60] flex h-[100dvh] overflow-hidden bg-bg text-ink font-sans text-[length:var(--ui-font-size)] leading-[1.55] max-[720px]:flex-col"
       role="dialog"
       aria-label="Settings"
-      tabIndex={-1}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          onClose();
-        }
-      }}
+      initialFocus={searchRef}
+      restoreFocus={restoreFocus ?? true}
+      onEscape={onClose}
     >
       <aside className="shrink-0 grow-0 basis-[264px] flex flex-col gap-[10px] px-[12px] py-[16px] border-r border-line bg-sidebar overflow-y-auto max-[720px]:basis-auto max-[720px]:grid max-[720px]:grid-cols-1 max-[720px]:items-center max-[720px]:gap-[7px] max-[720px]:px-[12px] max-[720px]:py-[8px] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:overflow-hidden">
         <button className="hidden items-center gap-[7px] self-start pt-[5px] pr-[10px] pb-[5px] pl-[7px] border-0 bg-transparent text-ink-2 text-[13px] rounded-[8px] hover:bg-panel-2 hover:text-ink max-[720px]:inline-flex max-[720px]:self-auto max-[720px]:whitespace-nowrap" onClick={onClose}>
@@ -146,6 +147,6 @@ export function Settings({ onClose, initialSection = "general" }: { onClose: () 
           {active === "archived" && <SettingsArchived query={panelQuery} onClose={onClose} />}
         </div>
       </main>
-    </div>
+    </FocusScope>
   );
 }

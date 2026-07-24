@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
+import { FocusScope } from "../ui/FocusScope";
 
 // Shortcuts is Codex's Keyboard-shortcuts reference: a searchable, grouped list
 // of every binding the app has, rendered as key badges. Opened globally with
@@ -8,14 +9,6 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    inputRef.current?.focus();
-    return () => {
-      if (previous?.isConnected) previous.focus();
-    };
-  }, []);
 
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -33,12 +26,13 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div
+      <FocusScope
         className="cmdk shortcuts"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        initialFocus={inputRef}
+        onEscape={onClose}
       >
         <div className="sc-head">
           <div className="sc-title" id={titleId}>Keyboard shortcuts</div>
@@ -78,7 +72,7 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
-      </div>
+      </FocusScope>
     </div>
   );
 }
