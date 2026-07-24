@@ -377,6 +377,7 @@ function ActionsFixture({
           onToggleRead={fn()}
           onToggleArchive={fn()}
           onStop={fn()}
+          onDetails={fn()}
         />
       )}
     </div>

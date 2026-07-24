@@ -1136,6 +1136,27 @@ export function foldEvents(events: Envelope[]): Folded {
         );
         status = { text: p.reason === "satisfied" ? "satisfied" : "done", cls: "closed" };
         break;
+      // ---- in-session schedule events (INC-74/INC-102: the loop lives IN the
+      // conversation — these chips annotate an ordinary session, so none of
+      // them set isDriver; the composer stays usable and wakes read as turns).
+      case "schedule_attached": {
+        const cad = p.interval ? `every ${p.interval}` : p.cron ? `cron ${p.cron}` : "";
+        sysChip(seq, `Schedule attached${cad ? " · " + cad : ""}${p.max_wakes ? ` · ${p.max_wakes} wakes` : ""}`);
+        break;
+      }
+      case "schedule_wake":
+        if (p.skipped) chip(seq, `Scheduled wake${p.n ? " #" + p.n : ""} skipped (busy)`, "warn");
+        else sysChip(seq, `Scheduled wake${p.n ? " #" + p.n : ""}`);
+        break;
+      case "schedule_paused":
+        chip(seq, "Schedule paused");
+        break;
+      case "schedule_resumed":
+        chip(seq, "Schedule resumed");
+        break;
+      case "schedule_cancelled":
+        chip(seq, "Schedule detached");
+        break;
       // ---- merged-stream series events (INC-80 E1③) ----
       case "series_started":
         isDriver = true;

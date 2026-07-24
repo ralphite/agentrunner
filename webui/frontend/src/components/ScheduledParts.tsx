@@ -289,6 +289,7 @@ export interface ScheduledRunActionsProps {
   onToggleRead: () => void;
   onToggleArchive: () => void;
   onStop: () => void;
+  onDetails: () => void;
 }
 
 export function ScheduledRunActions({
@@ -309,6 +310,7 @@ export function ScheduledRunActions({
   onToggleRead,
   onToggleArchive,
   onStop,
+  onDetails,
 }: ScheduledRunActionsProps) {
   return (
     <ContextMenu
@@ -321,6 +323,11 @@ export function ScheduledRunActions({
       <MenuLabel>{row.title}</MenuLabel>
       {row.kind === "session" ? (
         <>
+          {row.scheduleDetail && (
+            // INC-102: the row itself opens the conversation; the typed
+            // schedule-detail route (G56) lives here.
+            <MenuItem onClick={onDetails}>Schedule details…</MenuItem>
+          )}
           {row.scheduleControl && row.paused ? (
             <MenuItem onClick={onResume}>Resume</MenuItem>
           ) : row.recover ? (

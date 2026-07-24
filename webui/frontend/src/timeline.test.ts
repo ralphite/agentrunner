@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, suppressEchoedChips, verdictLabel } from "./timeline";
+
+// INC-102: in-session schedule events annotate an ORDINARY conversation — they
+// must render as chips without flipping the session into driver chrome (which
+// would hide the composer the loop is supposed to keep usable).
+describe("in-session schedule chips (INC-102)", () => {
+  it("renders schedule lifecycle chips and keeps the session conversational", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "input_received", payload: { source: "cli", text: "review one file per round" } },
+      { seq: 2, type: "schedule_attached", payload: { schedule_id: "schedule", interval: "30s", max_wakes: 2, prompt: "review one file per round" } },
+      { seq: 3, type: "schedule_wake", payload: { schedule_id: "schedule", n: 1 } },
+      { seq: 4, type: "schedule_wake", payload: { schedule_id: "schedule", n: 2, skipped: true } },
+      { seq: 5, type: "schedule_paused", payload: { schedule_id: "schedule" } },
+      { seq: 6, type: "schedule_resumed", payload: { schedule_id: "schedule" } },
+      { seq: 7, type: "schedule_cancelled", payload: { schedule_id: "schedule" } },
+    ] as any);
+    expect(folded.isDriver).toBe(false);
+    const chips = folded.items.filter((it: any) => it.kind === "chip").map((it: any) => it.text);
+    expect(chips).toContain("Schedule attached · every 30s · 2 wakes");
+    expect(chips).toContain("Scheduled wake #1");
+    expect(chips).toContain("Scheduled wake #2 skipped (busy)");
+    expect(chips).toContain("Schedule paused");
+    expect(chips).toContain("Schedule resumed");
+    expect(chips).toContain("Schedule detached");
+    const skipped = folded.items.find((it: any) => it.kind === "chip" && /skipped/.test(it.text)) as any;
+    expect(skipped.tone).toBe("warn");
+  });
+});
 import { isSessionNotFound, isValidSessionId } from "./components/SessionView";
 import { workedLabel } from "./components/Timeline";
 import { summarizeChanges } from "./diffSummary";

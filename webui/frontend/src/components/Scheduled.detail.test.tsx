@@ -95,10 +95,25 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+// INC-102: the row's PRIMARY click opens the conversation; the typed detail
+// route survives one menu hop away ("Schedule details…" on the row menu).
+const openDetail = () => {
+  fireEvent.contextMenu(screen.getByText("Nightly dependency audit"));
+  fireEvent.click(screen.getByText("Schedule details…"));
+};
+
 describe("typed Scheduled detail journey (G56)", () => {
+  it("row click opens the conversation, not the detail panel (INC-102)", () => {
+    mount();
+    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    expect(useStore.getState().currentSid).toBe(sid);
+    expect(useStore.getState().scheduledDetailSid).toBeNull();
+    expect(useStore.getState().unread).toEqual([]);
+  });
+
   it("opens the safe detail route, marks the row read, and shows the product projection", async () => {
     const { container } = mount();
-    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    openDetail();
 
     await screen.findByRole("heading", { name: "Nightly dependency audit" });
     expect(scheduleDetail).toHaveBeenCalledWith(sid);
@@ -119,7 +134,7 @@ describe("typed Scheduled detail journey (G56)", () => {
     scheduleDetail.mockResolvedValueOnce(activeDetail).mockResolvedValue(paused);
     sessions.mockResolvedValue([{ ...canonical, status: "paused", nextRunAt: undefined }]);
     mount();
-    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    openDetail();
 
     fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
     await waitFor(() => expect(schedule).toHaveBeenCalledWith(sid, "pause"));
@@ -135,7 +150,7 @@ describe("typed Scheduled detail journey (G56)", () => {
   it("restores focus on Escape and reloads from a direct detail route", async () => {
     mount();
     const row = screen.getByText("Nightly dependency audit").closest("button")!;
-    fireEvent.click(row);
+    openDetail();
     await screen.findByRole("button", { name: "Close schedule details" });
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(document.activeElement).toBe(row));
@@ -157,7 +172,7 @@ describe("typed Scheduled detail journey (G56)", () => {
     };
     scheduleDetail.mockResolvedValueOnce(activeDetail).mockResolvedValue(updated);
     mount();
-    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    openDetail();
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
     fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Audit release blockers." } });
@@ -185,7 +200,7 @@ describe("typed Scheduled detail journey (G56)", () => {
       .mockResolvedValueOnce({ ...activeDetail, revision: 1, interval: "1h" })
       .mockResolvedValue({ ...activeDetail, revision: 2, prompt: "My draft survives." });
     mount();
-    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    openDetail();
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "My draft survives." } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -203,7 +218,7 @@ describe("typed Scheduled detail journey (G56)", () => {
   it("keeps the error visible, retries, and never invents detail for a legacy journal", async () => {
     scheduleDetail.mockRejectedValueOnce(new Error("journal unavailable")).mockResolvedValue(activeDetail);
     const { unmount } = mount();
-    fireEvent.click(screen.getByText("Nightly dependency audit"));
+    openDetail();
     expect((await screen.findByRole("alert")).textContent).toContain("journal unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await screen.findByText(activeDetail.prompt!);
@@ -212,6 +227,8 @@ describe("typed Scheduled detail journey (G56)", () => {
     scheduleDetail.mockClear();
     const legacy = { ...canonical, id: "legacy-series", scheduleDetail: undefined, scheduleControl: undefined };
     mount(legacy);
+    // A legacy journal has no typed detail route (and so no menu entry) — the
+    // row click is the whole journey: straight into the session view.
     fireEvent.click(screen.getByText("Nightly dependency audit"));
     expect(scheduleDetail).not.toHaveBeenCalled();
     expect(useStore.getState().currentSid).toBe("legacy-series");

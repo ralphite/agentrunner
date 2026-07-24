@@ -8,7 +8,6 @@ import {
   agentById,
   agentLabel,
   buildBestOfNDriver,
-  buildLoopDriver,
   buildSpec,
   DEFAULT_ACCESS,
   DEFAULT_EFFORT,
@@ -955,31 +954,60 @@ export function Composer(props: ComposerProps) {
     selectRun(runId);
   };
 
+  // INC-102 (决策 #21 修订): /loop is the IN-SESSION schedule, not a
+  // fresh-child series — the standing prompt runs round 1 as an ordinary
+  // message and every wake continues the SAME conversation (context carries,
+  // the composer stays usable, steering works). Mirrors startGoal's shape.
   const startLoop = async (prompt: string, interval: string, iterations: number) => {
-    const workspace = isSession ? (props as any).workspace || (await ensureWs()) : await ensureWs();
-    if (!workspace) return props.onError("a workspace is required to start a loop");
     setBusy(true);
     try {
-      const r = await api.startRun({
-        provider,
-        model,
-        effort,
-        kind: "drive",
-        spec: buildLoopDriver({
-          prompt,
-          interval,
-          maxIterations: iterations,
-        }),
-        extraSpecs: [],
-        prompt: "",
-        workspace,
-        mode: "",
-        idem: "",
-      });
+      let sid: string;
+      if (isSession) {
+        sid = (props as any).sid as string;
+        // Round 1 now, in this conversation; wakes take over from the next tick.
+        await api.send(sid, prompt, [], []);
+      } else {
+        const activeAgent = await requireSelectedAgent();
+        const workspace = await ensureWs();
+        if (!workspace) return props.onError("a workspace is required to start a loop");
+        const spec = buildSpec({ agent: activeAgent, access });
+        const r = await api.newSession({
+          provider,
+          model,
+          effort,
+          spec,
+          extraSpecs: [],
+          workspace,
+          message: prompt,
+          mode: accessById(access).mode,
+        });
+        rememberSpec(r.sid, spec, storage.local);
+        rememberModel(r.sid, { provider, model, effort }, storage.local);
+        rememberAccess(r.sid, access, storage.local);
+        sid = r.sid;
+      }
+      // Opening message = round 1, so N rounds = N-1 wakes; a 1-round loop is
+      // just a message and attaches nothing.
+      if (iterations > 1) {
+        try {
+          await api.scheduleAttach(sid, {
+            schedule: "interval",
+            interval,
+            prompt,
+            maxWakes: iterations - 1,
+          });
+          toast(`Loop attached — every ${interval}, ${iterations} rounds in this conversation`, "info");
+        } catch (e: any) {
+          // The session (and round 1) already exists — surface it anyway.
+          props.onError("loop attach failed: " + e.message);
+        }
+      }
       setLauncher(null);
       resetInput();
-      await refreshRuns();
-      await landInSeries(r.runId);
+      if (!isSession) {
+        await refreshSessions();
+        select(sid);
+      }
     } catch (e: any) {
       props.onError(e.message);
     } finally {

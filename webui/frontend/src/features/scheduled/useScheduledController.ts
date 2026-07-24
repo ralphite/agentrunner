@@ -122,6 +122,7 @@ export interface ScheduledController {
   toggleMenuRowRead: () => void;
   toggleMenuRowArchive: () => void;
   stopMenuRow: () => void;
+  detailsMenuRow: () => void;
 }
 
 export function useScheduledController(): ScheduledController {
@@ -327,14 +328,14 @@ export function useScheduledController(): ScheduledController {
             scheduleDetail: !!session.scheduleDetail,
             unread: flagged.has(session.id),
             sortTs: date ? date.getTime() : 0,
-            onClick: (opener) => {
-              if (!session.scheduleDetail) {
-                select(session.id);
-                return;
-              }
-              detailOpener.current = opener || null;
-              markRead(session.id);
-              showScheduledDetail(session.id);
+            onClick: () => {
+              // INC-102: every scheduled item opens its CONVERSATION — a
+              // schedule-attached session is an ordinary conversation the
+              // standing prompt re-enters each wake (UJ-14). The typed detail
+              // route (G56) stays reachable via the row menu's
+              // "Schedule details…".
+              if (session.scheduleDetail) markRead(session.id);
+              select(session.id);
             },
           },
           session.nextRunAt,
@@ -537,6 +538,14 @@ export function useScheduledController(): ScheduledController {
     stopMenuRow: () =>
       requireMenuRow((row) => {
         void stopRun(row.id);
+      }),
+    // INC-102: the row's primary click opens the conversation; the typed
+    // schedule-detail route (G56) moves here, one menu hop away.
+    detailsMenuRow: () =>
+      requireMenuRow((row) => {
+        detailOpener.current = contextMenu?.returnFocus || null;
+        markRead(row.id);
+        showScheduledDetail(row.id);
       }),
     detail: {
       sid: scheduledDetailSid,

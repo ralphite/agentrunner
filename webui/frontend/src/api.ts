@@ -253,6 +253,15 @@ export const AR = {
     cron?: string;
     overlap?: "skip" | "coalesce";
   }) => post(`/sessions/${sid}/schedule`, { action: "update", ...update }),
+  // INC-102: /loop attaches an in-session schedule — the loop lives in the
+  // conversation (standing prompt re-runs as ordinary turns, context continues).
+  scheduleAttach: (sid: string, attach: {
+    schedule: "interval" | "cron";
+    interval?: string;
+    cron?: string;
+    prompt: string;
+    maxWakes?: number;
+  }) => post(`/sessions/${sid}/schedule`, { action: "attach", ...attach }),
   // Structured ask (INC-47.2): specs are 1-based "<q>:<n>" the form builds.
   answer: (sid: string, specs: string[]) => post(`/sessions/${sid}/answer`, { specs }),
   skipAnswer: (sid: string) => post(`/sessions/${sid}/answer`, { skip: true }),

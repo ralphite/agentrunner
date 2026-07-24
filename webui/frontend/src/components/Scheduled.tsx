@@ -468,6 +468,7 @@ function ScheduledView({ controller }: { controller: ScheduledController }) {
           onToggleRead={controller.toggleMenuRowRead}
           onToggleArchive={controller.toggleMenuRowArchive}
           onStop={controller.stopMenuRow}
+          onDetails={controller.detailsMenuRow}
         />
       )}
       </main>
