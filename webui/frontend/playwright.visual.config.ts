@@ -24,7 +24,7 @@ export default defineConfig({
     command:
       "vite preview --host 127.0.0.1 --port 6010 --strictPort --outDir storybook-static --logLevel error",
     url: "http://127.0.0.1:6010/index.html",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 30_000,
   },
 });

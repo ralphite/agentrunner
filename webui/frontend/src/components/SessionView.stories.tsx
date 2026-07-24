@@ -142,6 +142,28 @@ export const Default: Story = {
   },
 };
 
+const runningFixture = makeFixture({
+  session: buildSession({
+    id: "20260723-180050-story-running",
+    title: "Run the Storybook browser checks",
+    status: "running",
+    turns: 2,
+    workspace: fixtureDefaults.workspace,
+  }),
+});
+export const Running: Story = {
+  parameters: { msw: { handlers: runningFixture.api.handlers } },
+  render: () => renderFixture(runningFixture),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText("Run the Storybook browser checks"),
+    ).toBeVisible();
+    await expect(canvas.getByLabelText("Stop session")).toBeVisible();
+    await expect(canvas.getByLabelText("Send message")).toBeVisible();
+  },
+};
+
 const keyboardFixture = makeFixture();
 export const KeyboardNavigation: Story = {
   parameters: { msw: { handlers: keyboardFixture.api.handlers } },

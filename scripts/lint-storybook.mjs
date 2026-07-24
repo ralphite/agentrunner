@@ -95,6 +95,7 @@ const {
   privateVisibleExclusions = [],
   semanticStateRequirements = [],
   workbenchStories = [],
+  globalStatePairs = [],
 } = await loadManifest();
 const storyIndex = JSON.parse(fs.readFileSync(storyIndexPath, "utf8"));
 const sourceBaseline = JSON.parse(fs.readFileSync(sourceBaselinePath, "utf8"));
@@ -322,6 +323,34 @@ for (const workbench of workbenchStories) {
   coveredStoryIds.add(workbench.storyId);
 }
 
+const globalPairIds = new Set();
+for (const pair of globalStatePairs) {
+  const key = `global-pair:${pair.pairId}`;
+  if (globalPairIds.has(pair.pairId)) {
+    fail(`duplicate global state pair: ${pair.pairId}`);
+  }
+  globalPairIds.add(pair.pairId);
+  const entry = entries[pair.storyId];
+  if (!entry || entry.type !== "story") {
+    fail(`${key}: storyId not found in built index: ${pair.storyId}`);
+  }
+  if (!coveredStoryIds.has(pair.storyId)) {
+    fail(`${key}: canonical Story must be referenced by component coverage`);
+  }
+  if (
+    !Array.isArray(pair.states) ||
+    pair.states.length < 2 ||
+    !pair.theme ||
+    !pair.viewport?.width ||
+    !pair.viewport?.height ||
+    !pair.evidenceSelector ||
+    !pair.evidence ||
+    !pair.owner
+  ) {
+    fail(`${key}: states, theme, viewport, evidenceSelector, evidence and owner are required`);
+  }
+}
+
 for (const entry of Object.values(entries)) {
   if (entry.type !== "story") continue;
   const root = entry.title.split("/")[0];
@@ -366,5 +395,5 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `storybook lint: ${storyManifest.length} targets, ${semanticStateRequirements.length} semantic states, ${privateVisibleExclusions.length} private exclusions, ${Object.keys(entries).length} stories, ${missing.length} missing`,
+  `storybook lint: ${storyManifest.length} targets, ${semanticStateRequirements.length} semantic states, ${globalStatePairs.length} global pairs, ${privateVisibleExclusions.length} private exclusions, ${Object.keys(entries).length} stories, ${missing.length} missing`,
 );

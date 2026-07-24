@@ -27,6 +27,12 @@ const goldenCases: GoldenCase[] = [
     viewport: { width: 1280, height: 720 },
   },
   {
+    name: "session-running-light-desktop",
+    storyId: "components-sessions-sessionview--running",
+    theme: "light",
+    viewport: { width: 1280, height: 720 },
+  },
+  {
     name: "session-empty-light-phone",
     storyId: "components-sessions-sessionview--empty",
     theme: "light",
@@ -49,6 +55,18 @@ const goldenCases: GoldenCase[] = [
     storyId: "pages-scheduled--default",
     theme: "light",
     viewport: { width: 390, height: 844 },
+  },
+  {
+    name: "scheduled-detail-light-desktop",
+    storyId: "pages-scheduled--schedule-detail",
+    theme: "light",
+    viewport: { width: 1280, height: 720 },
+  },
+  {
+    name: "overlay-dark-short",
+    storyId: "components-overlays-modals--prompt-over-main-modal",
+    theme: "dark",
+    viewport: { width: 390, height: 500 },
   },
   {
     name: "settings-no-results-dark-phone",

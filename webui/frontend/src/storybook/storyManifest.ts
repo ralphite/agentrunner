@@ -31,6 +31,18 @@ export interface WorkbenchStory {
   owner: string;
 }
 
+export interface GlobalStatePair {
+  pairId: string;
+  storyId: string;
+  states: readonly string[];
+  theme: "light" | "dark";
+  viewport: { width: number; height: number };
+  evidenceSelector: string;
+  reload?: boolean;
+  evidence: string;
+  owner: string;
+}
+
 export interface PrivateVisibleExclusion {
   source: string;
   declarationName: string;
@@ -516,6 +528,62 @@ export const workbenchStories = [
     owner: "webui",
   },
 ] satisfies readonly WorkbenchStory[];
+
+// High-risk global dimensions reuse canonical Stories through globals and
+// viewport parameters. They are deliberately not Phone/Dark Story copies.
+export const globalStatePairs = [
+  {
+    pairId: "error-dark",
+    storyId: "components-sessions-sessionview--provider-failure",
+    states: ["error", "dark"],
+    theme: "dark",
+    viewport: { width: 1280, height: 720 },
+    evidenceSelector: ".turn-error",
+    evidence: "Provider failure remains readable in dark theme.",
+    owner: "webui",
+  },
+  {
+    pairId: "long-content-mobile",
+    storyId: "components-input-composer--long-draft-and-attachments",
+    states: ["long-content", "mobile"],
+    theme: "light",
+    viewport: { width: 390, height: 844 },
+    evidenceSelector: ".cx-card",
+    evidence: "Long composer content remains contained at the phone viewport.",
+    owner: "webui",
+  },
+  {
+    pairId: "overlay-short",
+    storyId: "components-overlays-modals--prompt-over-main-modal",
+    states: ["overlay", "short-viewport"],
+    theme: "dark",
+    viewport: { width: 390, height: 500 },
+    evidenceSelector: '[role="dialog"][aria-label="Rename artifact"]',
+    evidence: "Nested modal remains visible and keyboard reachable in a short viewport.",
+    owner: "webui",
+  },
+  {
+    pairId: "loading-reload",
+    storyId: "components-sessions-sessionview--loading",
+    states: ["loading", "reload"],
+    theme: "light",
+    viewport: { width: 1280, height: 720 },
+    evidenceSelector: '[aria-label="Loading session"]',
+    reload: true,
+    evidence: "Session loading projection survives a document reload without an empty shell.",
+    owner: "webui",
+  },
+  {
+    pairId: "attention-mobile",
+    storyId: "components-sessions-sessionview--approval-required",
+    states: ["attention", "mobile"],
+    theme: "dark",
+    viewport: { width: 390, height: 844 },
+    evidenceSelector: ".approval-card",
+    evidence: "Approval attention state remains actionable without horizontal overflow on mobile.",
+    owner: "webui",
+  },
+] satisfies readonly GlobalStatePair[];
 
 const baseStoryManifest = [
   {
@@ -1396,6 +1464,10 @@ const baseStoryManifest = [
       "state:loading": {
         status: "covered",
         storyId: "components-sessions-sessionview--loading",
+      },
+      "state:running": {
+        status: "covered",
+        storyId: "components-sessions-sessionview--running",
       },
       "data:empty": {
         status: "covered",
