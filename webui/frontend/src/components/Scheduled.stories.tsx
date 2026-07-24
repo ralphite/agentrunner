@@ -371,6 +371,44 @@ export const FilterAndNoResults: Story = {
   },
 };
 
+const paginationSessions = Array.from({ length: 7 }, (_, index) => {
+  const day = String(23 - index).padStart(2, "0");
+  return buildSession({
+    id: `202607${day}-120000-story-page-${index + 1}`,
+    title: `Paginated scheduled review ${index + 1}`,
+    status: "waiting:input",
+    kind: "driver",
+    schedule: "interval",
+    cadence: `Every ${index + 1}h`,
+    nextRunAt: `2026-07-24T${String(10 + index).padStart(2, "0")}:00:00Z`,
+    scheduleControl: true,
+    scheduleDetail: false,
+  });
+});
+const paginationFixture = makeFixture({
+  sessions: paginationSessions,
+  runs: [],
+  unread: [],
+});
+
+export const Pagination: Story = {
+  parameters: { msw: { handlers: paginationFixture.api.handlers } },
+  render: () => renderFixture(paginationFixture),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(5);
+    await userEvent.click(canvas.getByRole("button", { name: /Show 2 more/ }));
+    await expect(canvas.getByText("Paginated scheduled review 7")).toBeVisible();
+    await expect(canvasElement.querySelectorAll(".scheduled-row")).toHaveLength(7);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show fewer · newest 5" }),
+    );
+    await waitFor(() => {
+      expect(canvas.queryByText("Paginated scheduled review 7")).toBeNull();
+    });
+  },
+};
+
 const closeDetail = fn();
 const retryDetail = fn();
 const openHistory = fn();
@@ -410,6 +448,93 @@ export const ScheduleDetailPanel: Story = {
   },
 };
 
+const fallbackDetail: ScheduleDetailData = {
+  ...buildScheduleDetail({
+    sessionId: "fallback-detail",
+    name: "Legacy schedule metadata",
+    status: "active",
+    cadence: "",
+    nextRunAt: "not-a-date",
+    scheduleControl: false,
+    scheduleDetail: true,
+    scheduleEdit: false,
+    iterations: 0,
+    revision: 0,
+  }),
+  prompt: undefined,
+  workspace: undefined,
+  agent: undefined,
+  provider: undefined,
+  model: undefined,
+  thinkingEnabled: false,
+  thinkingBudgetTokens: undefined,
+  overlap: undefined,
+  maxIterations: undefined,
+};
+
+export const ScheduleDetailFallbacks: Story = {
+  render: () => (
+    <StoryAppFrame>
+      <div className="mx-auto min-h-[720px] max-w-[520px] bg-bg">
+        <ScheduleDetailPanelView
+          title="Legacy schedule metadata"
+          detail={fallbackDetail}
+          loading={false}
+          error=""
+          acting={false}
+          onClose={closeDetail}
+          onRetry={retryDetail}
+          onHistory={openHistory}
+          onCadence={changeCadence}
+          onEdit={editDetail}
+        />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const fallback = within(canvas.getByRole("complementary", {
+      name: "Schedule details for Legacy schedule metadata",
+    }));
+    await expect(fallback.getByText("No standing prompt recorded.")).toBeVisible();
+    await expect(fallback.getByText("No project")).toBeVisible();
+    await expect(fallback.getByText("Default agent")).toBeVisible();
+    await expect(fallback.getByText("Not recorded")).toBeVisible();
+    await expect(fallback.getByText("Off")).toBeVisible();
+    await expect(fallback.getByText("Not available")).toBeVisible();
+    await expect(fallback.queryByRole("button", { name: "Edit" })).toBeNull();
+    await expect(fallback.queryByRole("button", { name: "Pause" })).toBeNull();
+  },
+};
+
+export const ScheduleDetailSaving: Story = {
+  render: () => (
+    <StoryAppFrame>
+      <div className="mx-auto min-h-[720px] max-w-[520px] bg-bg">
+        <ScheduleDetailPanelView
+          title="Saving schedule control"
+          detail={details[active.id]}
+          loading={false}
+          error=""
+          acting
+          onClose={closeDetail}
+          onRetry={retryDetail}
+          onHistory={openHistory}
+          onCadence={changeCadence}
+          onEdit={editDetail}
+        />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const saving = within(canvas.getByRole("complementary", {
+      name: "Schedule details for Saving schedule control",
+    }));
+    await expect(saving.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  },
+};
+
 const leafEditFixture = makeFixture({ sessions: [active], runs: [] });
 const scheduleSaved = fn(async () => {});
 
@@ -440,5 +565,92 @@ export const ScheduleEditDialog: Story = {
     await userEvent.type(interval, "45m");
     await userEvent.click(canvas.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(scheduleSaved).toHaveBeenCalled());
+  },
+};
+
+const conflictEditFixture = makeFixture({ sessions: [active], runs: [] });
+export const ScheduleEditCronConflict: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.post("/api/sessions/:sid/schedule", () =>
+          HttpResponse.json(
+            {
+              error: "The schedule changed elsewhere.",
+              code: "schedule_conflict",
+            },
+            { status: 409 },
+          )),
+        ...conflictEditFixture.api.handlers,
+      ],
+    },
+  },
+  render: () => (
+    <StoryAppFrame
+      initialState={conflictEditFixture.initialState}
+      services={{ clock: storyClock }}
+    >
+      <ScheduleEditDialogView
+        detail={details[active.id]}
+        onClose={fn()}
+        onSaved={fn(async () => {})}
+      />
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.selectOptions(
+      canvas.getByLabelText("Repeat"),
+      "cron",
+    );
+    const cron = canvas.getByRole("textbox", { name: "Cron expression" });
+    await userEvent.clear(cron);
+    await userEvent.type(cron, "not-a-cron");
+    await expect(canvas.getByRole("alert")).toBeVisible();
+    await userEvent.clear(cron);
+    await userEvent.type(cron, "0 8 * * 1-5");
+    const prompt = canvas.getByLabelText("Prompt");
+    await userEvent.clear(prompt);
+    await userEvent.type(prompt, "Keep this local draft after conflict.");
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(
+      "Your draft is preserved",
+    );
+    await expect(prompt).toHaveValue("Keep this local draft after conflict.");
+  },
+};
+
+const busyEditFixture = makeFixture({ sessions: [active], runs: [] });
+export const ScheduleEditBusy: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.post("/api/sessions/:sid/schedule", async () => {
+          await delay("infinite");
+          return HttpResponse.json({});
+        }),
+        ...busyEditFixture.api.handlers,
+      ],
+    },
+  },
+  render: () => (
+    <StoryAppFrame
+      initialState={busyEditFixture.initialState}
+      services={{ clock: storyClock }}
+    >
+      <ScheduleEditDialogView
+        detail={details[active.id]}
+        onClose={fn()}
+        onSaved={fn(async () => {})}
+      />
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(
+      await canvas.findByRole("button", { name: "Saving…" }),
+    ).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Cancel" })).toBeDisabled();
   },
 };

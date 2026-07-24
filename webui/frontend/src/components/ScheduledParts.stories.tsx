@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   ScheduledEmptyState,
   ScheduledRunActions,
@@ -214,6 +214,124 @@ export const RunItemKeyboardActions: Story = {
     item.focus();
     await userEvent.keyboard("{Shift>}{F10}{/Shift}");
     await expect(args.onOpenMenu).toHaveBeenCalledOnce();
+  },
+};
+
+export const RunItemActionVisibilityStates: Story = {
+  parameters: {
+    pseudo: {
+      rootSelector: "body",
+      hover: '[data-testid="interactive-row"] .scheduled-row-wrap',
+    },
+  },
+  render: () => (
+    <Matrix>
+      <div data-testid="interactive-row">
+        <ScheduledRunItem
+          row={row({
+            id: "interactive",
+            key: "interactive",
+            title: "Hover or focus reveals actions",
+          })}
+          onOpenMenu={noOp}
+        />
+      </div>
+    </Matrix>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const interactive = canvas
+      .getByTestId("interactive-row")
+      .querySelector(".scheduled-row-wrap") as HTMLElement;
+    const more = within(interactive).getByRole("button", {
+      name: "Actions for Hover or focus reveals actions",
+    });
+
+    await waitFor(() => {
+      expect(interactive).toBeVisible();
+      expect(interactive).toHaveClass("pseudo-hover");
+    }, { timeout: 3_000 });
+    await waitFor(() => {
+      expect(getComputedStyle(more).opacity).toBe("1");
+    }, { timeout: 3_000 });
+  },
+};
+
+export const RunItemFocusAndMenuOpen: Story = {
+  render: () => (
+    <Matrix>
+      <div data-testid="interactive-row">
+        <ScheduledRunItem
+          row={row({
+            id: "interactive",
+            key: "interactive",
+            title: "Focus reveals actions",
+          })}
+          onOpenMenu={noOp}
+        />
+      </div>
+      <div data-testid="menu-open-row">
+        <ScheduledRunItem
+          row={row({
+            id: "menu-open",
+            key: "menu-open",
+            title: "Open menu keeps actions visible",
+          })}
+          menuOpen
+          onOpenMenu={noOp}
+        />
+      </div>
+      <div data-testid="settled-transient-row">
+        <ScheduledRunItem
+          row={row({
+            id: "settled-transient",
+            key: "settled-transient",
+            kind: "run",
+            title: "Settled transient run",
+            active: false,
+            running: false,
+            settled: true,
+            raw: "done",
+            status: { text: "Completed", cls: "idle" },
+          })}
+          onOpenMenu={noOp}
+        />
+      </div>
+    </Matrix>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const interactive = canvas
+      .getByTestId("interactive-row")
+      .querySelector(".scheduled-row-wrap") as HTMLElement;
+    const more = within(interactive).getByRole("button", {
+      name: "Actions for Focus reveals actions",
+    });
+
+    await waitFor(() => {
+      expect(interactive).toBeVisible();
+      expect(getComputedStyle(more).opacity).toBe("0");
+    });
+    const rowButton = within(interactive).getByTitle(
+      "Review every component state and interaction " +
+        "Weekdays at 8:00 AM · Next run in 12h agentrunner",
+    );
+    rowButton.focus();
+    await expect(rowButton).toHaveFocus();
+    await waitFor(() => expect(getComputedStyle(more).opacity).toBe("1"));
+
+    const menuOpenMore = within(
+      canvas.getByTestId("menu-open-row"),
+    ).getByRole("button", {
+      name: "Actions for Open menu keeps actions visible",
+    });
+    await expect(getComputedStyle(menuOpenMore).opacity).toBe("1");
+    await expect(
+      within(canvas.getByTestId("settled-transient-row")).queryByRole(
+        "button",
+        { name: /Actions for/ },
+      ),
+    ).toBeNull();
   },
 };
 

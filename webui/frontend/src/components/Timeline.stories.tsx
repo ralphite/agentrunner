@@ -788,6 +788,111 @@ export const MsgActions: Story = {
   },
 };
 
+export const MessageActionsHoverAndFocus: Story = {
+  parameters: {
+    pseudo: {
+      rootSelector: "body",
+      hover: '[data-testid="middle-message"]',
+    },
+  },
+  render: () => (
+    <LeafFrame>
+      <div className="msg assistant" data-testid="middle-message" tabIndex={0}>
+        <div className="msg-col">
+          <div className="bubble">An earlier assistant answer.</div>
+          <MsgActionsLeaf
+            text="An earlier assistant answer."
+            ts={at(65)}
+          />
+        </div>
+      </div>
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const message = canvas.getByTestId("middle-message");
+    const actions = message.querySelector(".msg-actions") as HTMLElement;
+    await waitFor(() => {
+      expect(message).toBeVisible();
+      expect(message).toHaveClass("pseudo-hover");
+    }, { timeout: 3_000 });
+    await waitFor(() => {
+      expect(getComputedStyle(actions).opacity).toBe("1");
+      expect(getComputedStyle(actions).pointerEvents).toBe("auto");
+    }, { timeout: 3_000 });
+  },
+};
+
+export const MessageActionsFocusWithin: Story = {
+  render: () => (
+    <LeafFrame>
+      <div className="msg assistant" data-testid="middle-message" tabIndex={0}>
+        <div className="msg-col">
+          <div className="bubble">An earlier keyboard-focused answer.</div>
+          <MsgActionsLeaf
+            text="An earlier keyboard-focused answer."
+            ts={at(66)}
+          />
+        </div>
+      </div>
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const message = canvas.getByTestId("middle-message");
+    const actions = message.querySelector(".msg-actions") as HTMLElement;
+    await waitFor(() => {
+      expect(message).toBeVisible();
+      expect(getComputedStyle(actions).opacity).toBe("0");
+      expect(getComputedStyle(actions).pointerEvents).toBe("none");
+    });
+    message.focus();
+    await expect(message).toHaveFocus();
+    await waitFor(() => {
+      expect(getComputedStyle(actions).opacity).toBe("1");
+      expect(getComputedStyle(actions).pointerEvents).toBe("auto");
+    });
+  },
+};
+
+export const MsgActionsBusyAndError: Story = {
+  render: () => (
+    <LeafFrame>
+      <div className="grid gap-4">
+        <div className="msg assistant msg-last">
+          <MsgActionsLeaf
+            text="Continue stays disabled while a fork is pending."
+            onContinue={() => new Promise<void>(() => {})}
+          />
+        </div>
+        <div className="msg assistant msg-last">
+          <MsgActionsLeaf
+            text="Continue reports an inaccessible checkpoint."
+            onContinue={async () => {
+              throw new Error("Checkpoint is no longer available");
+            }}
+          />
+        </div>
+      </div>
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const continueButtons = canvas.getAllByRole("button", {
+      name: "Continue in new session",
+    });
+    await userEvent.click(continueButtons[0]);
+    await expect(continueButtons[0]).toBeDisabled();
+    await expect(continueButtons[0]).toHaveAttribute("aria-busy", "true");
+
+    await userEvent.click(continueButtons[1]);
+    await expect(
+      await canvas.findByText("Checkpoint is no longer available"),
+    ).toBeInTheDocument();
+    await expect(continueButtons[1]).toBeEnabled();
+  },
+};
+
 export const ReadDetailView: Story = {
   render: () => (
     <LeafFrame>
@@ -928,6 +1033,73 @@ export const ToolCard: Story = {
         "Unknown provider state was preserved for diagnosis.",
       ),
     ).toBeVisible();
+  },
+};
+
+export const ToolLifecycleMatrix: Story = {
+  render: () => (
+    <LeafFrame>
+      <div className="grid gap-3">
+        <div data-testid="tool-running">
+          <ToolCardLeaf
+            t={tool("tool-running", "read_file", { path: "running.ts" }, 70, {
+              status: "running",
+              statusText: "running",
+              result: undefined,
+              endTs: undefined,
+            })}
+          />
+        </div>
+        <div data-testid="tool-done">
+          <ToolCardLeaf
+            t={tool("tool-done", "read_file", { path: "done.ts" }, 71)}
+          />
+        </div>
+        <div data-testid="tool-cancelled">
+          <ToolCardLeaf
+            t={tool(
+              "tool-cancelled",
+              "read_file",
+              { path: "cancelled.ts" },
+              72,
+              {
+                status: "cancelled",
+                statusText: "cancelled",
+                result: undefined,
+              },
+            )}
+          />
+        </div>
+        <div data-testid="tool-failed">
+          <ToolCardLeaf
+            t={tool("tool-failed", "read_file", { path: "failed.ts" }, 73, {
+              status: "failed",
+              statusText: "failed",
+              errorMsg: "The provider rejected this read.",
+              result: undefined,
+            })}
+          />
+        </div>
+      </div>
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByTestId("tool-running").querySelector(".step-ic.spin"),
+    ).not.toBeNull();
+    await expect(
+      canvas.getByTestId("tool-done").querySelector(".step-ic.ok"),
+    ).not.toBeNull();
+    await expect(
+      canvas.getByTestId("tool-cancelled").querySelector(".step-ic.warn"),
+    ).not.toBeNull();
+    await expect(
+      canvas.getByTestId("tool-failed").querySelector(".step-ic.err"),
+    ).not.toBeNull();
+    await expect(
+      canvas.getByTestId("tool-failed").querySelector(".step.error"),
+    ).not.toBeNull();
   },
 };
 

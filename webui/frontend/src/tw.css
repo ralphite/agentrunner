@@ -719,6 +719,7 @@
   .msg-actions { @apply mt-1 flex items-center gap-[6px] text-[12px] text-dim transition-opacity; }
   .timeline .tl-inner .msg:not(.msg-last) .msg-actions { @apply pointer-events-none opacity-0; }
   .timeline .tl-inner .msg:not(.msg-last):hover .msg-actions,
+  .timeline .tl-inner .msg:not(.msg-last).pseudo-hover .msg-actions,
   .timeline .tl-inner .msg:not(.msg-last):focus-within .msg-actions { @apply pointer-events-auto opacity-100; }
   .timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time { @apply hidden; }
   .msg-copy { @apply grid h-6 w-6 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim opacity-60 hover:bg-panel-2 hover:text-ink hover:opacity-100; }
@@ -743,8 +744,8 @@
   .run-status-line > span:first-child { @apply min-w-0 font-medium text-ink-2; }
   .run-status-line > span:last-child { @apply shrink-0; }
   .chip.warn, .chip.err { @apply rounded-[12px] border px-3 py-2; }
-  .chip.warn, .run-status-line.warn, .terminal-alert.warn { @apply border-amber bg-amber-soft text-amber; }
-  .chip.err, .run-status-line.err, .terminal-alert.err { @apply border-red bg-red-soft text-red; }
+  .chip.warn, .run-status-line.warn, .terminal-alert.warn, .terminal-alert.attention { @apply border-amber bg-amber-soft text-amber; }
+  .chip.err, .run-status-line.err, .terminal-alert.err, .terminal-alert.danger { @apply border-red bg-red-soft text-red; }
   .chip { @apply flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1; }
   .chip > span:first-child { @apply min-w-0 flex-1; }
   .chip > a { @apply inline-flex shrink-0 items-center gap-1 text-blue; }
@@ -862,8 +863,9 @@
   .progress-summary-count { @apply shrink-0 text-[12px] text-dim; }
   .gbar-text { @apply min-w-0 flex-1 truncate; }
   .gbar.paused { @apply bg-panel-2 opacity-100; }
-  .terminal-alert.ok, .gbar.achieved { @apply border-green bg-green-soft text-green; }
-  .terminal-alert.blocked, .gbar.blocked { @apply border-amber bg-amber-soft text-amber; }
+  .terminal-alert.ok, .gbar.achieved, .gbar.done { @apply border-green bg-green-soft text-green; }
+  .terminal-alert.blocked, .gbar.blocked, .gbar.stopped { @apply border-amber bg-amber-soft text-amber; }
+  .gbar.cancelled { @apply border-red bg-red-soft text-red; }
   .turn-error-body, .terminal-alert-text { @apply min-w-0 flex-1; }
   .turn-error-body > b, .terminal-alert-text > b { @apply block leading-5; }
   .turn-error-hint, .terminal-alert-text > span { @apply mt-1 block leading-[1.5]; }
@@ -1235,6 +1237,7 @@
      its menu is open. Touch devices (no hover) keep it always visible. */
   .sched-more { @apply shrink-0 opacity-0 transition-opacity; }
   .scheduled-row-wrap:hover .sched-more,
+  .scheduled-row-wrap.pseudo-hover .sched-more,
   .scheduled-row-wrap:focus-within .sched-more,
   .scheduled-row-wrap.menu-open .sched-more { @apply opacity-100; }
   @media (hover: none) {

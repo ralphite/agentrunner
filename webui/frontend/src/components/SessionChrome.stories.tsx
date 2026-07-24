@@ -133,6 +133,34 @@ export const TopbarSubAgent: Story = {
   },
 };
 
+export const TopbarReadOnlySubAgent: Story = {
+  args: {
+    sid: "20260723-parent-sub-call_story-observer",
+    title: "release-observer",
+    durableTitle: "Observe the release verification",
+    isSub: true,
+    subAnswerRequested: false,
+    needsRecovery: true,
+    canRetry: true,
+    showPrimaryRetry: true,
+    showCompactRetry: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Read-only sub-agent")).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Resume session" }),
+    ).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Retry session" }),
+    ).toBeNull();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "More session actions" }),
+    );
+    await expect(canvas.queryByText("Advanced")).toBeNull();
+  },
+};
+
 export const TopbarKeyboardMenu: Story = {
   args: {
     archived: true,
@@ -412,6 +440,47 @@ export const TerminalRunLimit: Story = {
     await expect(
       canvas.getByRole("button", { name: "Run details" }),
     ).toBeEnabled();
+  },
+};
+
+export const TerminalToneMatrix: Story = {
+  render: () => (
+    <ChromeFrame>
+      <div className="grid gap-3">
+        <TerminalAlert
+          notice={{
+            title: "Session needs attention",
+            body: "Resume from the last durable checkpoint.",
+            tone: "attention",
+            action: "resume",
+            actionLabel: "Resume session",
+          }}
+          onAction={terminalAction}
+        />
+        <TerminalAlert
+          notice={{
+            title: "Session failed",
+            body: "Inspect the failed run before continuing.",
+            tone: "danger",
+            action: "inspect",
+            actionLabel: "Run details",
+          }}
+          onAction={terminalAction}
+        />
+      </div>
+    </ChromeFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const [attention, danger] = within(canvasElement).getAllByRole("alert");
+    const attentionStyle = getComputedStyle(attention);
+    const dangerStyle = getComputedStyle(danger);
+    await expect(attention).toHaveClass("attention");
+    await expect(danger).toHaveClass("danger");
+    await expect(attentionStyle.backgroundColor).not.toBe(
+      dangerStyle.backgroundColor,
+    );
+    await expect(attentionStyle.borderColor).not.toBe(dangerStyle.borderColor);
+    await expect(attentionStyle.color).not.toBe(dangerStyle.color);
   },
 };
 

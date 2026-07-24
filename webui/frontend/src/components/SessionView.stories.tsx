@@ -654,3 +654,104 @@ export const GoalBanner: Story = {
     await expect(canvas.getByText("Goal paused")).toBeVisible();
   },
 };
+
+const terminalGoalStates: GoalDerived[] = [
+  {
+    phase: "achieved",
+    goal: "Complete every Storybook state",
+    checks: 6,
+    maxChecks: 6,
+  },
+  {
+    phase: "stopped",
+    goal: "Stop when the verification budget is exhausted",
+    checks: 4,
+    maxChecks: 4,
+  },
+  {
+    phase: "cancelled",
+    goal: "Cancel the obsolete verification run",
+    checks: 0,
+    maxChecks: 6,
+  },
+];
+
+export const GoalTerminalToneMatrix: Story = {
+  render: () => (
+    <LeafFrame>
+      <div className="grid gap-3">
+        {terminalGoalStates.map((state) => (
+          <GoalBannerView
+            key={state.phase}
+            state={state}
+            elapsedMs={93_000}
+            editing={null}
+            updatePending={false}
+            onEditStart={fn()}
+            onEditChange={fn()}
+            onSave={fn()}
+            onDiscard={fn()}
+            onAction={fn()}
+            onOpenDetails={fn()}
+            onDismiss={fn()}
+          />
+        ))}
+      </div>
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const achieved = canvas.getByText("Goal complete").closest(".gbar");
+    const stopped = canvas.getByText("Goal stopped").closest(".gbar");
+    const cancelled = canvas.getByText("Goal cancelled").closest(".gbar");
+    await expect(achieved).not.toBeNull();
+    await expect(stopped).not.toBeNull();
+    await expect(cancelled).not.toBeNull();
+    const achievedStyle = getComputedStyle(achieved as Element);
+    const stoppedStyle = getComputedStyle(stopped as Element);
+    const cancelledStyle = getComputedStyle(cancelled as Element);
+    await expect(achieved).toHaveClass("done");
+    await expect(stopped).toHaveClass("stopped");
+    await expect(cancelled).toHaveClass("cancelled");
+    await expect(achievedStyle.backgroundColor).not.toBe(
+      stoppedStyle.backgroundColor,
+    );
+    await expect(stoppedStyle.backgroundColor).not.toBe(
+      cancelledStyle.backgroundColor,
+    );
+    await expect(achievedStyle.borderColor).not.toBe(stoppedStyle.borderColor);
+    await expect(stoppedStyle.borderColor).not.toBe(cancelledStyle.borderColor);
+  },
+};
+
+export const GoalUpdatePending: Story = {
+  render: () => (
+    <LeafFrame>
+      <GoalBannerView
+        state={{
+          phase: "active",
+          goal: "Wait for the queued goal update",
+          checks: 3,
+          maxChecks: 8,
+        }}
+        elapsedMs={93_000}
+        editing={null}
+        updatePending
+        onEditStart={fn()}
+        onEditChange={fn()}
+        onSave={fn()}
+        onDiscard={fn()}
+        onAction={fn()}
+        onOpenDetails={fn()}
+        onDismiss={fn()}
+      />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Updating goal")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Edit goal" }),
+    ).toBeDisabled();
+  },
+};
