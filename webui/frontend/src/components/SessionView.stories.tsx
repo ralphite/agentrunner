@@ -159,8 +159,8 @@ export const Running: Story = {
     await expect(
       await canvas.findByText("Run the Storybook browser checks"),
     ).toBeVisible();
-    await expect(canvas.getByLabelText("Stop session")).toBeVisible();
-    await expect(canvas.getByLabelText("Send message")).toBeVisible();
+    await expect(canvas.getByRole("status", { name: "Thinking" })).toBeVisible();
+    await expect(canvas.getByLabelText("Stop active turn")).toBeVisible();
   },
 };
 

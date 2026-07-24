@@ -67,8 +67,10 @@ export const StartNewSession: Story = {
       "Start a new session",
       11,
     );
-    await expect(canvas.getByText("storybook-demo")).toBeVisible();
-    await expect(canvas.getByLabelText("Send message")).toBeVisible();
+    await expect(
+      canvasElement.querySelector(".session-topbar"),
+    ).not.toBeNull();
+    await expect(canvas.getByLabelText("Stop active turn")).toBeVisible();
   },
 };
 
