@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 import type { ScenarioRunner, ScenarioSnapshot } from "./ScenarioRunner";
 import "./ScenarioControls.css";
+import { Button } from "../../ui/Button";
+import { Select } from "../../ui/Field";
 
 export interface ScenarioControlsProps<Context> {
   runner: ScenarioRunner<Context>;
@@ -39,8 +41,9 @@ export function ScenarioControls<Context>({
   return (
     <section className="scenario-controls" aria-label={label}>
       <div className="scenario-controls-actions">
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="solid"
           onClick={() => {
             onAutoPlayChange?.(false);
             run(() => runner.play("manual"));
@@ -48,9 +51,10 @@ export function ScenarioControls<Context>({
           disabled={!canPlay(snapshot)}
         >
           Play
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           // A person always outranks the playback owner. Passing no owner lets
           // the same Pause control stop either a manual run or an autoplay run.
           onClick={() => {
@@ -60,9 +64,10 @@ export function ScenarioControls<Context>({
           disabled={snapshot.status !== "running"}
         >
           Pause
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           onClick={() => {
             onAutoPlayChange?.(false);
             run(() => runner.next("manual"));
@@ -70,9 +75,10 @@ export function ScenarioControls<Context>({
           disabled={!canPlay(snapshot)}
         >
           Next
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={() => {
             onAutoPlayChange?.(false);
             run(() => runner.reset());
@@ -80,9 +86,10 @@ export function ScenarioControls<Context>({
           disabled={!canReset(snapshot)}
         >
           Reset
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={() => {
             onAutoPlayChange?.(false);
             run(() => runner.replay("manual"));
@@ -94,7 +101,7 @@ export function ScenarioControls<Context>({
           }
         >
           Replay
-        </button>
+        </Button>
         {onAutoPlayChange && (
           <label>
             <input
@@ -109,7 +116,8 @@ export function ScenarioControls<Context>({
         )}
         <label>
           Speed
-          <select
+          <Select
+            className="h-7 py-0 text-[12px]"
             aria-label="Playback speed"
             value={snapshot.speed}
             onChange={(event) => runner.setSpeed(Number(event.target.value))}
@@ -117,7 +125,7 @@ export function ScenarioControls<Context>({
             <option value={0.5}>0.5×</option>
             <option value={1}>1×</option>
             <option value={2}>2×</option>
-          </select>
+          </Select>
         </label>
       </div>
       <div className="scenario-controls-status" role="status" aria-live="polite">

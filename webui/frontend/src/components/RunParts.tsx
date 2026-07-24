@@ -4,6 +4,7 @@ import {
   StatusIndicator,
   type StatusIndicatorTone,
 } from "../ui/StatusIndicator";
+import { Button } from "../ui/Button";
 
 export interface RunLogLine {
   raw: string;
@@ -62,8 +63,10 @@ export function RunHeader({
       )}
       <div className="actions shrink-0">
         {status === "running" && onStop && (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            tone="danger"
+            variant="outline"
             className="topbar-tool stop"
             onClick={onStop}
             title="Stop run"
@@ -71,7 +74,7 @@ export function RunHeader({
           >
             <StopIcon size={14} weight="fill" />
             <span className="topbar-tool-label">Stop</span>
-          </button>
+          </Button>
         )}
       </div>
     </div>
