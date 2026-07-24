@@ -41,23 +41,24 @@ test("Core Session Playback supports manual control, autoplay, and replay", asyn
   await expect(status.locator("b")).toHaveText("paused");
 
   await controls.getByRole("button", { name: "Next" }).click();
-  await expect(status).toContainText("Step 2 / 18");
+  await expect(status).toContainText("Step 2 / 19");
   await controls.getByRole("button", { name: "Reset" }).click();
   await expect(status.locator("b")).toHaveText("idle");
-  await expect(status).toContainText("Step 1 / 18");
+  await expect(status).toContainText("Step 1 / 19");
 
   await controls.getByRole("checkbox", { name: "Autoplay" }).check();
   await expect(status.locator("b")).toHaveText("completed", {
     timeout: 20_000,
   });
-  await expect(status).toContainText("Step 18 / 18");
-  await expect(page.locator(".diffwrap")).toBeVisible();
+  await expect(status).toContainText("Step 19 / 19");
+  await expect(page.locator(".diffwrap")).toBeHidden();
+  await expect(page.getByLabel("Send message")).toBeVisible();
 
   await controls.getByRole("button", { name: "Replay" }).click();
   await expect(status.locator("b")).toHaveText("running");
   await expect(status.locator("b")).toHaveText("completed", {
     timeout: 20_000,
   });
-  await expect(status).toContainText("Step 18 / 18");
+  await expect(status).toContainText("Step 19 / 19");
   await expect(runtimeErrors).toEqual([]);
 });

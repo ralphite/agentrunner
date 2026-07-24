@@ -36,9 +36,16 @@ const SESSION_STREAM = `/api/sessions/${SESSION_SID}/stream`;
 const PROMPT =
   "Build a deterministic Storybook demo for the core Agent Runner session journey.";
 const IS_COMPONENT_TEST = String(import.meta.env.VITEST) === "true";
-const IS_AUTOMATED =
-  IS_COMPONENT_TEST || globalThis.navigator?.webdriver === true;
-const STEP_DELAY_MS = IS_AUTOMATED ? 0 : 1300;
+const IS_BROWSER_AUTOMATION = globalThis.navigator?.webdriver === true;
+const IS_AUTOMATED = IS_COMPONENT_TEST || IS_BROWSER_AUTOMATION;
+// Component tests stay instant. Browser automation keeps a small observation
+// window so Pause is a real, reachable state instead of racing completion.
+// Interactive Storybook playback uses a human-readable cadence.
+const STEP_DELAY_MS = IS_COMPONENT_TEST
+  ? 0
+  : IS_BROWSER_AUTOMATION
+    ? 400
+    : 1300;
 const TYPE_CHUNK_DELAY_MS = IS_AUTOMATED ? 0 : 45;
 const TYPE_CHUNK_SIZE = 3;
 
@@ -663,6 +670,29 @@ const steps: readonly DemoStep<DemoContext>[] = [
       await waitForElement(
         context,
         (root) => root.querySelector(".diffwrap"),
+        signal,
+      );
+    },
+  },
+  {
+    id: "return-to-session",
+    title: "Close Changes and return to the session",
+    async run(context, signal) {
+      const close = await waitForElement(
+        context,
+        (root) =>
+          root.querySelector<HTMLButtonElement>(
+            'button[aria-label="Close changes"]',
+          ),
+        signal,
+      );
+      activate(close);
+      await waitForElement(
+        context,
+        (root) =>
+          root.querySelector<HTMLButtonElement>(
+            'button[aria-label="Send message"]',
+          ),
         signal,
       );
     },

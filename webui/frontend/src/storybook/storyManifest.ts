@@ -471,7 +471,7 @@ export const workbenchStories = [
     source: "src/storybook/demos/CoreSessionPlayback.stories.tsx",
     kind: "demo",
     evidence:
-      "Production AppRuntime/AppShell journey from Home project and Build intent through configuration, send, deterministic streaming, Environment, completion, Changes, and Review; in-canvas transport covers Play/Pause/Next/Replay/Reset/speed/autoplay.",
+      "Production AppRuntime/AppShell journey from Home project and Build intent through configuration, send, deterministic streaming, Environment, completion, Changes, Review, and return to the session; in-canvas transport covers Play/Pause/Next/Replay/Reset/speed/autoplay.",
     owner: "webui",
   },
 ] satisfies readonly WorkbenchStory[];
