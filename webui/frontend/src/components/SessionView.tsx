@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CaretRight, CheckCircle, Crosshair, Pause, PencilSimple, Play, Prohibit, Trash, WarningCircle, X } from "@phosphor-icons/react";
 import { type ForkDraft } from "../api";
-import { useAppServices, type AppEventStream } from "../app/appServices";
-import { useAppStoreApi, useStore } from "../store";
-import type { BackgroundWork, Envelope } from "../types";
-import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type BubbleItem, type GoalDerived } from "../timeline";
+import { useAppServices } from "../app/appServices";
+import { useStore } from "../store";
+import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type GoalDerived } from "../timeline";
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
@@ -31,14 +30,13 @@ import {
   TerminalAlert,
   TurnFailureCard,
 } from "./SessionChrome";
+import { useSessionDataController } from "../features/session/useSessionDataController";
+import {
+  isSessionNotFound,
+  isValidSessionId,
+} from "../features/session/sessionIdentity";
 
-interface SSEApproval {
-  id: string;
-  tool: string;
-  args: any;
-  agent?: string;
-  session?: string;
-}
+export { isSessionNotFound, isValidSessionId };
 
 // INC-41 RT-7 · The server's own id grammar (webui/ar.go `idPattern` +
 // `validID`): everything it splices into an `ar` argv position must match, and
@@ -47,32 +45,6 @@ interface SSEApproval {
 // mangled deep link (`#/s/hello world`, `#/s/bad!id`) short-circuit to the
 // not-found state WITHOUT firing a single request: no 1s poll loop, no
 // EventSource reconnect storm, no composer over a session that cannot exist.
-const SESSION_ID_RE = /^[A-Za-z0-9._#-]+$/;
-export function isValidSessionId(sid: string): boolean {
-  return !!sid && sid.length <= 200 && SESSION_ID_RE.test(sid);
-}
-
-// Persist the idempotency key across a response-loss reload. Keeping the key
-// after success is harmless and guarantees that a later retry of the same row
-// resolves the already-published child instead of creating a sibling.
-function continuationRequestID(
-  storage: Storage,
-  createID: () => string,
-  sid: string,
-  itemID: string,
-): string {
-  const key = `arwebui.continue.${sid}.${itemID}`;
-  try {
-    const prior = storage.getItem(key);
-    if (prior) return prior;
-    const id = createID();
-    storage.setItem(key, id);
-    return id;
-  } catch {
-    return createID();
-  }
-}
-
 // INC-41 L2/L5/RT-7 · "this id doesn't exist" vs "the fetch happened to fail".
 // The backend answers an unknown session id with a real 404 + code=
 // session_not_found (arFail owns the single string match against the CLI's
@@ -86,14 +58,6 @@ function continuationRequestID(
 // stderr match survives only as a fallback for a stale webui binary that still
 // 502s. Duck-typed on purpose — an ApiError from a mocked/older api module
 // still classifies.
-export function isSessionNotFound(err: unknown): boolean {
-  const e = err as { status?: unknown; code?: unknown; message?: unknown } | null | undefined;
-  if (e && (e.status === 404 || e.code === "session_not_found")) return true;
-  const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-  if (e && e.status === 400 && /invalid session id/i.test(msg)) return true;
-  return /no session matches/i.test(msg);
-}
-
 // 1403 → "1.4k", 20 → "20" — a compact token count for the header badge.
 function fmtTokens(n: number): string {
   if (n < 1000) return String(n);
@@ -102,8 +66,7 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string; mobileNavigationOpen?: boolean }) {
-  const { api, clock, ids, storage, streams } = useAppServices();
-  const store = useAppStoreApi();
+  const { api, clock, storage } = useAppServices();
   const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
@@ -119,45 +82,36 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // journal title as soon as that metadata page arrives.
   const title = displayTitle(renames, sid, sessionMeta?.title);
 
-  const [events, setEvents] = useState<Envelope[]>([]);
-  const continueRequests = useRef<Map<string, string>>(new Map());
-  const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[]>([]);
-  const [typing, setTyping] = useState<string>("");
-  const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
-  const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
-  const [backgroundWork, setBackgroundWork] = useState<BackgroundWork[]>([]);
-  const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
-  const [children, setChildren] = useState<InspectNode[]>([]);
-  const [delegations, setDelegations] = useState<InspectDelegation[]>([]);
-  // Child journals deliberately inherit the parent's durable title. Inspect
-  // carries the actual agent spec, which is the label a person needs when
-  // moving between three otherwise indistinguishable worker sessions.
-  const [subAgentName, setSubAgentName] = useState<string | undefined>();
-  const [inspectReady, setInspectReady] = useState(false);
-  // The first events fetch for this sid hasn't returned yet (INC-41 L1) — the
-  // timeline is UNKNOWN, not empty. Flips on the first settled poll (success or
-  // failure), never back: a later poll failing must not re-skeleton a thread
-  // that's already on screen.
-  const [eventsReady, setEventsReady] = useState(false);
-  // The daemon says this session id doesn't exist (INC-41 L2).
-  const [notFound, setNotFound] = useState(false);
-  // Mirrors `notFound` for the pollers: they are closures on intervals, and a
-  // dead id must stop spawning `ar` subprocesses every second.
-  const gone = useRef(false);
-  // The session's LIVE permission mode from inspect's fold (INC-42, G29):
-  // /mode switches it mid-session, so the composer pill must not freeze on
-  // the launch-time value.
-  const [liveMode, setLiveMode] = useState<string | undefined>(undefined);
-  const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean; verifiers?: number; claimed?: boolean } | null>(null);
-  // The model-maintained checklist from inspect's progress projection (INC-37).
-  const [progress, setProgress] = useState<import("./SupervisionPanel").ProgressItem[]>([]);
-  // Published artifacts from inspect (INC-40): stream/version rows.
-  const [artifacts, setArtifacts] = useState<{ stream: string; version: number }[]>([]);
-  // A structured ask_user park's questions (INC-47.2): non-empty while the
-  // session waits on a questions[] ask, so a form card renders in place.
-  const [askQuestions, setAskQuestions] = useState<import("./AskForm").AskQuestion[]>([]);
-  // Queued (not-yet-consumed) messages (INC-47.2): each withdrawable.
-  const [queued, setQueued] = useState<{ command_id: string; text: string; revoked: boolean }[]>([]);
+  const {
+    events,
+    pending,
+    typing,
+    sseApprovals,
+    resolvedLocal,
+    backgroundWork,
+    usage,
+    children,
+    delegations,
+    subAgentName,
+    inspectReady,
+    eventsReady,
+    notFound,
+    liveMode,
+    goal,
+    progress,
+    artifacts,
+    askQuestions,
+    queued,
+    sentImages,
+    poll,
+    pollInspect,
+    answerAsk,
+    skipAsk,
+    withdrawQueued,
+    send: doSend,
+    continueFromMessage,
+    decideApproval,
+  } = useSessionDataController({ sid, isSub });
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
@@ -242,12 +196,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     });
   };
 
-  const cursor = useRef(0);
-  const pollBusy = useRef(false);
-  const pendSeq = useRef(0);
-  // journal seq → local upload paths, so a confirmed user bubble keeps its
-  // image thumbnails (the journal itself only records a CAS ref).
-  const sentImages = useRef(new Map<number, string[]>());
   const approvalAdjustedSupervision = useRef<"opened" | "closed" | null>(null);
 
   // Mobile navigation and Environment are both full-height overlays. Opening
@@ -275,131 +223,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     if (view !== "chat") setFindOpen(false);
   }, [view]);
 
-  // ---- incremental journal poll (the realtime source of truth) ----
-  const poll = useCallback(async () => {
-    if (pollBusy.current || gone.current) return;
-    pollBusy.current = true;
-    try {
-      const evs = await api.events(sid, cursor.current);
-      if (evs.length) {
-        setPending((prev) => {
-          let next = prev;
-          for (const e of evs) {
-            if (e.type === "input_received" ||
-                (e.type === "ask_resolved" && e.payload?.resolution === "answered")) {
-              // A normal follow-up is journaled as InputReceived. While the
-              // session is parked on ask_user, the compatibility composer is
-              // instead consumed directly as AskResolved{answer}; no duplicate
-              // user message is written. Reconcile both durable receipts or
-              // the optimistic answer survives as a false `queued…` bubble
-              // until reload even though the agent already continued.
-              const t = e.type === "ask_resolved" ? e.payload?.answer : e.payload?.text;
-              const i = next.findIndex((x) => x.text === t);
-              if (i >= 0) {
-                // Hand the pending bubble's thumbnails over to the journal
-                // bubble that replaces it (idempotent under re-runs).
-                if (next[i].imgs.length && e.seq) sentImages.current.set(e.seq, next[i].imgs);
-                next = next.filter((_, j) => j !== i);
-              }
-            }
-            if (e.type === "assistant_message") setTyping("");
-          }
-          return next;
-        });
-        setEvents((prev) => [...prev, ...evs]);
-        cursor.current = evs.reduce((m, e) => Math.max(m, e.seq || 0), cursor.current);
-      }
-    } catch (e) {
-      /* daemon down / transient: health dot tells the story */
-      if (isSessionNotFound(e)) {
-        gone.current = true;
-        setNotFound(true);
-      }
-    } finally {
-      pollBusy.current = false;
-      setEventsReady(true);
-    }
-  }, [sid]);
-
-  const pollInspect = useCallback(async () => {
-    if (gone.current) return;
-    try {
-      setBackgroundWork(await api.ps(sid));
-    } catch {
-      /* ignore */
-    }
-    try {
-      const ins = await api.inspect(sid);
-      const u = ins?.usage;
-      if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
-      setChildren(Array.isArray(ins?.children) ? ins.children : []);
-      setDelegations(Array.isArray(ins?.delegations) ? ins.delegations : []);
-      if (isSub && typeof ins?.spec === "string" && ins.spec.trim()) setSubAgentName(ins.spec.trim());
-      setGoal(ins?.goal || null);
-      setProgress(Array.isArray(ins?.progress) ? ins.progress : []);
-      if (typeof ins?.mode === "string" && ins.mode) setLiveMode(ins.mode);
-      {
-        // Latest version per stream — inspect lists every published version.
-        const latest = new Map<string, number>();
-        for (const a of Array.isArray(ins?.artifacts) ? ins.artifacts : []) {
-          if (a?.stream && (latest.get(a.stream) || 0) < (a.version || 0)) latest.set(a.stream, a.version);
-        }
-        setArtifacts([...latest.entries()].map(([stream, version]) => ({ stream, version })).sort((x, y) => x.stream.localeCompare(y.stream)));
-      }
-      // A structured ask park surfaces its questions (INC-47.2); a plain
-      // idle or single-question ask leaves the form empty (the composer
-      // answers those).
-      const wq = ins?.waiting?.kind === "input" ? ins?.waiting?.ask_questions : undefined;
-      setAskQuestions(Array.isArray(wq) ? wq : []);
-    } catch (e) {
-      /* ignore — usage badge / subagents are best-effort */
-      if (isSessionNotFound(e)) {
-        gone.current = true;
-        setNotFound(true);
-      }
-    } finally {
-      // INC-41 L2 · inspect has ANSWERED (even with an error) — Supervision's
-      // three "Checking…" spinners must settle. Leaving this inside the success
-      // path made a failing inspect spin forever.
-      setInspectReady(true);
-    }
-    if (gone.current) return;
-    // Queued messages (INC-47.2): withdrawable until consumed. Best-effort.
-    try {
-      const q = await api.queue(sid);
-      setQueued(Array.isArray(q) ? q : []);
-    } catch {
-      setQueued([]);
-    }
-  }, [sid, isSub]);
-
-  const answerAsk = async (specs: string[]) => {
-    try {
-      await api.answer(sid, specs);
-      setAskQuestions([]);
-      poll();
-    } catch (e: any) {
-      toast(e.message);
-    }
-  };
-  const skipAsk = async () => {
-    try {
-      await api.skipAnswer(sid);
-      setAskQuestions([]);
-      poll();
-    } catch (e: any) {
-      toast(e.message);
-    }
-  };
-  const withdrawQueued = async (commandId: string) => {
-    try {
-      await api.unqueue(sid, commandId);
-      setQueued((prev) => prev.map((m) => (m.command_id === commandId ? { ...m, revoked: true } : m)));
-    } catch (e: any) {
-      toast(e.message);
-    }
-  };
-
   const saveGoalEdit = () => {
     const g = (goalEdit || "").trim();
     if (!g) return;
@@ -412,92 +235,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       })
       .catch((e) => toast(e.message));
   };
-
-  useEffect(() => {
-    cursor.current = 0;
-    sentImages.current = new Map();
-    setEvents([]);
-    setPending([]);
-    setTyping("");
-    setSseApprovals(new Map());
-    setResolvedLocal(new Set());
-    setUsage(null);
-    setChildren([]);
-    setDelegations([]);
-    setSubAgentName(undefined);
-    setGoal(null);
-    setGoalPendingUpdate(null);
-    setGoalDismissedAt(null);
-    setAskQuestions([]);
-    setQueued([]);
-    setInspectReady(false);
-    setEventsReady(false);
-    setFailureRawOpen(false);
-    setNotFound(false);
-    gone.current = false;
-    setLiveMode(undefined);
-    // RT-7 · A sid the server's grammar cannot accept is not a session that might
-    // show up later — it is a broken link. Settle on Not found immediately and
-    // start NOTHING: no poll interval, no inspect interval, no EventSource.
-    // (A well-formed but unknown id still takes the network path; the daemon's
-    // 404 lands in the catch arms below and stops the pollers there.)
-    if (!isValidSessionId(sid)) {
-      setNotFound(true);
-      gone.current = true;
-      setEventsReady(true);
-      setInspectReady(true);
-      return;
-    }
-    poll();
-    const e = clock.setInterval(poll, 1000);
-    const t = clock.setInterval(pollInspect, 2500);
-    pollInspect();
-    let es: AppEventStream | null = null;
-    {
-      // Child sessions stream too (INC-12.6): the daemon routes a -sub- id
-      // through the tree root's hub filtered to the member.
-      es = streams.open(`/api/sessions/${sid}/stream`);
-      es.onmessage = (m) => {
-        let ev: any;
-        try {
-          ev = JSON.parse(m.data);
-        } catch {
-          return;
-        }
-        // Tree members tag their own events; keep THIS view's typing bubble
-        // to its own stream (approvals below still bubble tree-wide).
-        const foreign = ev.session && ev.session !== sid;
-        if (!foreign && ev.kind === "text_delta" && ev.text) setTyping((prev) => prev + ev.text);
-        if (!foreign && ev.kind === "discard") setTyping("");
-        // Child asks exist ONLY on this stream (they never touch the parent
-        // journal). e.text carries the requesting agent's name.
-        if (ev.kind === "approval_request" && ev.approval_id) {
-          setSseApprovals((prev) => {
-            const next = new Map(prev);
-            next.set(ev.approval_id, {
-              id: ev.approval_id,
-              tool: ev.tool,
-              args: ev.args,
-              agent: ev.text || (foreign ? ev.session : ""),
-              session: ev.session || sid,
-            });
-            return next;
-          });
-        }
-      };
-      es.addEventListener("end", () => es?.close());
-      // A nonexistent id can't ever stream; EventSource would otherwise
-      // reconnect forever, re-running `ar` on every attempt (INC-41 L2).
-      es.onerror = () => {
-        if (gone.current) es?.close();
-      };
-    }
-    return () => {
-      clock.clearInterval(e);
-      clock.clearInterval(t);
-      es?.close();
-    };
-  }, [sid, isSub, poll, pollInspect]);
 
   const folded = useMemo(() => foldEvents(events), [events]);
 
@@ -517,6 +254,11 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       : null;
   const [now, setNow] = useState(() => clock.now());
   const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
+  useEffect(() => {
+    setGoalPendingUpdate(null);
+    setGoalDismissedAt(null);
+    setFailureRawOpen(false);
+  }, [sid]);
   useEffect(() => {
     if (!goalPendingUpdate) return;
     if (goalState?.goal === goalPendingUpdate || goal?.goal === goalPendingUpdate || goalTerminal) {
@@ -644,60 +386,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     abnormalAgentCount +
     (backgroundWork.length > 0 && !running ? 1 : 0);
 
-  const doSend = async (text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue",
-    draft?: { draftId: string; sendRequestId: string;
-      parts: Array<{ kind: "image" | "file"; ref?: string; path?: string; ordinal?: number }>;
-      replayOriginal: boolean }) => {
-    const id = ++pendSeq.current;
-    setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
-    try {
-      const result = await api.send(sid, text, images, files, delivery, draft);
-      if (result?.status === "answered" || askQuestions.length > 0) {
-        // A successful send while the durable structured ask form is visible
-        // is a compatibility answer, even though today's CLI receipt says the
-        // generic `delivered`. Remove its optimistic bubble from that exact
-        // UI context too: journal polling alone can race past the receipt in
-        // the real browser and leave a false queued row until reload.
-        setPending((p) => p.filter((x) => x.id !== id));
-      }
-      if (delivery === "queue") {
-        // Queue has its own durable, withdrawable projection. Once send has
-        // acknowledged it, keeping the optimistic timeline bubble would show
-        // the same message twice; after Withdraw it would become a ghost
-        // forever because a revoked command never emits input_received.
-        setPending((p) => p.filter((x) => x.id !== id));
-        try {
-          const q = await api.queue(sid);
-          setQueued(Array.isArray(q) ? q : []);
-        } catch {
-          // The regular poll will recover the durable queue card. Do not put
-          // back a projection that can no longer be withdrawn truthfully.
-        }
-      }
-    } catch (e: any) {
-      toast(e.message);
-      setPending((p) => p.filter((x) => x.id !== id));
-      throw e;
-    }
-  };
-
-  const continueFromMessage = async (item: BubbleItem) => {
-    if (!item.itemId) return;
-    let requestID = continueRequests.current.get(item.itemId);
-    if (!requestID) {
-      requestID = continuationRequestID(
-        storage.session,
-        () => ids.uuid("continue"),
-        sid,
-        item.itemId,
-      );
-      continueRequests.current.set(item.itemId, requestID);
-    }
-    const result = await api.continueFromMessage(sid, item.itemId, requestID);
-    await store.getState().refreshSessions();
-    select(result.session_id);
-  };
-
   const forkDraft = useMemo<ForkDraft | null>(() => {
     const genesis = events.find((e) => e.type === "forked_from" && e.payload?.draft)?.payload?.draft as ForkDraft | undefined;
     if (!genesis) return null;
@@ -727,15 +415,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
 	}
 	return released;
   }, [events]);
-
-  const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid, always = false) => {
-    await api.approve(target, id, decision, reason, always);
-    setResolvedLocal((s) => new Set(s).add(id));
-    // Honest wording (G35/INC-62): the loop is the authority on what was
-    // remembered — it emits a "remembered:" message only when the rule
-    // actually persisted. The toast claims only the always-allow intent.
-    if (always) toast("approved (always) — this session stops asking for this exact operation", "info");
-  };
 
   // ⌘↵ approves the top pending request, ⌘⌫ denies it (Codex's Approve request).
   // A ref keeps the latest first-id / handler without rebinding each render.
