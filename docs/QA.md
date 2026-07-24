@@ -2330,6 +2330,13 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 
 ## QA-93 goal × plan 组合 first-run journey（QA-0724-goal 事故回归，UJ-22/24）
 
+**状态**：PASS（2026-07-24，真 Gemini Flash Medium，真浏览器全流程，部署
+6d3b7daf；证据 `qa/runs/2026-07-24-QA-93/`，会话
+`20260724-204400-create-a-plan-to-maximize-the-b8ed1a1cf0d06c27` 保留共享
+store）。场景 A 五步硬断言全绿（exit_plan_mode 0 次 vs 事故 3 次；attach
+注入引用去重；终态单一 verdict row；全程无骨架；composer 留白 16px）；
+场景 B GoalOptions 警示逐字命中 + scripted 短路锚绿。
+
 **背景**：2026-07-24 用户首次真实使用 webui Home「Goal + Plan (read-only)」
 组合即暴露一串问题（`20260724-194450-…-af266b173beb1815`）：plan 系统后缀
 （"plan 就绪即调 exit_plan_mode"）与 goal 注入（"keep going…workspace

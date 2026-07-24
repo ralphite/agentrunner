@@ -1,0 +1,25 @@
+{
+  "session": "20260724-204400-create-a-plan-to-maximize-the-b8ed1a1cf0d06c27",
+  "deployed": "6d3b7daf-133626 (daemon+webui, versionMatch=true)",
+  "terminal_state": {
+    "verdictRow_GoalAchievedIn": true,
+    "goalCompleteBanner": false,
+    "passedChipTopLevel": false,
+    "achievedChipTopLevel": false,
+    "loadingChangesText": false,
+    "changesSkeletonNode": false,
+    "sentAsGoalNote": true,
+    "composerBottomGapPx": 16
+  },
+  "journal": {
+    "mode_changed": ["plan", "startup"],
+    "exit_plan_mode_requests": 0,
+    "goal_completion_claimed": true,
+    "goal_achieved": ["satisfied", 2],
+    "attach_injection_references_message_above": true,
+    "attach_injection_has_goal_block_duplicate": false,
+    "attach_injection_has_plan_reconciliation": true,
+    "miss_feedback_mentions_workspace_inspect": false
+  },
+  "goal_options_readonly_warning": "Plan (read-only) mode can't run commands — this check only starts working after you approve leaving plan mode."
+}
