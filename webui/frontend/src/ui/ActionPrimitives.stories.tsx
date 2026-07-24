@@ -140,6 +140,29 @@ export const IconButtonSizesVariantsAndTones: Story = {
   ),
 };
 
+export const IconLinkSizesVariantsAndTones: Story = {
+  render: () => (
+    <div className="grid w-[560px] max-w-[calc(100vw-32px)] gap-5 p-2">
+      {(["sm", "md", "lg"] as const).map((size) => (
+        <Section key={size} title={`${size} · native link`}>
+          <IconLink size={size} variant="ghost" href={`#ghost-${size}`} aria-label={`Open ghost ${size}`}>
+            <DownloadSimple size={size === "sm" ? 14 : size === "md" ? 16 : 18} />
+          </IconLink>
+          <IconLink size={size} variant="outline" href={`#outline-${size}`} aria-label={`Open outline ${size}`}>
+            <DownloadSimple size={size === "sm" ? 14 : size === "md" ? 16 : 18} />
+          </IconLink>
+          <IconLink size={size} variant="solid" href={`#solid-${size}`} aria-label={`Open solid ${size}`}>
+            <DownloadSimple size={size === "sm" ? 14 : size === "md" ? 16 : 18} />
+          </IconLink>
+          <IconLink size={size} variant="outline" tone="danger" href={`#danger-${size}`} aria-label={`Remove link ${size}`}>
+            <Trash size={size === "sm" ? 14 : size === "md" ? 16 : 18} />
+          </IconLink>
+        </Section>
+      ))}
+    </div>
+  ),
+};
+
 export const InteractionStates: Story = {
   parameters: {
     pseudo: {
@@ -273,6 +296,28 @@ export const LinkSemanticsAndInverseTone: Story = {
         >
           <X size={16} />
         </IconButton>
+        <Button tone="inverse" variant="outline" disabled>
+          Disabled
+        </Button>
+        <Button tone="inverse" variant="solid" loading>
+          Loading
+        </Button>
+        <IconButton
+          tone="inverse"
+          variant="outline"
+          disabled
+          aria-label="Close preview, disabled"
+        >
+          <X size={16} />
+        </IconButton>
+        <IconButton
+          tone="inverse"
+          variant="outline"
+          loading
+          aria-label="Close preview, loading"
+        >
+          <X size={16} />
+        </IconButton>
       </div>
     </div>
   ),
@@ -282,5 +327,8 @@ export const LinkSemanticsAndInverseTone: Story = {
     await expect(download).toHaveAttribute("download", "fixture.txt");
     await expect(download).toHaveAttribute("title", "Download fixture");
     await expect(download).toHaveAttribute("data-tone", "inverse");
+    await expect(
+      canvas.getByRole("button", { name: "Close preview, loading" }),
+    ).toHaveAttribute("aria-busy", "true");
   },
 };

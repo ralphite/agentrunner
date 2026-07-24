@@ -451,7 +451,7 @@ export const privateVisibleExclusions = [
 // therefore carry their own exact Story source/evidence record.
 export const workbenchStories = [
   {
-    storyId: "workbench-demo-scenariocontrols--default",
+    storyId: "demos-scenario-controls--default",
     source: "src/storybook/scenarios/ScenarioControls.stories.tsx",
     kind: "demo",
     evidence:
@@ -459,7 +459,7 @@ export const workbenchStories = [
     owner: "webui",
   },
   {
-    storyId: "workbench-demo-scenariocontrols--all-playback-states",
+    storyId: "demos-scenario-controls--all-playback-states",
     source: "src/storybook/scenarios/ScenarioControls.stories.tsx",
     kind: "demo",
     evidence:
@@ -605,6 +605,11 @@ const baseStoryManifest = [
         storyId:
           "foundations-actions-button-and-iconbutton--link-semantics-and-inverse-tone",
       },
+      "state:sizes-variants-tones": {
+        status: "covered",
+        storyId:
+          "foundations-actions-button-and-iconbutton--icon-link-sizes-variants-and-tones",
+      },
     },
   },
   {
@@ -737,6 +742,10 @@ const baseStoryManifest = [
       "state:empty-focus-value-clear-error-disabled": {
         status: "covered",
         storyId: "foundations-forms-field-primitives--search-states",
+      },
+      "state:default-flush-unstyled": {
+        status: "covered",
+        storyId: "foundations-forms-field-primitives--control-variants",
       },
     },
   },

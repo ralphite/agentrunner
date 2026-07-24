@@ -10,9 +10,13 @@ import {
 } from "./ScenarioRunner";
 
 const meta = {
-  title: "Workbench/Demo/ScenarioControls",
+  title: "Demos/Scenario Controls",
   component: ScenarioControls,
+  tags: ["!test"],
   parameters: { layout: "fullscreen" },
+  args: {
+    runner: staticRunner("idle") as ScenarioRunner<unknown>,
+  },
 } satisfies Meta<typeof ScenarioControls>;
 
 export default meta;
