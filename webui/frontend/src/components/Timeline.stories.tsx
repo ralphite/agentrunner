@@ -1083,7 +1083,9 @@ export const ToolLifecycleMatrix: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByTestId("tool-running").querySelector(".step-ic.spin"),
+      canvas
+        .getByTestId("tool-running")
+        .querySelector('.step-ic > svg[class~="motion-safe:animate-spin"]'),
     ).not.toBeNull();
     await expect(
       canvas.getByTestId("tool-done").querySelector(".step-ic.ok"),

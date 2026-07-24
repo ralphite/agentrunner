@@ -50,7 +50,7 @@ export const KeyboardNavigation: Story = {
     await expect(input).toHaveFocus();
     await userEvent.type(input, "agent");
     await expect(canvas.getByText("1 / 3")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Next (Enter)" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Next match" })).toBeEnabled();
 
     await userEvent.keyboard("{Enter}");
     await expect(canvas.getByText("2 / 3")).toBeVisible();
@@ -67,7 +67,7 @@ export const NoMatches: Story = {
     const canvas = within(canvasElement);
     await userEvent.type(canvas.getByRole("textbox"), "not-in-this-conversation");
     await expect(canvas.getByText("0 / 0")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Previous (⇧Enter)" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Next (Enter)" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Previous match" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Next match" })).toBeDisabled();
   },
 };

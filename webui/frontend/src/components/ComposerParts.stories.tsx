@@ -1438,7 +1438,7 @@ export const GoalOptionsExitKeyboard: Story = {
     page.getByRole("button", { name: "Exit Goal mode" }).focus();
     await humanPause();
     await userEvent.keyboard("{Enter}");
-    await expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   },
 };
 
@@ -1543,7 +1543,7 @@ export const AssistListening: Story = {
   ),
   play: async ({ canvasElement }) => {
     const mic = within(canvasElement).getByTitle("Stop dictation");
-    await expect(mic).toHaveClass("listening");
+    await expect(mic).toHaveAttribute("aria-pressed", "true");
     await expect(mic).toBeEnabled();
   },
 };

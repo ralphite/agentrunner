@@ -582,9 +582,9 @@ export const ScheduleDetailSaving: Story = {
         name: "Schedule details for Saving schedule control",
       }),
     );
-    await expect(
-      saving.getByRole("button", { name: "Saving…" }),
-    ).toBeDisabled();
+    const pause = saving.getByRole("button", { name: "Pause" });
+    await expect(pause).toBeDisabled();
+    await expect(pause).toHaveAttribute("aria-busy", "true");
   },
 };
 
@@ -703,9 +703,9 @@ export const ScheduleEditBusy: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-    await expect(
-      await canvas.findByRole("button", { name: "Saving…" }),
-    ).toBeDisabled();
+    const save = await canvas.findByRole("button", { name: "Save" });
+    await expect(save).toBeDisabled();
+    await expect(save).toHaveAttribute("aria-busy", "true");
     await expect(canvas.getByRole("button", { name: "Cancel" })).toBeDisabled();
   },
 };

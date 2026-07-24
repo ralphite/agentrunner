@@ -378,9 +378,9 @@ export const ConfirmModalDefault: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expectDialog(canvasElement, "Remove demo project?");
-    await expect(canvas.getByRole("button", { name: "Remove" })).toHaveClass(
-      "danger",
-    );
+    const remove = canvas.getByRole("button", { name: "Remove" });
+    await expect(remove).toHaveAttribute("data-tone", "danger");
+    await expect(remove).toHaveAttribute("data-variant", "outline");
     await expect(canvas.getByText("Files stay on disk")).toBeVisible();
   },
 };

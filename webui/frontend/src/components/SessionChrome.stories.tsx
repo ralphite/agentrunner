@@ -309,9 +309,9 @@ export const FailureDetails: Story = {
 export const FailureRetrying: Story = {
   render: () => <FailureFixture retrying />,
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("button", { name: "Retrying…" }),
-    ).toBeDisabled();
+    const retry = within(canvasElement).getByRole("button", { name: "Retry" });
+    await expect(retry).toBeDisabled();
+    await expect(retry).toHaveAttribute("aria-busy", "true");
   },
 };
 
