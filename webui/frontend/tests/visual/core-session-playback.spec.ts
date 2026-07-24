@@ -22,12 +22,14 @@ test("Core Session Playback supports manual control, autoplay, and replay", asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(
     "/iframe.html?id=demos-core-session-playback--demo&viewMode=story&args=playbackPace:automated",
-    { waitUntil: "networkidle" },
+    { waitUntil: "domcontentloaded" },
   );
 
   const controls = page.getByRole("region", {
     name: "Core session playback",
   });
+  await expect(page.locator("#storybook-root")).not.toBeEmpty();
+  await expect(controls).toBeVisible();
   const status = controls.getByRole("status");
   const play = controls.getByRole("button", { name: "Play", exact: true });
   await expect(play).toBeEnabled();
@@ -47,11 +49,11 @@ test("Core Session Playback supports manual control, autoplay, and replay", asyn
   await expect(status).toContainText("Step 1 / 19");
 
   const autoplay = controls.getByRole("checkbox", { name: "Autoplay" });
-  // Reset publishes `idle` before React paints the recreated fixture. A real
-  // person cannot click between those two frames; keep automation on the same
-  // observable boundary instead of targeting the pre-paint control.
-  await page.evaluate(() => new Promise<void>(requestAnimationFrame));
-  await autoplay.click();
+  // Reset publishes `idle` before the recreated AppShell finishes its focus
+  // handoff. Wait for the user-visible ready boundary, then click the label a
+  // person actually targets.
+  await expect(page.getByPlaceholder("Do anything")).toBeFocused();
+  await controls.getByText("Autoplay", { exact: true }).click();
   await expect(autoplay).toBeChecked();
   await expect(status.locator("b")).toHaveText("completed", {
     timeout: 20_000,
