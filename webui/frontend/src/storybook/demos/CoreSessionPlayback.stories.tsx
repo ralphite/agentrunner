@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { AppShell } from "../../App";
@@ -770,6 +770,18 @@ export function CoreSessionPlayback({
   );
   const [autoPlay, setAutoPlay] = useState(initialAutoPlay);
   const context = runner.getContext();
+  const handleAutoPlayChange = useCallback(
+    (enabled: boolean) => {
+      setAutoPlay(enabled);
+      if (!enabled) return;
+      const current = runner.getSnapshot();
+      if (current.status !== "idle" && current.status !== "paused") return;
+      void runner.play("autoplay").catch(() => {
+        // The runner publishes durable failure details in the transport.
+      });
+    },
+    [runner],
+  );
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -792,8 +804,8 @@ export function CoreSessionPlayback({
       <ScenarioControls
         runner={runner}
         label={label}
-        autoPlay={autoPlay}
-        onAutoPlayChange={setAutoPlay}
+        autoPlay={autoPlay || snapshot.owner === "autoplay"}
+        onAutoPlayChange={handleAutoPlayChange}
       />
       <div
         key={snapshot.epoch}
