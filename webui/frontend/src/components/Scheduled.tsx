@@ -11,6 +11,8 @@ import { Menu, MenuItem, MenuLabel } from "./Menu";
 import type { Cadence, ScheduleDetail } from "../types";
 import { scheduleFieldError } from "../scheduleValidate";
 import { Modal } from "./Modals";
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
 import {
   ScheduledEmptyState,
   ScheduledRunActions,
@@ -199,13 +201,25 @@ export function ScheduleDetailPanel({
   return (
     <aside className="schedule-detail" aria-label={`Schedule details for ${title}`}>
       <header className="schedule-detail-head">
-        <button className="schedule-detail-back" onClick={onClose} aria-label="Back to scheduled runs">
+        <Button
+          className="schedule-detail-back"
+          variant="ghost"
+          size="md"
+          onClick={onClose}
+          aria-label="Back to scheduled runs"
+        >
           <ArrowLeft size={17} />
           <span>Scheduled</span>
-        </button>
-        <button className="icon-btn schedule-detail-close" onClick={onClose} aria-label="Close schedule details">
+        </Button>
+        <IconButton
+          className="schedule-detail-close"
+          variant="ghost"
+          size="md"
+          onClick={onClose}
+          aria-label="Close schedule details"
+        >
           <X size={17} />
-        </button>
+        </IconButton>
       </header>
       {loading ? (
         <div className="schedule-detail-loading" role="status">Loading schedule details…</div>
