@@ -108,9 +108,9 @@ describe("TH-14 · one terminal banner above the composer", () => {
 
     await waitFor(() => expect(container.querySelector(".terminal-alert")).not.toBeNull());
     // The step-limit alert is the ONE piece of pinned chrome: it carries the
-    // action ("Continue in new session"), so it is the one that survives.
+    // in-place continuation action, so it is the one that survives.
     expect(screen.getByText("Step limit reached")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /continue in new session/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue here" })).toBeTruthy();
 
     // …and the goal banner that used to sit under it is gone — its label and
     // elapsed now ride in the alert's meta tail, on the same row.
