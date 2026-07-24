@@ -33,7 +33,11 @@ export function ToastItem({ toast, onDismiss }: ToastItemProps) {
             <summary className="cursor-pointer text-[12px] opacity-80 select-none">
               Details
             </summary>
-            <pre className="mt-1 max-h-[180px] max-w-full overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-4 opacity-90">
+            <pre
+              className="mt-1 max-h-[180px] max-w-full overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-4 opacity-90"
+              tabIndex={0}
+              aria-label="Notification details"
+            >
               {toast.details}
             </pre>
           </details>

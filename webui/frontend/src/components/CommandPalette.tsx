@@ -1,5 +1,5 @@
 import { X } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
@@ -233,12 +233,25 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
             kbdNav.current = false;
           }}
         >
-          {items.length === 0 && <div className="cmdk-empty">No matches</div>}
+          {items.length === 0 && (
+            <div
+              className="cmdk-empty"
+              role="option"
+              aria-disabled="true"
+              aria-selected="false"
+            >
+              No matches
+            </div>
+          )}
           {items.map((it, i) => {
             const showGroup = i === 0 || items[i - 1].group !== it.group;
             return (
-              <div key={it.id}>
-                {showGroup && <div className="cmdk-group">{it.group}</div>}
+              <Fragment key={it.id}>
+                {showGroup && (
+                  <div className="cmdk-group" role="presentation">
+                    {it.group}
+                  </div>
+                )}
                 <CommandPaletteItem
                   item={it}
                   selected={i === idx}
@@ -248,7 +261,7 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
                   }}
                   onSelect={it.run}
                 />
-              </div>
+              </Fragment>
             );
           })}
         </div>

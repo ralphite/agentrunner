@@ -84,6 +84,8 @@ export const LongDetailsOverflow: Story = {
     await expect(details).toBeVisible();
     await expect(details!.scrollHeight).toBeGreaterThan(details!.clientHeight);
     await expect(getComputedStyle(details!).overflowY).toBe("auto");
+    details!.focus();
+    await expect(details).toHaveFocus();
   },
 };
 

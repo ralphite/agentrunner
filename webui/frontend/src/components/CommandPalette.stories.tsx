@@ -197,7 +197,7 @@ export const KeyboardSelection: Story = {
       "Search sessions or run a command",
     );
     await expect(input).toHaveFocus();
-    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    await userEvent.keyboard("{ArrowDown}");
 
     const target = canvas.getByRole("option", {
       name: /Polish the interactive demo/,
@@ -235,7 +235,9 @@ export const NoMatches: Story = {
       "no-result-can-match-this-query",
     );
     await expect(canvas.getByText("No matches")).toBeVisible();
-    await expect(canvas.queryByRole("option")).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("option", { name: "No matches" }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 };
 
@@ -269,7 +271,9 @@ export const AttentionOverflow: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Needs attention")).toBeVisible();
     await expect(
-      canvas.getByRole("option", { name: /Attention session 1/ }),
+      canvas.getByRole("option", {
+        name: /Attention session 1(?:\s|$)/,
+      }),
     ).toBeVisible();
     await expect(canvas.getAllByText("Commands")).toHaveLength(1);
   },

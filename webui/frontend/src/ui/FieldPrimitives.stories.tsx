@@ -257,17 +257,30 @@ export const ControlVariants: Story = {
     <div className="grid w-[520px] max-w-[calc(100vw-32px)] gap-5">
       <Field label="Unstyled input inside custom chrome">
         <div className="rounded-full border border-line bg-panel px-4 py-2 focus-within:border-blue focus-within:ring-2 focus-within:ring-blue/30">
-          <Input variant="unstyled" placeholder="Unstyled input" />
+          <Input
+            aria-label="Unstyled input inside custom chrome"
+            variant="unstyled"
+            placeholder="Unstyled input"
+          />
         </div>
       </Field>
       <Field label="Unstyled textarea inside custom chrome">
         <div className="rounded-xl border border-line bg-panel p-3 focus-within:border-blue focus-within:ring-2 focus-within:ring-blue/30">
-          <Textarea variant="unstyled" rows={2} placeholder="Unstyled textarea" />
+          <Textarea
+            aria-label="Unstyled textarea inside custom chrome"
+            variant="unstyled"
+            rows={2}
+            placeholder="Unstyled textarea"
+          />
         </div>
       </Field>
       <Field label="Unstyled select inside custom chrome">
         <div className="rounded-lg border border-line bg-panel px-3 py-2 focus-within:border-blue focus-within:ring-2 focus-within:ring-blue/30">
-          <Select variant="unstyled" defaultValue="local">
+          <Select
+            aria-label="Unstyled select inside custom chrome"
+            variant="unstyled"
+            defaultValue="local"
+          >
             <option value="local">Local</option>
             <option value="workspace">Workspace</option>
           </Select>
