@@ -55,7 +55,9 @@ export const InputStates: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByLabelText("Required")).toBeRequired();
+    await expect(
+      canvas.getByRole("textbox", { name: /^Required/ }),
+    ).toBeRequired();
     await expect(canvas.getByLabelText("Error")).toHaveAttribute(
       "aria-invalid",
       "true",
