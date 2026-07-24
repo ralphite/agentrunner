@@ -23,6 +23,13 @@
   --panel-2: #eeeeee;
   --line: #dcdcdc;
   --line-2: #efefef;
+  /* COMPOSER-CHIP-SHELF (R95): the composer env-strip rides a faintly tinted
+     shelf so the chip row reads as a shelf above the white input body — Codex's
+     composer is two-tone (chip strip #F4F4F4 grey over a white field, pixel-
+     sampled from codex-crop-composer.jpg), not a single flat white card. Kept
+     lighter than --panel-2 so a chip's panel-2 hover fill still stands out on
+     the shelf. */
+  --cx-shelf: #f5f5f5;
   --ink: #0d0d0d;
   --ink-2: #606060;
   --dim: #555555;
@@ -103,6 +110,10 @@
     --panel-2: #1f1f24;
     --line: #3a3a42;
     --line-2: #232329;
+    /* COMPOSER-CHIP-SHELF (R95): subtle lift between --panel and --panel-2 so
+       the chip strip reads as a shelf in dark too, with panel-2 chip hover still
+       visible against it. */
+    --cx-shelf: #1b1b1f;
     --ink: #ececf1;
     --ink-2: #d0d0db;
     --dim: #a0a0ad;
@@ -145,6 +156,8 @@
   --panel-2: #1f1f24;
   --line: #3a3a42;
   --line-2: #232329;
+  /* COMPOSER-CHIP-SHELF (R95): dark shelf lift, see :root note. */
+  --cx-shelf: #1b1b1f;
   --ink: #ececf1;
   --ink-2: #d0d0db;
   --dim: #a0a0ad;
@@ -561,6 +574,16 @@
      only on hover. The Queue/Steer delivery toggle (.cx-deliv) stays a bordered
      segmented control so its two options still read as segments. */
   .cx-env-strip { @apply flex min-w-0 gap-[4px] px-[10px] py-[8px]; }
+  /* COMPOSER-CHIP-SHELF (R95): tint the env strip so it reads as a shelf above
+     the white input body (Codex two-tone composer, codex-crop-composer.jpg).
+     Top corners follow the card radius (minus the 1px border) so the shelf sits
+     flush inside the rounded card; the bottom stays square, meeting the white
+     field with a tonal seam only — no hairline (keeps R46 HOME-CHIP-FLAT). */
+  .cx-env-strip {
+    background-color: var(--cx-shelf);
+    border-top-left-radius: calc(var(--radius-composer) - 1px);
+    border-top-right-radius: calc(var(--radius-composer) - 1px);
+  }
   .cx-env-strip > .pop-wrap { @apply min-w-0; }
   /* R56 COMPOSER-CHIP-GROUP: drop flex-1 so the four context chips group tight & left-aligned (Codex), not stretched with branch stranded at the right edge. */
   .cx-env-project-wrap { @apply min-w-0 max-w-[240px]; }
