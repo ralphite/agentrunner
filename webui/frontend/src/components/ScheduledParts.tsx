@@ -58,6 +58,10 @@ export interface ScheduledRunItemModel {
   key: string;
   id: string;
   kind: "session" | "run";
+  // conversation = the row is a schedule-attached CONVERSATION (INC-102
+  // /loop), not a driver series. Its lifecycle verbs differ: "stop the loop"
+  // detaches the schedule and keeps the thread (review P0-1).
+  conversation: boolean;
   title: string;
   full: string;
   cadence: string;
@@ -341,10 +345,14 @@ export function ScheduledRunActions({
           {!row.paused && !row.settled && (
             <MenuItem
               danger
-              title="no more iterations; the series records its cancelled terminal"
+              title={
+                row.conversation
+                  ? "detach the loop's schedule; the conversation stays"
+                  : "no more iterations; the series records its cancelled terminal"
+              }
               onClick={onCancel}
             >
-              Cancel series…
+              {row.conversation ? "Stop loop…" : "Cancel series…"}
             </MenuItem>
           )}
           <MenuLabel>Organize</MenuLabel>

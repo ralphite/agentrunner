@@ -291,6 +291,7 @@ export function useScheduledController(): ScheduledController {
             key: `run:${run.id}`,
             id: run.id,
             kind: "run",
+            conversation: false,
             full: run.label || run.id,
             cadence: run.cadence || scheduleLabel(run.schedule),
             project: projectLabel(run.workspace),
@@ -322,6 +323,9 @@ export function useScheduledController(): ScheduledController {
             key: session.id,
             id: session.id,
             kind: "session",
+            // A non-driver session here is a schedule-attached conversation
+            // (INC-102 /loop) — its lifecycle verbs differ from a series.
+            conversation: session.kind !== "driver",
             full: session.title || session.id,
             cadence: session.cadence || scheduleLabel(session.schedule),
             project: projectLabel(session.workspace),
@@ -447,7 +451,26 @@ export function useScheduledController(): ScheduledController {
     }
   };
 
-  const cancel = (sessionId: string) => {
+  const cancel = (row: ScheduledRunItemModel) => {
+    if (row.conversation) {
+      // INC-102 (review P0-1): a /loop row is a conversation with a schedule
+      // attached. `ar stop` would close the session WITHOUT cancelling the
+      // schedule — which then revives on the next message (决策 #30). The
+      // honest verb is schedule cancel: detach the loop, keep the thread.
+      openModal({
+        kind: "confirm",
+        title: "Stop this loop?",
+        body: "No more scheduled wakes will run. The conversation stays and you can keep chatting in it.",
+        confirmLabel: "Stop loop",
+        danger: true,
+        onConfirm: async () => {
+          await api.schedule(row.id, "cancel");
+          toast("loop stopped — the conversation stays", "info");
+          clock.setTimeout(refreshSessions, 800);
+        },
+      });
+      return;
+    }
     openModal({
       kind: "confirm",
       title: "Cancel this series?",
@@ -455,7 +478,7 @@ export function useScheduledController(): ScheduledController {
       confirmLabel: "Cancel series",
       danger: true,
       onConfirm: async () => {
-        await api.stopSession(sessionId);
+        await api.stopSession(row.id);
         toast("cancelling the series", "info");
         clock.setTimeout(refreshSessions, 800);
       },
@@ -523,7 +546,7 @@ export function useScheduledController(): ScheduledController {
       requireMenuRow((row) => {
         void cadence(row.id, "pause");
       }),
-    cancelMenuRow: () => requireMenuRow((row) => cancel(row.id)),
+    cancelMenuRow: () => requireMenuRow((row) => cancel(row)),
     toggleMenuRowPin: () => requireMenuRow((row) => togglePin(row.id)),
     renameMenuRow: () =>
       requireMenuRow((row) =>

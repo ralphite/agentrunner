@@ -21,6 +21,7 @@ function row(
     key: "schedule-story",
     id: "schedule-story",
     kind: "session",
+    conversation: false,
     title: "Daily component review",
     full: "Review every component state and interaction",
     cadence: "Weekdays at 8:00 AM",

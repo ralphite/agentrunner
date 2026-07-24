@@ -878,6 +878,13 @@ QA-88 按批次 capture→interact→recapture→compare→fix/gap。只有矩�
 `PASS/GAP/INTENTIONAL` 且有可重复回归锚才可关闭；目前首批仅覆盖主入口基线。
 → UJ-24
 
+**G58 Scheduled 页新建入口(Repeating/suggestions)仍造 legacy driver series — 开放(INC-102 review P1-4 登记)**
+INC-102 已把 composer `/loop` 改为 in-session schedule(对话形态),但 Scheduled
+页 Create→Repeating 与 suggestion 卡仍经 run modal `kind:"drive"` 造 fresh-child
+driver series(useScheduledController.selectSuggestion → Modals startRun)。决策
+#21 修订文已相应收窄措辞。收编方向:repeating 预设改走 newSession+attach 新流。
+→ UJ-14/24
+
 **G41 gemini provider 对拒绝 budget:0 的模型硬发 thinkingBudget:0 → thinking-off spec 400 — ✅ 已关闭（INC-86.3，2026-07-21，provider 根治：toConfig 永不发 budget:0）**
 现场（INC-86，2026-07-21）：gemini-flash-latest 当前拒绝 `thinkingBudget:0`
 （INVALID_ARGUMENT，外部模型指针变更）。gemini `toConfig` 的 `else if !pro`

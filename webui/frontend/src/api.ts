@@ -243,7 +243,7 @@ export const AR = {
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   retry: (sid: string) => post(`/sessions/${sid}/retry`),
   scheduleDetail: (sid: string) => api<ScheduleDetail>(`/sessions/${sid}/schedule`),
-  schedule: (sid: string, action: "pause" | "resume") =>
+  schedule: (sid: string, action: "pause" | "resume" | "cancel") =>
     post(`/sessions/${sid}/schedule`, { action }),
   scheduleUpdate: (sid: string, update: {
     expectedRevision: number;

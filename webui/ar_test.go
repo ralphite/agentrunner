@@ -309,9 +309,27 @@ func TestHandleScheduleControlForwardsAttach(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "schedule\nloop-1\nattach\n--every\n30s\n--max-wakes\n2\nreview one file per round\n"
+	want := "schedule\nloop-1\nattach\n--every\n30s\n--max-wakes\n2\n--\nreview one file per round\n"
 	if !strings.HasSuffix(string(got), want) {
 		t.Fatalf("args=%q, want suffix %q", got, want)
+	}
+
+	// A "-"-leading prompt must ride behind the "--" separator instead of
+	// being eaten by flag parsing (review P1-1; composer_api.go discipline).
+	dash := `{"action":"attach","schedule":"interval","interval":"30s","prompt":"- review one file per round"}`
+	req = httptest.NewRequest("POST", "/api/sessions/loop-1/schedule", strings.NewReader(dash))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("sid", "loop-1")
+	rr = httptest.NewRecorder()
+	s.handleScheduleControl(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("dash prompt status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if got, err = os.ReadFile(argsFile); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(got), "--\n- review one file per round\n") {
+		t.Fatalf("dash prompt args=%q, want -- separator before it", got)
 	}
 
 	for name, bad := range map[string]string{

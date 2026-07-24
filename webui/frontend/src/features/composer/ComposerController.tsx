@@ -1001,6 +1001,10 @@ export function Composer(props: ComposerProps) {
           // The session (and round 1) already exists — surface it anyway.
           props.onError("loop attach failed: " + e.message);
         }
+      } else {
+        // rounds=1 attaches nothing — say so instead of silently degrading
+        // "Start loop" into a plain message (INC-102 review P2-5).
+        toast("1 round — sent as a single message, no schedule attached", "info");
       }
       setLauncher(null);
       resetInput();

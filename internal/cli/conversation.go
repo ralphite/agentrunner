@@ -896,7 +896,7 @@ func seriesScheduleStatus(sessionID, workspace string, spec *driver.DriverSpec, 
 	return report
 }
 
-func sessionScheduleStatus(sessionID string, sc *state.Schedule) scheduleStatusReport {
+func sessionScheduleStatus(sessionID string, sc *state.Schedule, closed bool) scheduleStatusReport {
 	schedule, cadence := driver.ScheduleInterval, "Every "+sc.Interval
 	if sc.Cron != "" {
 		schedule, cadence = driver.ScheduleCron, "Cron "+sc.Cron
@@ -910,10 +910,15 @@ func sessionScheduleStatus(sessionID string, sc *state.Schedule) scheduleStatusR
 		Prompt: sc.Prompt, Schedule: schedule, Cadence: cadence,
 		Interval: sc.Interval, Cron: sc.Cron,
 		Iterations: sc.Wakes, MaxIterations: sc.MaxWakes,
+		// pause/resume genuinely work on an in-session schedule (INC-74's
+		// schedule-pause/resume verbs) — hiding the control was a contract
+		// lie the detail panel inherited (INC-102 review P1-2b).
+		ScheduleControl: true,
 	}
 	// Same display-only projection the sessions list uses (INC-102): the
-	// durable timer stays the engine truth.
-	if !sc.Paused {
+	// durable timer stays the engine truth. A closed session arms no timer,
+	// so no next run is promised there (review P1-3).
+	if !sc.Paused && !closed {
 		if t, ok := scheduleNextWake(sc, time.Now()); ok {
 			report.NextRunAt = t.Format(time.RFC3339)
 		}
@@ -992,7 +997,7 @@ func scheduleCmd(args []string, stdout, stderr io.Writer) int {
 			return ExitOK
 		}
 		if *asJSON {
-			if err := json.NewEncoder(stdout).Encode(sessionScheduleStatus(filepath.Base(dir), sc)); err != nil {
+			if err := json.NewEncoder(stdout).Encode(sessionScheduleStatus(filepath.Base(dir), sc, fold.Session.Closed != nil)); err != nil {
 				fmt.Fprintf(stderr, "agentrunner: encode schedule status: %v\n", err)
 				return ExitRun
 			}

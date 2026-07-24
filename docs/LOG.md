@@ -7892,3 +7892,19 @@ TestGoalAttachDedupsOpeningPrompt / TestGoalVerifyPlanModeShortCircuit；
 no-skeleton/single-flight。残留小项（不阻塞）：goal 已终结后轮询延迟窗
 内 banner pause 点击得 no_op 无 toast 反馈；GoalLoopLauncher 的 goal
 分支已被 composer Goal chip 形态取代成死路径待清理——记 GAPS。
+
+
+**INC-102.5 对抗 review 与修复(2026-07-24,独立 agent 三视角,用户点名)**:
+裁决「骨架站得住,控制面不站得住」——P0-1 loop 行 "Cancel series…" 走 `ar
+stop`(不摘 schedule,下条消息复活,destructive 撒谎);P1-1 attach argv 缺
+`--`(`-` 开头 prompt 必挂且误导重部署);P1-2 paused 后 webui 无法 resume
+(行不投 paused + detail ScheduleControl 漏投,裁为契约撒谎);P1-3 closed 会话
+仍许诺假 next run;P1-4 文档断言超前(Scheduled 新建仍 legacy driver)。**全部
+修复**:cancel 分流 `ar schedule cancel`(行模型加 conversation 判别,文案
+"Stop loop…/对话保留");attach 补 `--`+dash 单测;行投 paused、detail
+ScheduleControl=true(翻转原锚,测试同改)+NextRunAt;两处投影加 closed 门;
+DESIGN #21 措辞收窄 + GAPS **G58** 登记新建入口余项;P2 修 launcher 取整与
+rounds=1 反馈,其余 P2(cadence 双方言/detail 差一/model 空投/attach 静默替换/
+buildLoopDriver 死代码)记档待理。review 亦证伪:argv 注入不成立(exec 直传、
+flag 面收敛)、scheduleNextWake 追赶实测 778 万次迭代 0.07s、投影白名单与
+series 同纪律。QA-0724 补第 6 条(pause→resume→cancel→消息不复活)随本轮真机。

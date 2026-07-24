@@ -562,7 +562,16 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 					}
 					r.ScheduleDetail = true
 					r.ScheduleControl = true
-					if !sc.Paused {
+					// Paused must reach the row status — the Scheduled page's
+					// Pause/Resume menu keys off it (review P1-2a).
+					if sc.Paused {
+						r.Status = "paused"
+					}
+					// A closed session arms no timer and serves no wake
+					// (schedule.go) — advertising a next run there would be
+					// false (review P1-3). The schedule itself survives close
+					// (决策 #30), so the row stays; only the promise goes.
+					if !sc.Paused && s.Session.Closed == nil {
 						if t, ok := scheduleNextWake(sc, now); ok {
 							r.NextRunAt = t.Format(time.RFC3339)
 						}
