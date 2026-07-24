@@ -1,6 +1,6 @@
 # INC-100：全分支取舍与原子开场附件收口
 
-状态：100.1 COMPLETE；100.2 IMPLEMENTING
+状态：100.1 COMPLETE；100.2 COMPLETE
 
 ## 100.2 未提交 worktree 收口
 
@@ -41,6 +41,23 @@ INC-100 首轮只审计 branch/ref，明确保留了多个 worktree 的未提交
    shortcuts，验证可见关闭、搜索/滚动/关闭、focus return、reload 与 console。
 4. 逐一裁决并清理旧 worktree/ref：已覆盖产品 WIP 不回灌；生成物不入库；
    QA workspace/journal 按数据纪律保留。
+
+### 100.2 完成结果
+
+- 33 个 registered worktree 逐一复核；原 checkout、`aaa0ceff…`、`f0af…`
+  三组旧 WIP 的产品意图均已覆盖或被现行产品裁决废止。清理前把完整 binary
+  patch 保存到 macOS Trash，随后让三个 worktree 回到 clean。
+- 原先占用 `main` 的
+  `webui/runtime/ws/wt-20260710-230645` 已原地 detach；其中只保留 runtime
+  build/bin 生成物，故 Codex 可正常把主 checkout 切到 `main`。
+- 删除 213 个已裁决 local branch 与 13 个已裁决 remote branch；最终
+  `refs/heads` 与 `git ls-remote --heads origin` 均只剩 `main@53195884`。
+- 共享 QA worktree 的 `qa/reasonable-redo-smoke.txt` 与 runtime workspace
+  生成物按数据纪律保留，不冒充待合并产品源码。
+- 并发的 `f13d` 是用户正在执行的独立 INC-101，而非遗留现场；其工作项已收到
+  明确约束：完成后 fetch/rebase 最新 `origin/main`、commit 并直接 push main。
+- 唯一恢复的净产品价值是 mobile Keyboard shortcuts overlay；实现与 QA-91 已随
+  `53195884` 推到 `origin/main`，`./scripts/check.sh` 全绿。
 
 ## 三层 delta
 
@@ -137,9 +154,9 @@ session 的完整 journal 均恰有一次 `input_received`，typed content/files
 
 ## 非目标与保留
 
-- 不删除任何 branch/ref；本次只裁决其代码是否进入 main。
-- 不覆盖原 checkout `codex/ui` 的用户未提交修改；其 typed human attention 意图已由
-  main 的递归 child answer/approval 投影与后续修复语义覆盖，原修改原样保留。
-- 不重启共享 daemon：QA 时已有定时 session 正在运行；仅 guarded build + Web UI
-  restart，并验证该 session 仍为 `running`。
-- QA 新建 session、worktree、journal、截图全部保留，不 close、不删除。
+- 不把已被现行实现覆盖、或与 INC-65 等现行产品裁决冲突的旧 WIP 机械回灌 main。
+- 不触碰并发进行中的 INC-101；它完成后仍必须按 main-only 规则自行收口。
+- 不删除共享 QA session、worktree、journal 或 fixture；仅清理失效 Git metadata
+  和已裁决 branch/ref。
+- 100.1 QA 时因已有定时 session 在运行，只重启 Web UI；100.2 QA 在确认零 running
+  turn 后才 graceful restart daemon/Web UI。

@@ -7623,6 +7623,12 @@ warning/error。完整裁决与清理总账见
 `docs/increments/INC-100-branch-reconciliation.md`，证据见
 `qa/runs/2026-07-24-QA91-INC100-worktree-reconciliation/`。
 
+清理阶段先将三组旧 WIP 的 binary patch 保存到 macOS Trash，再恢复其 tracked
+worktree；原先占用 `main` 的 runtime worktree 原地 detach。最终删除 213 个 local
+旧 branch 与 13 个 remote 旧 branch，本地 `refs/heads` 和 remote heads 都只剩
+`main@53195884`。共享 QA fixture/runtime 生成物继续保留；并发进行中的 INC-101
+不是遗留现场，已明确要求完成后 rebase 最新 main 并直接 push。
+
 ---
 
 ## 2026-07-23 · INC-99.2 Web UI controller/view 与 page boundary 收口
