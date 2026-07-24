@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScenarioControls } from "./ScenarioControls";
 import { ScenarioRunner } from "./ScenarioRunner";
+
+afterEach(cleanup);
 
 describe("ScenarioControls", () => {
   it("does not dismiss production overlays when transport controls are pressed", () => {
