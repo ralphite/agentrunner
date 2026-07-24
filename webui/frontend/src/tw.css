@@ -716,7 +716,7 @@
     .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
     .cx-session .cx-mode-label { @apply hidden; }
     .cx-session .cx-model { @apply max-w-[116px] overflow-hidden px-2 text-[11px]; }
-    .cx-session .cx-optimize { @apply hidden; }
+    .cx-session .cx-optimize { display: none !important; }
     .cx-session .cx-delivery { @apply gap-[2px]; }
     .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
     .cx-session .cx-deliv-label { @apply hidden; }
@@ -729,10 +729,13 @@
     .cx-session .cx-mode { @apply h-8 w-8 shrink-0 justify-center overflow-hidden px-0; }
     .cx-session .cx-mode-label { @apply hidden; }
     .cx-session .cx-model { @apply max-w-[116px] overflow-hidden px-2 text-[11px]; }
-    .cx-session .cx-optimize { @apply hidden; }
+    .cx-session .cx-optimize { display: none !important; }
     .cx-session .cx-delivery { @apply gap-[2px]; }
     .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
     .cx-session .cx-deliv-label { @apply hidden; }
+  }
+  @container composer (max-width: 340px) {
+    .cx-session .cx-model { display: none !important; }
   }
   .turn-sep { @apply my-[22px] h-px bg-line; }
   .msg { @apply relative flex gap-3 py-2; }
@@ -1478,7 +1481,7 @@
     .cx-mode { @apply max-w-[134px]; }
     .cx-model { @apply max-w-[116px]; }
     .cx-icon, .cx-send { @apply h-8 w-8; }
-    .cx-optimize { @apply hidden; }
+    .cx-optimize { display: none !important; }
     .cx-delivery { @apply gap-[2px]; }
     .cx-deliv { @apply h-8 w-8 justify-center px-0; }
     .cx-deliv-label { @apply hidden; }
