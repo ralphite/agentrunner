@@ -672,6 +672,7 @@
   .shortcuts { @apply max-w-[720px]; }
   .sc-head { @apply flex items-center gap-3 border-b border-line p-3; }
   .sc-title { @apply font-medium; }
+  .sc-close { @apply hidden shrink-0; }
   .sc-search { @apply ml-auto max-w-[260px] rounded-[8px] border border-line px-2 py-[6px]; }
   .sc-list { @apply p-3; }
   .sc-row, .rs-sc-row { @apply flex items-center justify-between gap-4 border-t border-line-2 py-2; }
@@ -1450,6 +1451,14 @@
     .cmdk-list { max-height: calc(100dvh - 96px); }
     .cmdk-input { @apply pr-12 text-[16px]; }
     .cmdk-close { @apply grid; }
+    .shortcuts .cmdk-list { max-height: calc(100dvh - 154px); }
+    .sc-head { @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2; }
+    .sc-title { @apply min-w-0 self-center; }
+    .sc-close { @apply grid; }
+    .sc-search { @apply col-span-2 ml-0 max-w-none; }
+    .sc-row { @apply flex-col items-start gap-2 py-3; }
+    .sc-label { @apply min-w-0 max-w-full; }
+    .sc-keys { @apply max-w-full justify-start; }
     .hero { @apply justify-start px-4 py-6; }
     .home-empty { @apply gap-3; }
     .home-empty-cards { @apply grid-cols-1 gap-3; }

@@ -1,6 +1,46 @@
 # INC-100：全分支取舍与原子开场附件收口
 
-状态：COMPLETE（Gate A + Gate B）
+状态：100.1 COMPLETE；100.2 IMPLEMENTING
+
+## 100.2 未提交 worktree 收口
+
+### 动机与 journey 锚
+
+INC-100 首轮只审计 branch/ref，明确保留了多个 worktree 的未提交现场。用户要求
+所有仍有效的改动进入 `origin/main`，并消除 branch 被遗留 worktree 占用、Codex
+只看当前 worktree 而漏报其他改动的长期不一致。锚定 UJ-24 的键盘/移动端导航，
+不新增 journey。
+
+### 三层 delta
+
+- JOURNEYS：无；UJ-24 已覆盖键盘/移动端导航。
+- SPEC：Web UI 交互语义补充 Keyboard shortcuts overlay 在 phone/short viewport
+  有显式关闭动作，标题、搜索与快捷键行不互相挤压。
+- DESIGN：无；沿用现有 `FocusScope`、`IconButton`、overlay dismiss/focus-return
+  契约，不改变路由、状态或持久数据。
+
+### UI/UX review
+
+- **沿用模式**：复用 Command Palette 在移动端显示 `X`、desktop 靠 Escape/
+  backdrop 的既有模式；复用 44×44 touch target 与现有 overlay token。
+- **改动**：Shortcuts 标题行在窄屏显示关闭按钮，搜索独占下一行，shortcut
+  label/key 纵向重排；desktop 形态不变。
+- **拒收旧 WIP**：旧 WIP 重新引入的第二种对话实体标签被 INC-65 的单一
+  durable `session` 产品模型明确废止；Command Palette 行高和 overlay inset
+  已由后续 main 重构覆盖；FindBar 改位没有独立 journey/缺陷证据。
+- **风险与数据**：纯 presentation/dismissal，无用户内容或持久状态变更；关闭
+  只调用既有 `onClose`，不新增确认或隐藏副作用。
+- **未决问题**：无。
+
+### 验收与实施
+
+1. `Shortcuts.mobile.test.tsx`：关闭按钮可达且触发 `onClose`；窄屏结构 class
+   与全量 shortcut binding 均保留。
+2. frontend unit/build + Storybook gate + `./scripts/check.sh`。
+3. QA-91：production shared-store Web UI，以 phone/short viewport 打开 Keyboard
+   shortcuts，验证可见关闭、搜索/滚动/关闭、focus return、reload 与 console。
+4. 逐一裁决并清理旧 worktree/ref：已覆盖产品 WIP 不回灌；生成物不入库；
+   QA workspace/journal 按数据纪律保留。
 
 ## 三层 delta
 

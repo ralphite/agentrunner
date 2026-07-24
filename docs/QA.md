@@ -2273,3 +2273,21 @@ WebKit 与 storage 全 key 字节对比因安全/环境边界明确记为未测�
 | 安全边界 | 既有定时 session 正在运行，故只重启 Web UI、不重启 daemon；该 session 前后保持 `running` |
 | 数据纪律 | 两条 accepted session 与一条拒收校准的 session/worktree/journal、fixture、workspace diff 与截图全保留；不 close、不删除 |
 | Gate | production health `daemonUp/versionMatch=true`；browser warning/error=`[]`；两个 workspace diff 均为空；A 闸与 `./scripts/check.sh` 全绿 |
+
+---
+
+## QA-91 Worktree 未提交改动收口与移动端快捷键（INC-100.2，UJ-24）
+
+**环境**：production `http://127.0.0.1:8809/`、全局 daemon 与共享
+`~/.local/share/agentrunner/`；production dirty build
+`b60e88d2-dirty-231821`。证据
+`qa/runs/2026-07-24-QA91-INC100-worktree-reconciliation/`。
+
+| 动作 | 硬断言 |
+|---|---|
+| 全 worktree 裁决 | 逐一核对 33 个 registered worktree；旧 Attention WIP 与混合功能 WIP 已由当前 main 覆盖；旧实体标签与 FindBar 改位不符合当前产品裁决；QA workspace 的 13-byte diff 是 retained session fixture，不当作产品源码提交 |
+| phone overlay | 390×844 打开 Keyboard shortcuts；dialog 为 `x=12,y=12,w=366,h=810.59`，关闭按钮 44×44、搜索独占 340×41.59 行、body 无横向溢出 |
+| search / scroll | 搜索 `settings` 只剩 Open settings；清空后完整列表 `clientHeight=690,scrollHeight=2089` 且独立滚动到 `scrollTop=540` |
+| dismiss / focus | 显式关闭后 dialog count=0，焦点回 `Show sidebar` opener；reload 后 Home 可用，browser warning/error=`[]` |
+| 安全边界 | 部署前确认 daemon 无 running turn，再 graceful restart daemon/Web UI；health `daemonUp/versionMatch=true`；未创建、关闭或删除 shared session |
+| Gate | `Shortcuts.mobile.test.tsx`、frontend full unit/build/Storybook 与 `./scripts/check.sh`；最终结果见 evidence README |

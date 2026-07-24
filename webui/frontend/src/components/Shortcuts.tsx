@@ -1,7 +1,9 @@
+import { X } from "@phosphor-icons/react";
 import { useId, useMemo, useRef, useState } from "react";
 import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
 import { FocusScope } from "../ui/FocusScope";
 import { SearchField } from "../ui/Field";
+import { IconButton } from "../ui/IconButton";
 
 // Shortcuts is Codex's Keyboard-shortcuts reference: a searchable, grouped list
 // of every binding the app has, rendered as key badges. Opened globally with
@@ -37,6 +39,15 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
       >
         <div className="sc-head">
           <div className="sc-title" id={titleId}>Keyboard shortcuts</div>
+          <IconButton
+            className="sc-close !h-11 !w-11"
+            size="lg"
+            variant="ghost"
+            onClick={onClose}
+            aria-label="Close keyboard shortcuts"
+          >
+            <X size={18} />
+          </IconButton>
           <SearchField
             ref={inputRef}
             containerClassName="sc-search"

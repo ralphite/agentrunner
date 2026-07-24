@@ -7607,6 +7607,24 @@ workspace diff 为空。QA-90 的完成断言只使用该 session 与 text+attac
 
 ---
 
+## 2026-07-24 · INC-100.2 Worktree 未提交改动收口
+
+在 INC-100 的 229-ref 提交审计之上，再逐一检查 33 个 registered worktree。四类
+未提交现场中：原 checkout 的 Attention WIP 与混合功能 WIP 已被当前 main 的递归
+typed attention、barrier、image preview、Best-of-N、persona、draft、approval 等实现
+覆盖；旧实体标签和 FindBar 改位与 INC-65/current journey 冲突；QA session 的
+13-byte workspace fixture 按数据纪律保留。唯一仍有净产品价值的是 Keyboard
+shortcuts overlay 的窄屏关闭与排版。
+
+实现复用现有 `FocusScope`/`IconButton`：移动端显示 44×44 关闭动作，标题与搜索
+分行，shortcut label/key 纵向重排，desktop 不变。QA-91 在 shared production
+390×844 真浏览器验证搜索、独立滚动、显式关闭、focus return、reload 和零 console
+warning/error。完整裁决与清理总账见
+`docs/increments/INC-100-branch-reconciliation.md`，证据见
+`qa/runs/2026-07-24-QA91-INC100-worktree-reconciliation/`。
+
+---
+
 ## 2026-07-23 · INC-99.2 Web UI controller/view 与 page boundary 收口
 
 组件体系从 leaf extraction 继续收口为真实 production boundary：`AppShell` 实现归
