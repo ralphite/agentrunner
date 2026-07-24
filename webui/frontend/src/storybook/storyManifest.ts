@@ -456,6 +456,15 @@ export const privateVisibleExclusions = [
       "TimelineView Stories exercise loading, empty, activity, pending, typing, outcome, hover/focus actions, scroll restore and jump states through this exact view.",
     owner: "webui",
   },
+  {
+    source: "src/components/Scheduled.tsx",
+    declarationName: "ScheduledView",
+    reason:
+      "Private render half of Scheduled; filtering, loading and commands are supplied by useScheduledController.",
+    evidence:
+      "Scheduled Stories exercise default, loading, empty, filtering, pagination, suggestion, detail, edit, conflict, busy and error states through this exact view.",
+    owner: "webui",
+  },
 ] satisfies readonly PrivateVisibleExclusion[];
 
 // CUJs and Demos exercise multiple production targets at once. They belong to
