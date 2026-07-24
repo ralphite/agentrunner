@@ -3,11 +3,11 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import { CircleNotch } from "@phosphor-icons/react";
+import { Spinner } from "./Spinner";
 
 export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonVariant = "ghost" | "outline" | "solid";
-export type ButtonTone = "neutral" | "danger";
+export type ButtonTone = "neutral" | "danger" | "inverse";
 
 export interface ButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-pressed"> {
@@ -24,16 +24,16 @@ export interface ButtonProps
   className?: string;
 }
 
-const SIZE_CLASSES: Record<ButtonSize, string> = {
+export const BUTTON_SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: "h-6 gap-1 px-2 py-0 text-[12px]",
   md: "h-8 gap-1.5 px-3 py-0 text-[13px]",
   lg: "h-10 gap-2 px-4 py-0 text-[14px]",
 };
 
-const SPINNER_SIZE: Record<ButtonSize, number> = {
-  sm: 12,
-  md: 14,
-  lg: 16,
+const SPINNER_SIZE: Record<ButtonSize, "sm" | "md" | "lg"> = {
+  sm: "sm",
+  md: "md",
+  lg: "lg",
 };
 
 const APPEARANCE_CLASSES: Record<
@@ -56,7 +56,36 @@ const APPEARANCE_CLASSES: Record<
     solid:
       "border-red bg-red text-accent-ink shadow-none enabled:hover:border-red enabled:hover:bg-red enabled:hover:opacity-90 enabled:active:opacity-80 aria-[pressed=true]:opacity-80 disabled:border-red disabled:bg-red disabled:text-accent-ink disabled:shadow-none",
   },
+  inverse: {
+    ghost:
+      "border-transparent bg-transparent text-white/80 shadow-none enabled:hover:border-white/20 enabled:hover:bg-white/10 enabled:hover:text-white enabled:hover:shadow-none enabled:active:bg-white/20 aria-[pressed=true]:border-white/20 aria-[pressed=true]:bg-white/10 aria-[pressed=true]:text-white disabled:border-transparent disabled:bg-transparent disabled:text-white/50 disabled:shadow-none",
+    outline:
+      "border-white/20 bg-white/10 text-white shadow-none enabled:hover:border-white/30 enabled:hover:bg-white/20 enabled:active:bg-white/30 aria-[pressed=true]:border-white/30 aria-[pressed=true]:bg-white/20 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/50 disabled:shadow-none",
+    solid:
+      "border-white bg-white text-black shadow-none enabled:hover:border-white enabled:hover:bg-white enabled:hover:opacity-90 enabled:active:opacity-80 aria-[pressed=true]:opacity-80 disabled:border-white disabled:bg-white disabled:text-black disabled:shadow-none",
+  },
 };
+
+export function buttonClassName({
+  className,
+  size,
+  tone,
+  variant,
+}: {
+  className?: string;
+  size: ButtonSize;
+  tone: ButtonTone;
+  variant: ButtonVariant;
+}): string {
+  return [
+    "relative m-0 inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[8px] border font-medium leading-none transition-[background-color,border-color,color,opacity,box-shadow] duration-100",
+    BUTTON_SIZE_CLASSES[size],
+    APPEARANCE_CLASSES[tone][variant],
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
@@ -84,17 +113,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={unavailable}
         aria-busy={loading || undefined}
         aria-pressed={pressed}
+        data-ui-button=""
         data-size={size}
         data-tone={tone}
         data-variant={variant}
-        className={[
-          "relative m-0 inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[8px] border font-medium leading-none transition-[background-color,border-color,color,opacity,box-shadow] duration-100",
-          SIZE_CLASSES[size],
-          APPEARANCE_CLASSES[tone][variant],
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={buttonClassName({ className, size, tone, variant })}
       >
         <span
           className={[
@@ -107,10 +130,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           {children}
         </span>
         {loading && (
-          <CircleNotch
-            className="absolute animate-spin"
-            size={SPINNER_SIZE[size]}
+          <Spinner
             aria-hidden="true"
+            className="absolute"
+            size={SPINNER_SIZE[size]}
           />
         )}
       </button>

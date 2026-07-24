@@ -220,7 +220,7 @@
   html, body, #root { @apply m-0 h-full; }
   body {
     @apply bg-bg text-ink font-sans antialiased;
-    font-size: 15px;
+    font-size: var(--ui-font-size);
     line-height: 1.6;
   }
   button {
@@ -255,10 +255,19 @@
       }
     }
   }
+  @media (any-pointer: coarse) {
+    /* Dense desktop actions keep their 24/32/40px visual rhythm. On touch
+       hardware the primitive, not each feature, owns the 44px hit target. */
+    [data-ui-button] { min-height: 44px; }
+    [data-ui-icon-button] { min-width: 44px; }
+  }
 }
 
 @layer components {
-  .mono { @apply font-mono; }
+  .mono {
+    @apply font-mono;
+    font-size: var(--code-font-size) !important;
+  }
   .dim { @apply text-dim; }
   .spacer, .cx-spacer, .lb-spacer, .sa-spacer { @apply flex-1; }
   .spin { animation: spin 0.9s linear infinite; }
@@ -439,7 +448,7 @@
   .project-preview-path { @apply mt-2 border-t border-line pt-3!; }
   .project-preview-path span { @apply min-w-0 truncate; }
 
-  .home { @apply flex min-h-0 flex-1 flex-col; }
+  .home { @apply flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain; }
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 pb-4 pt-8; }
   .home-empty { @apply flex w-full flex-col items-center gap-8 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
@@ -812,7 +821,13 @@
   .md-h1 { @apply text-[20px]; }
   .md-h2 { @apply text-[17px]; }
   .md-h3, .md-h4, .md-h5, .md-h6 { @apply text-[15px]; }
-  .md-code { @apply rounded bg-panel-2 px-[4px] py-[1px] font-mono text-[12.5px]; }
+  .md-code {
+    @apply rounded bg-panel-2 px-[4px] py-[1px] font-mono;
+    font-size: var(--code-font-size);
+  }
+  .md-hljs, .runlog {
+    font-size: var(--code-font-size) !important;
+  }
   .md-img-grid { @apply my-3 grid gap-2; }
   .md-img { @apply max-h-[200px] max-w-full cursor-zoom-in rounded-[12px] border border-line object-contain; }
   .md-img-fallback { @apply inline-flex items-center gap-1 rounded-[8px] border border-line px-2 py-1 text-[12px]; }
@@ -1124,10 +1139,7 @@
   .schedule-detail-head {
     @apply flex h-12 shrink-0 items-center justify-between border-b border-line px-3;
   }
-  .schedule-detail-back {
-    @apply inline-flex h-9 items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-[13px] text-ink-2 shadow-none hover:bg-panel-2 hover:text-ink hover:shadow-none;
-  }
-  .schedule-detail-back span { @apply hidden; }
+  .schedule-detail-back-label { display: none !important; }
   .schedule-detail-close { @apply shrink-0; }
   .schedule-detail-scroll { @apply min-h-0 flex-1 overflow-y-auto px-6 pb-6; }
   .schedule-detail-title { @apply pt-6; }
@@ -1167,8 +1179,9 @@
   @container scheduled-shell (max-width: 760px) {
     .scheduled-shell.has-detail > .scheduled-page { @apply hidden; }
     .schedule-detail { @apply border-l-0; }
-    .schedule-detail-back span { @apply inline; }
-    .schedule-detail-close { @apply hidden; }
+    .schedule-detail-back-icon { display: none !important; }
+    .schedule-detail-back-label { display: inline-flex !important; }
+    .schedule-detail-close { display: none !important; }
     .schedule-detail-scroll { @apply px-4 pb-4; }
     .schedule-detail-actions { @apply px-4; }
   }
@@ -1615,7 +1628,10 @@
   .confirm-note { @apply mb-0 mt-3 text-[12px] leading-[1.55] text-dim [overflow-wrap:anywhere]; }
   .row-flex { @apply flex flex-wrap items-center gap-2; }
   .row-flex > input, .row-flex > select { @apply min-w-0 flex-1; }
-  textarea.code { @apply w-full font-mono text-[12px] leading-[1.55]; }
+  textarea.code {
+    @apply w-full font-mono leading-[1.55];
+    font-size: var(--code-font-size);
+  }
   .fork-empty { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-dashed border-line bg-panel-2 p-3 text-[12.5px] text-dim; }
   .fork-latest { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-line bg-panel-2 p-3 text-[12.5px]; }
 

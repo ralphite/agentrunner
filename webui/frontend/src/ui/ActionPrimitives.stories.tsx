@@ -1,8 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ArrowLeft, Plus, Trash, X } from "@phosphor-icons/react";
+import {
+  ArrowLeft,
+  DownloadSimple,
+  Plus,
+  Trash,
+  X,
+} from "@phosphor-icons/react";
 import { expect, within } from "storybook/test";
 import { Button } from "./Button";
 import { IconButton } from "./IconButton";
+import { IconLink } from "./IconLink";
 
 function Section({
   title,
@@ -58,7 +65,7 @@ export const Default: Story = {
 
 export const ButtonSizesVariantsAndTones: Story = {
   render: () => (
-    <div className="grid min-w-[560px] gap-5 p-2">
+    <div className="grid w-[560px] max-w-[calc(100vw-32px)] gap-5 p-2">
       {(["sm", "md", "lg"] as const).map((size) => (
         <Section key={size} title={`${size} · 24 / 32 / 40px`}>
           <Button size={size} variant="ghost">
@@ -87,7 +94,7 @@ export const ButtonSizesVariantsAndTones: Story = {
 
 export const IconButtonSizesVariantsAndTones: Story = {
   render: () => (
-    <div className="grid min-w-[560px] gap-5 p-2">
+    <div className="grid w-[560px] max-w-[calc(100vw-32px)] gap-5 p-2">
       {(["sm", "md", "lg"] as const).map((size) => (
         <Section key={size} title={`${size} · 24 / 32 / 40px square`}>
           <IconButton size={size} variant="ghost" aria-label={`Add ${size}`}>
@@ -142,7 +149,7 @@ export const InteractionStates: Story = {
     },
   },
   render: () => (
-    <div className="grid min-w-[640px] gap-5 p-2">
+    <div className="grid w-[640px] max-w-[calc(100vw-32px)] gap-5 p-2">
       <Section title="Default · hover · focus-visible · active">
         <Button variant="ghost">Default</Button>
         <Button variant="ghost" data-story-state="hover">
@@ -210,6 +217,18 @@ export const InteractionStates: Story = {
       </Section>
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const loading = canvas.getByRole("button", { name: "Loading" });
+    await expect(loading).toBeDisabled();
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect(
+      canvas.getByRole("button", { name: "Close, loading" }),
+    ).toHaveAttribute("aria-busy", "true");
+    await expect(
+      canvas.getByRole("button", { name: "Removing" }),
+    ).toHaveAttribute("aria-busy", "true");
+  },
 };
 
 export const LongLabel: Story = {
@@ -223,4 +242,45 @@ export const LongLabel: Story = {
       </Button>
     </div>
   ),
+};
+
+export const LinkSemanticsAndInverseTone: Story = {
+  render: () => (
+    <div className="rounded-xl bg-black/85 p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button tone="inverse" variant="ghost">
+          Ghost
+        </Button>
+        <Button tone="inverse" variant="outline">
+          Outline
+        </Button>
+        <Button tone="inverse" variant="solid">
+          Solid
+        </Button>
+        <IconLink
+          href="#download-fixture"
+          download="fixture.txt"
+          tone="inverse"
+          variant="outline"
+          aria-label="Download fixture"
+        >
+          <DownloadSimple size={16} />
+        </IconLink>
+        <IconButton
+          tone="inverse"
+          variant="outline"
+          aria-label="Close preview"
+        >
+          <X size={16} />
+        </IconButton>
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const download = canvas.getByRole("link", { name: "Download fixture" });
+    await expect(download).toHaveAttribute("download", "fixture.txt");
+    await expect(download).toHaveAttribute("title", "Download fixture");
+    await expect(download).toHaveAttribute("data-tone", "inverse");
+  },
 };

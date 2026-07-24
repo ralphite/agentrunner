@@ -36,6 +36,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         size={size}
         aria-label={accessibleLabel}
         title={title ?? accessibleLabel}
+        data-ui-icon-button=""
         className={[SQUARE_SIZE_CLASSES[size], className]
           .filter(Boolean)
           .join(" ")}

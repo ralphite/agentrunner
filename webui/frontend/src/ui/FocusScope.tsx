@@ -14,6 +14,10 @@ export type FocusTarget =
   | RefObject<HTMLElement | null>
   | (() => HTMLElement | null);
 
+export type FocusRoot =
+  | RefObject<HTMLElement | null>
+  | (() => HTMLElement | null);
+
 export interface FocusScopeProps extends Omit<HTMLAttributes<HTMLDivElement>, "onEscape"> {
   /**
    * Preferred first-focus target(s). Selectors are resolved within the scope;
@@ -92,7 +96,7 @@ function focusElement(element: HTMLElement | null, allowProgrammatic = false): b
 }
 
 export function useFocusScope(
-  rootRef: RefObject<HTMLElement | null>,
+  rootSource: FocusRoot,
   {
     initialFocus,
     restoreFocus = true,
@@ -119,7 +123,9 @@ export function useFocusScope(
 
   useLayoutEffect(() => {
     if (!enabled) return;
-    const root = rootRef.current;
+    const root = typeof rootSource === "function"
+      ? rootSource()
+      : rootSource.current;
     if (!root) return;
 
     const id = Symbol("focus-scope");
@@ -175,13 +181,29 @@ export function useFocusScope(
       if (index >= 0) activeScopes.splice(index, 1);
 
       const options = optionsRef.current;
-      if (options.restoreFocus === false || options.shouldRestoreFocus?.() === false) return;
-      const explicit = options.restoreFocus === true
-        ? null
-        : resolveTarget(options.restoreFocus, document);
-      if (!focusElement(explicit, true)) focusElement(previous, true);
+      const restoreFocus = options.restoreFocus;
+      if (restoreFocus === false || options.shouldRestoreFocus?.() === false) return;
+      const restore = () => {
+        const explicit = restoreFocus === true
+          ? null
+          : resolveTarget(restoreFocus, document);
+        if (focusElement(explicit, true) || focusElement(previous, true)) return true;
+
+        // A transfer can unmount or hide its trigger (notably the mobile
+        // sidebar). Let the app expose one stable recovery target without
+        // making every overlay know which surface launched it.
+        const fallback =
+          document.querySelector<HTMLElement>("[data-focus-restore-fallback]") ||
+          document.getElementById("main");
+        return focusElement(fallback, true);
+      };
+
+      // Layout-effect cleanup may run before the closing render mounts its
+      // fallback button. Retry once after the synchronous commit, without
+      // keeping a timer or polling loop alive.
+      if (!restore()) queueMicrotask(restore);
     };
-  }, [enabled, rootRef]);
+  }, [enabled, rootSource]);
 }
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
