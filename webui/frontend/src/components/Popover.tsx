@@ -91,6 +91,19 @@ export function Popover({
     setPlace(null);
     setOpen(false);
     const focusTrigger = () => {
+      const active = document.activeElement;
+      // A selected action may deliberately hand focus to a newly mounted
+      // surface (for example More → Show Environment → its Close button).
+      // Restore only while focus is still inside this temporary popover, on
+      // its trigger, or stranded on <body>; never steal an explicit handoff.
+      if (
+        active instanceof HTMLElement &&
+        active !== document.body &&
+        !wrapRef.current?.contains(active) &&
+        !panelRef.current?.contains(active)
+      ) {
+        return;
+      }
       triggerElement()?.focus();
     };
     // Selection handlers run after pointer focus has already settled. Restore

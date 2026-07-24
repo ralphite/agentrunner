@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { Folder, Globe, Terminal, X } from "@phosphor-icons/react";
+import { CaretRight, Folder, Globe, Terminal, X } from "@phosphor-icons/react";
 import { useAppServices } from "../app/appServices";
 import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
@@ -1247,7 +1247,10 @@ export function RunDetailsModal({ data, status }: { data: unknown; status?: stri
         )}
 
         <details className="rd-raw">
-          <summary>Raw run data</summary>
+          <summary>
+            <CaretRight className="rd-raw-caret" size={12} aria-hidden />
+            <span>Raw run data</span>
+          </summary>
           <pre tabIndex={0} aria-label="Raw run data contents">
             {JSON.stringify(data, null, 2)}
           </pre>

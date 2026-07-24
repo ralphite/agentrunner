@@ -8,7 +8,12 @@ import { ApprovalCard } from "../../components/ApprovalCard";
 import { Composer } from "../composer/ComposerController";
 import { AskForm } from "../../components/AskForm";
 import { DiffView } from "../../components/DiffView";
-import { childAnswerRequests, type InspectDelegation, type InspectNode } from "../../components/Subagents";
+import {
+  childAnswerRequests,
+  subagentTaskLabel,
+  type InspectDelegation,
+  type InspectNode,
+} from "../../components/Subagents";
 import { SupervisionPanel } from "../../components/SupervisionPanel";
 import { FindBar } from "../../components/FindBar";
 import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "../../components/pill";
@@ -284,18 +289,30 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // click silently does nothing while the stale banner it targeted is already
   // being replaced. Toast NEW receipts only — the mount pass just baselines,
   // so reloading a journal that contains old no_ops stays quiet.
-  const goalNoopBase = useRef<{ sid: string; seq: number } | null>(null);
+  const goalNoopBase = useRef<{
+    sid: string;
+    seq: number;
+    hydrated: boolean;
+  } | null>(null);
   useEffect(() => {
     const maxSeq = events.length ? events[events.length - 1].seq : -1;
-    if (goalNoopBase.current?.sid !== sid) {
-      goalNoopBase.current = { sid, seq: maxSeq };
+    const baseline = goalNoopBase.current;
+    // `events` starts empty and the first poll hydrates the full journal.
+    // Establish the baseline only after that hydration finishes; otherwise
+    // every historical no_op receipt on reload looks newly appended.
+    if (baseline?.sid !== sid || !eventsReady) {
+      goalNoopBase.current = { sid, seq: maxSeq, hydrated: false };
       return;
     }
-    if (goalNoopReceipts(events, goalNoopBase.current.seq).length > 0) {
+    if (!baseline.hydrated) {
+      goalNoopBase.current = { sid, seq: maxSeq, hydrated: true };
+      return;
+    }
+    if (goalNoopReceipts(events, baseline.seq).length > 0) {
       toast("goal control had no effect — the goal had already settled", "info");
     }
-    goalNoopBase.current = { sid, seq: maxSeq };
-  }, [events, sid]);
+    goalNoopBase.current = { sid, seq: maxSeq, hydrated: true };
+  }, [events, eventsReady, sid]);
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
   const openApprovals: (ApprovalRef & {
@@ -651,7 +668,17 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   }, [hasApprovals, hasChildAnswers, view, bp.desktop, bp.wide]);
 
   const showSupervision = supervisionOpen && view === "chat";
-  const visibleTitle = isSub && subAgentName ? subAgentName : title;
+  // The child journal's opening prompt is the durable delegation task. Prefer
+  // it over the generic agent spec (`worker`, `reviewer`, …), and strip the
+  // isolated-workspace preamble before it reaches visible chrome.
+  const subagentTaskTitle = useMemo(() => {
+    if (!isSub) return undefined;
+    const started = events.find((event) => event.type === "session_started");
+    return subagentTaskLabel(started?.payload?.opening_prompt);
+  }, [events, isSub]);
+  const visibleTitle = isSub
+    ? subagentTaskTitle || subAgentName || title
+    : title;
 
   // INC-41 L2 · The daemon knows no such session: everything below (timeline,
   // composer, Supervision) would be a working-looking shell over nothing. Every
@@ -674,7 +701,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
         <SessionTopbar
           sid={sid}
           title={visibleTitle}
-          durableTitle={title}
+          durableTitle={isSub ? subAgentName || title : title}
           isSub={isSub}
           subAnswerRequested={askQuestions.length > 0}
           reserveNavigationSlot={bp.compact || bp.tablet}
@@ -687,7 +714,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
           pinned={pinned.includes(sid)}
           archived={archived.includes(sid)}
           view={view}
-          supervisionOpen={supervisionOpen}
+          supervisionOpen={showSupervision}
           showSystemEvents={showSys}
           onBackToParent={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))}
           onResume={act.resume}
@@ -708,7 +735,14 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
           }}
           onShowConversation={() => setView("chat")}
           onShowChanges={() => openDiff()}
-          onToggleSupervision={() => supervisionOpen ? closeSupervision() : openSupervision(null)}
+          onToggleSupervision={(opener) => {
+            if (showSupervision) {
+              closeSupervision();
+              return;
+            }
+            if (view === "diff") setView("chat");
+            openSupervision(opener);
+          }}
           onToggleSystemEvents={toggleSys}
           onCreateCheckpoint={act.barrier}
           onContinueInNewSession={() => openModal({ kind: "fork", sid })}
@@ -892,6 +926,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
             progress={progress}
             artifacts={artifacts}
             children={children}
+            delegations={delegations}
             backgroundWork={backgroundWork}
             approvals={openApprovals.length}
             answers={askQuestions.length > 0 ? 1 : 0}

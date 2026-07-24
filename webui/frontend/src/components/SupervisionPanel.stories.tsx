@@ -5,7 +5,7 @@ import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
 import type { AppServices } from "../app/appServices";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import type { BackgroundWork, DiffResp } from "../types";
-import type { InspectNode } from "./Subagents";
+import type { InspectDelegation, InspectNode } from "./Subagents";
 import {
   EnvironmentSection as EnvironmentSectionView,
   SupervisionPanel,
@@ -58,7 +58,7 @@ const progress: ProgressItem[] = [
 const children: InspectNode[] = [
   {
     call_id: "call-implementation",
-    agent: "implementation",
+    agent: "worker",
     session: "story-child-implementation",
     report: {
       status: "running",
@@ -68,7 +68,7 @@ const children: InspectNode[] = [
   },
   {
     call_id: "call-review",
-    agent: "reviewer-with-an-intentionally-long-name",
+    agent: "worker",
     session: "story-child-review",
     report: {
       status: "waiting",
@@ -80,9 +80,27 @@ const children: InspectNode[] = [
   },
   {
     call_id: "call-future",
-    agent: "future-agent",
+    agent: "worker",
     session: "story-child-future",
     reason: "future_terminal_state_not_yet_classified",
+  },
+];
+
+const delegations: InspectDelegation[] = [
+  {
+    call_id: "call-implementation",
+    assigned_to: "story-child-implementation",
+    description: "Implement compact Environment panel interactions.",
+  },
+  {
+    call_id: "call-review",
+    assigned_to: "story-child-review",
+    description: "Review keyboard focus and mobile layout.",
+  },
+  {
+    call_id: "call-future",
+    assigned_to: "story-child-future",
+    description: "Compare the completed panel with Codex.",
   },
 ];
 
@@ -211,6 +229,7 @@ const meta = {
       },
     ],
     children,
+    delegations,
     backgroundWork,
     approvals: 2,
     answers: 1,
@@ -245,6 +264,9 @@ export const Default: Story = {
     await expect(canvas.findByText("Environment")).resolves.toBeVisible();
     await expect(canvas.getByText("Background processes")).toBeVisible();
     await expect(canvas.getByText("Progress")).toBeVisible();
+    await expect(
+      canvas.getByText("Implement compact Environment panel interactions."),
+    ).toBeVisible();
     await expect(canvas.getByText("Attention")).toBeVisible();
   },
 };
@@ -256,27 +278,34 @@ export const KeyboardNavigation: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await canvas.findByText("Environment");
-    (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
-
-    await userEvent.tab();
     const close = canvas.getByRole("button", { name: "Hide Environment" });
     await expect(close).toHaveFocus();
-    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{Escape}");
     await expect(args.onClose).toHaveBeenCalledOnce();
   },
 };
 
 export const GoalEditing: Story = {
+  parameters: {
+    viewport: { value: "phoneCompact", isRotated: false },
+  },
   args: {
     goalEdit:
-      "Ship the component system after independent review and browser evidence",
+      "Ship the component system after independent review and browser evidence across every compact-width workflow without clipping the objective",
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const input = await canvas.findByRole("textbox", { name: "Goal" });
     await expect(input).toHaveFocus();
+    await expect(input.tagName).toBe("TEXTAREA");
+    await expect(input).toHaveClass("w-full");
+    await expect(input.scrollHeight).toBeLessThanOrEqual(
+      input.clientHeight + 1,
+    );
     await expect(canvas.getByRole("button", { name: "Save" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Discard" })).toBeVisible();
+    await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
+    await expect(args.onGoalSave).toHaveBeenCalledOnce();
   },
 };
 
@@ -299,7 +328,9 @@ export const FailureUnknownAndOverflow: Story = {
       ),
     ).toBeVisible();
     await expect(canvas.getByText("Session needs recovery")).toBeVisible();
-    await expect(canvas.getByText("future-agent")).toBeVisible();
+    await expect(
+      canvas.getByText("Compare the completed panel with Codex."),
+    ).toBeVisible();
   },
 };
 

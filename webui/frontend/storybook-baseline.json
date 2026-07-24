@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 61,
-    "lines": 20382,
+    "lines": 20619,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -186,7 +186,7 @@
       },
       {
         "source": "src/components/Modals.tsx",
-        "lines": 1224,
+        "lines": 1261,
         "exports": [
           "AgentModal",
           "ConfirmModal",
@@ -215,7 +215,7 @@
       },
       {
         "source": "src/components/Popover.tsx",
-        "lines": 519,
+        "lines": 532,
         "exports": [
           "PopItem",
           "PopSection",
@@ -268,7 +268,7 @@
       },
       {
         "source": "src/components/SessionChrome.tsx",
-        "lines": 500,
+        "lines": 524,
         "exports": [
           "QueuedMessageItem",
           "QueuedMessageList",
@@ -386,7 +386,7 @@
       },
       {
         "source": "src/components/Subagents.tsx",
-        "lines": 190,
+        "lines": 261,
         "exports": [
           "SubagentItem",
           "Subagents"
@@ -395,7 +395,7 @@
       },
       {
         "source": "src/components/SupervisionPanel.tsx",
-        "lines": 788,
+        "lines": 818,
         "exports": [
           "EnvironmentSection",
           "SupervisionPanel"
@@ -404,7 +404,7 @@
       },
       {
         "source": "src/components/SupervisionParts.tsx",
-        "lines": 390,
+        "lines": 419,
         "exports": [
           "ArtifactItem",
           "ArtifactsSection",
@@ -490,7 +490,7 @@
       },
       {
         "source": "src/features/composer/GoalLoopLauncher.tsx",
-        "lines": 178,
+        "lines": 159,
         "exports": [
           "GoalLoopLauncher"
         ],
@@ -498,7 +498,7 @@
       },
       {
         "source": "src/features/session/SessionFeature.tsx",
-        "lines": 919,
+        "lines": 971,
         "exports": [
           "SessionFeature"
         ],
@@ -630,8 +630,8 @@
     ]
   },
   "tests": {
-    "files": 86,
-    "declarations": 830
+    "files": 88,
+    "declarations": 850
   },
   "storage": [
     {

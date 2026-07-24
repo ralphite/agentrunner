@@ -130,8 +130,8 @@ export const TopbarRetry: Story = {
 export const TopbarSubAgent: Story = {
   args: {
     sid: "20260723-parent-sub-call_story-worker",
-    title: "browser-reviewer",
-    durableTitle: "Build deterministic Storybook coverage",
+    title: "Build deterministic Storybook coverage",
+    durableTitle: "browser-reviewer",
     isSub: true,
     subAnswerRequested: true,
   },
@@ -139,7 +139,9 @@ export const TopbarSubAgent: Story = {
     topbarActions.onBackToParent.mockClear();
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText("Sub-agent · answer requested"),
+      canvas.getByRole("status", {
+        name: "Sub-agent · answer requested",
+      }),
     ).toBeVisible();
     const back = canvas.getByRole("button", { name: "Back to parent session" });
     back.focus();
@@ -152,8 +154,8 @@ export const TopbarSubAgent: Story = {
 export const TopbarReadOnlySubAgent: Story = {
   args: {
     sid: "20260723-parent-sub-call_story-observer",
-    title: "release-observer",
-    durableTitle: "Observe the release verification",
+    title: "Observe the release verification",
+    durableTitle: "release-observer",
     isSub: true,
     subAnswerRequested: false,
     needsRecovery: true,
@@ -163,7 +165,9 @@ export const TopbarReadOnlySubAgent: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Read-only sub-agent")).toBeVisible();
+    await expect(
+      canvas.getByRole("status", { name: "Read-only sub-agent" }),
+    ).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: "Resume session" }),
     ).toBeNull();

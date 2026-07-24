@@ -52,7 +52,7 @@ export interface SessionTopbarProps {
   onArchive: () => void;
   onShowConversation: () => void;
   onShowChanges: () => void;
-  onToggleSupervision: () => void;
+  onToggleSupervision: (opener: HTMLButtonElement | null) => void;
   onToggleSystemEvents: () => void;
   onCreateCheckpoint: () => void;
   onContinueInNewSession: () => void;
@@ -96,6 +96,9 @@ export function SessionTopbar({
   onContinueInNewSession,
   onSwitchAgent,
 }: SessionTopbarProps) {
+  const subagentBadge = subAnswerRequested
+    ? "Sub-agent · answer requested"
+    : "Read-only sub-agent";
   return (
     <header className="session-topbar">
       {reserveNavigationSlot && (
@@ -115,22 +118,36 @@ export function SessionTopbar({
           <ArrowLeft size={16} />
         </IconButton>
       )}
-      <div className="tt-left">
+      <div
+        className={
+          isSub
+            ? "tt-left flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+            : "tt-left"
+        }
+      >
         <div
-          className="tt-title"
+          className={`tt-title${isSub ? " min-w-0 flex-1" : ""}`}
           title={`${title}${title !== durableTitle ? `\n${durableTitle}` : ""}\n${sid}`}
         >
           {title}
         </div>
         {isSub && (
-          <span className="readonly-tag">
-            {subAnswerRequested
-              ? "Sub-agent · answer requested"
-              : "Read-only sub-agent"}
+          <span
+            className="readonly-tag !ml-0 inline-flex shrink-0 items-center whitespace-nowrap"
+            role="status"
+            aria-label={subagentBadge}
+            title={subagentBadge}
+          >
+            <span aria-hidden="true" className="max-[420px]:hidden">
+              {subagentBadge}
+            </span>
+            <span aria-hidden="true" className="min-[421px]:hidden">
+              {subAnswerRequested ? "Needs answer" : "Read-only"}
+            </span>
           </span>
         )}
       </div>
-      <span className="spacer" />
+      {!isSub && <span className="spacer" />}
       {!isSub && needsRecovery && (
         <Button
           variant="ghost"
@@ -210,7 +227,14 @@ export function SessionTopbar({
             Changes
           </MenuItem>
         )}
-        <MenuItem onClick={onToggleSupervision}>
+        <MenuItem
+          onClick={() =>
+            onToggleSupervision(
+              document.querySelector<HTMLButtonElement>(
+                '.session-topbar button[aria-label="More session actions"]',
+              ),
+            )}
+        >
           <SidebarSimple size={16} />
           {supervisionOpen ? "Hide" : "Show"} Environment
         </MenuItem>

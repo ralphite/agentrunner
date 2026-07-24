@@ -125,6 +125,12 @@ export function useSessionDataController({
           cursor.current,
         );
       }
+      // `eventsReady` means the journal has been hydrated successfully, not
+      // merely that the first request settled. In particular, keep it false
+      // across transient failures so consumers do not baseline against the
+      // controller's initial empty array and then treat retried history as
+      // newly appended events. A successful empty journal is still hydrated.
+      setEventsReady(true);
     } catch (error) {
       if (isSessionNotFound(error)) {
         gone.current = true;
@@ -132,7 +138,6 @@ export function useSessionDataController({
       }
     } finally {
       pollBusy.current = false;
-      setEventsReady(true);
     }
   }, [api, sid]);
 

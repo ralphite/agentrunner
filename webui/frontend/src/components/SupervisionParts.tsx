@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import {
   ArrowSquareIn,
   CaretRight,
@@ -11,8 +11,12 @@ import { formatElapsed, type GoalDerived } from "../timeline";
 import type { BackgroundWork } from "../types";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
-import { Input } from "../ui/Field";
-import { Subagents, type InspectNode } from "./Subagents";
+import { Textarea } from "../ui/Field";
+import {
+  Subagents,
+  type InspectDelegation,
+  type InspectNode,
+} from "./Subagents";
 import { Spinner } from "../ui/Spinner";
 import { LifecycleStatus } from "../ui/LifecycleStatus";
 
@@ -73,10 +77,17 @@ export function backgroundLabel(work: BackgroundWork): string {
   return `${work.tool}${detail ? " · " + detail : ""}`;
 }
 
-export function SupervisionCloseButton({ onClose }: { onClose: () => void }) {
+export function SupervisionCloseButton({
+  buttonRef,
+  onClose,
+}: {
+  buttonRef?: Ref<HTMLButtonElement>;
+  onClose: () => void;
+}) {
   return (
     <div className="supervision-close-slot sticky top-0 z-10 flex h-0 justify-end">
       <IconButton
+        ref={buttonRef}
         size="sm"
         variant="ghost"
         className="supervision-close shrink-0"
@@ -159,15 +170,27 @@ export function GoalSection({
           {goalEdit === null ? (
             <div className="goal-copy">{goal.goal}</div>
           ) : (
-            <Input
-              className="goal-input"
+            <Textarea
+              className="goal-input min-h-[72px] max-h-[160px] w-full resize-y overflow-y-auto text-[12.5px] leading-5 [field-sizing:content]"
               aria-label="Goal"
               autoFocus
+              rows={3}
               value={goalEdit}
               onChange={(event) => onGoalEdit(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") onGoalSave();
-                if (event.key === "Escape") onGoalDiscard();
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onGoalDiscard();
+                  return;
+                }
+                if (
+                  event.key === "Enter" &&
+                  (event.metaKey || event.ctrlKey)
+                ) {
+                  event.preventDefault();
+                  onGoalSave();
+                }
               }}
             />
           )}
@@ -291,16 +314,22 @@ export function ArtifactsSection({
 
 export function SupervisionAgentsSection({
   children,
+  delegations = [],
   onOpen,
 }: {
   children: InspectNode[];
+  delegations?: InspectDelegation[];
   onOpen: (sid: string) => void;
 }) {
   if (children.length === 0) return null;
   return (
     <section className="supervision-section supervision-agents">
       <div className="supervision-label">Agents</div>
-      <Subagents nodes={children} onOpen={onOpen} />
+      <Subagents
+        nodes={children}
+        delegations={delegations}
+        onOpen={onOpen}
+      />
     </section>
   );
 }

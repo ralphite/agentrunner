@@ -281,6 +281,60 @@ describe("TH-13/14 · compact live goal controls", () => {
     });
   });
 
+  it("keeps retried historical goal no-op receipts quiet and toasts only a live append", async () => {
+    const journal = [
+      ...EVENTS,
+      {
+        seq: 5,
+        type: "command_handled",
+        payload: { kind: "goal_pause", result: "no_op" },
+      },
+    ];
+    let failedInitialHydration = false;
+    arMock.events = vi.fn(async (_sid: string, after: number) => {
+      if (!failedInitialHydration) {
+        failedInitialHydration = true;
+        throw new Error("transient journal failure");
+      }
+      return journal.filter((event) => event.seq > after);
+    });
+    useStore.setState({ toasts: [] });
+
+    render(<SessionView sid={SID} />);
+    await waitFor(() => expect(arMock.events).toHaveBeenCalledTimes(1));
+    expect(
+      useStore.getState().toasts.some((toast) =>
+        toast.text.includes("goal control had no effect"),
+      ),
+    ).toBe(false);
+
+    // The interval retries with cursor 0. History that arrives on this first
+    // successful hydration establishes the baseline and must stay silent.
+    await waitFor(() => expect(arMock.events).toHaveBeenCalledTimes(2), {
+      timeout: 2_000,
+    });
+    await waitFor(
+      () => expect(arMock.events).toHaveBeenCalledWith(SID, 5),
+      { timeout: 3_000 },
+    );
+    const goalNoopToasts = () =>
+      useStore
+        .getState()
+        .toasts.filter((toast) =>
+          toast.text.includes("goal control had no effect"),
+        );
+    expect(goalNoopToasts()).toHaveLength(0);
+
+    journal.push({
+      seq: 6,
+      type: "command_handled",
+      payload: { kind: "goal_resume", result: "no_op" },
+    });
+    await waitFor(() => expect(goalNoopToasts()).toHaveLength(1), {
+      timeout: 2_000,
+    });
+  });
+
   it("keeps objective and checks in Environment instead of repeating them across the composer", async () => {
     const { container } = render(<SessionView sid={SID} />);
     await waitFor(() => expect(container.querySelector(".gbar-live")).not.toBeNull());
@@ -437,6 +491,19 @@ describe("TH-15 · one rail, one name, one door", () => {
     fireEvent.click(screen.getByRole("button", { name: /more session actions/i }));
     expect(screen.getByRole("menuitem", { name: "Conversation" })).toBeTruthy();
     expect(screen.queryByRole("menuitem", { name: "Changes" })).toBeNull();
+
+    const showEnvironment = screen.getByRole("menuitem", {
+      name: "Show Environment",
+    });
+    showEnvironment.focus();
+    fireEvent.click(showEnvironment);
+    await waitFor(() =>
+      expect(container.querySelector(".changes-panel")).toBeNull(),
+    );
+    const closeEnvironment = await screen.findByRole("button", {
+      name: "Hide Environment",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(closeEnvironment));
   });
 
   it("returns focus to the stable menu trigger after closing Changes", async () => {
@@ -456,6 +523,36 @@ describe("TH-15 · one rail, one name, one door", () => {
     await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("hands More-menu focus into Environment and restores the exact opener", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() =>
+      expect(container.querySelector("aside.supervision-panel")).not.toBeNull(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
+    await waitFor(() =>
+      expect(container.querySelector("aside.supervision-panel")).toBeNull(),
+    );
+
+    const more = screen.getByRole("button", { name: "More session actions" });
+    fireEvent.click(more);
+    const showEnvironment = await screen.findByRole("menuitem", {
+      name: "Show Environment",
+    });
+    showEnvironment.focus();
+    fireEvent.click(showEnvironment);
+
+    const close = await screen.findByRole("button", {
+      name: "Hide Environment",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(container.querySelector("aside.supervision-panel")).toBeNull(),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(more));
   });
 
   it("returns an Environment-row launch to the stable Environment trigger", async () => {
@@ -575,8 +672,19 @@ describe("session failure chrome", () => {
 });
 
 describe("sub-agent session identity", () => {
-  it("uses inspect's agent spec as the child header title", async () => {
+  it("uses the durable delegation task instead of the generic agent spec", async () => {
     const childSid = `${SID}-sub-call_1_2-a1`;
+    arMock.events = async (_sid: string, after: number) =>
+      after
+        ? []
+        : [{
+            seq: 1,
+            type: "session_started",
+            payload: {
+              opening_prompt:
+                "[workspace note] Work in the delegated snapshot only.\n\nReview keyboard focus across the project sidebar.\nVerify the More-menu return path.",
+            },
+          }];
     arMock.inspect = async () => ({ spec: "worker_b", goal: null, children: [], progress: [], artifacts: [] });
     useStore.setState({
       currentSid: childSid,
@@ -584,9 +692,14 @@ describe("sub-agent session identity", () => {
     });
 
     const { container } = render(<SessionView sid={childSid} />);
-    await waitFor(() => expect(container.querySelector(".tt-title")?.textContent).toBe("worker_b"));
+    await waitFor(() =>
+      expect(container.querySelector(".tt-title")?.textContent).toBe(
+        "Review keyboard focus across the project sidebar. Verify the More-menu return path.",
+      ),
+    );
     expect(container.querySelector(".readonly-tag")?.textContent).toContain("Read-only sub-agent");
-    expect(container.querySelector(".tt-title")?.getAttribute("title")).toContain("Run the three-worker QA delegation now.");
+    expect(container.querySelector(".tt-title")?.getAttribute("title")).toContain("worker_b");
+    expect(container.querySelector(".tt-title")?.textContent).not.toContain("workspace note");
   });
 });
 

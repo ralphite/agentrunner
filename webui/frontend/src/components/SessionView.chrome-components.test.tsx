@@ -77,8 +77,8 @@ describe("SessionTopbar", () => {
       <SessionTopbar
         {...topbarProps({
           sid: "20260723-parent-sub-call_worker",
-          title: "worker",
-          durableTitle: "Parent session",
+          title: "Review the compact project navigation.",
+          durableTitle: "worker",
           isSub: true,
           subAnswerRequested: true,
           onBackToParent: onBack,
@@ -91,6 +91,9 @@ describe("SessionTopbar", () => {
     );
     expect(onBack).toHaveBeenCalledOnce();
     expect(screen.getByText("Sub-agent · answer requested")).toBeTruthy();
+    expect(screen.getByText("Needs answer")).toBeTruthy();
+    expect(document.querySelector(".tt-left")?.classList.contains("flex-1")).toBe(true);
+    expect(document.querySelector(".readonly-tag")?.classList.contains("whitespace-nowrap")).toBe(true);
     expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
   });
 

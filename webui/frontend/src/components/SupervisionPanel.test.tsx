@@ -31,7 +31,7 @@ vi.mock("../api", async () => ({
 import { ENV_REFRESH_MS, SupervisionPanel, type GoalState } from "./SupervisionPanel";
 import { useStore } from "../store";
 import type { InspectNode } from "./Subagents";
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 
 const noop = () => {};
 
@@ -119,6 +119,22 @@ describe("TH-3 · resting Supervision panel", () => {
     expect(container.querySelectorAll("section.supervision-section").length).toBe(0);
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
+
+  it("wires delegation tasks into repeated worker identities", () => {
+    renderPanel({
+      children: [
+        { call_id: "call-a", session: "child-a", agent: "worker" },
+        { call_id: "call-b", session: "child-b", agent: "worker" },
+      ],
+      delegations: [
+        { call_id: "call-a", description: "Audit Environment focus." },
+        { call_id: "call-b", description: "Review compact layout." },
+      ],
+    });
+
+    expect(screen.getByText("Audit Environment focus.")).toBeTruthy();
+    expect(screen.getByText("Review compact layout.")).toBeTruthy();
+  });
 });
 
 // INC-41 DF-D4 — the panel's `Supervision` title bar was a word-for-word second
@@ -164,6 +180,17 @@ describe("DF-D4 · no title bar that repeats the topbar pill", () => {
     fireEvent.click(close);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("hands focus to Close and lets Escape close the panel", async () => {
+    const onClose = vi.fn();
+    renderPanel({ onClose });
+
+    const close = screen.getByRole("button", { name: /hide environment/i });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("TH-3 · groups with content are untouched", () => {
@@ -178,6 +205,35 @@ describe("TH-3 · groups with content are untouched", () => {
     // The other two groups are still empty, so they still don't render.
     expect(screen.queryByText("Agents")).toBeNull();
     expect(screen.queryByText("Attention")).toBeNull();
+  });
+
+  it("edits a long Goal in a wrapping textarea without stealing Enter", async () => {
+    const onGoalSave = vi.fn();
+    const onGoalDiscard = vi.fn();
+    const longGoal =
+      "Review every visible interaction at compact width and keep the result usable without horizontal scrolling";
+    const { container } = renderPanel({
+      goal,
+      goalEdit: longGoal,
+      onGoalSave,
+      onGoalDiscard,
+    });
+
+    const editor = screen.getByRole("textbox", { name: "Goal" });
+    await waitFor(() => expect(document.activeElement).toBe(editor));
+    expect(editor.tagName).toBe("TEXTAREA");
+    expect(editor.classList).toContain("w-full");
+    expect(editor.classList).toContain("min-h-[72px]");
+    expect((editor as HTMLTextAreaElement).value).toBe(longGoal);
+    expect(container.querySelector(".goal-actions")).toBeTruthy();
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+    expect(onGoalSave).not.toHaveBeenCalled();
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+    expect(onGoalSave).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(editor, { key: "Escape" });
+    expect(onGoalDiscard).toHaveBeenCalledTimes(1);
   });
 
   it("does not claim nothing needs you while unfinished progress is visible", () => {

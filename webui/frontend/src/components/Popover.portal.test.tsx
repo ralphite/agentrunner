@@ -222,6 +222,38 @@ describe("Popover plumbing survives the reposition", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("does not steal focus from a surface opened by a selected action", async () => {
+    render(
+      <>
+        <button data-testid="new-surface">New surface close</button>
+        <Popover
+          trigger={(open, toggle) => (
+            <button onClick={toggle} aria-expanded={open}>
+              More
+            </button>
+          )}
+        >
+          {(close) => (
+            <PopItem
+              title="Open surface"
+              onClick={() => {
+                screen.getByTestId("new-surface").focus();
+                close();
+              }}
+            />
+          )}
+        </Popover>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open surface" }));
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(document.activeElement).toBe(screen.getByTestId("new-surface"));
+  });
+
   it("lets onOpen update its parent without updating during Popover's state updater", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     function Parent() {

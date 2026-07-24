@@ -12,6 +12,12 @@ import {
 export interface InspectNode {
   call_id?: string;
   agent?: string;
+  // Newer inspect projections may surface a user-facing task identity on the
+  // child itself. Older journals keep it on the matching delegation instead.
+  task?: string;
+  title?: string;
+  name?: string;
+  description?: string;
   session?: string;
   reason?: string;
   status?: string;
@@ -40,6 +46,11 @@ export interface InspectNode {
 }
 
 export interface InspectDelegation {
+  call_id?: string;
+  description?: string;
+  task?: string;
+  title?: string;
+  name?: string;
   assigned_to?: string;
   workspace?: {
     mode?: string;
@@ -78,10 +89,52 @@ function tokens(n?: number): string {
   return (n / 1_000_000).toFixed(1) + "M";
 }
 
+// A child opening prompt may carry an implementation-only workspace preamble.
+// The actual delegated task follows the blank line; never expose the preamble,
+// a worktree path, or the generated child session id as the person's identity.
+export function subagentTaskLabel(value?: string): string | undefined {
+  let clean = value?.trim();
+  if (!clean) return undefined;
+  if (clean.startsWith("[workspace note]")) {
+    const taskStart = clean.indexOf("\n\n");
+    clean = taskStart >= 0 ? clean.slice(taskStart + 2).trim() : "";
+  }
+  // Preserve the entire delegated task. The visual label clamps to two lines,
+  // while its title/accessible name retain later sentences that may be the
+  // only part distinguishing several otherwise identical `worker` agents.
+  return clean.replace(/\s+/g, " ") || undefined;
+}
+
+export function subagentPrimaryIdentity(
+  node: InspectNode,
+  delegation?: InspectDelegation,
+): string {
+  const task =
+    subagentTaskLabel(delegation?.title) ||
+    subagentTaskLabel(delegation?.task) ||
+    subagentTaskLabel(delegation?.name) ||
+    subagentTaskLabel(delegation?.description) ||
+    subagentTaskLabel(node.title) ||
+    subagentTaskLabel(node.task) ||
+    subagentTaskLabel(node.name) ||
+    subagentTaskLabel(node.description);
+  return task || node.agent?.trim() || "worker";
+}
+
 // Subagents mirrors Codex's Subagents panel: a session's spawned children, each
 // with its status + token usage and a click that opens its (read-only) session.
 // Recurses so a subagent that itself spawned workers shows them nested.
-export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; onOpen: (sid: string) => void; depth?: number }) {
+export function Subagents({
+  nodes,
+  delegations = [],
+  onOpen,
+  depth = 0,
+}: {
+  nodes: InspectNode[];
+  delegations?: InspectDelegation[];
+  onOpen: (sid: string) => void;
+  depth?: number;
+}) {
   if (!nodes?.length) return null;
   const uniqueNodes = dedupeInspectNodes(nodes);
   return (
@@ -91,24 +144,34 @@ export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; 
           Subagents · {uniqueNodes.length}
         </h4>
       )}
-      {uniqueNodes.map((node, index) => (
-        <SubagentItem
-          key={node.call_id || node.session || index}
-          node={node}
-          onOpen={onOpen}
-          depth={depth}
-        />
-      ))}
+      {uniqueNodes.map((node, index) => {
+        const delegation = delegations.find(
+          (item) =>
+            (!!item.assigned_to && item.assigned_to === node.session) ||
+            (!!item.call_id && item.call_id === node.call_id),
+        );
+        return (
+          <SubagentItem
+            key={node.call_id || node.session || index}
+            node={node}
+            delegation={delegation}
+            onOpen={onOpen}
+            depth={depth}
+          />
+        );
+      })}
     </div>
   );
 }
 
 export function SubagentItem({
   node,
+  delegation,
   onOpen,
   depth = 0,
 }: {
   node: InspectNode;
+  delegation?: InspectDelegation;
   onOpen: (sid: string) => void;
   depth?: number;
 }) {
@@ -126,35 +189,38 @@ export function SubagentItem({
     ((report.usage?.input_tokens || 0) + (report.usage?.output_tokens || 0));
   const children = dedupeInspectNodes(report.children || []);
   const clickable = !!node.session;
+  const identity = subagentPrimaryIdentity(node, delegation);
+  const role = node.agent?.trim();
+  const secondary = [
+    role && role !== identity ? role : "",
+    status.text,
+    report.gen_steps ? `${report.gen_steps} steps` : "",
+    tokenCount ? `${tokens(tokenCount)} tok` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const indent = depth
     ? ["ml-3", "ml-6", "ml-9", "ml-12"][Math.min(depth, 4) - 1]
     : "";
   const row = (
     <>
-      <span className="flex min-w-0 flex-none items-center gap-2 max-[520px]:col-span-3">
+      <span className="flex min-w-0 flex-1 items-start gap-2">
         <LifecycleStatus
           accessibleLabel={status.text}
-          className={`sa-dot shrink-0 ${status.cls}`}
+          className={`sa-dot mt-[5px] shrink-0 ${status.cls}`}
           state={lifecycleStateFromStatusClass(status.cls)}
           aria-hidden="true"
         />
-        <span className="sa-name">{node.agent || "worker"}</span>
-        <span className="sa-status min-w-0 truncate max-[520px]:flex-1 max-[520px]:basis-0">
-          {status.text}
+        <span className="min-w-0 flex-1">
+          <span className="sa-name line-clamp-2 block !max-w-none !flex-1 whitespace-normal text-left font-medium leading-4">
+            {identity}
+          </span>
+          <span className="sa-status block min-w-0 whitespace-normal text-left text-[12px] leading-4 text-dim">
+            {secondary}
+          </span>
         </span>
       </span>
-      <span className="sa-spacer max-[520px]:hidden" />
-      <span className="flex min-w-0 shrink items-center gap-2 max-[520px]:col-span-3 max-[520px]:justify-end">
-        {report.gen_steps ? (
-          <span className="sa-meta min-w-0 truncate">
-            {report.gen_steps} steps
-          </span>
-        ) : null}
-        {tokenCount ? (
-          <span className="sa-meta min-w-0 truncate">
-            {tokens(tokenCount)} tok
-          </span>
-        ) : null}
+      <span className="flex min-w-0 shrink-0 items-center gap-2">
         {clickable && (
           <span className="sa-open inline-flex shrink-0 items-center gap-1">
             open <ArrowSquareOut size={12} />
@@ -170,20 +236,25 @@ export function SubagentItem({
     >
       {clickable ? (
         <button
-          className="sa-row clickable max-[520px]:grid max-[520px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[520px]:gap-x-2 max-[520px]:gap-y-1"
+          className="sa-row clickable"
           type="button"
           onClick={() => onOpen(node.session!)}
-          title={node.session}
+          title={`${identity} · ${secondary}`}
         >
           {row}
         </button>
       ) : (
-        <div className="sa-row max-[520px]:grid max-[520px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[520px]:gap-x-2 max-[520px]:gap-y-1">
+        <div className="sa-row">
           {row}
         </div>
       )}
       {children.length > 0 && (
-        <Subagents nodes={children} onOpen={onOpen} depth={depth + 1} />
+        <Subagents
+          nodes={children}
+          delegations={report.delegations || []}
+          onOpen={onOpen}
+          depth={depth + 1}
+        />
       )}
     </div>
   );

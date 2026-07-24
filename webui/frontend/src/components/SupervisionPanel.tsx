@@ -23,8 +23,13 @@ import { deriveGoalState, isGoalTerminal, type GoalDerived } from "../timeline";
 import type { BackgroundWork } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
-import type { ChildAnswerRequest, InspectNode } from "./Subagents";
+import type {
+  ChildAnswerRequest,
+  InspectDelegation,
+  InspectNode,
+} from "./Subagents";
 import { Button } from "../ui/Button";
+import { useFocusScope } from "../ui/FocusScope";
 import {
   ArtifactsSection,
   AttentionSection,
@@ -151,6 +156,7 @@ export function SupervisionPanel({
   progress,
   artifacts,
   children,
+  delegations = [],
   backgroundWork,
   approvals,
   answers,
@@ -175,6 +181,7 @@ export function SupervisionPanel({
   progress: ProgressItem[];
   artifacts: { stream: string; version: number }[];
   children: InspectNode[];
+  delegations?: InspectDelegation[];
   backgroundWork: BackgroundWork[];
   approvals: number;
   answers: number;
@@ -208,6 +215,19 @@ export function SupervisionPanel({
   onInspect: () => void;
   onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Environment is a persistent inspection rail, not a modal: hand keyboard
+  // entry to its close affordance, but leave Tab free to continue through the
+  // rest of the page. SessionFeature owns opener restoration in `onClose`.
+  // While the Goal textarea is active, its own Escape means "discard edit";
+  // only the resting panel layer treats Escape as "close Environment".
+  useFocusScope(panelRef, {
+    initialFocus: goalEdit === null ? closeRef : ".goal-input",
+    restoreFocus: false,
+    onEscape: goalEdit === null ? () => onClose() : undefined,
+    trapTab: false,
+  });
   // When no goal is active, recover the last settled goal so the GOAL section
   // shows its outcome instead of collapsing to "No active goal" (R1-4).
   const settledGoal = useSettledGoal(!!goal, loading);
@@ -239,7 +259,11 @@ export function SupervisionPanel({
     // TH-15 · the rail is named `Environment` — in the topbar pill that opens it,
     // in its first section's label, and here in its accessible name. It used to
     // answer to "Supervision" from the outside and "Environment" from the inside.
-    <aside className="supervision-panel session-side" aria-label="Environment">
+    <aside
+      ref={panelRef}
+      className="supervision-panel session-side"
+      aria-label="Environment"
+    >
       {/* INC-41 DF-D4 · the `Supervision` title bar is gone. It was a 40px strip
           whose icon+label were a word-for-word second copy of the topbar pill
           that *opens this very panel* — the pill sat 54px above it, always on
@@ -253,7 +277,7 @@ export function SupervisionPanel({
           workspace-less session — a panel you couldn't close would be a worse
           bug than the one we're fixing. Height 0 ⇒ Environment gains the whole
           40px back; sticky ⇒ ✕ stays reachable in a long, scrolled panel. */}
-      <SupervisionCloseButton onClose={onClose} />
+      <SupervisionCloseButton buttonRef={closeRef} onClose={onClose} />
 
       <EnvironmentSection onOpenChanges={onOpenChanges} refreshKey={refreshKey} />
 
@@ -292,7 +316,13 @@ export function SupervisionPanel({
 
       <ArtifactsSection artifacts={artifacts} onOpen={onOpenArtifact} />
 
-      {!loading && <SupervisionAgentsSection children={children} onOpen={onOpenChild} />}
+      {!loading && (
+        <SupervisionAgentsSection
+          children={children}
+          delegations={delegations}
+          onOpen={onOpenChild}
+        />
+      )}
 
       {!loading && <AttentionSection notices={attention} onOpenChild={onOpenChild} />}
 

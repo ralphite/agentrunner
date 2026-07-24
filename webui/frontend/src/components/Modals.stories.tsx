@@ -129,6 +129,11 @@ const runDetails = {
     input_modalities: ["Text", "Image"],
     capabilities: { thinking: true, files: true, images: true },
   },
+  delegation: {
+    source_thread_id: "019f92a3-593d-7e62-b1a6-8edd8fff74b4",
+    input:
+      "Review /Users/demo/.codex/worktrees/4a043639-073a-4b04-8686-9b6b355b2f38/agentrunner/webui/frontend/src/components/RunDetailsExtremelyLongUnbrokenFixture.tsx before returning to the parent agent.",
+  },
 };
 
 function expectDialog(canvasElement: HTMLElement, name: string) {
@@ -891,12 +896,47 @@ export const RunDetailsModalKeyboardNavigation: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const raw = canvas.getByText("Raw run data");
+    const raw = canvas.getByText("Raw run data").closest("summary")!;
     raw.focus();
     await expect(raw).toHaveFocus();
     await userEvent.click(raw);
     await waitFor(() => expect(raw.closest("details")).toHaveAttribute("open"));
     await expect(canvas.getByText(/"release-reviewer"/)).toBeVisible();
+  },
+};
+
+export const RunDetailsModalMobileRawOverflow: Story = {
+  globals: {
+    viewport: { value: "phoneCompact", isRotated: false },
+  },
+  render: () => (
+    <LeafFrame>
+      <RunDetailsModal data={runDetails} status="waiting:approval" />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const dialog = canvas.getByRole("dialog", { name: "Run details" });
+    const disclosure = canvas.getByText("Raw run data").closest("summary")!;
+
+    await userEvent.click(disclosure);
+
+    const raw = canvas.getByLabelText("Raw run data contents");
+    const viewport = dialog.ownerDocument.documentElement;
+    const dialogRect = dialog.getBoundingClientRect();
+
+    await waitFor(() => expect(raw.scrollWidth).toBeGreaterThan(raw.clientWidth));
+    await expect(viewport.scrollWidth).toBe(viewport.clientWidth);
+    await expect(dialogRect.left).toBeGreaterThanOrEqual(0);
+    await expect(dialogRect.right).toBeLessThanOrEqual(viewport.clientWidth);
+    for (const section of dialog.querySelectorAll<HTMLElement>(
+      ".rd-hero, .rd-section, .rd-raw",
+    )) {
+      const rect = section.getBoundingClientRect();
+      await expect(rect.left).toBeGreaterThanOrEqual(dialogRect.left);
+      await expect(rect.right).toBeLessThanOrEqual(dialogRect.right);
+      await expect(section.scrollWidth).toBeLessThanOrEqual(section.clientWidth);
+    }
   },
 };
 
