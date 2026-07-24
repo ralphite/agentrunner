@@ -7928,3 +7928,44 @@ stories 矩阵同步。③ **deploy.sh daemon env**——修当日并发 session
 锚：timeline.test goalNoopReceipts + Composer stories/tests 40/40 +
 真机部署验证（daemon env 含 key、no_op toast 路径 API 抽验）。GAPS G58
 ✅。
+
+## 2026-07-24 · G59 收编：Scheduled 页 Repeating/suggestions 改接 INC-102 新流（原误重号 G58）
+
+**背景**：INC-102 把 composer `/loop` 改为 in-session schedule（对话形态），
+但 Scheduled 页 Create→Repeating 与 suggestion 卡的新建入口没跟上——仍经
+`Modals.tsx` 的 run modal 走 `api.startRun({kind:"drive", ...})` 造
+fresh-child IterationDriver series。登记时误用了已被占用的编号 G58（GAPS
+已有一条已关闭的「goal 终结后的残留交互回声」同号），本次收编顺带发现并
+修正——`scripts/lint-docs.sh` 的 GAPS 编号唯一检查此前实际处于**红**（main
+`b261889` 起即重号，此前未被跑过/未被注意），改号 G59 后转绿。
+
+**动作**：`RunModal.start()`（`webui/frontend/src/components/Modals.tsx`）
+在提交处按当前表单状态分流，不重写整个 modal——`kind==="drive"` 且
+`schedule` 为 `interval`/`cron` 时（repeating 预设与全部三张 suggestion
+卡片的默认形状）改走 `api.newSession(...)`（提交的 prompt = round 1）
++ `api.scheduleAttach(sid, {schedule, interval|cron, prompt})`，随后
+`select(sid)` 落进普通对话——镜像 `ComposerController.startLoop` 的形状
+（session 建好后 attach 失败也不吞会话，toast 报错）。`schedule` 为
+`immediate`（Goal 预设）或 `parallel`（Best of N 预设）时行为不变，仍走
+原 `withSchedule`/`withDriverPrompt` + driver YAML 的 legacy 路径；
+`useScheduledController.ts` 的 `create`/`selectSuggestion` 无需改动——两者
+只是打开同一个 run modal，preset "repeating" 与 suggestion 卡片默认
+schedule 本就是 interval/cron，自然落进新分支。Advanced settings 的
+driver YAML 逃生门未动（对 interval/cron 分支不再被读取，但按任务范围
+保留原样，未在本增量里处理其可见性）。
+
+**验证**：`npm run test`（874/874 绿）+ `npm run build`（tsc+vite 绿）；
+`Modals.scheduleRoute.test.tsx` 重写为三态：① repeating 预设提交 →
+`api.newSession`+`api.scheduleAttach`、落 `select(newSession.sid)`、
+不碰 `startRun`/`selectRun`；② Goal 预设（`schedule: immediate`）→
+仍走 `api.startRun({kind:"drive"})`，不碰新流；③ Best of N 预设
+（`schedule: parallel`）→ 同上。Go 面本次未改动（后端 `action:"attach"`
+端点 INC-102.1 已具备），未跑 `go test`。**闸门 B（真机）未做**——本次
+在云端 session 里执行，无 `GEMINI_API_KEY`、无 live 8809 webui，不具备
+真实 API QA 条件，如实记为待办，不得声称已真机验证；PROCESS §三第 8 条
+"首用旅程闸"（新入口标 ✅ 前须真实首用旅程 + turn 中/终态双截屏）留给
+用户本地环境或 GitHub Actions `qa-blackbox` 补齐。
+
+**记档**：GAPS 条目改号 G58→G59 并标 ✅ 已关闭（原文保留改号说明）；
+`docs/DESIGN.md` 决策 #21 的措辞此前已在 INC-102 收窄到位，本次无需
+再改。

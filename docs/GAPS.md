@@ -880,11 +880,29 @@ QA-88 按批次 capture→interact→recapture→compare→fix/gap。只有矩�
 `PASS/GAP/INTENTIONAL` 且有可重复回归锚才可关闭；目前首批仅覆盖主入口基线。
 → UJ-24
 
-**G58 Scheduled 页新建入口(Repeating/suggestions)仍造 legacy driver series — 开放(INC-102 review P1-4 登记)**
-INC-102 已把 composer `/loop` 改为 in-session schedule(对话形态),但 Scheduled
-页 Create→Repeating 与 suggestion 卡仍经 run modal `kind:"drive"` 造 fresh-child
-driver series(useScheduledController.selectSuggestion → Modals startRun)。决策
-#21 修订文已相应收窄措辞。收编方向:repeating 预设改走 newSession+attach 新流。
+**G59 Scheduled 页新建入口(Repeating/suggestions)仍造 legacy driver series — ✅ 已关闭（G58 收编，2026-07-24）**
+（原登记误重号 G58——GAPS 已有一条已关闭的 G58「goal 终结后的残留交互回声」；
+本条收口时改号 G59，避免与该条互相遮蔽，`scripts/lint-docs.sh` 编号唯一检查
+同步转绿。）INC-102 已把 composer `/loop` 改为 in-session schedule(对话形态),
+但 Scheduled 页 Create→Repeating 与 suggestion 卡仍经 run modal `kind:"drive"`
+造 fresh-child driver series(useScheduledController.selectSuggestion →
+Modals startRun)。**关闭方式**：`Modals.tsx` 的 `RunModal.start()` 在提交处
+按当前 schedule 分流——`kind==="drive"` 且 `schedule` 为 `interval`/`cron`
+(repeating 预设与全部 suggestion 卡片的默认形状)时改走
+`api.newSession(...)`(round 1 = 提交的 prompt)+ `api.scheduleAttach(sid,
+{schedule, interval|cron, prompt})`，随后 `select(sid)` 落进普通对话；
+`useScheduledController.ts` 的 `create`/`selectSuggestion` 不需要改动
+（两者仍打开同一个 run modal，preset "repeating" 与 suggestion 卡片默认
+schedule 就是 interval/cron，自然落进新分支）。`schedule` 为 `immediate`
+(Goal 预设)或 `parallel`(Best of N 预设)时不受影响，仍走原 driver 流；
+Advanced settings 的 driver YAML 逃生门未动。
+**闸门 A**：`npm run test`(874/874 绿，新增/改
+`Modals.scheduleRoute.test.tsx` 三态：repeating→newSession+scheduleAttach、
+goal/best-of-n→原 driver 不变)+ `npm run build`(tsc+vite)全绿；Go 面本次
+未改动，未跑 `go test`。**闸门 B 真机复验待本地执行**——本环境（云端
+session）无 `GEMINI_API_KEY`、无 live 8809 webui，未做真实 API QA，
+不得声称已真机验证；PROCESS §三第 8 条"首用旅程闸"（新入口标 ✅ 前须真实
+首用旅程 + 双截屏）待用户本地环境或 GitHub Actions qa-blackbox 补齐。
 → UJ-14/24
 
 **G41 gemini provider 对拒绝 budget:0 的模型硬发 thinkingBudget:0 → thinking-off spec 400 — ✅ 已关闭（INC-86.3，2026-07-21，provider 根治：toConfig 永不发 budget:0）**
