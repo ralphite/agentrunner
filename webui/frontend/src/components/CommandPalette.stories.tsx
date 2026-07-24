@@ -152,6 +152,7 @@ export const KeyboardNavigation: Story = {
     );
     await expect(input).toHaveFocus();
     await userEvent.type(input, "go to scheduled");
+    await humanPause();
     await userEvent.keyboard("{Enter}");
     await expect(
       canvas.getByRole("status", { name: "Current route" }),
