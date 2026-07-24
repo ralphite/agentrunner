@@ -923,6 +923,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
             // verdict outranks inspect's projection: force the settled path.
             goal={goalTerminal ? null : goal && goalPendingUpdate ? { ...goal, goal: goalPendingUpdate } : goal}
             goalEdit={goalEditSrc === "panel" ? goalEdit : null}
+            goalEditing={goalEdit !== null}
             progress={progress}
             artifacts={artifacts}
             children={children}

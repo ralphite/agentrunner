@@ -367,10 +367,42 @@ describe("TH-13/14 · compact live goal controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
     await waitFor(() => expect(arMock.goal).toHaveBeenCalledWith(SID, { action: "pause" }));
 
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("complementary", { name: "Environment" }),
+      ).toBeTruthy(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
-    expect((container.querySelector(".gbar-input") as HTMLInputElement).value).toBe(GOAL);
+    const editor = container.querySelector(".gbar-input") as HTMLTextAreaElement;
+    expect(editor.value).toBe(GOAL);
+    expect(editor.tagName).toBe("TEXTAREA");
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Discard" })).toBeTruthy();
+
+    vi.mocked(arMock.goal).mockClear();
+    fireEvent.change(editor, { target: { value: `${GOAL}\nKeep context` } });
+    fireEvent.keyDown(editor, { key: "Enter" });
+    expect(arMock.goal).not.toHaveBeenCalled();
+    expect(editor.value).toContain("\nKeep context");
+    fireEvent.keyDown(editor, { key: "Escape" });
+    expect(container.querySelector(".gbar-input")).toBeNull();
+    expect(
+      screen.getByRole("complementary", { name: "Environment" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
+    const savedEditor = container.querySelector(".gbar-input") as HTMLTextAreaElement;
+    fireEvent.change(savedEditor, {
+      target: { value: `${GOAL}\nKeep context` },
+    });
+    fireEvent.keyDown(savedEditor, { key: "Enter", ctrlKey: true });
+    await waitFor(() =>
+      expect(arMock.goal).toHaveBeenCalledWith(SID, {
+        action: "update",
+        goal: `${GOAL}\nKeep context`,
+      }),
+    );
   });
 
   it("keeps the current progress step visible and opens the full checklist", async () => {

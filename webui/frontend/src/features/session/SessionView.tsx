@@ -13,7 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import { formatElapsed, type GoalDerived } from "../../timeline";
 import { Button } from "../../ui/Button";
-import { Input } from "../../ui/Field";
+import { Textarea } from "../../ui/Field";
 import { IconButton } from "../../ui/IconButton";
 import { Spinner } from "../../ui/Spinner";
 import type { ProgressItem } from "../../components/SupervisionPanel";
@@ -199,7 +199,7 @@ export function GoalBanner({
   const paused = state.phase === "paused";
   return (
     <div
-      className={`gbar gbar-live${paused ? " paused" : ""}`}
+      className={`gbar gbar-live${paused ? " paused" : ""}${editing === null ? "" : " editing"}`}
       role="status"
     >
       <span className="gbar-ico">
@@ -215,15 +215,27 @@ export function GoalBanner({
       {editing === null ? (
         elapsed && <span className="gbar-meta">{elapsed}</span>
       ) : (
-        <Input
-          className="gbar-input"
+        <Textarea
+          className="gbar-input min-h-[72px] max-h-[160px] w-full resize-y overflow-y-auto text-[12.5px] leading-5 [field-sizing:content]"
           aria-label="Goal"
           autoFocus
+          rows={3}
           value={editing}
           onChange={(event) => onEditChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") onSave();
-            if (event.key === "Escape") onDiscard();
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              onDiscard();
+              return;
+            }
+            if (
+              event.key === "Enter" &&
+              (event.metaKey || event.ctrlKey)
+            ) {
+              event.preventDefault();
+              onSave();
+            }
           }}
         />
       )}

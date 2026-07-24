@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   expect,
   fn,
-  waitFor,
   within,
 } from "storybook/test";
 import { pacedUserEvent as userEvent } from "../storybook/humanPlayback";
@@ -589,10 +588,10 @@ export const TransientPollError: Story = {
   render: () => renderFixture(transientErrorFixture),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => {
-      expect(canvas.queryByRole("status", { name: "Loading conversation" })).toBeNull();
-    });
-    await expect(canvas.getByText("No messages yet")).toBeVisible();
+    await expect(
+      canvas.getByRole("status", { name: "Loading conversation" }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("No messages yet")).toBeNull();
     await expect(canvas.queryByText("Session not found")).toBeNull();
   },
 };
@@ -679,9 +678,17 @@ export const GoalBanner: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Edit goal" }));
     const input = canvas.getByRole("textbox", { name: "Goal" });
     await userEvent.clear(input);
-    await userEvent.type(input, "Complete and verify every Storybook state{Enter}");
+    await userEvent.type(
+      input,
+      "Complete and verify every Storybook state{Enter}without losing context",
+    );
+    await expect(input).toHaveValue(
+      "Complete and verify every Storybook state\nwithout losing context",
+    );
+    await expect(goalSave).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
     await expect(goalSave).toHaveBeenCalledWith(
-      "Complete and verify every Storybook state",
+      "Complete and verify every Storybook state\nwithout losing context",
     );
     await userEvent.click(canvas.getByRole("button", { name: "Pause goal" }));
     await expect(goalAction).toHaveBeenCalledWith("pause");

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "productionComponents": {
     "count": 61,
-    "lines": 20619,
+    "lines": 20634,
     "files": [
       {
         "source": "src/app/AppRuntime.tsx",
@@ -395,7 +395,7 @@
       },
       {
         "source": "src/components/SupervisionPanel.tsx",
-        "lines": 818,
+        "lines": 820,
         "exports": [
           "EnvironmentSection",
           "SupervisionPanel"
@@ -498,7 +498,7 @@
       },
       {
         "source": "src/features/session/SessionFeature.tsx",
-        "lines": 971,
+        "lines": 972,
         "exports": [
           "SessionFeature"
         ],
@@ -506,7 +506,7 @@
       },
       {
         "source": "src/features/session/SessionView.tsx",
-        "lines": 289,
+        "lines": 301,
         "exports": [
           "GoalBanner",
           "ProgressSummary",

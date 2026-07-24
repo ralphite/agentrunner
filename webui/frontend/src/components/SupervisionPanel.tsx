@@ -153,6 +153,7 @@ export function SupervisionPanel({
   loading,
   goal,
   goalEdit,
+  goalEditing = goalEdit !== null,
   progress,
   artifacts,
   children,
@@ -178,6 +179,7 @@ export function SupervisionPanel({
   loading: boolean;
   goal: GoalState | null;
   goalEdit: string | null;
+  goalEditing?: boolean;
   progress: ProgressItem[];
   artifacts: { stream: string; version: number }[];
   children: InspectNode[];
@@ -225,7 +227,7 @@ export function SupervisionPanel({
   useFocusScope(panelRef, {
     initialFocus: goalEdit === null ? closeRef : ".goal-input",
     restoreFocus: false,
-    onEscape: goalEdit === null ? () => onClose() : undefined,
+    onEscape: goalEditing ? undefined : () => onClose(),
     trapTab: false,
   });
   // When no goal is active, recover the last settled goal so the GOAL section
