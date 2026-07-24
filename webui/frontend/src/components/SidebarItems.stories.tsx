@@ -278,7 +278,7 @@ export const SessionInteraction: Story = {
 export const SessionQuickActionsReveal: Story = {
   parameters: {
     pseudo: {
-      hover: [".project-session-wrap"],
+      hover: ".project-session-wrap",
     },
   },
   args: {
@@ -292,18 +292,37 @@ export const SessionQuickActionsReveal: Story = {
     pinned: true,
     archived: true,
   },
+  render: (args) => (
+    <div className="pseudo-hover sidebar" style={{ width: 300, minHeight: 170 }}>
+      <div className="project-list" style={{ paddingTop: 12 }}>
+        <SidebarSessionItem {...args} />
+      </div>
+    </div>
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const row = canvasElement.querySelector<HTMLElement>(".project-session-wrap");
     await expect(row).not.toBeNull();
 
+    await userEvent.hover(row!);
+    await waitFor(() => expect(row!.querySelector(".session-quick-actions")).toBeVisible());
     await expect(canvas.getByRole("button", { name: "Unpin Keep running while quick actions are visible" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Unarchive Keep running while quick actions are visible" })).toBeVisible();
     await expect(canvas.getByRole("status", { name: "Session running" })).toBeVisible();
     await expect(canvas.getByLabelText("Worktree session")).not.toBeVisible();
+  },
+};
 
+export const SessionQuickActionsFocus: Story = {
+  args: {
+    ...SessionQuickActionsReveal.args,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     canvas.getByRole("button", { name: /Keep running while quick actions are visible · Running/ }).focus();
     await expect(canvas.getByRole("button", { name: "Unpin Keep running while quick actions are visible" })).toBeVisible();
+    await expect(canvas.getByRole("status", { name: "Session running" })).toBeVisible();
+    await expect(canvas.getByLabelText("Worktree session")).not.toBeVisible();
   },
 };
 
@@ -507,14 +526,14 @@ export const ProjectActionsStateMatrix: Story = {
   },
 };
 
-export const ProjectActionsRevealAndMenuOpen: Story = {
+export const ProjectActionsHover: Story = {
   parameters: {
     pseudo: {
       hover: [".project-heading-row", ".project-heading"],
     },
   },
   render: () => (
-    <div style={{ width: 320, padding: 16 }}>
+    <div className="pseudo-hover" style={{ width: 320, padding: 16 }}>
       <ProjectExample label="Interactive project" />
     </div>
   ),
@@ -524,12 +543,32 @@ export const ProjectActionsRevealAndMenuOpen: Story = {
     const row = heading.closest<HTMLElement>(".project-heading-row");
     await expect(row).not.toBeNull();
 
+    await userEvent.hover(row!);
+    await waitFor(() =>
+      expect(row!.querySelector(".project-heading-actions")).toBeVisible(),
+    );
     const more = canvas.getByRole("button", { name: "More actions for Interactive project" });
     await expect(more).toBeVisible();
     await expect(canvas.getByRole("button", { name: "New chat in Interactive project" })).toBeVisible();
     await expect(row!.querySelector(".proj-caret")).toBeVisible();
     await expect(row!.querySelector(".proj-folder")).not.toBeVisible();
+  },
+};
 
+export const ProjectActionsFocusAndMenuOpen: Story = {
+  render: () => (
+    <div style={{ width: 320, padding: 16 }}>
+      <ProjectExample label="Interactive project" />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const heading = canvas.getByRole("button", { name: "Interactive project" });
+    (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
+    await userEvent.tab();
+    await expect(heading).toHaveFocus();
+    const more = canvas.getByRole("button", { name: "More actions for Interactive project" });
+    await expect(more).toBeVisible();
     await userEvent.click(more);
     await expect(canvas.getByRole("menu")).toBeVisible();
     await waitFor(() => expect(canvas.getByRole("menuitem", { name: "Pin project" })).toHaveFocus());
@@ -538,11 +577,6 @@ export const ProjectActionsRevealAndMenuOpen: Story = {
 };
 
 export const ProjectWithoutWorkspaceActions: Story = {
-  parameters: {
-    pseudo: {
-      hover: [".project-heading-row", ".project-heading"],
-    },
-  },
   render: () => (
     <div style={{ width: 320, padding: 16 }}>
       <ProjectExample label="Imported sessions" workspace={null} />
@@ -550,7 +584,7 @@ export const ProjectWithoutWorkspaceActions: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    canvas.getByRole("button", { name: "Imported sessions" });
+    canvas.getByRole("button", { name: "Imported sessions" }).focus();
     await expect(canvas.getByRole("button", { name: "New chat in Imported sessions" })).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "More actions for Imported sessions" }));

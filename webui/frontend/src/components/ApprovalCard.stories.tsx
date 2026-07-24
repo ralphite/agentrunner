@@ -50,6 +50,62 @@ export const KeyboardApproval: Story = {
   },
 };
 
+export const DenyReasonOpen: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Deny" }));
+    const reason = canvas.getByPlaceholderText("Reason (optional)");
+    await expect(reason).toHaveFocus();
+    await userEvent.type(reason, "Command changes generated files");
+    await expect(canvas.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Deny" })).toBeVisible();
+  },
+};
+
+export const BusyDecision: Story = {
+  args: {
+    onDecide: fn(
+      () =>
+        new Promise<void>(() => {
+          // Intentionally pending so the busy controls stay observable.
+        }),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Approve once" }));
+    await expect(canvas.getByRole("button", { name: "Approve once" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Always allow" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Deny" })).toBeDisabled();
+  },
+};
+
+export const LongContentAndGates: Story = {
+  args: {
+    approval: {
+      id: "approval-long",
+      tool: "shell",
+      args: {
+        command:
+          "git -C /Users/demo/projects/an-exceptionally-long-workspace-name/worktrees/review-component-states commit --message 'Document every visible approval state'",
+      },
+      gates: [
+        { gate: "workspace", decision: "ask", reason: "Directory requires explicit trust" },
+        { gate: "network", decision: "deny", reason: "Outbound access is unavailable" },
+      ],
+      agent: "a-child-agent-with-an-exceptionally-long-name",
+    },
+    workspace: "/Users/demo/projects/an-exceptionally-long-workspace-name/worktrees/review-component-states",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByText("Details"));
+    await expect(canvas.getByText(/workspace: ask/)).toBeVisible();
+    await expect(canvas.getByText(/network: deny/)).toBeVisible();
+    await expect(canvas.getByText(/git -C/, { selector: "pre" })).toBeVisible();
+  },
+};
+
 export const ReadonlyChild: Story = {
   args: {
     approval: {

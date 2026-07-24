@@ -79,3 +79,18 @@ export const SearchNoMatches: Story = {
     await expect(canvas.getByText("No general settings match “audio output”.")).toBeVisible();
   },
 };
+
+export const InitialAppearanceSection: Story = {
+  args: {
+    initialSection: "appearance",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "Appearance" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Appearance" }),
+    ).toHaveAttribute("aria-current", "true");
+  },
+};

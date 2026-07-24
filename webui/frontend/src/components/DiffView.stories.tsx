@@ -185,6 +185,26 @@ function LeafFrame({ children }: { children: ReactNode }) {
   );
 }
 
+function PendingLeafFrame({ children }: { children: ReactNode }) {
+  const [api] = useState(() =>
+    isolatedApi({
+      blob: fn(
+        () =>
+          new Promise<{ lines: string[] }>(() => {
+            // Intentionally pending so the loading state remains deterministic.
+          }),
+      ),
+    }),
+  );
+  return (
+    <StoryAppFrame initialState={{ currentSid: SID }} services={{ api }}>
+      <main className="mx-auto grid w-full max-w-[920px] gap-5 p-6">
+        {children}
+      </main>
+    </StoryAppFrame>
+  );
+}
+
 const meta = {
   title: "Components/Changes/DiffView",
   component: DiffView,
@@ -316,6 +336,15 @@ export const UntrackedFile: Story = {
         knownReason="binary"
         edgeToEdge={false}
       />
+      <RenderUntrackedFile
+        sid={SID}
+        path="artifacts/full-test-recording.mov"
+        effView="inline"
+        defaultOpen
+        prefetch={false}
+        knownReason="large"
+        edgeToEdge={false}
+      />
     </LeafFrame>
   ),
   play: async ({ canvasElement }) => {
@@ -324,7 +353,29 @@ export const UntrackedFile: Story = {
     await expect(
       canvas.getByText("Content isn’t shown — this file is binary."),
     ).toBeVisible();
+    await expect(
+      canvas.getByText("Content isn’t shown — this file is too large to display."),
+    ).toBeVisible();
     await expect(canvas.getByText("binary")).toBeVisible();
+    await expect(canvas.getByText("large")).toBeVisible();
+  },
+};
+
+export const UntrackedFileLoading: Story = {
+  render: () => (
+    <PendingLeafFrame>
+      <RenderUntrackedFile
+        sid={SID}
+        path="notes/pending-review.txt"
+        effView="inline"
+        defaultOpen
+        prefetch={false}
+        edgeToEdge={false}
+      />
+    </PendingLeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("Loading…")).toBeVisible();
   },
 };
 
@@ -363,5 +414,30 @@ export const FileBody: Story = {
     await userEvent.click(canvas.getByRole("button", { name: /4 unmodified lines/ }));
     await expect(canvas.getByText("export interface Runtime {")).toBeVisible();
     await expect(canvas.getAllByText('return boot("storybook");')).toHaveLength(2);
+  },
+};
+
+export const FileBodyContextLoading: Story = {
+  render: () => (
+    <PendingLeafFrame>
+      <RenderFileBody
+        sid={SID}
+        path="src/runtime.ts"
+        parsed={directBody}
+        lang="ts"
+        effView="inline"
+        hunkCount={1}
+        prefetch={false}
+      />
+    </PendingLeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const gap = canvas.getByRole("button", {
+      name: /unmodified lines to end of file/,
+    });
+    await userEvent.click(gap);
+    await expect(gap).toBeDisabled();
+    await expect(gap).toHaveTextContent("Loading…");
   },
 };

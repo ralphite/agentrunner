@@ -62,6 +62,22 @@ export const KeyboardNavigation: Story = {
   },
 };
 
+export const DiffMarkerSelection: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const color = canvas.getByRole("button", { name: "Color" });
+    const signs = canvas.getByRole("button", { name: "+ / −" });
+    await expect(color).toHaveAttribute("aria-pressed", "true");
+    await expect(color).toHaveClass("on");
+
+    await userEvent.click(signs);
+    await expect(signs).toHaveAttribute("aria-pressed", "true");
+    await expect(signs).toHaveClass("on");
+    await expect(color).toHaveAttribute("aria-pressed", "false");
+    await expect(color).not.toHaveClass("on");
+  },
+};
+
 export const NoMatches: Story = {
   args: {
     query: "audio output",

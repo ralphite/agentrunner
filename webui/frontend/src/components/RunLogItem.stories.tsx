@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { RunLogEmptyState, RunLogItem } from "./RunParts";
 
 const meta = {
@@ -90,6 +91,25 @@ export const FailedVerdict: Story = {
       text: "",
       verdict: { reason: "stalled", n: 3, ok: false },
     },
+  },
+};
+
+export const IterationVerdict: Story = {
+  args: {
+    line: {
+      raw: "{}",
+      kind: "run_end",
+      text: "",
+      iter: 4,
+      verdict: { reason: "satisfied", n: 4, ok: true },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("iteration 4")).toBeVisible();
+    await expect(
+      canvas.getByText("■ series satisfied · 4 iterations"),
+    ).toBeVisible();
   },
 };
 

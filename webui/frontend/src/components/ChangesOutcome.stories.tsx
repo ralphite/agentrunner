@@ -292,6 +292,27 @@ export const ImageArtifacts: Story = {
   },
 };
 
+export const ImageLightboxOpen: Story = {
+  render: () => (
+    <LeafFrame>
+      <RenderImageArtifacts sid={SID} files={imageFiles} />
+    </LeafFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Open desktop-light.png" }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = body.getByRole("dialog", { name: "Image viewer" });
+    await expect(dialog).toBeVisible();
+    await expect(body.getByText("1 / 6")).toBeVisible();
+    await expect(
+      body.getByRole("img", { name: "desktop-light.png" }),
+    ).toBeVisible();
+  },
+};
+
 export const ArtifactRow: Story = {
   render: () => (
     <LeafFrame>

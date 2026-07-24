@@ -235,6 +235,77 @@ export const ResizeHandleKeyboard: Story = {
   },
 };
 
+export const ResizeHandleHover: Story = {
+  parameters: {
+    pseudo: {
+      hover: ".sidebar-resize-handle",
+    },
+  },
+  render: () => (
+    <div className="pseudo-hover">
+      <SidebarFixture state={initialState} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const separator = within(canvasElement).getByRole("separator", {
+      name: "Resize sidebar",
+    });
+    await userEvent.hover(separator);
+    await waitFor(() =>
+      expect(
+        ["transparent", "rgba(0, 0, 0, 0)"],
+      ).not.toContain(
+        getComputedStyle(separator, "::after").backgroundColor,
+      ),
+    );
+  },
+};
+
+export const ResizeHandleFocusVisible: Story = {
+  parameters: {
+    pseudo: {
+      focusVisible: ".sidebar-resize-handle",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const separator = within(canvasElement).getByRole("separator", {
+      name: "Resize sidebar",
+    });
+    separator.focus();
+    await expect(separator).toHaveFocus();
+    await waitFor(() =>
+      expect(
+        ["transparent", "rgba(0, 0, 0, 0)"],
+      ).not.toContain(
+        getComputedStyle(separator, "::after").backgroundColor,
+      ),
+    );
+  },
+};
+
+export const ResizeHandleDragging: Story = {
+  play: async ({ canvasElement }) => {
+    const separator = within(canvasElement).getByRole("separator", {
+      name: "Resize sidebar",
+    });
+    const body = canvasElement.ownerDocument.body;
+    fireEvent.pointerDown(separator, { button: 0, clientX: 320 });
+    await expect(body).toHaveClass("sidebar-resizing");
+    await waitFor(() =>
+      expect(
+        ["transparent", "rgba(0, 0, 0, 0)"],
+      ).not.toContain(
+        getComputedStyle(separator, "::after").backgroundColor,
+      ),
+    );
+    fireEvent.pointerUp(canvasElement.ownerDocument.defaultView!, {
+      button: 0,
+      clientX: 336,
+    });
+    await expect(body).not.toHaveClass("sidebar-resizing");
+  },
+};
+
 export const SessionNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -369,7 +440,7 @@ export const FooterMenuOpen: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "More options" }));
     await expect(canvas.getByRole("menu")).toBeVisible();
-    await waitFor(() => expect(canvas.getByRole("menuitem", { name: "Settings" })).toHaveFocus());
+    await waitFor(() => expect(canvas.getByRole("menuitem", { name: /^Settings/ })).toHaveFocus());
     await expect(canvas.getByRole("menuitem", { name: /Keyboard shortcuts & help/ })).toBeVisible();
     await expect(canvas.getByRole("menuitem", { name: "Theme: system" })).toBeVisible();
   },
@@ -472,7 +543,9 @@ export const HistoryLoading: Story = {
     />
   ),
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("status", { name: "Loading older sessions…" })).toBeVisible();
+    await expect(
+      within(canvasElement).getByText("Loading older sessions…"),
+    ).toBeVisible();
   },
 };
 

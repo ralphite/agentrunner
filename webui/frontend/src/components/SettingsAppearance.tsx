@@ -126,7 +126,12 @@ export function SettingsAppearance({ query }: { query: string }) {
           </div>
           <div className="rs-seg">
             {(["color", "signs"] as DiffMarkers[]).map((m) => (
-              <button key={m} className={"rs-seg-btn" + (a.diffMarkers === m ? " sel" : "")} onClick={() => patch({ diffMarkers: m })}>
+              <button
+                key={m}
+                className={"rs-seg-btn" + (a.diffMarkers === m ? " on" : "")}
+                onClick={() => patch({ diffMarkers: m })}
+                aria-pressed={a.diffMarkers === m}
+              >
                 {m === "color" ? "Color" : "+ / −"}
               </button>
             ))}

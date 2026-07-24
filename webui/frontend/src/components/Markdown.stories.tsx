@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import {
   CodeBlock as CodeBlockView,
@@ -94,6 +94,19 @@ export const CodeBlock: Story = {
   },
 };
 
+export const PlainCodeBlock: Story = {
+  render: () => (
+    <CodeBlockView raw={"plain output\nwithout a language"} className="">
+      {"plain output\nwithout a language"}
+    </CodeBlockView>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByLabelText("Text code block")).toBeVisible();
+    await expect(canvas.getByTitle("text")).toBeVisible();
+  },
+};
+
 const openImage = fn();
 const pixel =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%230169cc'/%3E%3C/svg%3E";
@@ -113,5 +126,23 @@ export const MdImage: Story = {
     });
     await userEvent.click(image);
     await expect(openImage).toHaveBeenCalledWith(pixel);
+  },
+};
+
+export const MdImageFailure: Story = {
+  render: () => (
+    <MdImageView
+      sid="story-session"
+      src="qa/missing-browser-evidence.png"
+      alt="Missing browser evidence"
+      onOpen={openImage}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    fireEvent.error(canvas.getByRole("img", { name: "Missing browser evidence" }));
+    const fallback = canvas.getByRole("link", { name: "Missing browser evidence" });
+    await expect(fallback).toBeVisible();
+    await expect(fallback).toHaveAttribute("target", "_blank");
   },
 };

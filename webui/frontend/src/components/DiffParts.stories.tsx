@@ -107,17 +107,23 @@ function ChangedFilesHarness() {
   );
 }
 
-function MoreActionsHarness({ busy = false }: { busy?: boolean }) {
+function MoreActionsHarness({
+  busy = false,
+  empty = false,
+}: {
+  busy?: boolean;
+  empty?: boolean;
+}) {
   const [action, setAction] = useState("none");
   return (
     <Frame width={390}>
       <div className="diffbar">
         <span className="spacer" />
         <DiffMoreActionsMenu
-          fileCount={files.length}
+          fileCount={empty ? 0 : files.length}
           allShownOpen
           barTight
-          empty={false}
+          empty={empty}
           wrap
           narrow={false}
           view="inline"
@@ -425,6 +431,24 @@ export const ChangedFilesOverflow: Story = {
   },
 };
 
+export const ChangedFilesNoMatches: Story = {
+  render: () => <ChangedFilesHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "Changed files" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    const filter = await canvas.findByRole("textbox", {
+      name: "Filter files by path",
+    });
+    await userEvent.click(filter);
+    await userEvent.type(filter, "does-not-exist");
+    await expect(
+      canvas.getByText(/No changed file’s path contains/),
+    ).toBeVisible();
+  },
+};
+
 export const MoreActionsTightWorktree: Story = {
   render: () => <MoreActionsHarness />,
   play: async ({ canvasElement }) => {
@@ -459,6 +483,28 @@ export const MoreActionsBusy: Story = {
     await expect(
       canvas.getByRole("menuitem", { name: /Remove worktree/ }),
     ).toBeDisabled();
+  },
+};
+
+export const MoreActionsEmpty: Story = {
+  render: () => <MoreActionsHarness empty />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "More changes actions" }),
+    );
+    await expect(
+      canvas.queryByRole("menuitem", { name: /Collapse all files/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("menuitem", { name: /Apply to project/ }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("menuitem", { name: /Remove worktree/ }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("menuitem", { name: /Refresh changes/ }),
+    ).toBeEnabled();
   },
 };
 
@@ -513,6 +559,15 @@ export const CommitEmpty: Story = {
 
 export const CommitUnavailable: Story = {
   render: () => <CommitHarness isRepo={false} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Commit or push" }),
+    ).toBeDisabled();
+  },
+};
+
+export const CommitBusy: Story = {
+  render: () => <CommitHarness busy />,
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", { name: "Commit or push" }),

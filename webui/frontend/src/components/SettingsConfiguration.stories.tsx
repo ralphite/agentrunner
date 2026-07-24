@@ -96,6 +96,35 @@ export const LoadingUnknown: Story = {
   },
 };
 
+export const LongPaths: Story = {
+  render: (args) => (
+    <StoryAppFrame
+      initialState={{
+        health: {
+          ...configuredState.health,
+          daemonLogPath:
+            "/Users/demo/.local/share/agentrunner/a/very/deep/runtime/location/with-a-deliberately-long-daemon-log-file-name.log",
+          runtimeDir:
+            "/Users/demo/.local/share/agentrunner/a/very/deep/runtime/location/that-must-wrap-without-expanding-settings",
+        },
+      }}
+    >
+      <div className="mx-auto max-w-[440px] p-6">
+        <SettingsConfiguration {...args} />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/deliberately-long-daemon-log-file-name\.log/),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText(/that-must-wrap-without-expanding-settings/),
+    ).toBeVisible();
+  },
+};
+
 export const NoMatches: Story = {
   args: {
     query: "audio output",

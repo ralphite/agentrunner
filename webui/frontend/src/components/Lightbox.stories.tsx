@@ -68,6 +68,19 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const SingleImage: Story = {
+  args: {
+    images: [images[0]],
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(page.getByRole("img", { name: "architecture.svg" })).toBeVisible();
+    await expect(page.queryByRole("button", { name: "Previous image" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("button", { name: "Next image" })).not.toBeInTheDocument();
+    await expect(page.queryByText("1 / 1")).not.toBeInTheDocument();
+  },
+};
+
 export const KeyboardNavigation: Story = {
   args: {
     onIndex: fn(),
@@ -101,5 +114,19 @@ export const ZoomLimits: Story = {
     await userEvent.click(zoomOut);
     await expect(page.getByText("50%")).toBeVisible();
     await expect(zoomOut).toBeDisabled();
+  },
+};
+
+export const MaximumZoom: Story = {
+  args: {
+    images: [images[0]],
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const zoomIn = page.getByRole("button", { name: "Zoom in" });
+    for (let step = 0; step < 8; step++) await userEvent.click(zoomIn);
+    await expect(page.getByText("300%")).toBeVisible();
+    await expect(zoomIn).toBeDisabled();
+    await expect(page.getByRole("img", { name: "architecture.svg" })).toHaveClass("is-zoomed");
   },
 };

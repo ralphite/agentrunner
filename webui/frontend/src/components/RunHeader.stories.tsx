@@ -56,6 +56,23 @@ export const MissingMetadata: Story = {
   },
 };
 
+export const RunningWithoutStop: Story = {
+  args: {
+    title: "Running under external control",
+    status: "running",
+    kind: "scheduled",
+    onStop: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("running")).toBeVisible();
+    await expect(canvas.getByText("scheduled run")).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Stop run" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
 export const KeyboardStop: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
