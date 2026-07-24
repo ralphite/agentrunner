@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { AppServices } from "../app/appServices";
+import type { EffortId } from "../specs";
 import type { AppState, ModalKind } from "../store";
 import { StoryAppFrame } from "../storybook/StoryAppFrame";
 import { humanPause } from "../storybook/humanPlayback";
@@ -210,7 +211,7 @@ function ModelFieldsFixture({
   const [model, setModel] = useState(
     custom ? "organization-specialist" : "gemini-2.5-pro",
   );
-  const [effort, setEffort] = useState("high" as const);
+  const [effort, setEffort] = useState<EffortId>("high");
   return (
     <div className="max-w-lg p-6">
       <ModelFields
