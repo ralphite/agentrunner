@@ -351,9 +351,16 @@
      not by an oversized row. The prior 15px/40px came from a generic
      "increase typography" pass (7df967c3) with no parity basis and made the two
      nav rows read a full size heavier than the rail beneath them. font-medium
-     stays as the nav's light emphasis. */
+     stays as the nav's light emphasis.
+     SIDE-NAV-INK (R87): the label color was legacy carryover — resting `text-ink-2`
+     (#606060) left the primary nav DIMMER than every session/repo row below it
+     (#0d0d0d text-ink), inverting the hierarchy (the app's two main entry points
+     were the only muted text tier in the rail). Codex's `codex-crop-sidebar-nav`
+     keeps nav labels near-black and gets contrast from a grey leading icon, not
+     by dimming the label. So: label → `text-ink`, icon-only dimming via
+     `[&>svg]:text-ink-2`; active then just bumps weight, no rest→active color jump. */
   .primary-nav button, .nav-row {
-    @apply flex h-[32px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[32px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink [&>svg]:text-ink-2 transition-colors duration-100 hover:bg-panel-2;
   }
   .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
   .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
@@ -1327,6 +1334,21 @@
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
   .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }
   .sched-unread { @apply bg-blue; }
+  /* SCHED-QUIET-DIM (R87): restore the at-rest dimming for settled/stopped
+     rows lost in the Tailwind migration (68a8a69b dropped styles.scheduled.css
+     without re-adding this rule; ScheduledParts.tsx still emits `is-quiet` for
+     `!recover && !active`). Codex's Scheduled list keeps active runs dark/bold
+     and finished-or-stopped ones visually quiet so the two read apart at a
+     glance; without this every title rendered at full-ink font-semibold,
+     flattening that hierarchy. Quiet is a resting (not disabled) state, so
+     hover/focus lifts the title back toward ink. */
+  /* font-weight needs !important: the title <b> carries a `font-semibold`
+     utility (utilities layer) that would otherwise out-rank this components-layer
+     override regardless of specificity; text-dim has no competing utility so it
+     applies normally. */
+  .scheduled-row.is-quiet .scheduled-copy b { @apply text-dim; font-weight: 400 !important; }
+  .scheduled-row-wrap:hover .scheduled-row.is-quiet .scheduled-copy b,
+  .scheduled-row-wrap:focus-within .scheduled-row.is-quiet .scheduled-copy b { @apply text-ink-2; }
   /* SCHED-MORE-HOVER (R64): restore hover-reveal lost in the Tailwind migration
      (68a8a69b). Scheduled.tsx documents the row action as "invisible at rest,
      appears on hover/focus"; Codex keeps rows clean with only the unread dot at
