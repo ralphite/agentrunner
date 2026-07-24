@@ -9,7 +9,6 @@ import {
   Monitor,
   Moon,
   NotePencil,
-  PushPin,
   Question,
   Sun,
   Tray,
@@ -578,7 +577,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => toggleSection("pinned")}
               aria-expanded={!foldedSections.has("pinned")}
             >
-              <PushPin size={12} weight="fill" /> Pinned
+              Pinned
             </button>
             {!foldedSections.has("pinned") && model.pinned.map((session) => renderSession(session))}
           </section>
