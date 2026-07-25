@@ -407,19 +407,23 @@
   .project-heading-row:has(:focus-visible) {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
-  .project-heading-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
+  .project-heading-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
   .project-heading-row.pseudo-hover .project-heading-actions,
   .pseudo-hover .project-heading-actions,
   .project-heading-row:focus-within .project-heading-actions { @apply flex; }
   .project-heading-actions .menu-trigger,
-  .project-quick-action {
-    @apply grid h-6 w-6 shrink-0 place-items-center rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 shadow-none hover:border-line hover:bg-panel-2 hover:text-ink;
+  .project-quick-action,
+  .session-quick-action,
+  .session-touch-trigger {
+    @apply !h-7 !w-7 shrink-0 rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 shadow-none hover:border-line hover:bg-panel-2 hover:text-ink;
   }
   @media (max-width: 900px), (any-pointer: coarse) {
     .project-heading-actions .menu-trigger,
-    .project-quick-action {
-      @apply h-11 w-11 rounded-[10px];
+    .project-quick-action,
+    .session-quick-action,
+    .session-touch-trigger {
+      @apply !h-11 !w-11 rounded-[10px];
     }
   }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
@@ -463,10 +467,7 @@
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
   .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
   .session-loading-icon { @apply shrink-0; }
-  .session-quick-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
-  .session-quick-action {
-    @apply grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
-  }
+  .session-quick-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .project-session-wrap:hover .session-quick-actions,
   .project-session-wrap.pseudo-hover .session-quick-actions,
   .pseudo-hover .session-quick-actions,
