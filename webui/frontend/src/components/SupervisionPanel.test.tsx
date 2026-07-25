@@ -130,8 +130,10 @@ describe("TH-3 · resting Supervision panel", () => {
       ],
     });
 
-    expect(screen.getByText("Audit Environment focus.")).toBeTruthy();
-    expect(screen.getByText("Review compact layout.")).toBeTruthy();
+    // The Environment rail keeps the concise task sentence for scanning; it
+    // deliberately omits terminal punctuation and never exposes raw prompts.
+    expect(screen.getByText("Audit Environment focus")).toBeTruthy();
+    expect(screen.getByText("Review compact layout")).toBeTruthy();
   });
 });
 
