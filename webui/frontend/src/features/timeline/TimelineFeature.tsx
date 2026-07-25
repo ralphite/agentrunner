@@ -976,7 +976,10 @@ export function Item({ it, sentImages, last, deferActions, onContinue, delegated
                 delegatedTask ? (
                   <details className="delegated-task">
                     <summary>Delegated task</summary>
-                    <CollapsibleUserText text={it.text} />
+                    {/* The outer disclosure is the one intentional boundary for
+                        a child hand-off. A second 220px clamp here makes a
+                        reader open two controls just to see one task. */}
+                    <div className="utext">{it.text}</div>
                   </details>
                 ) : (
                   <CollapsibleUserText text={it.text} />

@@ -357,11 +357,16 @@ export const SessionInteraction: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: /More actions for/ })).not.toBeInTheDocument();
+    // Touch rows keep one complete More menu visible; quick Pin/Archive
+    // controls remain desktop-only so each row still has one clear action.
+    await expect(canvas.getAllByRole("button", { name: /More actions for/ })).toHaveLength(2);
 
     const runningRow = canvas.getByRole("button", {
       name: /^Keep the exceptionally long running worktree title readable/,
     }).closest<HTMLElement>(".project-session-wrap")!;
+    await expect(
+      within(runningRow).getByRole("button", { name: /More actions for Keep the exceptionally long running worktree title readable/ }),
+    ).toBeVisible();
     await expect(within(runningRow).getByRole("status", { name: "Session running" })).toBeVisible();
     await expect(within(runningRow).getByLabelText("Worktree session")).toBeVisible();
     const longTitle = runningRow.querySelector<HTMLElement>(".project-session-title")!;
