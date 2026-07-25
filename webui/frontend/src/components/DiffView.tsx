@@ -16,6 +16,7 @@ import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, high
 import { DiffStateView, DiffToolbar } from "./DiffParts";
 import { useWorktreeActions } from "./worktreeActions";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import { useEscapeLayer } from "../ui/FocusScope";
 
 export { DiffSkeleton } from "./DiffParts";
 
@@ -372,6 +373,10 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   }, []);
   const bp = useBreakpoint();
   const narrow = bp.compact || bp.tablet;
+  // At compact widths Changes is a full-surface overlay rather than a
+  // persistent desktop split. Give Escape the same close behaviour as its
+  // visible close control, including SessionFeature's opener restoration.
+  useEscapeLayer(onClose, narrow && !!onClose);
   // DIFF-CP · what the bar actually measures (see BAR_TIGHT_PX). A stable
   // callback ref, because the bar only exists once the diff has landed — a `[]`
   // effect would run against the skeleton and find nothing to observe. The

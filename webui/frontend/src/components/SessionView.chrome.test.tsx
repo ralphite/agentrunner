@@ -606,6 +606,22 @@ describe("TH-15 · one rail, one name, one door", () => {
 });
 
 describe("mobile session topbar", () => {
+  it("closes the full-screen Changes overlay with Escape and restores its opener", async () => {
+    (window as any).innerWidth = 390;
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    const more = screen.getByRole("button", { name: "More session actions" });
+    fireEvent.click(more);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(more);
+  });
+
   it("closes Environment when the mobile navigation drawer opens", async () => {
     (window as any).innerWidth = 390;
     const { container, rerender } = render(<SessionView sid={SID} mobileNavigationOpen={false} />);
