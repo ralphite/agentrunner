@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import {
   Archive as ArchiveBox,
-  ArrowsSplit,
+  ArrowsOutSimple,
   ChatCircle,
   DotsThree,
   EnvelopeSimple,
@@ -133,7 +133,7 @@ export function SidebarSessionItem({
         <span className={`session-state-icons max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!${isRunning ? " running" : ""}`}>
           {isWorktree && (
             <span className="session-worktree-icon max-[900px]:inline-grid! [@media(any-pointer:coarse)]:inline-grid!" role="img" title="Worktree session" aria-label="Worktree session">
-              <ArrowsSplit size={17} weight="regular" className="-rotate-90" />
+              <ArrowsOutSimple size={17} weight="regular" />
             </span>
           )}
           {isRunning && (
