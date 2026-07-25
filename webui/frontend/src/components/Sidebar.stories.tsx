@@ -586,7 +586,7 @@ export const OverflowKeepsCurrentAnchor: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Current session beyond cap")).toBeVisible();
     await expect(canvasElement.querySelector(".project-session-wrap.current")).not.toBeNull();
-    await expect(canvas.getByRole("button", { name: "Show more" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show more projects" })).toBeVisible();
   },
 };
 
@@ -614,7 +614,7 @@ export const ProjectGroupOverflow: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const showAll = canvas.getByRole("button", { name: "Show all 9 projects" });
-    await expect(showAll).toHaveTextContent("Show more");
+    await expect(showAll).toHaveTextContent("Show more projects");
     await userEvent.click(showAll);
     await expect(canvas.getByRole("button", { name: "Show only the 8 most recent projects" })).toBeVisible();
     await expect(canvas.getAllByRole("button", { name: /project-overflow-/i })).toHaveLength(9);

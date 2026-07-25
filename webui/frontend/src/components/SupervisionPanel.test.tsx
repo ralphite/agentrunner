@@ -91,7 +91,7 @@ afterEach(() => {
 });
 
 describe("TH-3 · resting Supervision panel", () => {
-  it("renders no titled empty block — one dim line stands in for all three", () => {
+  it("renders no titled empty block or status filler", () => {
     const { container } = renderPanel();
 
     // The three negations are gone, titles included.
@@ -102,10 +102,8 @@ describe("TH-3 · resting Supervision panel", () => {
     expect(screen.queryByText(/No subagents/i)).toBeNull();
     expect(container.querySelectorAll(".supervision-empty").length).toBe(0);
 
-    // …replaced by exactly one quiet line, so the panel doesn't read as broken.
-    const quiet = container.querySelectorAll(".supervision-quiet");
-    expect(quiet.length).toBe(1);
-    expect(quiet[0].textContent).toContain("Nothing needs you");
+    expect(container.querySelectorAll(".supervision-quiet").length).toBe(0);
+    expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
     // Run details still closes the panel.
     expect(screen.getByRole("button", { name: /run details/i })).toBeTruthy();
   });
@@ -307,10 +305,10 @@ describe("TH-3 · groups with content are untouched", () => {
     const session = { handle: "h1", tool: "spawn_agent", detail: "agent=worker session=review" } as any;
     const { container } = renderPanel({ backgroundWork: [session], sessionIdle: false });
 
-    // Nothing needs the human yet — Attention stays out, the one dim line stands
-    // in, and Background work still lists the running session.
+    // Nothing needs the human yet — Attention stays out and Background work
+    // remains the only visible state.
     expect(screen.queryByText("Attention")).toBeNull();
-    expect(container.querySelectorAll(".supervision-quiet").length).toBe(1);
+    expect(container.querySelectorAll(".supervision-quiet").length).toBe(0);
     expect(screen.getByText("Background processes")).toBeTruthy();
   });
 });

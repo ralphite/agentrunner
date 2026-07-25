@@ -155,7 +155,7 @@ describe("INC-91 — final answer Continue stays in the tail row", () => {
     const { container } = render(<TimelineView items={[user("u1"), final]} pending={[]} typing="" showSys={false}
       onContinue={async () => {}} />);
     const tail = container.querySelector(".tl-tail-row")!;
-    expect(tail.querySelector('button[aria-label="Continue in new session"]')).not.toBeNull();
+    expect(tail.querySelector('button[aria-label="More message actions"]')).not.toBeNull();
     expect(container.querySelector(".msg.assistant")!.querySelector(".msg-actions")).toBeNull();
   });
 });

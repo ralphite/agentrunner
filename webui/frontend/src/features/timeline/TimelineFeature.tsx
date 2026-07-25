@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Circle,
   Copy,
+  DotsThree,
   File,
   FileText,
   Globe,
@@ -55,6 +56,7 @@ import { Markdown } from "../../components/Markdown";
 import { sessionImageURL, uploadURL } from "../../api";
 import { IconButton } from "../../ui/IconButton";
 import { Lightbox } from "../../components/Lightbox";
+import { Menu, MenuItem } from "../../components/Menu";
 import {
   useTimelineScrollController,
   type TimelineScrollController,
@@ -169,6 +171,18 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
   const [continueError, setContinueError] = useState("");
   if (!text && !onContinue) return null;
   const time = shortTime(ts);
+  const continueInNewSession = async () => {
+    if (!onContinue) return;
+    setContinuing(true);
+    setContinueError("");
+    try {
+      await onContinue();
+    } catch (e: any) {
+      setContinueError(e?.message || "Couldn't continue from this message");
+    } finally {
+      setContinuing(false);
+    }
+  };
   return (
     <div className="msg-actions" aria-live="polite">
       {text && (
@@ -184,31 +198,16 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
         </IconButton>
       )}
       {onContinue && (
-        <IconButton
-          size="sm"
-          variant="ghost"
-          className="msg-copy"
-          loading={continuing}
-          onClick={async () => {
-            setContinuing(true);
-            setContinueError("");
-            try {
-              await onContinue();
-            } catch (e: any) {
-              setContinueError(
-                e?.message || "Couldn't continue from this message",
-              );
-            } finally {
-              setContinuing(false);
-            }
-          }}
-          title="Continue in new session"
-          aria-label={
-            continuing ? "Continuing in new session" : "Continue in new session"
-          }
+        <Menu
+          label={<DotsThree size={15} weight="bold" />}
+          ariaLabel={continuing ? "Continuing in new session" : "More message actions"}
+          triggerClassName="msg-copy"
+          iconTrigger
         >
-          <ArrowUpRight size={15} />
-        </IconButton>
+          <MenuItem onClick={() => void continueInNewSession()} disabled={continuing}>
+            <ArrowUpRight size={15} /> Continue in new session
+          </MenuItem>
+        </Menu>
       )}
       {continueError && <span className="sr-only">{continueError}</span>}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
@@ -850,8 +849,8 @@ export function WorkedFold({
   return (
     <div className={"worked" + (open ? " open" : "")}>
       <button type="button" className="worked-row" onClick={onToggle} aria-expanded={open}>
-        {label}
         <CaretRight size={15} className="worked-caret" />
+        <span>{label}</span>
       </button>
       {open && <div className="worked-body">{rows}</div>}
     </div>

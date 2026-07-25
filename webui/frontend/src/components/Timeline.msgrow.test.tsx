@@ -63,7 +63,7 @@ function thread() {
   );
 }
 
-describe("TH-21 — only the last assistant answer keeps its action row at rest", () => {
+describe("TH-21 — message actions stay quiet until intent", () => {
   it("marks exactly one message .msg-last: the final assistant answer", () => {
     const { container } = thread();
     const marked = container.querySelectorAll(".msg-last");
@@ -120,7 +120,8 @@ describe("INC-91 — anchored message actions", () => {
       onContinue={async (message) => { calls.push(message.itemId || ""); }} />);
     expect(container.textContent).toContain("×1 attached");
     expect(screen.queryByLabelText("Copy message")).toBeNull();
-    fireEvent.click(screen.getByLabelText("Continue in new session"));
+    fireEvent.click(screen.getByLabelText("More message actions"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Continue in new session" }));
     await waitFor(() => expect(calls).toEqual(["item-u"]));
   });
 

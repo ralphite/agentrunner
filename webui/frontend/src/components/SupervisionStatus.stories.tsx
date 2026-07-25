@@ -9,7 +9,6 @@ import {
   SupervisionAgentsSection,
   SupervisionCloseButton,
   SupervisionLoadingState,
-  SupervisionRestingState,
   SupervisionRunDetailsButton,
 } from "./SupervisionParts";
 
@@ -58,7 +57,6 @@ function StatusGallery() {
         style={{ position: "relative", inset: "auto", width: 344 }}
       >
         <SupervisionAgentsSection children={agents} onOpen={fn()} />
-        <SupervisionRestingState />
         <SupervisionRunDetailsButton onInspect={fn()} />
       </div>
     </div>
@@ -78,7 +76,7 @@ export const LoadingRestingAndAgents: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Checking…")).toBeVisible();
-    await expect(canvas.getByText("Nothing needs you")).toBeVisible();
+    await expect(canvas.queryByText("Nothing needs you")).not.toBeInTheDocument();
     await expect(canvas.getByText("Agents")).toBeVisible();
   },
 };

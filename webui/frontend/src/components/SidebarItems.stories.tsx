@@ -615,8 +615,8 @@ export const ProjectStateMatrix: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "Collapsed project" })).toHaveAttribute("aria-expanded", "false");
     await expect(canvas.getByRole("button", { name: "AgentRunner" })).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByRole("button", { name: "Show more" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Show less" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show more sessions" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show fewer sessions" })).toBeVisible();
     await expect(canvasElement.querySelector('[data-project-state="removed"]')).not.toBeNull();
     await expect(canvasElement.querySelector(".project-session-wrap.current.nested")).not.toBeNull();
   },
@@ -814,16 +814,6 @@ export const PreviewStateMatrix: Story = {
 export const ConnectionStateMatrix: Story = {
   render: () => (
     <StateMatrix>
-      <StateCell label="Checking">
-        <div className="side-foot" style={{ position: "static" }}>
-          <SidebarConnectionStatus state="checking" onRestart={noop} />
-        </div>
-      </StateCell>
-      <StateCell label="Connected">
-        <div className="side-foot" style={{ position: "static" }}>
-          <SidebarConnectionStatus state="connected" version="2.7.0" onRestart={noop} />
-        </div>
-      </StateCell>
       <StateCell label="Offline restart">
         <div className="side-foot" style={{ position: "static" }}>
           <SidebarConnectionStatus state="offline" onRestart={noop} />
@@ -833,8 +823,6 @@ export const ConnectionStateMatrix: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("status", { name: "Connecting to daemon" })).toBeVisible();
-    await expect(canvas.getByRole("status", { name: "Connected to daemon" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Daemon offline — click to restart" })).toBeVisible();
   },
 };

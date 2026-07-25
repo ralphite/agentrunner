@@ -527,27 +527,27 @@ describe("Projects section truncation + group fold (SB-4)", () => {
 
   afterEach(() => localStorage.clear());
 
-  it("renders only the 8 newest project groups, with the rest behind Show more", () => {
+  it("renders only the 8 newest project groups, with the rest behind Show more projects", () => {
     const { container } = mount();
     expect(container.querySelectorAll(".project-group")).toHaveLength(8);
     expect(headings(container)[0]).toContain("p11");
     expect(headings(container)[7]).toContain("p04");
 
     const showMore = container.querySelector(".projects-show-more")!;
-    expect(showMore.textContent).toContain("Show more");
+    expect(showMore.textContent).toContain("Show more projects");
     // Codex parity: no visible count; the full total lives in the aria-label
     // so nothing is silently dropped for screen readers (12 = 8 shown + 4 withheld).
     expect(showMore.getAttribute("aria-label")).toContain("12");
   });
 
-  it("Show more reveals every group; Show less puts them back", () => {
+  it("Show more projects reveals every group; Show fewer projects puts them back", () => {
     const { container } = mount();
     fireEvent.click(container.querySelector(".projects-show-more")!);
     expect(container.querySelectorAll(".project-group")).toHaveLength(12);
     expect(headings(container)[11]).toContain("p00");
 
     const showLess = container.querySelector(".projects-show-more")!;
-    expect(showLess.textContent).toContain("Show less");
+    expect(showLess.textContent).toContain("Show fewer projects");
     fireEvent.click(showLess);
     expect(container.querySelectorAll(".project-group")).toHaveLength(8);
   });
@@ -946,19 +946,11 @@ describe("New session represents the current home destination (NAV-NEWSESSION-CH
 });
 
 describe("footer says the product name once (SB-12)", () => {
-  it("renders connected as inert status and keeps the build only in its tooltip", () => {
+  it("keeps a healthy connection out of the sidebar", () => {
     useStore.setState({ sessions: [], health: { daemonUp: true, version: "ar 1.2.3" } as any });
     const { container } = render(<Sidebar />);
 
-    const badge = container.querySelector(".account-badge")!;
-    expect(badge.tagName).toBe("DIV");
-    expect(badge.getAttribute("role")).toBe("status");
-    expect(badge.textContent).toMatch(/^AR\s*Connected$/);
-    expect(badge.textContent).not.toContain("1.2.3");
-    expect(badge.getAttribute("title")).toContain("1.2.3");
-    // The product name is on the brand row, and only there.
-    expect(badge.textContent).not.toContain("AgentRunner");
-    expect(container.querySelector(".account-meta b")).toBeNull();
+    expect(container.querySelector(".account-badge")).toBeNull();
     expect(container.querySelector(".brand-main")!.textContent).toBe("AgentRunner");
   });
 
@@ -1078,7 +1070,7 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     expect(titles.filter((t) => t === "Loose session")).toHaveLength(1);
   });
 
-  it("caps the section at 6 rows and reveals the rest behind Show more / Show less", () => {
+  it("caps the section at 6 rows and reveals the rest behind named session controls", () => {
     const many = Array.from({ length: 9 }, (_v, i) => ({
       id: `2026071${i}-000000-loose-${i}`,
       status: "idle",
@@ -1090,12 +1082,12 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
 
     const showMore = sessions().querySelector(".show-more")!;
-    expect(showMore.textContent).toContain("Show more"); // Codex parity: no trailing count
+    expect(showMore.textContent).toContain("Show more sessions");
     fireEvent.click(showMore);
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(9);
 
     const showLess = sessions().querySelector(".show-more")!;
-    expect(showLess.textContent).toContain("Show less");
+    expect(showLess.textContent).toContain("Show fewer sessions");
     fireEvent.click(showLess);
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
   });

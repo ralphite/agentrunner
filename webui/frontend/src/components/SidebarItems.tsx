@@ -396,8 +396,8 @@ export function SidebarProjectItem({
       </div>
       {children}
       {!folded && overflow && (
-        <button className="show-more" onClick={onToggleOverflow}>
-          {overflow === "more" ? "Show more" : "Show less"}
+        <button className="show-more project-show-more" onClick={onToggleOverflow}>
+          {overflow === "more" ? "Show more sessions" : "Show fewer sessions"}
         </button>
       )}
     </div>
@@ -464,7 +464,7 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
       onMouseEnter={props.onHoverStart}
       onMouseLeave={props.onHoverEnd}
     >
-      <div className="session-preview-head"><b>{props.title}</b>{props.when && <span>{props.when}</span>}</div>
+      <div className="session-preview-head"><b>{props.title}</b></div>
       <div><Folder size={15} /><span>{props.project || "No project"}</span></div>
       {props.branch && <div><GitBranch size={15} /><span>{props.branch}</span></div>}
       <div>
@@ -490,7 +490,6 @@ export interface SidebarConnectionStatusProps {
 
 export function SidebarConnectionStatus({
   state,
-  version,
   onRestart,
 }: SidebarConnectionStatusProps) {
   if (state === "offline") {
@@ -510,19 +509,8 @@ export function SidebarConnectionStatus({
     );
   }
 
-  const checking = state === "checking";
-  return (
-    <div
-      className="account-badge"
-      role="status"
-      title={checking ? "Checking daemon status…" : `Connected to daemon · ${version || "unknown version"}`}
-      aria-label={checking ? "Connecting to daemon" : "Connected to daemon"}
-    >
-      <span className={`account-avatar ${checking ? "connecting" : "online"}`} aria-hidden="true">
-        <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
-        <span className="account-presence" />
-      </span>
-      <span className="account-meta"><span>{checking ? "Connecting…" : "Connected"}</span></span>
-    </div>
-  );
+  // A healthy daemon is the baseline, not a sidebar destination. Keep the
+  // recovery affordance for an actual outage, but don't spend a permanent row
+  // restating that the local app is connected.
+  return null;
 }

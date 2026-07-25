@@ -476,7 +476,7 @@ export const Resting: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Nothing needs you")).toBeVisible();
+    await expect(canvas.queryByText("Nothing needs you")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Goal")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Agents")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Attention")).not.toBeInTheDocument();

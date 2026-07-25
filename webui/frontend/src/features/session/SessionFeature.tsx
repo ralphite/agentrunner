@@ -175,14 +175,11 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const [failureRetrying, setFailureRetrying] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const bp = useBreakpoint();
-  // Supervision starts CLOSED and remembers the user's choice (W5): an empty
-  // panel taking a third of the screen on every session was the single most
-  // asked-about annoyance. A pending approval force-opens it (see below).
-  // Codex shows the right context panel by default on a wide screen (R1-3);
-  // open it unless the user has explicitly closed it before ("0"). Narrow
-  // screens stay collapsed so the conversation isn't squeezed.
+  // Environment is an on-demand inspector. Preserve an explicit user choice,
+  // but never cover a newly opened conversation just because the viewport is
+  // wide. A pending approval can still force it open below.
   const [supervisionOpen, setSupervisionOpen] = useState(
-    () => (bp.desktop || bp.wide) && storage.local.getItem("arwebui.supervision") !== "0",
+    () => (bp.desktop || bp.wide) && storage.local.getItem("arwebui.supervision") === "1",
   );
   const supervisionOpenerRef = useRef<HTMLElement | null>(null);
   const setSupervision = (open: boolean) => {

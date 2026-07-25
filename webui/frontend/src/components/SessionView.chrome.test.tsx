@@ -213,6 +213,7 @@ describe("TH-14 · one terminal banner above the composer", () => {
 
   it("collapses the rail's settled-goal block to one line (the banner already said it)", async () => {
     const { container } = render(<SessionView sid={SID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
 
     await waitFor(() => expect(container.querySelector(".goal-settled-line")).not.toBeNull());
     const line = container.querySelector(".goal-settled-line")!;
@@ -516,8 +517,9 @@ describe("TH-15 · one rail, one name, one door", () => {
 
   it("opens the rail on Environment, whose first row is Changes — and that row opens the diff", async () => {
     const { container } = render(<SessionView sid={SID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
 
-    // The rail is open on a wide viewport; its accessible name matches the pill.
+    // The rail is an explicit inspector; its accessible name matches the pill.
     await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
     expect(container.querySelector("aside.supervision-panel")!.getAttribute("aria-label")).toBe("Environment");
     await waitFor(() => expect(container.querySelector(".supervision-env")).not.toBeNull());
@@ -579,14 +581,7 @@ describe("TH-15 · one rail, one name, one door", () => {
 
   it("hands More-menu focus into Environment and restores the exact opener", async () => {
     const { container } = render(<SessionView sid={SID} />);
-
-    await waitFor(() =>
-      expect(container.querySelector("aside.supervision-panel")).not.toBeNull(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
-    await waitFor(() =>
-      expect(container.querySelector("aside.supervision-panel")).toBeNull(),
-    );
+    expect(container.querySelector("aside.supervision-panel")).toBeNull();
 
     const more = screen.getByRole("button", { name: "More session actions" });
     fireEvent.click(more);
@@ -609,6 +604,7 @@ describe("TH-15 · one rail, one name, one door", () => {
 
   it("returns an Environment-row launch to the stable Environment trigger", async () => {
     const { container } = render(<SessionView sid={SID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
 
     await waitFor(() => expect(container.querySelector(".supervision-env")).not.toBeNull());
     const trigger = screen.getByRole("button", { name: "Environment" });
@@ -968,8 +964,9 @@ describe("ask_user compatibility answer projection", () => {
 describe("RD-B · opening the rail does not re-lay-out the thread", () => {
   it("keeps the single-column track while the Environment rail is open", async () => {
     const { container } = render(<SessionView sid={SID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
 
-    // Rail open (wide viewport) …
+    // Rail explicitly open …
     await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
     const layout = container.querySelector(".session-layout")!;
     expect(layout.classList.contains("single")).toBe(true);
@@ -983,6 +980,7 @@ describe("RD-B · opening the rail does not re-lay-out the thread", () => {
 
   it("still gives the Changes review pane a real column", async () => {
     const { container } = render(<SessionView sid={SID} />);
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
 
     await waitFor(() => expect(container.querySelector(".supervision-env")).not.toBeNull());
     fireEvent.click(container.querySelector(".supervision-env .env-row")!);

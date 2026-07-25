@@ -154,35 +154,25 @@ describe("L2 · unknown session id", () => {
     };
     render(<SessionView sid="sess-real-1" />);
 
-    // The failing inspect must still end the loading state: the indeterminate
-    // "Checking…" placeholder resolves to the determinate resting line. (Since
-    // INC-41 TH-3 the empty Goal/Agents/Attention blocks no longer render at
-    // all — one dim "Nothing needs you" row stands in for all three.)
-    await waitFor(() => expect(screen.getByText(/Nothing needs you/i)).toBeTruthy());
-    expect(screen.queryByText(/Checking…/)).toBeNull();
+    // The failing inspect must still end the loading state. A quiet panel stays
+    // empty rather than adding a decorative "nothing to do" row.
+    await waitFor(() => expect(screen.queryByText(/Checking…/)).toBeNull());
+    expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
     // A transient error is NOT a missing session.
     expect(screen.queryByText("Session not found")).toBeNull();
   });
 });
 
-describe("L3 · daemon badge tri-state", () => {
-  it("shows a neutral Connecting… (never offline) while health is unknown", () => {
+describe("L3 · daemon recovery control", () => {
+  it("keeps health unknown quiet", () => {
     useStore.setState({ health: null });
     const { container } = render(<Sidebar />);
 
-    expect(screen.getByText("Connecting…")).toBeTruthy();
+    expect(screen.queryByText("Connecting…")).toBeNull();
     expect(screen.queryByText(/Daemon offline/)).toBeNull();
     expect(screen.queryByText(/^Connected/)).toBeNull();
 
-    const avatar = container.querySelector(".account-avatar")!;
-    expect(avatar.className).toContain("connecting");
-    expect(avatar.className).not.toContain("offline");
-
-    // Unknown is inert: clicking must not fire a daemon restart.
-    const restart = vi.fn();
-    arMock.daemonStart = restart;
-    fireEvent.click(container.querySelector(".account-badge")!);
-    expect(restart).not.toHaveBeenCalled();
+    expect(container.querySelector(".account-badge")).toBeNull();
   });
 
   it("shows the red offline badge only once health actually reports daemonUp:false", () => {
@@ -198,11 +188,11 @@ describe("L3 · daemon badge tri-state", () => {
     expect(restart).toHaveBeenCalled();
   });
 
-  it("shows Connected when the daemon is up", () => {
+  it("does not repeat a healthy connection state", () => {
     useStore.setState({ health: { daemonUp: true, version: "ar 1.2.3" } as any });
     const { container } = render(<Sidebar />);
 
-    expect(screen.getByText(/^Connected/)).toBeTruthy();
-    expect(container.querySelector(".account-avatar")!.className).toContain("online");
+    expect(screen.queryByText(/^Connected/)).toBeNull();
+    expect(container.querySelector(".account-avatar")).toBeNull();
   });
 });

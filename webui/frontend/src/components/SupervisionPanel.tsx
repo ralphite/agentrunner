@@ -39,7 +39,6 @@ import {
   SupervisionAgentsSection,
   SupervisionCloseButton,
   SupervisionLoadingState,
-  SupervisionRestingState,
   SupervisionRunDetailsButton,
   type AttentionNotice,
   type GoalState,
@@ -250,13 +249,6 @@ export function SupervisionPanel({
     recovery,
     sessionIdle,
   );
-  const hasGoal = !!goal || !!settledGoal;
-  const resting =
-    !loading &&
-    !hasGoal &&
-    progress.length === 0 &&
-    children.length === 0 &&
-    attention.length === 0;
   return (
     // TH-15 · the rail is named `Environment` — in the topbar pill that opens it,
     // in its first section's label, and here in its accessible name. It used to
@@ -327,9 +319,6 @@ export function SupervisionPanel({
       )}
 
       {!loading && <AttentionSection notices={attention} onOpenChild={onOpenChild} />}
-
-      {/* The resting panel: one dim line instead of three empty blocks (TH-3). */}
-      {resting && <SupervisionRestingState />}
 
       {/* INC-41 ENV-4 · the panel's footer row. It used to be the *heaviest*
           text on the panel (weight 550, --ink-2) and the only line with no leading

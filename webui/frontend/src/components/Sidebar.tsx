@@ -557,12 +557,13 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           home). Codex's rail opens with a plain "ChatGPT Codex" wordmark and
           nothing else. Same here: text only, so the first thing the eye lands
           on is a session, not a logo. */}
-      <div className="flex items-center justify-between min-h-[44px] pt-[6px] pr-[14px] pb-[6px] pl-[16px] max-[900px]:pt-0! max-[900px]:pb-0!">
+      <div className="flex min-h-[44px] items-center justify-between pt-[6px] pr-2 pb-[6px] pl-3 max-[900px]:pt-0! max-[900px]:pb-0!">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
         <div className="flex items-center gap-[2px]">
           <IconButton
+            size="sm"
             variant="ghost"
             className="max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
             onClick={onOpenPalette}
@@ -735,7 +736,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => setShowAllProjects(true)}
               aria-label={`Show all ${orderedProjects.length} projects`}
             >
-              Show more
+              Show more projects
             </button>
           )}
           {showAllProjects && orderedProjects.length > PROJECT_GROUP_LIMIT && (
@@ -744,7 +745,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => setShowAllProjects(false)}
               aria-label={`Show only the ${PROJECT_GROUP_LIMIT} most recent projects`}
             >
-              Show less
+              Show fewer projects
             </button>
           )}
           </>)}
@@ -775,7 +776,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 onClick={() => setShowAllSessions(true)}
                 aria-label={`Show all ${model.workspaceLessSessions.length} sessions`}
               >
-                Show more
+                Show more sessions
               </button>
             )}
             {showAllSessions && model.workspaceLessSessions.length > 6 && (
@@ -784,7 +785,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 onClick={() => setShowAllSessions(false)}
                 aria-label="Show only the 6 most recent sessions"
               >
-                Show less
+                Show fewer sessions
               </button>
             )}
           </section>
@@ -800,7 +801,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         )}
       </div>
 
-      <div className="side-foot">
+      <div className={`side-foot${health?.daemonUp === false ? " side-foot-connection" : " side-foot-quiet"}`}>
         {/* INC-41 L3 · Three states, not two. `health === null` means the first
             /health call hasn't answered yet — rendering that as a red "Daemon
             offline" made every cold load flash a fake outage (and armed a

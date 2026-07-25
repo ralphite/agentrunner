@@ -754,12 +754,10 @@ export const MsgActions: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const continueButton = canvas.getByRole("button", {
-      name: "Continue in new session",
-    });
-    continueButton.focus();
+    const more = canvas.getByRole("button", { name: "More message actions" });
+    more.focus();
     await userEvent.keyboard("{Enter}");
-    await expect(continueButton).toBeEnabled();
+    await expect(canvas.getByRole("menuitem", { name: "Continue in new session" })).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Copy message" }),
     ).toBeVisible();
@@ -863,18 +861,18 @@ export const MsgActionsBusyAndError: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const continueButtons = canvas.getAllByRole("button", {
-      name: "Continue in new session",
-    });
-    await userEvent.click(continueButtons[0]);
-    await expect(continueButtons[0]).toBeDisabled();
-    await expect(continueButtons[0]).toHaveAttribute("aria-busy", "true");
+    const moreButtons = canvas.getAllByRole("button", { name: "More message actions" });
+    await userEvent.click(moreButtons[0]);
+    const pending = canvas.getByRole("menuitem", { name: "Continue in new session" });
+    await userEvent.click(pending);
+    await expect(moreButtons[0]).toHaveAttribute("aria-label", "Continuing in new session");
 
-    await userEvent.click(continueButtons[1]);
+    await userEvent.click(moreButtons[1]);
+    await userEvent.click(canvas.getByRole("menuitem", { name: "Continue in new session" }));
     await expect(
       await canvas.findByText("Checkpoint is no longer available"),
     ).toBeInTheDocument();
-    await expect(continueButtons[1]).toBeEnabled();
+    await expect(moreButtons[1]).toHaveAttribute("aria-label", "More message actions");
   },
 };
 
