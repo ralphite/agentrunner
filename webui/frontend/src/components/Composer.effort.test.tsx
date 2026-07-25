@@ -140,9 +140,10 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     openMenu(container);
     expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Pro");
     fireEvent.click(item("Effort"));
-    expect([...document.querySelectorAll(".cx-model-menu .pop-title")].map((node) => node.textContent)).toEqual(
-      EFFORT_LEVELS.map((level) => level.label),
-    );
+    const effortTitles = [...document.querySelectorAll(".cx-model-menu .pop-title")].map((node) => node.textContent);
+    expect(screen.getByRole("menuitem", { name: "Back to model menu" })).toBeTruthy();
+    expect(effortTitles[0]).toBe("Effort");
+    expect(effortTitles.slice(1)).toEqual(EFFORT_LEVELS.map((level) => level.label));
     expect(item("Medium").querySelector(".pop-check")).toBeTruthy();
     fireEvent.click(item("Extra High"));
 
