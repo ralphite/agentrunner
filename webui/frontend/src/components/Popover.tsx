@@ -17,6 +17,7 @@ import {
 import { useEscapeLayer } from "../ui/FocusScope";
 
 const PopoverMenuContext = createContext(true);
+const SUBMENU_HOVER_OPEN_DELAY_MS = 120;
 
 // Popover is the drop-up menu primitive the composer controls hang off of. It
 // anchors a panel to a trigger button, opens *upward* (the composer sits at the
@@ -515,6 +516,13 @@ export function PopItem({
   className?: string;
 }) {
   const inMenu = useContext(PopoverMenuContext);
+  const hoverOpenTimer = useRef<number | null>(null);
+  const clearHoverOpenTimer = () => {
+    if (hoverOpenTimer.current === null) return;
+    window.clearTimeout(hoverOpenTimer.current);
+    hoverOpenTimer.current = null;
+  };
+  useEffect(() => () => clearHoverOpenTimer(), []);
   return (
     <button
       type="button"
@@ -525,12 +533,21 @@ export function PopItem({
         (disabled ? " disabled" : "") +
         (className ? ` ${className}` : "")
       }
-      onClick={onClick}
-      onMouseMove={() => {
-        if (disabled) return;
-        onHoverOpen?.();
+      onClick={() => {
+        clearHoverOpenTimer();
+        onClick?.();
       }}
+      onMouseMove={(event) => {
+        if (disabled) return;
+        if (!onHoverOpen || hoverOpenTimer.current !== null || event.buttons !== 0) return;
+        hoverOpenTimer.current = window.setTimeout(() => {
+          hoverOpenTimer.current = null;
+          onHoverOpen();
+        }, SUBMENU_HOVER_OPEN_DELAY_MS);
+      }}
+      onMouseLeave={clearHoverOpenTimer}
       onKeyDown={(event) => {
+        clearHoverOpenTimer();
         if (disabled) return;
         if (event.key === "ArrowRight" && onArrowRight) {
           event.preventDefault();

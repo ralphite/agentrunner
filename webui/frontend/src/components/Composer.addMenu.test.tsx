@@ -150,7 +150,9 @@ describe("Composer add and advanced menu", () => {
     expect(automation.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.mouseMove(automation);
-    expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy(),
+    );
 
     const backToRoot = screen.getByRole("menuitem", { name: "Back to add menu" });
     fireEvent.keyDown(backToRoot, { key: "ArrowLeft" });
