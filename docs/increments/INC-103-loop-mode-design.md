@@ -1,89 +1,82 @@
-# INC-103 Loop mode 功能设计(完整版,v2——纯自定步调,无任何固定间隔)
+# INC-103 Loop mode 功能设计 v3(plan 驱动;设计先行,零实现)
 
-> 状态:设计稿,待用户批准;零实现。
-> 用户裁决(2026-07-25):**固定间隔彻底移除,loop 永远不基于时间表**。
-> 定时/cron 需求归 Scheduled runs(automations)那一族,与 loop 无关。
+> 用户裁决史:v1 固定间隔=cron-lite ✗;v2 纯自步调=与单个大 task 无区别 ✗。
+> v3 核心修正:**loop 的定义单位是一份 step-by-step plan(持久 todo 清单),
+> loop 的职责 = 把 plan 逐步推进到全部完成**。对标 Claude Code 的
+> plan mode + todo list + 循环续作三件套。
 
-## 1. 定位
+## 1. 一句话定义
 
-**Loop = 让 agent 在同一个对话里持续工作:每轮结束由 agent 自己决定
-「立刻继续 / 睡多久再继续 / 已完成收官」。** 节奏与终点都是 agent 的判断,
-不是用户预设的参数。对标 Claude Code `/loop` 的本体语义。
+`/loop <目标>` = **先把目标拆成一份带状态的分步计划,然后在同一对话里
+一步一轮地执行它,每步打勾、全绿收官**。
 
-## 2. 定义性语义(五条,全部硬性)
-
-1. `/loop <任务>` 启动;任务缺省 = 继续当前对话正在做的事。
-2. 每轮 = 同一会话里的一个普通 turn,轮间全量对话记忆。
-3. **turn 末 agent 必须二选一**:`schedule_next{delay, reason}`(何时继续+为什么)或 `finish_loop{summary}`(自行收官)。没有第三态。
-4. 没有 interval、没有 cron、没有轮数概念。唯一的节奏来源是第 3 条。
-5. 用户全程可插话(steer 进下一轮)、可 Pause/Resume、可 Stop;这些是控制面,不是语义。
-
-## 3. 入口与命令面
-
-- composer `/loop <任务>`:Home = 建新会话并开跑;会话内 = 当前会话开跑。
-- **无 launcher 面板**——没有参数可填,回车即跑(与发普通消息同重量)。
-- `/loop stop`(会话内)= Stop;Scheduled 页不提供新建入口(loop 不是"排程")。
-
-## 4. 每轮生命周期
-
-```
-round N turn 开始(任务/上一轮延续 + 期间插话)
-  → agent 干活(工具/输出,普通 turn)
-  → turn 末:schedule_next{delay,reason} → 挂 durable timer,会话空闲
-             finish_loop{summary}      → loop 摘除,落收官 chip,对话照常
-  → timer 到 → round N+1(program 注入「继续」,含 reason 回显)
-```
-
-- **delay 钳制**:`[10s, 24h]`,越界收敛到边界并注记。
-- **兜底**:turn 末两者都没调 = 视为 finish(注记 "loop ended — no continuation requested"),宁可早停不可自旋。
-- **busy 语义**:timer 到时若会话正忙(用户在聊),该轮顺延到空闲边界,不叠加。
-
-## 5. 工具契约(仅 loop 挂载期间暴露给模型)
-
-- `schedule_next{delay: duration, reason: string}` —— "我在等什么/为什么这个节奏"。reason 必填,用户可见。
-- `finish_loop{summary: string}` —— 收官陈词,用户可见。
-
-## 6. UI / 渲染(全对话式)
-
-- 时间线 chips:`Loop started`;每轮间 `Next round in 8m — 等 CI 跑完`(agent 的 reason 原文);`Round N` 分隔;`Loop finished — <summary>`。
-- composer 常开;插话即 steer,下一轮开头可见。
-- 会话头部/侧栏:进行中 loop 显示 pill(`Loop · next round in 8m`);无独立管理页。
-
-## 7. 控制面
-
-| 动作 | 语义 |
+**与"一个 task 直接干"的区别(本设计的存在理由)**:
+| 单 task | loop |
 |---|---|
-| 插话 | 进下一轮 context(不打断当前轮) |
-| Pause | 冻结待挂的下一轮;Resume 恢复(delay 从 resume 起重算) |
-| Stop | 摘 loop,对话保留;正在跑的轮走完 |
-| Interrupt | 既有会话语义,打断当前轮(与 loop 正交) |
+| 过程隐式,黑盒到结束 | **plan 是显式持久状态**,每步 pending→in_progress→completed 可见 |
+| 一口气吃完,context 无界膨胀 | **每轮只领一步**,轮边界收敛 context |
+| 中断=丢进度 | plan 落 journal,**崩溃/重启从下一未完步续** |
+| 只能整体催/停 | **按步 steer**:插话改某步、跳某步、加步 |
+| "做完了"=模型口说 | **终止=清单全绿**(每步有完成注记/证据) |
 
-## 8. 韧性
+## 2. 流程(两阶段)
 
-- `schedule_next` 的 delay 落 **durable timer**(journal 事实);崩溃/daemon 重启后按既有 timer-sweep 照醒,漏 slot 恰好补一次。
-- Pause/Stop/finish 均为 journal 事件,重放确定。
+**阶段 A · 出计划(round 0)**
+- agent 把目标拆成有序步骤清单(每步:title + 完成判据一句话),落
+  journal 成为会话的 **Plan 状态**;时间线渲染成 checklist 卡片。
+- 默认直接进入执行;用户可在任何时刻插话改计划(增/删/改步)。
+  (可选启动开关 `需确认`:出完计划先停,等用户批准再执行——默认关。)
 
-## 9. 护栏(全部非语义,防跑飞)
+**阶段 B · 逐步执行(round 1..N)**
+```
+每轮:领取下一 pending 步(或续 in_progress 步)
+  → 标 in_progress → 干活(普通 turn,全对话记忆)
+  → 完成:标 completed + 一句完成注记(做了什么/证据)
+    受阻:标 blocked + 原因;计划外发现:plan_update 加步
+  → 清单还有 pending → 继续下一轮(默认立即;确需等外部事才 defer,带 reason)
+    清单全绿      → finish:收官 summary(逐步对账),loop 摘除
+```
 
-- pace 钳制(§4);
-- 会话既有 token budget 照常封顶;
-- 可选 `max_rounds` **安全阀**:默认关;开着也只是"到 N 轮强制 finish 并注记",不改变语义。
+## 3. 状态模型(会话上的持久 Plan 子状态)
 
-## 10. 事件模型(概念)
+`Plan = { steps: [{id, title, criteria?, status: pending|in_progress|completed|skipped|blocked, note?}], round }`
+——journal 事件驱动(plan_created / step_started / step_done / plan_updated /
+loop_finished),重放确定;崩溃恢复 = 读 Plan 找下一步,不靠模型记忆。
 
-`loop_started{task}` / `loop_next{delay, reason}`(+durable timer)/
-`loop_round{n}` / `loop_paused/resumed` / `loop_finished{by: agent|user|guard, summary}`。
-实施时可复用 in-session schedule 事件族改语义,或新立 loop_* 族——实施阶段定,
-不影响本设计。
+## 4. 工具面(仅 loop 挂载期间暴露)
 
-## 11. 非目标(显式)
+- `plan_update{add/complete/skip/block/edit …}` —— 计划是活的,但每次变更
+  落 journal、用户可见;
+- `defer_next{delay, reason}` —— **仅当真在等外部事**(如 CI)才允许推迟
+  下一轮,reason 必填、钳制 [10s,24h];默认路径是立即续;
+- `finish_loop{summary}` —— 仅当无 pending/in_progress 步时可调(runtime
+  校验,防"口头完工");有 blocked 步时 finish 必须逐条说明。
 
-- ❌ 固定间隔 / cron / "Every" 字段——永不属于 loop;定时值守请用 Scheduled runs。
-- ❌ fresh-child 迭代、verifier 判定(那是 best-of-N / goal 的领地)。
-- ❌ Scheduled 页新建 loop。
+## 5. UI(全对话式)
 
-## 12. 验收(概念级,批准后细化)
+- **Checklist 卡片**常驻更新:☑/▶/☐/⚠ 每步一行,点开看完成注记;
+- 每轮分隔 chip:`Round 3 · ▶ 修复 parser 边界`;defer 时:`Next round in 8m — 等 CI`;
+- 会话 pill:`Loop 3/7`;composer 常开,插话进下一轮;
+- 收官 chip:`Loop finished · 7/7 done — <summary>`。
 
-真机:`/loop` 一个真实多轮任务 → 每轮 chips 可见 agent 的 delay+reason;
-等外部事(如 CI)时睡合适时长、没事等时立刻继续;干完自行 finish 且此后
-不再醒;中途插话改向生效;kill -9 daemon 后按 agent 定的 delay 照醒。
+## 6. 控制面
+
+插话(改向/改计划)· Pause/Resume · Stop(摘 loop 留对话与 plan)·
+跳过某步/重开某步(经对话说即可,agent 用 plan_update 落实)。
+
+## 7. 韧性与护栏
+
+- Plan 与轮边界全部 journal 化:kill -9 / daemon 重启后从下一未完步续跑;
+- 每轮一步 = 天然 context 收敛;compaction 兜底长计划;
+- 护栏(非语义):defer 钳制、会话 token budget、可选 max_rounds 安全阀(默认关)。
+
+## 8. 非目标
+
+❌ 固定间隔/cron(归 Scheduled runs)❌ fresh-child ❌ verifier 门(goal 领地)
+❌ 无计划的"自由续跑"(v2 已废——没有 plan 就没有 loop)。
+
+## 9. 验收(概念级,批准后细化)
+
+真机:`/loop 把 X 重构完` → round 0 出 checklist;每轮恰领一步、卡片逐步
+变绿;中途插话"第 4 步改成 Y"生效;kill -9 后从未完步续;全绿自动收官,
+summary 逐步对账;`finish_loop` 在有 pending 步时被 runtime 拒绝。
