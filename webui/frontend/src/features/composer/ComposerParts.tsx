@@ -884,11 +884,9 @@ export function AccessPicker({
           <span className="cx-mode-mobile-icon" aria-hidden>
             <AccessIcon id={active} risk={risk} />
           </span>
-          {session && (
-            <span className="cx-mode-mobile-text" aria-hidden>
-              {mobileAccessLabel(active)}
-            </span>
-          )}
+          <span className="cx-mode-mobile-text" aria-hidden>
+            {mobileAccessLabel(active)}
+          </span>
           <RiskGlyph risk={risk} />
           <span className="cx-mode-label">{label}</span>
         </button>

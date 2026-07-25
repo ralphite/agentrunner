@@ -1651,8 +1651,8 @@
     .sc-keys { @apply max-w-full justify-start; }
     .hero { @apply justify-start px-4 py-6; }
     .home-empty { @apply gap-3; }
-    .home-empty-cards { @apply grid-cols-1 gap-3; }
-    .home-empty-card { @apply min-h-[100px] px-4 py-3 text-[13px]; }
+    .home-empty-cards { @apply grid-cols-2 gap-1.5; }
+    .home-empty-card { @apply min-h-[84px] px-3 py-3 text-[12px]; }
     .home-empty-card-icon { @apply h-[24px] w-[24px]; }
     .home-main.intent-active { @apply justify-between; }
     .home-intent-suggestions { @apply static max-w-none; }
@@ -1689,7 +1689,7 @@
     }
     .cx-pill { @apply max-w-[126px] overflow-hidden px-2 text-[11px]; }
     .cx-mode {
-      @apply h-11 w-11 shrink-0 justify-center overflow-hidden px-0;
+      @apply h-11 min-w-[68px] w-auto shrink-0 justify-start gap-1.5 overflow-hidden px-2;
     }
     .cx-mode.session {
       @apply min-w-[68px] w-auto justify-start gap-1.5 px-2;
