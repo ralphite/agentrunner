@@ -421,8 +421,18 @@ export const SessionQuickActionsReveal: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const list = canvasElement.querySelector<HTMLElement>(".project-list");
     const row = canvasElement.querySelector<HTMLElement>(".project-session-wrap");
+    await expect(list).not.toBeNull();
     await expect(row).not.toBeNull();
+
+    const rowRect = row!.getBoundingClientRect();
+    const listStyle = window.getComputedStyle(list!);
+    const innerWidth =
+      list!.clientWidth -
+      Number.parseFloat(listStyle.paddingLeft || "0") -
+      Number.parseFloat(listStyle.paddingRight || "0");
+    expect(Math.abs(rowRect.width - innerWidth)).toBeLessThanOrEqual(1);
 
     await userEvent.hover(row!);
     await waitFor(() => expect(row!.querySelector(".session-quick-actions")).toBeVisible());
@@ -659,9 +669,19 @@ export const ProjectActionsHover: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const list = canvasElement.querySelector<HTMLElement>(".project-list");
     const heading = canvas.getByRole("button", { name: "Interactive project" });
     const row = heading.closest<HTMLElement>(".project-heading-row");
+    await expect(list).not.toBeNull();
     await expect(row).not.toBeNull();
+
+    const rowRect = row!.getBoundingClientRect();
+    const listStyle = window.getComputedStyle(list!);
+    const innerWidth =
+      list!.clientWidth -
+      Number.parseFloat(listStyle.paddingLeft || "0") -
+      Number.parseFloat(listStyle.paddingRight || "0");
+    expect(Math.abs(rowRect.width - innerWidth)).toBeLessThanOrEqual(1);
 
     await userEvent.hover(row!);
     await waitFor(() =>

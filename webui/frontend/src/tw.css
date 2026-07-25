@@ -399,7 +399,7 @@
   }
   /* Match session rows: one wrapper paints the heading and both trailing
      actions, so hover/focus never stops before the icons. */
-  .project-heading-row { @apply flex min-w-0 items-center rounded-[8px] transition-colors duration-100; }
+  .project-heading-row { @apply flex w-full min-w-0 items-center rounded-[8px] transition-colors duration-100; }
   .project-heading-row:hover,
   .pseudo-hover .project-heading-row,
   .project-heading-row:focus-within { @apply bg-panel-2; }
@@ -441,7 +441,7 @@
   .proj-heading-name { @apply min-w-0 truncate; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
-  .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
+  .project-session-wrap { @apply relative flex w-full min-w-0 items-center rounded-[8px]; }
   .project-session-wrap.nested .project-session { @apply pl-[31px]; }
   /* Selection and hover/focus paint the same complete row, including trailing
      worktree/loading/action icons. Painting only `.project-session` left the
