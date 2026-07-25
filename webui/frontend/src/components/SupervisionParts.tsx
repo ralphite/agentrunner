@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import {
   ArrowSquareIn,
   CaretRight,
@@ -101,21 +101,55 @@ export function SupervisionCloseButton({
   );
 }
 
-export function BackgroundProcessRow({ work }: { work: BackgroundWork }) {
+export function BackgroundProcessRow({
+  work,
+  onStop,
+}: {
+  work: BackgroundWork;
+  onStop?: (handle: string) => Promise<void> | void;
+}) {
+  const [stopping, setStopping] = useState(false);
   return (
     <div className="background-row">
       <Terminal size={14} />
-      <span title={work.detail || work.handle}>{backgroundLabel(work)}</span>
+      <span className="min-w-0 flex-1 truncate" title={work.detail || work.handle}>
+        {backgroundLabel(work)}
+      </span>
+      {onStop && (
+        <Button
+          size="sm"
+          variant="outline"
+          tone="danger"
+          loading={stopping}
+          aria-label={`Stop background work ${work.handle}`}
+          onClick={async () => {
+            setStopping(true);
+            try {
+              await onStop(work.handle);
+            } finally {
+              setStopping(false);
+            }
+          }}
+        >
+          Stop
+        </Button>
+      )}
     </div>
   );
 }
 
-export function BackgroundProcessesSection({ work }: { work: BackgroundWork[] }) {
+export function BackgroundProcessesSection({
+  work,
+  onStop,
+}: {
+  work: BackgroundWork[];
+  onStop?: (handle: string) => Promise<void> | void;
+}) {
   if (work.length === 0) return null;
   return (
     <section className="supervision-section">
       <div className="supervision-label">Background processes</div>
-      {work.map((item) => <BackgroundProcessRow key={item.handle} work={item} />)}
+      {work.map((item) => <BackgroundProcessRow key={item.handle} work={item} onStop={onStop} />)}
     </section>
   );
 }

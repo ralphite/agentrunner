@@ -958,6 +958,13 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                 .then((text) => openModal({ kind: "viewer", title: `${stream} · v${version}`, body: text }))
                 .catch((error) => toast(error.message))}
             onGoalAction={(action) => commands.goal(action).then(() => pollInspect()).catch((error) => toast(error.message))}
+            onKillBackground={(handle) =>
+              commands.killBackground(handle)
+                .then(() => {
+                  toast("background work stop sent", "info");
+                  return pollInspect();
+                })
+                .catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
             onInspect={() => commands.inspect().then((data) => openModal({
               kind: "inspect",

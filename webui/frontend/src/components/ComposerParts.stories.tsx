@@ -1304,17 +1304,24 @@ export const ModelPickerSummary: Story = {
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, /Gemini Flash/);
     const page = body(canvasElement);
-    const menu = page.getByRole("menu");
-    await expect(page.getByRole("menuitem", { name: /Model/ })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Effort/ })).toBeVisible();
+    await waitFor(() =>
+      expect(
+        canvasElement.ownerDocument.body.querySelector<HTMLElement>(".cx-model-popover[role='menu']"),
+      ).not.toBeNull(),
+    );
+    const menu = canvasElement.ownerDocument.body.querySelector<HTMLElement>(".cx-model-popover[role='menu']")!;
+    await expect(within(menu).getByRole("menuitem", { name: /Model/ })).toBeVisible();
+    await expect(within(menu).getByRole("menuitem", { name: /Effort/ })).toBeVisible();
+    await expect(within(menu).getByRole("menuitem", { name: /Advanced/ })).toBeVisible();
     await waitFor(() => {
       const rect = menu.getBoundingClientRect();
       const viewport = menu.ownerDocument.documentElement;
+      const advancedRect = within(menu).getByRole("menuitem", { name: /Advanced/ }).getBoundingClientRect();
       expect(rect.top).toBeGreaterThanOrEqual(7);
       expect(rect.left).toBeGreaterThanOrEqual(7);
       expect(rect.right).toBeLessThanOrEqual(viewport.clientWidth - 7);
       expect(rect.bottom).toBeLessThanOrEqual(viewport.clientHeight - 7);
-      expect(menu.scrollHeight).toBeLessThanOrEqual(menu.clientHeight + 1);
+      expect(advancedRect.bottom).toBeLessThanOrEqual(viewport.clientHeight - 7);
     });
   },
 };

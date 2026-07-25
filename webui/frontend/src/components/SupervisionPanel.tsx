@@ -171,6 +171,7 @@ export function SupervisionPanel({
   onGoalSave,
   onGoalDiscard,
   onGoalAction,
+  onKillBackground,
   onOpenArtifact,
   onOpenChild,
   onInspect,
@@ -212,6 +213,7 @@ export function SupervisionPanel({
   onGoalSave: () => void;
   onGoalDiscard: () => void;
   onGoalAction: (action: "pause" | "resume" | "cancel") => void;
+  onKillBackground?: (handle: string) => Promise<void> | void;
   onOpenArtifact: (stream: string, version: number) => void;
   onOpenChild: (sid: string) => void;
   onInspect: () => void;
@@ -290,7 +292,7 @@ export function SupervisionPanel({
           scrolling past five quieter ones. Codex puts `Background processes`
           second, right beneath the Environment rows, for the same reason: what's
           running *right now* outranks the standing description of the run. */}
-      <BackgroundProcessesSection work={backgroundWork} />
+      <BackgroundProcessesSection work={backgroundWork} onStop={onKillBackground} />
 
       {/* One indeterminate line while inspect is in flight — not three titled
           "Checking…" blocks that then collapse into nothing (TH-3): the panel

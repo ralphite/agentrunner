@@ -303,6 +303,15 @@ describe("TH-3 · groups with content are untouched", () => {
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
 
+  it("lets the user stop a listed background handle directly from the panel", async () => {
+    const stop = vi.fn(async () => {});
+    const session = { handle: "h1", tool: "spawn_agent", detail: "agent=worker session=review" } as any;
+    renderPanel({ backgroundWork: [session], sessionIdle: true, onKillBackground: stop });
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop background work h1" }));
+    await waitFor(() => expect(stop).toHaveBeenCalledWith("h1"));
+  });
+
   it("keeps quiet when background work runs mid-turn (session not idle)", () => {
     const session = { handle: "h1", tool: "spawn_agent", detail: "agent=worker session=review" } as any;
     const { container } = renderPanel({ backgroundWork: [session], sessionIdle: false });

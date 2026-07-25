@@ -240,6 +240,7 @@ export const AR = {
       ...(draft ? { draft_id: draft.draftId, send_request_id: draft.sendRequestId,
         draft_parts: draft.parts, replay_original: draft.replayOriginal } : {}) }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
+  killBackground: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   retry: (sid: string) => post(`/sessions/${sid}/retry`),
   scheduleDetail: (sid: string) => api<ScheduleDetail>(`/sessions/${sid}/schedule`),

@@ -18,6 +18,7 @@ export function useSessionCommands(sid: string) {
         api.goal(sid, { action: "update", goal }),
       goal: (action: SessionGoalAction) => api.goal(sid, { action }),
       interrupt: () => api.interrupt(sid),
+      killBackground: (handle: string) => api.killBackground(sid, handle),
       resume: () => api.resume(sid),
       retry: () => api.retry(sid),
       barrier: () => api.barrier(sid),
