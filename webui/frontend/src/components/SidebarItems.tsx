@@ -158,7 +158,6 @@ export function SidebarSessionItem({
           event.preventDefault();
           event.stopPropagation();
         }}
-        onMouseEnter={onDismissPreview}
       >
         <IconButton
           size="sm"
@@ -342,14 +341,16 @@ export function SidebarProjectItem({
 
   return (
     <div className="project-group" data-project-state={removed ? "removed" : "visible"}>
-      <div className="project-heading-row">
+      <div
+        className="project-heading-row"
+        onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
+        onMouseLeave={onPreviewEnd}
+      >
         <button
           className="project-heading min-w-0 flex-1"
           onClick={onToggle}
           title={workspace || name}
           aria-expanded={!folded}
-          onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
-          onMouseLeave={onPreviewEnd}
           onContextMenu={(event) => {
             event.preventDefault();
             onOpenContext(
@@ -412,6 +413,8 @@ export type SidebarPreviewCardProps =
       chats: number;
       workspace?: string;
       inline?: boolean;
+      onHoverStart?: () => void;
+      onHoverEnd?: () => void;
     }
   | {
       kind: "session";
@@ -422,6 +425,8 @@ export type SidebarPreviewCardProps =
       branch?: string;
       status: { text: string; cls: string };
       inline?: boolean;
+      onHoverStart?: () => void;
+      onHoverEnd?: () => void;
     };
 
 export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
@@ -430,23 +435,38 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
     : { top: props.top };
   if (props.kind === "project") {
     return (
-      <div className="project-preview" style={style} aria-hidden="true">
+      <div
+        className="project-preview"
+        style={style}
+        aria-hidden="true"
+        onMouseEnter={props.onHoverStart}
+        onMouseLeave={props.onHoverEnd}
+      >
         <div className="project-preview-head">
           <Folder size={18} />
           <b>{props.name}</b>
           <PushPin size={16} weight={props.pinned ? "fill" : "regular"} />
         </div>
         <div><ChatCircle size={16} /><span>{props.chats} {props.chats === 1 ? "chat" : "chats"}</span></div>
-        <div className="project-preview-path"><FolderOpen size={16} /><span>{props.workspace || "No workspace"}</span></div>
+        <div className="project-preview-path">
+          <FolderOpen size={16} />
+          <span title={props.workspace || "No workspace"}>{props.workspace || "No workspace"}</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="session-preview" style={style} aria-hidden="true">
+    <div
+      className="session-preview"
+      style={style}
+      aria-hidden="true"
+      onMouseEnter={props.onHoverStart}
+      onMouseLeave={props.onHoverEnd}
+    >
       <div className="session-preview-head"><b>{props.title}</b>{props.when && <span>{props.when}</span>}</div>
       <div><Folder size={15} /><span>{props.project || "No project"}</span></div>
-      <div><GitBranch size={15} /><span>{props.branch || "Local"}</span></div>
+      {props.branch && <div><GitBranch size={15} /><span>{props.branch}</span></div>}
       <div>
         <LifecycleStatus
           accessibleLabel={props.status.text}

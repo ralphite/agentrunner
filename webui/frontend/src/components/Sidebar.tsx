@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
   Clock,
@@ -27,7 +27,15 @@ import { sessionFriendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem } from "./Menu";
-import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, sessionUpdatedDate, visibleProjectSessions } from "../viewModels";
+import {
+  buildSidebarModel,
+  isManagedWorktreeWorkspace,
+  projectDisplayName,
+  projectLabel,
+  scheduledUnread,
+  sessionUpdatedDate,
+  visibleProjectSessions,
+} from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
@@ -49,6 +57,8 @@ type SidebarContext =
 type SidebarHover =
   | { kind: "session"; sid: string; top: number }
   | { kind: "project"; key: string; top: number };
+
+const HOVER_PREVIEW_CLOSE_DELAY_MS = 120;
 
 // SB-4 · Collapsed project groups, mirrored into localStorage.
 //
@@ -155,6 +165,28 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
   const [hoverPreview, setHoverPreview] = useState<SidebarHover | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
+  const hoverPreviewCloseTimer = useRef<number | null>(null);
+
+  const cancelHoverPreviewClose = () => {
+    if (hoverPreviewCloseTimer.current === null) return;
+    window.clearTimeout(hoverPreviewCloseTimer.current);
+    hoverPreviewCloseTimer.current = null;
+  };
+
+  const clearHoverPreview = () => {
+    cancelHoverPreviewClose();
+    setHoverPreview(null);
+  };
+
+  const scheduleHoverPreviewClose = () => {
+    cancelHoverPreviewClose();
+    hoverPreviewCloseTimer.current = window.setTimeout(() => {
+      hoverPreviewCloseTimer.current = null;
+      setHoverPreview(null);
+    }, HOVER_PREVIEW_CLOSE_DELAY_MS);
+  };
+
+  useEffect(() => () => cancelHoverPreviewClose(), []);
 
   const toggleSection = (section: FoldableSection) => {
     setFoldedSections((current) => {
@@ -302,6 +334,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     // exclusive floating layers — while a menu is open, suppress the preview
     // so the two never stack and fight for the same corner (R3-1).
     if (ctx) return;
+    cancelHoverPreviewClose();
     setHoverPreview({ kind: "session", sid: session.id, top: Math.max(10, Math.min(top - 6, window.innerHeight - 154)) });
     const workspace = session.workspace;
     if (!workspace || Object.prototype.hasOwnProperty.call(branchByWorkspace, workspace)) return;
@@ -309,9 +342,14 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     api.gitBranches(workspace)
       .then((info) => setBranchByWorkspace((current) => ({
         ...current,
-        [workspace]: info.isRepo && info.current ? info.current : "Local workspace",
+        [workspace]: info.isRepo
+          ? (info.current || "Detached HEAD")
+          : "",
       })))
-      .catch(() => setBranchByWorkspace((current) => ({ ...current, [workspace]: "Local workspace" })));
+      .catch(() => setBranchByWorkspace((current) => ({
+        ...current,
+        [workspace]: isManagedWorktreeWorkspace(workspace) ? "Detached HEAD" : "",
+      })));
   };
 
   const restoreSessionActionFocusAfterMutation = (sid: string) => {
@@ -458,7 +496,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     ) => {
       // Opening a context menu instantly dismisses any hover preview so the
       // two floating layers stay mutually exclusive (R3-1).
-      setHoverPreview(null);
+      clearHoverPreview();
       setCtx({ kind: "session", x, y, sid: session.id, returnFocus });
     };
     return (
@@ -479,8 +517,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         }}
         onOpenContext={openContext}
         onPreview={(top) => previewSession(session, top)}
-        onPreviewEnd={() => setHoverPreview((current) => current?.kind === "session" && current.sid === session.id ? null : current)}
-        onDismissPreview={() => setHoverPreview(null)}
+        onPreviewEnd={scheduleHoverPreviewClose}
+        onDismissPreview={clearHoverPreview}
         onTogglePin={() => {
           togglePin(session.id);
           restoreSessionActionFocusAfterMutation(session.id);
@@ -632,7 +670,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               y: number,
               returnFocus: HTMLElement,
             ) => {
-              setHoverPreview(null);
+              clearHoverPreview();
               setCtx({
                 kind: "project",
                 x,
@@ -663,14 +701,15 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 onOpenContext={openMenu}
                 onPreview={(top) => {
                   if (ctx) return;
+                  cancelHoverPreviewClose();
                   setHoverPreview({
                     kind: "project",
                     key: project.key,
                     top: Math.max(10, Math.min(top - 6, window.innerHeight - 132)),
                   });
                 }}
-                onPreviewEnd={() => setHoverPreview((current) => current?.kind === "project" && current.key === project.key ? null : current)}
-                onDismissPreview={() => setHoverPreview(null)}
+                onPreviewEnd={scheduleHoverPreviewClose}
+                onDismissPreview={clearHoverPreview}
                 onNewChat={() => {
                   if (!project.workspace) return;
                   newSessionForProject(project.workspace);
@@ -811,6 +850,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               pinned={overlay?.pinned}
               chats={project.sessions.length}
               workspace={project.workspace}
+              onHoverStart={cancelHoverPreviewClose}
+              onHoverEnd={scheduleHoverPreviewClose}
             />
           );
         }
@@ -830,6 +871,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             project={projectLabel(workspace)}
             branch={branch}
             status={status}
+            onHoverStart={cancelHoverPreviewClose}
+            onHoverEnd={scheduleHoverPreviewClose}
           />
         );
       })()}
