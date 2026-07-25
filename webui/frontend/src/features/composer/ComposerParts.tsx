@@ -811,7 +811,7 @@ function mobileAccessLabel(id?: AccessId): string {
     case "ask":
       return "Ask";
     case "full":
-      return "Full";
+      return "Full access";
     case "plan":
       return "Plan";
     default:

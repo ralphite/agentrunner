@@ -115,6 +115,7 @@ function isolatedApi(overrides: Partial<StoryApi> = {}): StoryApi {
 
 interface ComposerFixtureProps {
   variant?: "home" | "session";
+  initialAccess?: "ask" | "full";
   running?: boolean;
   homeDraft?: string;
   sessionDraft?: string;
@@ -130,6 +131,7 @@ interface ComposerFixtureProps {
 
 function ComposerFixture({
   variant = "home",
+  initialAccess = "ask",
   running = false,
   homeDraft = "",
   sessionDraft = "",
@@ -148,7 +150,7 @@ function ComposerFixture({
   } satisfies Partial<AppState>;
   const local = {
     "arwebui.lastProject": selectedProject,
-    "arwebui.lastAccess": "ask",
+    "arwebui.lastAccess": initialAccess,
     "arwebui.sessAccess": JSON.stringify({ [SID]: "ask" }),
   };
   const session = {
@@ -215,6 +217,16 @@ async function expectComposerBarFits(canvasElement: HTMLElement) {
   await expect(bar.scrollWidth).toBe(bar.clientWidth);
 }
 
+async function expectComposerBarUsesAtMostTwoRows(canvasElement: HTMLElement) {
+  const bar = canvasElement.querySelector<HTMLElement>(".cx-bar")!;
+  const rows = new Set(
+    Array.from(bar.querySelectorAll<HTMLElement>("button"))
+      .filter((element) => getComputedStyle(element).display !== "none")
+      .map((element) => Math.round(element.getBoundingClientRect().top)),
+  );
+  await expect(rows.size).toBeLessThanOrEqual(2);
+}
+
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -277,7 +289,72 @@ export const Draft: Story = {
   },
 };
 
+export const MobileFullAccessKeyStates: Story = {
+  globals: {
+    viewport: { value: "phone", isRotated: false },
+  },
+  render: () => (
+    <ComposerFixture initialAccess="full" homeDraft={HOME_DRAFT} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const access = canvas.getByRole("button", { name: "Full access" });
+    const model = canvas.getByTitle("Model & effort");
+    const modelName = model.querySelector<HTMLElement>(".cx-model-name")!;
+    const effort = model.querySelector<HTMLElement>(".cx-pill-sub")!;
+
+    await expect(access).toHaveTextContent("Full access");
+    await expect(access.querySelector(".cx-mode-risk")).toBeVisible();
+    await expect(modelName).toHaveTextContent("Gemini Flash");
+    await expect(effort).toHaveTextContent("Medium");
+    await expect(modelName.scrollWidth).toBeLessThanOrEqual(modelName.clientWidth);
+    await expect(effort.scrollWidth).toBeLessThanOrEqual(effort.clientWidth);
+    await expect(
+      canvas.getByRole("button", { name: "Add and advanced options" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Send message" })).toBeVisible();
+    const dictate = canvas.queryByRole("button", { name: "Dictate" });
+    if (dictate) await expect(dictate).toBeVisible();
+    await expectComposerBarFits(canvasElement);
+    await expectComposerBarUsesAtMostTwoRows(canvasElement);
+  },
+};
+
 const queuedSend = fn(async () => {});
+
+const runningMobileDraftSeed: ForkDraft = {
+  draft_id: "story-running-mobile-draft",
+  text: SESSION_DRAFT,
+  content: [],
+};
+
+export const RunningMobileAllControls: Story = {
+  globals: {
+    viewport: { value: "phone", isRotated: false },
+  },
+  render: () => (
+    <ComposerFixture
+      variant="session"
+      running
+      seed={runningMobileDraftSeed}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByPlaceholderText("Ask for follow-up changes");
+    await waitFor(() => expect(input).toHaveValue(SESSION_DRAFT));
+    await expect(
+      canvas.getByRole("button", { name: "Add and advanced options" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Optimize prompt" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Dictate" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Queue" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Steer" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Send message" })).toBeVisible();
+    await expectComposerBarFits(canvasElement);
+    await expectComposerBarUsesAtMostTwoRows(canvasElement);
+  },
+};
 
 export const RunningQueued: Story = {
   globals: {

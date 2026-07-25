@@ -1714,6 +1714,32 @@
     .cx-delivery { @apply gap-[2px]; }
     .cx-deliv { @apply h-11 w-11 justify-center px-0; }
     .cx-deliv-label { @apply hidden; }
+    /* At 390px the two existing bar groups have room for their full critical
+       state. Keep access on the first row and give the model summary a compact
+       two-line layout on the second, rather than shortening either value or
+       letting Send escape the card. */
+    @media (min-width: 381px) {
+      .cx-mode { @apply max-w-none; }
+      .cx-mode-risk { @apply inline-flex; }
+      .cx-bar-trailing { @apply flex-nowrap gap-0; }
+      .cx-session .cx-bar-trailing {
+        @apply ml-auto flex w-full max-w-full shrink-0 flex-nowrap gap-0 justify-end;
+      }
+      .cx-bar-trailing .cx-model-wrap { @apply w-[86px] min-w-[86px] max-w-[86px] shrink-0; }
+      .cx-bar-trailing .cx-delivery { @apply gap-0; }
+      .cx-bar-trailing .cx-model {
+        @apply relative h-11 w-full max-w-full flex-col items-start justify-center gap-0 pl-0 pr-3;
+      }
+      .cx-bar-trailing .cx-model-name {
+        @apply max-w-full leading-tight;
+      }
+      .cx-bar-trailing .cx-model .cx-pill-sub {
+        @apply inline-flex max-w-full min-w-0 leading-tight;
+      }
+      .cx-bar-trailing .cx-model .cx-caret {
+        @apply absolute right-0 top-1/2 -translate-y-1/2;
+      }
+    }
     .cx-atts {
       @apply flex-nowrap overflow-x-auto overscroll-x-contain;
       scrollbar-width: none;
