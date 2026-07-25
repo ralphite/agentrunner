@@ -37,4 +37,13 @@ describe("sidebar project row highlight extent (INC-93)", () => {
     const headingRule = css.match(/\.project-heading\s*\{([^}]*)\}/s)?.[1] || "";
     expect(headingRule).not.toContain("hover:bg-panel-2");
   });
+
+  it("lets any focused child paint the full wrapper outline, not only the main button", () => {
+    const projectOutlineRule =
+      css.match(/\.project-heading-row:has\(:focus-visible\)\s*\{[^}]*outline-blue[^}]*\}/s)?.[0] || "";
+    const sessionOutlineRule =
+      css.match(/\.project-session-wrap:has\(:focus-visible\)\s*\{[^}]*outline-blue[^}]*\}/s)?.[0] || "";
+    expect(projectOutlineRule).toContain(".project-heading-row:has(:focus-visible)");
+    expect(sessionOutlineRule).toContain(".project-session-wrap:has(:focus-visible)");
+  });
 });

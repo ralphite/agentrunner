@@ -404,7 +404,7 @@
   .pseudo-hover .project-heading-row,
   .project-heading-row:focus-within { @apply bg-panel-2; }
   .project-heading:focus-visible { @apply outline-none; }
-  .project-heading-row:has(> .project-heading:focus-visible) {
+  .project-heading-row:has(:focus-visible) {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
@@ -456,7 +456,7 @@
     @apply flex min-h-[32px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
   }
   .project-session:focus-visible { @apply outline-none; }
-  .project-session-wrap:has(> .project-session:focus-visible) {
+  .project-session-wrap:has(:focus-visible) {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
   .project-session-title { @apply min-w-0 flex-1 truncate; }
