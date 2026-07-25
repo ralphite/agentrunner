@@ -109,7 +109,7 @@ describe("Popover panel escapes its ancestors' overflow", () => {
     expect(left + PANEL_W).toBeLessThanOrEqual(VW - 8);
 
     // None of the stylesheet's absolute-era offsets survive: `.pop-up { bottom:
-    // calc(100% + 8px) }` and `.pop-right { right: 0 }` would mean the *viewport's*
+    // calc(100% + 8px) }` and `.pop-align-right { right: 0 }` would mean the *viewport's*
     // edge on a fixed box, which is how a menu ends up glued to the wrong corner.
     expect(panel().style.right).toBe("auto");
   });
@@ -127,6 +127,10 @@ describe("Popover panel escapes its ancestors' overflow", () => {
   it("keeps a right-aligned panel's right edge on the anchor, and on-screen", () => {
     renderInScrollingCard({ left: 1380, right: 1420, top: 285, bottom: 313 }, "right");
     openMenu();
+    // `pop-right` belongs to a row's small trailing accessory, not the panel.
+    // Reusing it here silently turns the whole popover into that 18px grid.
+    expect(panel().classList.contains("pop-align-right")).toBe(true);
+    expect(panel().classList.contains("pop-right")).toBe(false);
     // right-aligned: left = anchor.right - width = 1420 - 264 = 1156
     expect(panel().style.left).toBe("1156px");
     expect(panel().style.right).toBe("auto");

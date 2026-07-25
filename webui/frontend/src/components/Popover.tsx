@@ -401,7 +401,10 @@ export function Popover({
         <PopoverMenuContext.Provider value={panelRole === "menu"}>
           <div
             ref={panelRef}
-            className={`pop-panel pop-${align} pop-${place?.drop ?? "up"} ${panelClass}`}
+            // `pop-right` names the small right-side accessory inside a menu
+            // row. Alignment must use its own namespace or that 18px accessory
+            // rule collapses every right-aligned popover.
+            className={`pop-panel pop-align-${align} pop-${place?.drop ?? "up"} ${panelClass}`}
             role={panelRole}
             aria-label={ariaLabel}
             onFocusCapture={(event) => {
@@ -418,7 +421,7 @@ export function Popover({
             }}
             style={{
               // Every offset is stated, none inherited: the stylesheet's
-              // `.pop-up { bottom: calc(100% + 8px) }` / `.pop-right { right: 0 }`
+              // `.pop-up { bottom: calc(100% + 8px) }` / `.pop-align-right { right: 0 }`
               // are written for an absolute panel and would mean *the viewport's*
               // edge once the panel is fixed. The classes stay (they still carry
               // the animation and are what the CSS hooks read); the geometry is
