@@ -1,44 +1,89 @@
-# INC-103 Loop mode 设计稿(设计先行——未经用户批准零实现)
+# INC-103 Loop mode 功能设计(完整版,v2——纯自定步调,无任何固定间隔)
 
-> 教训与流程约束:INC-102 因未与用户确认"对标物的定义性语义"而返工并全部
-> 移除。本稿先立**语义对照**,每一条与 Claude Code(下称 CC)的异同显式标注;
-> 用户逐节批准后才进实施。
+> 状态:设计稿,待用户批准;零实现。
+> 用户裁决(2026-07-25):**固定间隔彻底移除,loop 永远不基于时间表**。
+> 定时/cron 需求归 Scheduled runs(automations)那一族,与 loop 无关。
 
-## 一、语义对照(CC loop 的定义性语义 → 本设计)
+## 1. 定位
 
-| # | CC loop 语义 | 本设计 | 异同 |
-|---|---|---|---|
-| 1 | `/loop <任务>` 默认**不带间隔**——**自定步调**:每轮结束由 agent 决定下次何时醒(按它在等什么),并给出 reason | 同。每轮 turn 末 agent 必须调 `schedule_next{delay, reason}` 或 `finish_loop{summary}` 之一 | **同** |
-| 2 | **agent 自行终止**:任务干完自己停,无需 verifier/轮数上限 | 同。`finish_loop` 即收官(落终态事件,loop 摘除) | **同** |
-| 3 | 固定间隔(`/loop 5m …`)只是可选变体 | 同。带间隔时不给 pace 工具,按钟醒 | **同** |
-| 4 | 循环在**同一会话/上下文**里进行,轮间有全部记忆 | 同(挂在 conversational session 上,不起 fresh child) | **同** |
-| 5 | 用户可随时插话/停止 | 同(composer 常开;`/loop stop` 或 UI Stop) | **同** |
-| 6 | delay 有钳制(CC:60s–3600s clamp) | `pace_min`(默认 10s)/`pace_max`(默认 24h)钳制;忘调工具 = 视为 finish(防自旋) | 同思想,参数待定 |
-| 7 | CC 无轮数上限概念 | 默认无上限;可选 `max_rounds` 作**安全阀**(非语义) | 弱化差异,显式声明 |
+**Loop = 让 agent 在同一个对话里持续工作:每轮结束由 agent 自己决定
+「立刻继续 / 睡多久再继续 / 已完成收官」。** 节奏与终点都是 agent 的判断,
+不是用户预设的参数。对标 Claude Code `/loop` 的本体语义。
 
-## 二、功能清单(用户逐条 ✓/✗)
+## 2. 定义性语义(五条,全部硬性)
 
-1. **入口**:composer `/loop <任务>`(Home=新会话,会话内=挂当前会话)。启动器仅两个可选项:`Every`(留空=自定步调,默认)与 `Max rounds`(留空=无上限)。
-2. **每轮形态**:普通 turn(全对话记忆);turn 末 agent 面上有 `schedule_next` / `finish_loop` 两工具(仅 loop 挂载期间暴露)。
-3. **时间线渲染**:对话式。chips:`Loop started`、`Next round in 8m — <agent 的 reason>`、`Round N`、`Loop finished — <summary>`;composer 全程可用。
-4. **控制面**:插话(steer,下一轮可见)、Pause/Resume、Stop(摘 loop 留对话);Scheduled 页列出进行中的 loop(显示 agent 定的 next round),点开即对话。
-5. **韧性**:agent 选的 delay 落 durable timer;崩溃/重启按既有 timer-sweep 恢复;忘调工具按 `on_no_intent=finish` 收官并注记。
-6. **预算护栏**:pace 钳制 + 可选 max_rounds + 既有 session token budget;三层都可见于 Scheduled 详情。
+1. `/loop <任务>` 启动;任务缺省 = 继续当前对话正在做的事。
+2. 每轮 = 同一会话里的一个普通 turn,轮间全量对话记忆。
+3. **turn 末 agent 必须二选一**:`schedule_next{delay, reason}`(何时继续+为什么)或 `finish_loop{summary}`(自行收官)。没有第三态。
+4. 没有 interval、没有 cron、没有轮数概念。唯一的节奏来源是第 3 条。
+5. 用户全程可插话(steer 进下一轮)、可 Pause/Resume、可 Stop;这些是控制面,不是语义。
 
-## 三、与现有底座的映射(实施时零新状态机)
+## 3. 入口与命令面
 
-- 复用 in-session schedule 事件族(attach/wake/cancel + durable timer)——只新增"下一 tick 由 `schedule_next` 写入"与"`finish_loop` → cancel"两条边;
-- `schedule_next`/`finish_series` 工具语义已存在于 driver self_paced 形态,搬到 session 工具面并改名 `finish_loop`;
-- best-of-N/goal/driver 不动。
+- composer `/loop <任务>`:Home = 建新会话并开跑;会话内 = 当前会话开跑。
+- **无 launcher 面板**——没有参数可填,回车即跑(与发普通消息同重量)。
+- `/loop stop`(会话内)= Stop;Scheduled 页不提供新建入口(loop 不是"排程")。
 
-## 四、开放问题(请裁决)
+## 4. 每轮生命周期
 
-- Q1 `/loop` 不带任务直接跟上文干?(CC 允许"接着当前事继续循环")——建议:允许,任务缺省 = "继续当前工作"。
-- Q2 pace 默认钳制值(10s–24h?)与 `on_no_intent`(finish vs 按 pace_min 续)。
-- Q3 Scheduled 页是否也提供"新建 loop"入口,还是仅 composer。
+```
+round N turn 开始(任务/上一轮延续 + 期间插话)
+  → agent 干活(工具/输出,普通 turn)
+  → turn 末:schedule_next{delay,reason} → 挂 durable timer,会话空闲
+             finish_loop{summary}      → loop 摘除,落收官 chip,对话照常
+  → timer 到 → round N+1(program 注入「继续」,含 reason 回显)
+```
 
-## 五、验收草案(批准设计后细化)
+- **delay 钳制**:`[10s, 24h]`,越界收敛到边界并注记。
+- **兜底**:turn 末两者都没调 = 视为 finish(注记 "loop ended — no continuation requested"),宁可早停不可自旋。
+- **busy 语义**:timer 到时若会话正忙(用户在聊),该轮顺延到空闲边界,不叠加。
 
-真机:`/loop` 一个真实任务 → agent 每轮自报 next delay+reason、干完自行
-finish;中途插话改向生效;崩溃重启后按 agent 定的 delay 照醒;`Every 5m`
-变体按钟醒。
+## 5. 工具契约(仅 loop 挂载期间暴露给模型)
+
+- `schedule_next{delay: duration, reason: string}` —— "我在等什么/为什么这个节奏"。reason 必填,用户可见。
+- `finish_loop{summary: string}` —— 收官陈词,用户可见。
+
+## 6. UI / 渲染(全对话式)
+
+- 时间线 chips:`Loop started`;每轮间 `Next round in 8m — 等 CI 跑完`(agent 的 reason 原文);`Round N` 分隔;`Loop finished — <summary>`。
+- composer 常开;插话即 steer,下一轮开头可见。
+- 会话头部/侧栏:进行中 loop 显示 pill(`Loop · next round in 8m`);无独立管理页。
+
+## 7. 控制面
+
+| 动作 | 语义 |
+|---|---|
+| 插话 | 进下一轮 context(不打断当前轮) |
+| Pause | 冻结待挂的下一轮;Resume 恢复(delay 从 resume 起重算) |
+| Stop | 摘 loop,对话保留;正在跑的轮走完 |
+| Interrupt | 既有会话语义,打断当前轮(与 loop 正交) |
+
+## 8. 韧性
+
+- `schedule_next` 的 delay 落 **durable timer**(journal 事实);崩溃/daemon 重启后按既有 timer-sweep 照醒,漏 slot 恰好补一次。
+- Pause/Stop/finish 均为 journal 事件,重放确定。
+
+## 9. 护栏(全部非语义,防跑飞)
+
+- pace 钳制(§4);
+- 会话既有 token budget 照常封顶;
+- 可选 `max_rounds` **安全阀**:默认关;开着也只是"到 N 轮强制 finish 并注记",不改变语义。
+
+## 10. 事件模型(概念)
+
+`loop_started{task}` / `loop_next{delay, reason}`(+durable timer)/
+`loop_round{n}` / `loop_paused/resumed` / `loop_finished{by: agent|user|guard, summary}`。
+实施时可复用 in-session schedule 事件族改语义,或新立 loop_* 族——实施阶段定,
+不影响本设计。
+
+## 11. 非目标(显式)
+
+- ❌ 固定间隔 / cron / "Every" 字段——永不属于 loop;定时值守请用 Scheduled runs。
+- ❌ fresh-child 迭代、verifier 判定(那是 best-of-N / goal 的领地)。
+- ❌ Scheduled 页新建 loop。
+
+## 12. 验收(概念级,批准后细化)
+
+真机:`/loop` 一个真实多轮任务 → 每轮 chips 可见 agent 的 delay+reason;
+等外部事(如 CI)时睡合适时长、没事等时立刻继续;干完自行 finish 且此后
+不再醒;中途插话改向生效;kill -9 daemon 后按 agent 定的 delay 照醒。
