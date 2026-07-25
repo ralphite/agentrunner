@@ -897,7 +897,6 @@ function AddMenuHarness({
         onPickFiles={fn()}
         onToggleGoal={fn()}
         onTogglePlan={fn()}
-        onStartLoop={fn()}
         onStartBest={fn()}
         onToggleBackground={fn()}
         onSelectPersona={fn()}

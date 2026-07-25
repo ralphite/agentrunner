@@ -288,7 +288,7 @@ export function Composer(props: ComposerProps) {
   const [branchInfo, setBranchInfo] = useState<{ isRepo: boolean; current: string; branches: string[]; dirty: number; hasCommits?: boolean } | null>(null);
 
   // goal / loop / best-of-N launcher panel
-  const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop" | "best"; prompt: string }>(null);
+  const [launcher, setLauncher] = useState<null | { mode: "goal" | "best"; prompt: string }>(null);
   const [goalVerifier, setGoalVerifier] = useState("");
   const [goalRounds, setGoalRounds] = useState(10);
   const goalMode = launcher?.mode === "goal";
@@ -948,70 +948,6 @@ export function Composer(props: ComposerProps) {
     selectRun(runId);
   };
 
-  // INC-102 (决策 #21 修订): /loop is the IN-SESSION schedule, not a
-  // fresh-child series — the standing prompt runs round 1 as an ordinary
-  // message and every wake continues the SAME conversation (context carries,
-  // the composer stays usable, steering works). Mirrors startGoal's shape.
-  const startLoop = async (prompt: string, interval: string, iterations: number) => {
-    setBusy(true);
-    try {
-      let sid: string;
-      if (isSession) {
-        sid = (props as any).sid as string;
-        // Round 1 now, in this conversation; wakes take over from the next tick.
-        await api.send(sid, prompt, [], []);
-      } else {
-        const activeAgent = await requireSelectedAgent();
-        const workspace = await ensureWs();
-        if (!workspace) return props.onError("a workspace is required to start a loop");
-        const spec = buildSpec({ agent: activeAgent, access });
-        const r = await api.newSession({
-          provider,
-          model,
-          effort,
-          spec,
-          extraSpecs: [],
-          workspace,
-          message: prompt,
-          mode: accessById(access).mode,
-        });
-        rememberSpec(r.sid, spec, storage.local);
-        rememberModel(r.sid, { provider, model, effort }, storage.local);
-        rememberAccess(r.sid, access, storage.local);
-        sid = r.sid;
-      }
-      // Opening message = round 1, so N rounds = N-1 wakes; a 1-round loop is
-      // just a message and attaches nothing.
-      if (iterations > 1) {
-        try {
-          await api.scheduleAttach(sid, {
-            schedule: "interval",
-            interval,
-            prompt,
-            maxWakes: iterations - 1,
-          });
-          toast(`Loop attached — every ${interval}, ${iterations} rounds in this conversation`, "info");
-        } catch (e: any) {
-          // The session (and round 1) already exists — surface it anyway.
-          props.onError("loop attach failed: " + e.message);
-        }
-      } else {
-        // rounds=1 attaches nothing — say so instead of silently degrading
-        // "Start loop" into a plain message (INC-102 review P2-5).
-        toast("1 round — sent as a single message, no schedule attached", "info");
-      }
-      setLauncher(null);
-      resetInput();
-      if (!isSession) {
-        await refreshSessions();
-        select(sid);
-      }
-    } catch (e: any) {
-      props.onError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   // Best-of-N (schedule: parallel): N isolated attempts from one snapshot,
   // the verifier judges, the best result wins.
@@ -1075,8 +1011,6 @@ export function Composer(props: ComposerProps) {
         setLauncher({ mode: "goal", prompt: rest });
         setText("");
         return;
-      case "loop":
-        setLauncher({ mode: "loop", prompt: rest });
         setText("");
         return;
       case "bestof":
@@ -1356,9 +1290,7 @@ export function Composer(props: ComposerProps) {
               busy,
               onCancel: () => setLauncher(null),
               onStart: (prompt, second, iterations) =>
-                launcher.mode === "loop"
-                  ? startLoop(prompt, second, iterations)
-                  : startBest(prompt, second, iterations),
+                startBest(prompt, second, iterations),
             }
           : undefined
       }
@@ -1553,8 +1485,6 @@ export function Composer(props: ComposerProps) {
             goalMode ? null : { mode: "goal", prompt: text.trim() },
           ),
         onTogglePlan: togglePlanMode,
-        onStartLoop: () =>
-          setLauncher({ mode: "loop", prompt: text.trim() }),
         onStartBest: () =>
           setLauncher({ mode: "best", prompt: text.trim() }),
         onToggleBackground: () =>

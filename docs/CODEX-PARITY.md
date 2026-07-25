@@ -109,7 +109,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | best-of-N | 云端多方案 | ✅ 隔离 worktree + verifier（S7） | 胜者晋升 G15 🧊 |
 | verifier 管线 | 评分黑盒 | ✅ **领先** in-session/driver 均 journaled + approval + OS containment evidence | — |
 | 外部事件唤醒 | GitHub/Linear/Slack | ❌ inbox 原语备，投递壳缺 | **G14** |
-| thread automations | 带上下文定时 | ✅ INC-102：/loop = in-session schedule（同一对话、context 延续、可插话） | — |
+| thread automations | 带上下文定时 | ❌ loop 是 fresh-run 批式 | 随 G23 收编 |
 | cron 跨重启 | 云端天然 | 🧊 backlog | 随 G22 收编 |
 
 ### 07 持久化、恢复、时间旅行（护城河）

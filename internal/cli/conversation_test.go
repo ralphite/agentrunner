@@ -520,14 +520,9 @@ func TestScheduleStatusJSONProjectsTerminalAndLegacySchedules(t *testing.T) {
 	if err := json.Unmarshal(legacyOut.Bytes(), &legacy); err != nil {
 		t.Fatal(err)
 	}
-	// ScheduleControl is TRUE for in-session schedules: pause/resume genuinely
-	// work on them (INC-74 verbs) — hiding the control was a contract lie the
-	// detail panel inherited (INC-102 review P1-2b). NextRunAt is promised for
-	// a live, unpaused schedule (display-only projection).
 	if legacy.Kind != "session" || legacy.Status != "active" ||
 		legacy.Prompt != "Check the release queue" || legacy.Cadence != "Every 45m" ||
-		legacy.Iterations != 1 || legacy.MaxIterations != 8 || !legacy.ScheduleControl ||
-		legacy.NextRunAt == "" {
+		legacy.Iterations != 1 || legacy.MaxIterations != 8 || legacy.ScheduleControl {
 		t.Fatalf("legacy detail = %+v", legacy)
 	}
 

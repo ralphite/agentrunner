@@ -131,7 +131,6 @@ describe("Composer add and advanced menu", () => {
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("menuitem", { name: /Automation/ }));
     expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "Loop Repeat on a cadence" })).toBeTruthy();
     await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
 

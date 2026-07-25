@@ -1,6 +1,5 @@
 import { useEffect, useRef, type Ref } from "react";
 import {
-  ArrowClockwise,
   ArrowUUpLeft,
   ArrowUp,
   CaretLeft,
@@ -590,7 +589,6 @@ export interface AddMenuProps {
   onPickFiles: () => void;
   onToggleGoal: () => void;
   onTogglePlan: () => void;
-  onStartLoop: () => void;
   onStartBest: () => void;
   onToggleBackground: () => void;
   onSelectPersona: (persona: string) => void | Promise<void>;
@@ -610,7 +608,6 @@ export function AddMenu({
   onPickFiles,
   onToggleGoal,
   onTogglePlan,
-  onStartLoop,
   onStartBest,
   onToggleBackground,
   onSelectPersona,
@@ -717,15 +714,6 @@ export function AddMenu({
                 ariaLabel="Back to add menu"
                 onArrowLeft={() => onPageChange("root")}
                 onClick={() => onPageChange("root")}
-              />
-              <PopItem
-                icon={<ArrowClockwise size={14} />}
-                title="Loop"
-                desc="Repeat on a cadence"
-                onClick={() => {
-                  close();
-                  onStartLoop();
-                }}
               />
               <PopItem
                 icon={<ChartBar size={14} />}

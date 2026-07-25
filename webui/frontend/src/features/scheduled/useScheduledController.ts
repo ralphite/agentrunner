@@ -122,7 +122,6 @@ export interface ScheduledController {
   toggleMenuRowRead: () => void;
   toggleMenuRowArchive: () => void;
   stopMenuRow: () => void;
-  detailsMenuRow: () => void;
 }
 
 export function useScheduledController(): ScheduledController {
@@ -291,7 +290,6 @@ export function useScheduledController(): ScheduledController {
             key: `run:${run.id}`,
             id: run.id,
             kind: "run",
-            conversation: false,
             full: run.label || run.id,
             cadence: run.cadence || scheduleLabel(run.schedule),
             project: projectLabel(run.workspace),
@@ -311,11 +309,7 @@ export function useScheduledController(): ScheduledController {
     }
 
     for (const session of sessions) {
-      // INC-102: schedule-attached CONVERSATIONS (kind "session" + rhythm)
-      // list alongside driver series — a /loop now lives in an ordinary
-      // session, and the Scheduled page is how the user finds it again.
-      if (!hasRhythm(session)) continue;
-      if (session.kind !== "driver" && !session.schedule) continue;
+      if (session.kind !== "driver" || !hasRhythm(session)) continue;
       const date = sessionDate(session.id);
       output.push(
         row(
@@ -323,9 +317,6 @@ export function useScheduledController(): ScheduledController {
             key: session.id,
             id: session.id,
             kind: "session",
-            // A non-driver session here is a schedule-attached conversation
-            // (INC-102 /loop) — its lifecycle verbs differ from a series.
-            conversation: session.kind !== "driver",
             full: session.title || session.id,
             cadence: session.cadence || scheduleLabel(session.schedule),
             project: projectLabel(session.workspace),
@@ -336,14 +327,14 @@ export function useScheduledController(): ScheduledController {
             scheduleDetail: !!session.scheduleDetail,
             unread: flagged.has(session.id),
             sortTs: date ? date.getTime() : 0,
-            onClick: () => {
-              // INC-102: every scheduled item opens its CONVERSATION — a
-              // schedule-attached session is an ordinary conversation the
-              // standing prompt re-enters each wake (UJ-14). The typed detail
-              // route (G56) stays reachable via the row menu's
-              // "Schedule details…".
-              if (session.scheduleDetail) markRead(session.id);
-              select(session.id);
+            onClick: (opener) => {
+              if (!session.scheduleDetail) {
+                select(session.id);
+                return;
+              }
+              detailOpener.current = opener || null;
+              markRead(session.id);
+              showScheduledDetail(session.id);
             },
           },
           session.nextRunAt,
@@ -451,26 +442,7 @@ export function useScheduledController(): ScheduledController {
     }
   };
 
-  const cancel = (row: ScheduledRunItemModel) => {
-    if (row.conversation) {
-      // INC-102 (review P0-1): a /loop row is a conversation with a schedule
-      // attached. `ar stop` would close the session WITHOUT cancelling the
-      // schedule — which then revives on the next message (决策 #30). The
-      // honest verb is schedule cancel: detach the loop, keep the thread.
-      openModal({
-        kind: "confirm",
-        title: "Stop this loop?",
-        body: "No more scheduled wakes will run. The conversation stays and you can keep chatting in it.",
-        confirmLabel: "Stop loop",
-        danger: true,
-        onConfirm: async () => {
-          await api.schedule(row.id, "cancel");
-          toast("loop stopped — the conversation stays", "info");
-          clock.setTimeout(refreshSessions, 800);
-        },
-      });
-      return;
-    }
+  const cancel = (sessionId: string) => {
     openModal({
       kind: "confirm",
       title: "Cancel this series?",
@@ -478,7 +450,7 @@ export function useScheduledController(): ScheduledController {
       confirmLabel: "Cancel series",
       danger: true,
       onConfirm: async () => {
-        await api.stopSession(row.id);
+        await api.stopSession(sessionId);
         toast("cancelling the series", "info");
         clock.setTimeout(refreshSessions, 800);
       },
@@ -546,7 +518,7 @@ export function useScheduledController(): ScheduledController {
       requireMenuRow((row) => {
         void cadence(row.id, "pause");
       }),
-    cancelMenuRow: () => requireMenuRow((row) => cancel(row)),
+    cancelMenuRow: () => requireMenuRow((row) => cancel(row.id)),
     toggleMenuRowPin: () => requireMenuRow((row) => togglePin(row.id)),
     renameMenuRow: () =>
       requireMenuRow((row) =>
@@ -565,14 +537,6 @@ export function useScheduledController(): ScheduledController {
     stopMenuRow: () =>
       requireMenuRow((row) => {
         void stopRun(row.id);
-      }),
-    // INC-102: the row's primary click opens the conversation; the typed
-    // schedule-detail route (G56) moves here, one menu hop away.
-    detailsMenuRow: () =>
-      requireMenuRow((row) => {
-        detailOpener.current = contextMenu?.returnFocus || null;
-        markRead(row.id);
-        showScheduledDetail(row.id);
       }),
     detail: {
       sid: scheduledDetailSid,

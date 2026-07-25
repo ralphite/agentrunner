@@ -173,16 +173,6 @@ ${verifiers}
 `;
 }
 
-export function buildLoopDriver(opts: { prompt: string; interval: string; maxIterations: number }): string {
-  return `name: loop
-schedule: interval
-interval: ${JSON.stringify(opts.interval)}
-agent_spec: worker
-prompt: ${JSON.stringify(opts.prompt)}
-max_iterations: ${opts.maxIterations}
-verifiers: []
-`;
-}
 
 export function buildBestOfNDriver(opts: { prompt: string; n: number; verifier?: string }): string {
   const verifiers = opts.verifier?.trim()

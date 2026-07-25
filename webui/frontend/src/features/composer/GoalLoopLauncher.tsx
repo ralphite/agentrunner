@@ -123,12 +123,9 @@ export function GoalLoopLauncher({
             value={iterations}
             onChange={(event) =>
               setIterations(
-                // Rounds are whole numbers — a fractional value would reach
-                // the backend as a non-integer maxWakes and 400 the attach
-                // after round 1 already went out (INC-102 review P2-4).
                 Math.max(
                   mode === "best" ? 2 : 1,
-                  Math.round(Number(event.target.value) || 1),
+                  Number(event.target.value) || 1,
                 ),
               )
             }

@@ -608,40 +608,6 @@ export function RunModal({
     setBusy(true);
     try {
       const workspace = await ensure();
-      // G58 / decision #21 (INC-102): a rhythmic repeat (interval/cron) is an
-      // in-session schedule now, not a fresh-child IterationDriver series —
-      // round 1 runs as an ordinary message in a real conversation and every
-      // wake continues that SAME conversation (context carries, composer stays
-      // usable). Goal (immediate) and Best of N (parallel) are unaffected —
-      // those stay on the driver below. Mirrors ComposerController.startLoop.
-      if (kind === "drive" && (schedule === "interval" || schedule === "cron")) {
-        const r = await api.newSession({
-          provider,
-          model,
-          effort,
-          spec,
-          extraSpecs: [],
-          workspace,
-          message: prompt.trim(),
-          mode,
-        });
-        try {
-          await api.scheduleAttach(r.sid, {
-            schedule,
-            ...(schedule === "interval" ? { interval: interval.trim() } : { cron: cron.trim() }),
-            prompt: prompt.trim(),
-          });
-          toast(`Schedule attached — ${cadenceText({ schedule, interval, cron })}, in this conversation`, "info");
-        } catch (e: any) {
-          // The session (and round 1) already exists — surface it anyway so
-          // the just-created session isn't an orphan.
-          toast("schedule attach failed: " + e.message, "error");
-        }
-        close();
-        await refreshSessions();
-        select(r.sid);
-        return;
-      }
       const driverSpec = withSchedule(withDriverPrompt(driver, prompt), schedule, interval, cron, nAttempts);
       const r = await api.startRun({
         provider,

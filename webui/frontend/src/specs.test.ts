@@ -3,7 +3,6 @@ import type { AgentCatalogEntry } from "./types";
 import {
   ACCESS_LEVELS,
   agentById,
-  buildLoopDriver,
   buildSpec,
   legacyModelFromSpec,
   runtimeModeTarget,
@@ -58,11 +57,6 @@ describe("shared Agent catalog projection", () => {
     expect(spec).not.toContain("  - { action: allow }");
   });
 
-  it("drivers reference the same catalog by Agent name", () => {
-    const driver = buildLoopDriver({ prompt: "keep going", interval: "5m", maxIterations: 3 });
-    expect(driver).toContain("agent_spec: worker");
-    expect(driver).not.toContain("model:");
-  });
 
   it("migrates browser-local legacy Agent YAML without resubmitting model", () => {
     const legacy = `name: old

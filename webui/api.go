@@ -1569,12 +1569,7 @@ func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {
 	if !readBody(w, r, &req) {
 		return
 	}
-	if req.Action == "pause" || req.Action == "resume" || req.Action == "cancel" {
-		// cancel (INC-102 review P0-1): detaches the in-session schedule and
-		// journals its terminal — the conversation itself stays. This is the
-		// honest "stop the loop" verb; `ar stop` would close the session
-		// WITHOUT cancelling the schedule, which then revives on the next
-		// message (决策 #30 close semantics).
+	if req.Action == "pause" || req.Action == "resume" {
 		s.oneShotHandler("ar schedule", func(id string) []string {
 			return []string{"schedule", id, req.Action}
 		})(w, r)
@@ -1621,10 +1616,7 @@ func (s *server) handleScheduleControl(w http.ResponseWriter, r *http.Request) {
 			}
 			args = append(args, "--max-wakes", strconv.Itoa(*req.MaxWakes))
 		}
-		// The prompt rides after a "--" so a prompt that happens to start
-		// with "-" is never parsed as a flag (same discipline as
-		// composer_api.go's draft; INC-102 review P1-1).
-		args = append(args, "--", *req.Prompt)
+		args = append(args, *req.Prompt)
 		res := s.runAR(r.Context(), oneShotTimeout, args...)
 		if res.Err != nil {
 			arFail(w, "ar schedule attach", res)

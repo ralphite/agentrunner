@@ -58,10 +58,6 @@ export interface ScheduledRunItemModel {
   key: string;
   id: string;
   kind: "session" | "run";
-  // conversation = the row is a schedule-attached CONVERSATION (INC-102
-  // /loop), not a driver series. Its lifecycle verbs differ: "stop the loop"
-  // detaches the schedule and keeps the thread (review P0-1).
-  conversation: boolean;
   title: string;
   full: string;
   cadence: string;
@@ -293,7 +289,6 @@ export interface ScheduledRunActionsProps {
   onToggleRead: () => void;
   onToggleArchive: () => void;
   onStop: () => void;
-  onDetails: () => void;
 }
 
 export function ScheduledRunActions({
@@ -314,7 +309,6 @@ export function ScheduledRunActions({
   onToggleRead,
   onToggleArchive,
   onStop,
-  onDetails,
 }: ScheduledRunActionsProps) {
   return (
     <ContextMenu
@@ -327,11 +321,6 @@ export function ScheduledRunActions({
       <MenuLabel>{row.title}</MenuLabel>
       {row.kind === "session" ? (
         <>
-          {row.scheduleDetail && (
-            // INC-102: the row itself opens the conversation; the typed
-            // schedule-detail route (G56) lives here.
-            <MenuItem onClick={onDetails}>Schedule details…</MenuItem>
-          )}
           {row.scheduleControl && row.paused ? (
             <MenuItem onClick={onResume}>Resume</MenuItem>
           ) : row.recover ? (
@@ -345,14 +334,10 @@ export function ScheduledRunActions({
           {!row.paused && !row.settled && (
             <MenuItem
               danger
-              title={
-                row.conversation
-                  ? "detach the loop's schedule; the conversation stays"
-                  : "no more iterations; the series records its cancelled terminal"
-              }
+              title="no more iterations; the series records its cancelled terminal"
               onClick={onCancel}
             >
-              {row.conversation ? "Stop loop…" : "Cancel series…"}
+              Cancel series…
             </MenuItem>
           )}
           <MenuLabel>Organize</MenuLabel>

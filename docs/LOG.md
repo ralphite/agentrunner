@@ -7789,46 +7789,6 @@ menuitem 的 click，同时保留 ArrowDown 打开与每页自动 focus hand-off
 fresh reviewer 独立批准更新后的 `components-input` digest。ComposerParts 67/67
 连续五轮、全量 564/564 Story interaction 与完整 Web UI/repository gate 再次通过。
 
----
-
-## 2026-07-24 · INC-102 loop 与 scheduled 对话化(决策 #21 修订:driver 收窄为 best-of-N 专用)
-
-**背景**:用户产品要求——composer 的 loop/goal 应像普通消息一样以对话渲染;
-Scheduled 每个 item 点开也应是对话 UI。对码(main dc2c58d2):`/goal` 已会话化
-(前期并发工作);`/loop` 仍 fresh-child series(不是对话、composer 被禁);
-Scheduled 点开三分裂(run 日志/series 页/设置面板,面板无对话入口)。
-
-**裁决(决策 #21 修订,不变量流程,修订与实现同 commit 8ef52b69)**:
-IterationDriver 收窄为 best-of-N/one-shot 专用;**loop 用户默认形态 =
-in-session schedule**(INC-74 底座):standing prompt 每 wake 在同一对话跑
-普通 turn。批式 loop/driver-goal 降 legacy 兼容。CODEX-PARITY #112 ❌→✅。
-
-**落地**:102.1 webui HTTP `action:"attach"`(映射 CLI,argv 单测);102.2
-`/loop` 改道(Home=newSession(prompt 即 round1)+attach(maxWakes=rounds-1),
-会话内=send+attach)、Scheduled 行点击统一 select(sid)、G56 detail 挪行菜单
-"Schedule details…"、timeline 补 schedule_attached/wake(skipped=warn)/paused/
-resumed/cancelled chips(不置 isDriver);102.2b(真机揪出)sessions 列表补
-in-session schedule 投影(kind 保持 session,cancelled 折 nil 自动掉行,
-scheduleNextWake 仅显示用)+ 前端 rows 放行 kind"session"+schedule;附带补
-in-session detail 的 NextRunAt。
-
-**验收**:闸门 A——go cli 全包绿 + vitest 861/861 + build 绿(新增
-TestCLISessionsProjectsInSessionSchedule、schedule chips 测试、row-click 进
-对话测试;G56 六用例改经菜单入口)。闸门 B(QA-0724,真浏览器,05a19ad9)
-PASS 5/5:落普通对话、wake 轮凭记忆报上轮文件(context 延续硬证据)、中途
-插话即答、Scheduled 行点击直进对话+G56 面板保留、旧 series 兼容。韧性加分:
-attach 恰逢无 key daemon,durable 命令在 daemon 修复后自动应用零丢失。
-
-**环境记档(非本增量代码)**:deploy.sh 直启 daemon 继承调用 shell env,本机
-shell 无 GEMINI_API_KEY 时重启出的 daemon 无法 host 唤醒(daemon.log
-`GEMINI_API_KEY not set`);以 SIGTERM+kickstart webui(--env-file)恢复。
-建议 deploy.sh env 透传或交 webui 托管,待立项。
-
-**遗留(小,记档)**:in-session schedule 的 detail 面板 ScheduleControl 仍按
-既有契约为 false(pause 按钮不显——CLI/行菜单可 pause);面板 Model/Reasoning
-对 in-session 形态显 Not recorded/Off(未投影 spec)。均属可见性小项,待
-review 裁级。
-
 ## 2026-07-24 · QA-0724-goal (goal×plan) 首用事故：runtime 指令冲突 + UI 四重陈述 + 骨架饿死，及流程固化
 
 用户首次真实使用 webui「Goal + Plan (read-only)」组合
@@ -7892,21 +7852,6 @@ TestGoalAttachDedupsOpeningPrompt / TestGoalVerifyPlanModeShortCircuit；
 no-skeleton/single-flight。残留小项（不阻塞）：goal 已终结后轮询延迟窗
 内 banner pause 点击得 no_op 无 toast 反馈；GoalLoopLauncher 的 goal
 分支已被 composer Goal chip 形态取代成死路径待清理——记 GAPS。
-**INC-102.5 对抗 review 与修复(2026-07-24,独立 agent 三视角,用户点名)**:
-裁决「骨架站得住,控制面不站得住」——P0-1 loop 行 "Cancel series…" 走 `ar
-stop`(不摘 schedule,下条消息复活,destructive 撒谎);P1-1 attach argv 缺
-`--`(`-` 开头 prompt 必挂且误导重部署);P1-2 paused 后 webui 无法 resume
-(行不投 paused + detail ScheduleControl 漏投,裁为契约撒谎);P1-3 closed 会话
-仍许诺假 next run;P1-4 文档断言超前(Scheduled 新建仍 legacy driver)。**全部
-修复**:cancel 分流 `ar schedule cancel`(行模型加 conversation 判别,文案
-"Stop loop…/对话保留");attach 补 `--`+dash 单测;行投 paused、detail
-ScheduleControl=true(翻转原锚,测试同改)+NextRunAt;两处投影加 closed 门;
-DESIGN #21 措辞收窄 + GAPS **G59** 登记新建入口余项;P2 修 launcher 取整与
-rounds=1 反馈,其余 P2(cadence 双方言/detail 差一/model 空投/attach 静默替换/
-buildLoopDriver 死代码)记档待理。review 亦证伪:argv 注入不成立(exec 直传、
-flag 面收敛)、scheduleNextWake 追赶实测 778 万次迭代 0.07s、投影白名单与
-series 同纪律。QA-0724 补第 6 条(pause→resume→cancel→消息不复活)随本轮真机。
-
 ## 2026-07-24 · G58 关闭 + deploy.sh env 修复（QA-0724-goal 余项清零）
 
 三件收尾一批落地：① **no_op 回执可见**（G58①）——goal 控制与 goal 终结
@@ -7927,48 +7872,6 @@ stories 矩阵同步。③ **deploy.sh daemon env**——修当日并发 session
 真机部署验证（daemon env 含 key、no_op toast 路径 API 抽验）。GAPS G58
 ✅。
 
-## 2026-07-24 · G59 收编：Scheduled 页 Repeating/suggestions 改接 INC-102 新流（原误重号 G58）
-
-**背景**：INC-102 把 composer `/loop` 改为 in-session schedule（对话形态），
-但 Scheduled 页 Create→Repeating 与 suggestion 卡的新建入口没跟上——仍经
-`Modals.tsx` 的 run modal 走 `api.startRun({kind:"drive", ...})` 造
-fresh-child IterationDriver series。登记时误用了已被占用的编号 G58（GAPS
-已有一条已关闭的「goal 终结后的残留交互回声」同号），本次收编顺带发现并
-修正——`scripts/lint-docs.sh` 的 GAPS 编号唯一检查此前实际处于**红**（main
-`b261889` 起即重号，此前未被跑过/未被注意），改号 G59 后转绿。
-
-**动作**：`RunModal.start()`（`webui/frontend/src/components/Modals.tsx`）
-在提交处按当前表单状态分流，不重写整个 modal——`kind==="drive"` 且
-`schedule` 为 `interval`/`cron` 时（repeating 预设与全部三张 suggestion
-卡片的默认形状）改走 `api.newSession(...)`（提交的 prompt = round 1）
-+ `api.scheduleAttach(sid, {schedule, interval|cron, prompt})`，随后
-`select(sid)` 落进普通对话——镜像 `ComposerController.startLoop` 的形状
-（session 建好后 attach 失败也不吞会话，toast 报错）。`schedule` 为
-`immediate`（Goal 预设）或 `parallel`（Best of N 预设）时行为不变，仍走
-原 `withSchedule`/`withDriverPrompt` + driver YAML 的 legacy 路径；
-`useScheduledController.ts` 的 `create`/`selectSuggestion` 无需改动——两者
-只是打开同一个 run modal，preset "repeating" 与 suggestion 卡片默认
-schedule 本就是 interval/cron，自然落进新分支。Advanced settings 的
-driver YAML 逃生门未动（对 interval/cron 分支不再被读取，但按任务范围
-保留原样，未在本增量里处理其可见性）。
-
-**验证**：`npm run test`（874/874 绿）+ `npm run build`（tsc+vite 绿）；
-`Modals.scheduleRoute.test.tsx` 重写为三态：① repeating 预设提交 →
-`api.newSession`+`api.scheduleAttach`、落 `select(newSession.sid)`、
-不碰 `startRun`/`selectRun`；② Goal 预设（`schedule: immediate`）→
-仍走 `api.startRun({kind:"drive"})`，不碰新流；③ Best of N 预设
-（`schedule: parallel`）→ 同上。Go 面本次未改动（后端 `action:"attach"`
-端点 INC-102.1 已具备），未跑 `go test`。**闸门 B（真机）未做**——本次
-在云端 session 里执行，无 `GEMINI_API_KEY`、无 live 8809 webui，不具备
-真实 API QA 条件，如实记为待办，不得声称已真机验证；PROCESS §三第 8 条
-"首用旅程闸"（新入口标 ✅ 前须真实首用旅程 + turn 中/终态双截屏）留给
-用户本地环境或 GitHub Actions `qa-blackbox` 补齐。
-
-**记档**：GAPS 条目改号 G58→G59 并标 ✅ 已关闭（原文保留改号说明）；
-`docs/DESIGN.md` 决策 #21 的措辞此前已在 INC-102 收窄到位，本次无需
-再改。
-
----
 
 ## 2026-07-24 · INC-103 Storybook 真实人类节奏与复杂 QA Demo
 
@@ -7999,3 +7902,17 @@ detail 不再在 play 中自动 Pause，选中行 Running、详情 Active、动�
 前者按现行产品 copy 校正，后者用两行稳定 grid 收住所有 44px action，定向 60/60
 Story interaction 转绿。QA-94 有效截图与 shared data 全保留，空白 manager 校准图
 拒收并移出证据目录。
+
+---
+
+## 2026-07-25 · loop-mode 全部移除(用户裁决,重新设计中)
+
+用户裁定 INC-102 一系产出与其点名的 Claude Code loop mode(自定步调、agent
+自行终止)语义不符,指令"全部移除、如未发生过、重做且设计先行"。本条为
+append-only 台账对该移除的唯一记录:revert 2c49b5ae/8ef52b69/05a19ad9/
+325a2db3/854ebbb2/3c6dceb2/931eb1c5 七提交(attach HTTP 面、/loop 会话化、
+Scheduled 点开进对话、sessions 投影、review 修复、G59 收编),另摘除既有
+`/loop` 用户入口(slash+add-menu+launcher 接线+buildLoopDriver)。in-session
+schedule runtime(INC-74)、goal、best-of-N、INC-85/86 修复不受影响。
+DESIGN 决策 #21 还原为 INC-102 前原文。重做设计稿 INC-103(设计先行,
+经用户评审后才实施)。
