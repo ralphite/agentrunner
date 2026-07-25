@@ -863,6 +863,7 @@ export function AccessPicker({
       align="left"
       panelClass="cx-pop-codex"
       panelRole={session ? "dialog" : "menu"}
+      menuInitialFocus={session ? "first" : "active"}
       ariaLabel={session ? "Access options" : undefined}
       trigger={(open, toggle) => (
         <button

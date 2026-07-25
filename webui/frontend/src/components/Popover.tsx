@@ -55,6 +55,7 @@ export function Popover({
   panelClass = "",
   wrapClass = "",
   panelRole = "menu",
+  menuInitialFocus = "first",
   ariaLabel,
   onOpen,
 }: {
@@ -64,6 +65,7 @@ export function Popover({
   panelClass?: string;
   wrapClass?: string;
   panelRole?: "menu" | "dialog";
+  menuInitialFocus?: "first" | "active";
   ariaLabel?: string;
   onOpen?: () => void;
 }) {
@@ -80,11 +82,10 @@ export function Popover({
     ) ?? null;
   const allMenuItems = () => getMenuItems(panelRef.current);
   const enabledMenuItems = () => getAvailableMenuItems(panelRef.current);
-  // A selection is the safest initial keyboard position: opening a menu and
-  // pressing Enter must never drift to the first (potentially higher-risk)
-  // option merely because it is first in DOM order. PopItem supplies the
-  // data attribute so this stays a shared menu-primitive rule, not a
-  // composer-specific exception.
+  // A selection can be the safest initial keyboard position for choice
+  // pickers. Popovers otherwise preserve their established first-item default
+  // (for example, scope pickers where the first row is intentionally the
+  // primary action). PopItem supplies the shared data attribute.
   const selectedMenuItem = () =>
     enabledMenuItems().find(
       (item) =>
@@ -209,7 +210,8 @@ export function Popover({
     if (!open || !placed || autoFocusedRef.current) return;
     const target =
       panelRole === "menu"
-        ? selectedMenuItem() ?? enabledMenuItems()[0]
+        ? (menuInitialFocus === "active" ? selectedMenuItem() : null) ??
+          enabledMenuItems()[0]
         : panelRef.current?.querySelector<HTMLElement>(
             "[data-popover-autofocus]",
           );
@@ -233,7 +235,7 @@ export function Popover({
       else target.focus();
       if (document.activeElement === target) autoFocusedRef.current = true;
     }, 50);
-  }, [open, panelRole, placed]);
+  }, [menuInitialFocus, open, panelRole, placed]);
 
   // Menu contents can change while the temporary surface stays open (loading,
   // filtering, permissions). Keep exactly one available item in the roving tab

@@ -17,10 +17,12 @@
 ## Changed files
 
 - `webui/frontend/src/components/Popover.tsx`
+- `webui/frontend/src/features/composer/ComposerParts.tsx`
 - `webui/frontend/src/components/ComposerParts.stories.tsx`
 
 ## Verification
 
 - 独立盲审先发现问题；本机真实运行时复现了改前 `Full access` 获得初始焦点。
 - 修复后同一运行时确认 `Ask to approve` 获得初始焦点与整行 focus ring。
-- 定向 Storybook：`ComposerParts.stories.tsx` 67/67 通过；远端 CI 链接在 push 后提供。
+- 定向 Storybook：`ComposerParts.stories.tsx` 与 `DiffParts.stories.tsx` 86/86 通过；远端
+  CI 链接在 push 后提供。
