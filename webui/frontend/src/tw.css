@@ -1575,6 +1575,7 @@
   .rs-kv-row { @apply flex justify-between gap-3 border-t border-line-2 py-2 text-[13px]; }
   .rs-archive-groups, .rs-wt-sessions { @apply grid gap-2; }
   .rs-archive-status, .rs-wt-path, .rs-wt-count { @apply text-[12px] text-dim; }
+  .rs-wt-current { @apply rounded-full bg-blue-soft px-1.5 py-0.5 text-[11px] font-medium text-blue; }
   .rs-tp, .rs-tp-body { @apply rounded-[10px] border border-line bg-panel p-2; }
 
   .hl-kw { color: var(--hl-kw); }

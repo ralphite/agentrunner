@@ -6,12 +6,14 @@ export interface WorktreeSessionItem {
 interface WorktreeCardProps {
   workspace: string;
   sessions: WorktreeSessionItem[];
+  isCurrent?: boolean;
   onOpenSession: (sessionId: string) => void;
 }
 
 export function WorktreeCard({
   workspace,
   sessions,
+  isCurrent = false,
   onOpenSession,
 }: WorktreeCardProps) {
   return (
@@ -26,6 +28,7 @@ export function WorktreeCard({
         <span className="rs-wt-count shrink-0 whitespace-nowrap">
           {sessions.length} conversation{sessions.length === 1 ? "" : "s"}
         </span>
+        {isCurrent && <span className="rs-wt-current">Current</span>}
       </div>
       <div className="rs-wt-sessions min-w-0">
         {sessions.map((session) => (

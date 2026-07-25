@@ -15,6 +15,7 @@ beforeEach(() => {
   useStore.setState({
     sessions: [{ id: "session-mobile", status: "idle", turns: 1, workspace, title }],
     renames: {},
+    currentSid: null,
     select,
   });
 });
@@ -59,5 +60,37 @@ describe("SettingsWorktrees mobile layout", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show 5 more · 5 remaining" }));
     expect(container.querySelectorAll(".rs-wt-card")).toHaveLength(45);
     expect(screen.queryByRole("button", { name: /remaining/ })).toBeNull();
+  });
+
+  it("puts the current session workspace first and marks it", () => {
+    useStore.setState({
+      sessions: [
+        { id: "session-a", status: "idle", turns: 1, workspace: "/workspace/a", title: "Alphabetical first" },
+        { id: "session-z", status: "idle", turns: 1, workspace: "/workspace/z", title: "Current session" },
+      ],
+      renames: {},
+      currentSid: "session-z",
+      select,
+    });
+
+    const { container } = render(<SettingsWorktrees query="" />);
+    expect([...container.querySelectorAll(".rs-wt-path")].map((path) => path.textContent)).toEqual(["/workspace/z", "/workspace/a"]);
+    expect(screen.getByText("Current")).toBeTruthy();
+  });
+
+  it("keeps alphabetical workspace order when no session is current", () => {
+    useStore.setState({
+      sessions: [
+        { id: "session-z", status: "idle", turns: 1, workspace: "/workspace/z", title: "Later workspace" },
+        { id: "session-a", status: "idle", turns: 1, workspace: "/workspace/a", title: "Earlier workspace" },
+      ],
+      renames: {},
+      currentSid: null,
+      select,
+    });
+
+    const { container } = render(<SettingsWorktrees query="" />);
+    expect([...container.querySelectorAll(".rs-wt-path")].map((path) => path.textContent)).toEqual(["/workspace/a", "/workspace/z"]);
+    expect(screen.queryByText("Current")).toBeNull();
   });
 });

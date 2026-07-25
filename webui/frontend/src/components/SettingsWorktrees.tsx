@@ -15,6 +15,7 @@ export function SettingsWorktrees({ query }: { query: string }) {
   const store = useAppStoreApi();
   const sessions = useStore((s) => s.sessions);
   const renames = useStore((s) => s.renames);
+  const currentSid = useStore((s) => s.currentSid);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => setVisibleCount(PAGE_SIZE), [query]);
@@ -29,7 +30,14 @@ export function SettingsWorktrees({ query }: { query: string }) {
     byWorkspace.set(ws, list);
   }
   const all = [...byWorkspace.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const filtered = all.filter(([ws, sessions]) => matchesQuery(query, ws + " " + sessions.map((t) => t.title).join(" ")));
+  const currentWorkspace = currentSid ? sessions.find((session) => session.id === currentSid)?.workspace : undefined;
+  const ordered = currentWorkspace
+    ? [
+        ...all.filter(([workspace]) => workspace === currentWorkspace),
+        ...all.filter(([workspace]) => workspace !== currentWorkspace),
+      ]
+    : all;
+  const filtered = ordered.filter(([ws, sessions]) => matchesQuery(query, ws + " " + sessions.map((t) => t.title).join(" ")));
   const visible = filtered.slice(0, visibleCount);
 
   return (
@@ -45,6 +53,7 @@ export function SettingsWorktrees({ query }: { query: string }) {
           key={ws}
           workspace={ws}
           sessions={sessions}
+          isCurrent={ws === currentWorkspace}
           onOpenSession={(sessionId) => store.getState().select(sessionId)}
         />
       ))}

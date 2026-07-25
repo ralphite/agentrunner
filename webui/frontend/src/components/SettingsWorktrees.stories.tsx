@@ -84,6 +84,22 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const CurrentWorkspaceFirst: Story = {
+  render: (args) => (
+    <StoryAppFrame initialState={{ ...worktreeState, currentSid: "handoff-doc" }}>
+      <div className="mx-auto max-w-[760px] p-6">
+        <WorktreesStory {...args} />
+      </div>
+    </StoryAppFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const paths = [...canvasElement.querySelectorAll(".rs-wt-path")].map((path) => path.textContent);
+    await expect(canvas.getByText("Current")).toBeVisible();
+    await expect(paths).toEqual(["/Users/demo/docs", "/Users/demo/agentrunner"]);
+  },
+};
+
 export const KeyboardNavigation: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
