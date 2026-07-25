@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CaretRight, Folder, Globe, Terminal, X } from "@phosphor-icons/react";
 import { useAppServices } from "../app/appServices";
 import { useStore, type ModalKind } from "../store";
@@ -235,6 +235,12 @@ export function PromptModal({
   onSubmit: (value: string) => void;
 }) {
   const { openPrompt } = useStore();
+  // `autoFocus` runs before FocusScope records its implicit previous element.
+  // Keep the actual opener during render so Escape and Cancel return to the
+  // exact row/button that launched the prompt instead of falling back to body.
+  const returnFocus = useRef<HTMLElement | null>(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
   const inputId = useId();
   const [value, setValue] = useState(initial || "");
   const close = () => openPrompt(null);
@@ -248,6 +254,7 @@ export function PromptModal({
     <Modal
       title={title}
       onClose={close}
+      returnFocus={returnFocus.current ?? undefined}
       footer={
         <>
           <Button variant="ghost" onClick={close}>Cancel</Button>

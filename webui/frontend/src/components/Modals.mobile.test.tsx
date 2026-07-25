@@ -1,17 +1,42 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { useStore } from "../store";
 import { Modals } from "./Modals";
 
 afterEach(() => {
   cleanup();
-  useStore.setState({ modal: null });
+  useStore.setState({ modal: null, prompt: null });
   document.documentElement.style.removeProperty("--app-vvh");
 });
 
 describe("mobile modal shell", () => {
+  it("returns focus to the prompt opener after Escape", async () => {
+    const { getByRole } = render(
+      <>
+        <button type="button">Create branch</button>
+        <Modals />
+      </>,
+    );
+    const opener = getByRole("button", { name: "Create branch" });
+    opener.focus();
+
+    act(() => {
+      useStore.setState({
+        prompt: {
+          title: "Create branch",
+          label: "branch name",
+          onSubmit: vi.fn(),
+        },
+      });
+    });
+    expect(screen.getByRole("dialog", { name: "Create branch" })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+
   it("keeps one scroll region with fixed chrome and a full-size close target", () => {
     useStore.setState({
       modal: {
