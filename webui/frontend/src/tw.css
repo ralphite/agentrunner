@@ -944,6 +944,14 @@
   .utext { @apply whitespace-pre-wrap [overflow-wrap:anywhere]; }
   .utext.clamped { @apply max-h-[220px] overflow-hidden; }
   .ushow { @apply mt-1 border-0 bg-transparent p-0 text-[12px] text-blue; }
+  /* A child session opens with the agent's complete instruction packet. The
+     page chrome already carries a concise identity; keep this raw hand-off
+     available without letting internal policy text consume the first screen. */
+  .delegated-task { @apply text-[13px] text-dim; }
+  .delegated-task > summary { @apply cursor-pointer list-none text-ink; }
+  .delegated-task > summary::before { content: "›"; @apply mr-1 inline-block text-dim; }
+  .delegated-task[open] > summary::before { content: "⌄"; }
+  .delegated-task .utext { @apply mt-2 text-ink; }
   .thumbs, .imgchips { @apply mt-2 flex flex-wrap gap-2; }
   .thumb, .imgchip { @apply h-[84px] w-[120px] overflow-hidden rounded-[10px] border border-line bg-panel-2 object-cover; }
   .thumb-button { @apply m-0 h-[84px] w-[120px] overflow-hidden rounded-[10px] border border-line bg-panel-2 p-0; }

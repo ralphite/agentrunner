@@ -117,6 +117,23 @@ describe("Subagents mobile layout", () => {
     expect(onOpen).toHaveBeenCalledWith("parent-sub-call_1_0-a1");
   });
 
+  it("keeps the first business step when setup instructions come first", () => {
+    render(
+      <Subagents
+        nodes={[{ agent: "engineer", session: "child-a", status: "running" }]}
+        delegations={[{
+          assigned_to: "child-a",
+          description:
+            "你扮演成员 engineer。按要求执行以下步骤： 1. 使用 `glob` 和 `read_file` 检查文件。 2. 在 version.go 中实现 Compare(a, b string) int 函数。 3. 使用 bash 运行测试。",
+        }]}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("在 version.go 中实现 Compare(a, b string) int 函数")).toBeTruthy();
+    expect(screen.queryByText(/read_file|glob/)).toBeNull();
+  });
+
   it("lets a typed approval wait outrank the broad waiting status", () => {
     render(
       <Subagents

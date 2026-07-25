@@ -96,6 +96,25 @@ describe("TR-1 — turn separator", () => {
 
 });
 
+describe("child session opening task", () => {
+  it("keeps the raw delegated prompt behind one explicit disclosure", () => {
+    const { container } = render(
+      <TimelineView
+        isSubagentSession
+        items={[user("u1", "[workspace note] Use the isolated snapshot.\n\nReview keyboard focus."), assistant("a1", "Completed.")]}
+        pending={[]}
+        typing=""
+        showSys={false}
+      />,
+    );
+
+    const task = container.querySelector("details.delegated-task") as HTMLDetailsElement;
+    expect(task).not.toBeNull();
+    expect(task.open).toBe(false);
+    expect(task.querySelector("summary")?.textContent).toBe("Delegated task");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // TR-2 — a timestamp that can't say WHICH DAY is useless on a multi-day session.
 //

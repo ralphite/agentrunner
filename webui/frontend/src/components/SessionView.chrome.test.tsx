@@ -768,7 +768,7 @@ describe("sub-agent session identity", () => {
     const { container } = render(<SessionView sid={childSid} />);
     await waitFor(() =>
       expect(container.querySelector(".tt-title")?.textContent).toBe(
-        "Review keyboard focus across the project sidebar. Verify the More-menu return path.",
+        "worker_b · Review keyboard focus across the project sidebar",
       ),
     );
     expect(container.querySelector(".readonly-tag")?.textContent).toContain("Read-only sub-agent");

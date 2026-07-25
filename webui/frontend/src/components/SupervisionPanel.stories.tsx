@@ -265,7 +265,7 @@ export const Default: Story = {
     await expect(canvas.getByText("Background processes")).toBeVisible();
     await expect(canvas.getByText("Progress")).toBeVisible();
     await expect(
-      canvas.getByText("Implement compact Environment panel interactions."),
+      canvas.getByText("Implement compact Environment panel interactions"),
     ).toBeVisible();
     await expect(canvas.getByText("Attention")).toBeVisible();
   },
@@ -329,7 +329,7 @@ export const FailureUnknownAndOverflow: Story = {
     ).toBeVisible();
     await expect(canvas.getByText("Session needs recovery")).toBeVisible();
     await expect(
-      canvas.getByText("Compare the completed panel with Codex."),
+      canvas.getByText("Compare the completed panel with Codex"),
     ).toBeVisible();
   },
 };

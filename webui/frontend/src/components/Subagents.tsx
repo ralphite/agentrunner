@@ -126,23 +126,31 @@ export function subagentTaskSummary(
   node: InspectNode,
   delegation?: InspectDelegation,
 ): string | undefined {
-  const task = delegatedTask(node, delegation);
+  return subagentTaskSummaryText(delegatedTask(node, delegation));
+}
+
+// The same short task label belongs in the child session's chrome. Keeping the
+// policy in one place prevents the sidebar from being scannable while the page
+// it opens repeats a page-long delegation prompt.
+export function subagentTaskSummaryText(task?: string): string | undefined {
   if (!task) return undefined;
   const withoutPersona = task
     .replace(/^(?:you are|you will|你(?:是|扮演)).*?[。！？.!?]\s*/i, "")
     .replace(/^(?:按要求执行(?:以下)?步骤|follow (?:these )?steps)[:：]?\s*/i, "")
     .replace(/^\d+[.、)]\s*/, "")
     .trim();
-  const sentence = withoutPersona.split(/[。！？.!?]/, 1)[0]?.trim() || "";
-  // Tool-heavy prompts and internal identifiers are implementation detail, not
-  // useful scan text. Their full content is available after opening the child.
-  if (
-    !sentence ||
-    /`|\b(?:glob|read_file|web_fetch|send_message|spawn_agent|session[_ -]?id)\b|child[_ -]?session|call_\w+/i.test(sentence)
-  ) {
-    return "Delegated task";
-  }
-  return sentence.length > 88 ? `${sentence.slice(0, 85).trimEnd()}…` : sentence;
+  const isInternal = (value: string) =>
+    /\b(?:glob|read_file|web_fetch|send_message|spawn_agent|session[_ -]?id)\b|child[_ -]?session|call_\w+/i.test(value);
+  // Delegations commonly lead with tool setup, then state the actual job in a
+  // numbered step. Skip the setup and retain the first business action. This
+  // makes `engineer · Implement Compare in version.go` scannable without ever
+  // surfacing internal tool routing or child ids.
+  const candidate = withoutPersona
+    .split(/(?:^|\s)\d+[.、)]\s*/)
+    .map((part) => part.split(/(?:[。！？!?]+|\.(?=\s|$))/, 1)[0]?.trim() || "")
+    .find((part) => part && !isInternal(part)) || "";
+  if (!candidate) return "Delegated task";
+  return candidate.length > 88 ? `${candidate.slice(0, 85).trimEnd()}…` : candidate;
 }
 
 export function subagentPrimaryIdentity(

@@ -942,7 +942,7 @@ export function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-export function Item({ it, sentImages, last, deferActions, onContinue }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void> }) {
+export function Item({ it, sentImages, last, deferActions, onContinue, delegatedTask = false }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void>; delegatedTask?: boolean }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -973,7 +973,14 @@ export function Item({ it, sentImages, last, deferActions, onContinue }: { it: T
           <div className="msg-col user">
             <div className="bubble">
               {hasText ? (
-                <CollapsibleUserText text={it.text} />
+                delegatedTask ? (
+                  <details className="delegated-task">
+                    <summary>Delegated task</summary>
+                    <CollapsibleUserText text={it.text} />
+                  </details>
+                ) : (
+                  <CollapsibleUserText text={it.text} />
+                )
               ) : !hasAttach ? (
                 // An empty prompt would otherwise render as a bare blank bubble
                 // (R4-10) — label it instead of showing an empty blob.
@@ -1248,6 +1255,8 @@ export function TimelineEmptyState() {
 
 export interface TimelineViewProps {
   sessionKey?: string;
+  /** A child session's first input is delegation machinery, not a chat turn. */
+  isSubagentSession?: boolean;
   items: TimelineItem[];
   pending: TimelinePendingMessageModel[];
   typing: string;
@@ -1268,6 +1277,7 @@ export interface TimelineViewProps {
 
 export function TimelineFeature({
   sessionKey,
+  isSubagentSession = false,
   items,
   pending,
   typing,
@@ -1368,6 +1378,7 @@ export function TimelineFeature({
   return (
     <TimelineContentView
       scroll={scroll}
+      isSubagentSession={isSubagentSession}
       nodes={nodes}
       pending={pending}
       typing={typing}
@@ -1394,6 +1405,7 @@ export function TimelineFeature({
 
 interface TimelineContentViewProps {
   scroll: TimelineScrollController;
+  isSubagentSession: boolean;
   nodes: RenderNode[];
   pending: TimelinePendingMessageModel[];
   typing: string;
@@ -1418,6 +1430,7 @@ interface TimelineContentViewProps {
 
 function TimelineContentView({
   scroll,
+  isSubagentSession,
   nodes,
   pending,
   typing,
@@ -1464,6 +1477,7 @@ function TimelineContentView({
           // stall or a changes card, while the user message that opens the next
           // one is the single landmark every turn is guaranteed to have. The
           // first user message opens nothing, so it gets no rule.
+          const openingDelegatedTask = isSubagentSession && it.kind === "user" && !seenUser;
           const sep = it.kind === "user" && seenUser;
           if (it.kind === "user") seenUser = true;
           if (it.kind === "retried") {
@@ -1503,6 +1517,7 @@ function TimelineContentView({
                 last={it.kind === "assistant" && it.key === lastAssistantKey}
                 deferActions={it.kind === "assistant" && it.key === lastAssistantKey && deferLastActions}
                 onContinue={onContinue}
+                delegatedTask={openingDelegatedTask}
               />
             </Fragment>
           );

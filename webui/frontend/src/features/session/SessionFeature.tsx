@@ -11,6 +11,7 @@ import { DiffView } from "../../components/DiffView";
 import {
   childAnswerRequests,
   subagentTaskLabel,
+  subagentTaskSummaryText,
   type InspectDelegation,
   type InspectNode,
 } from "../../components/Subagents";
@@ -708,8 +709,14 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     const started = events.find((event) => event.type === "session_started");
     return subagentTaskLabel(started?.payload?.opening_prompt);
   }, [events, isSub]);
+  const subagentTaskSummary = useMemo(
+    () => subagentTaskSummaryText(subagentTaskTitle),
+    [subagentTaskTitle],
+  );
   const visibleTitle = isSub
-    ? subagentTaskTitle || subAgentName || title
+    ? [subAgentName, subagentTaskSummary || subagentTaskTitle || title]
+        .filter(Boolean)
+        .join(" · ")
     : title;
 
   // INC-41 L2 · The daemon knows no such session: everything below (timeline,
@@ -801,6 +808,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
               )}
           <TimelineFeature
                 sessionKey={sid}
+                isSubagentSession={isSub}
                 items={threadItems}
                 pending={pending}
                 typing={running ? (typing || "Thinking") : typing}
