@@ -197,18 +197,13 @@ export function ProjectPicker({
             </>
           ) : (
             <>
-              <div className="pop-menu-title">
-                <IconButton
-                  size="lg"
-                  variant="ghost"
-                  className="max-[680px]:min-h-11 max-[680px]:min-w-11 [@media(any-pointer:coarse)]:min-h-11 [@media(any-pointer:coarse)]:min-w-11"
-                  onClick={onBack}
-                  aria-label="Back to projects"
-                >
-                  <CaretLeft size={16} aria-hidden="true" />
-                </IconButton>
-                <b>New project</b>
-              </div>
+              <PopItem
+                icon={<CaretLeft size={16} aria-hidden="true" />}
+                title="New project"
+                ariaLabel="Back to projects"
+                className="max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
+                onClick={onBack}
+              />
               <PopItem
                 icon={<Sparkle size={15} />}
                 title="Start from scratch"
@@ -713,18 +708,12 @@ export function AddMenu({
             </>
           ) : page === "advanced" ? (
             <>
-              <div className="pop-menu-title">
-                <IconButton
-                  size="lg"
-                  variant="ghost"
-                  role="menuitem"
-                  onClick={() => onPageChange("root")}
-                  aria-label="Back to add menu"
-                >
-                  <CaretLeft size={16} aria-hidden="true" />
-                </IconButton>
-                <b>Automation</b>
-              </div>
+              <PopItem
+                icon={<CaretLeft size={16} aria-hidden="true" />}
+                title="Automation"
+                ariaLabel="Back to add menu"
+                onClick={() => onPageChange("root")}
+              />
               <PopItem
                 icon={<ArrowClockwise size={14} />}
                 title="Loop"
@@ -767,18 +756,12 @@ export function AddMenu({
             </>
           ) : (
             <>
-              <div className="pop-menu-title">
-                <IconButton
-                  size="lg"
-                  variant="ghost"
-                  role="menuitem"
-                  onClick={() => onPageChange("advanced")}
-                  aria-label="Back to automation menu"
-                >
-                  <CaretLeft size={16} aria-hidden="true" />
-                </IconButton>
-                <b>Agent</b>
-              </div>
+              <PopItem
+                icon={<CaretLeft size={16} aria-hidden="true" />}
+                title="Agent"
+                ariaLabel="Back to automation menu"
+                onClick={() => onPageChange("advanced")}
+              />
               {agents.map((item) => (
                 <PopItem
                   key={item.name}
@@ -1070,7 +1053,11 @@ export function ModelPicker({
             </>
           ) : page === "model" ? (
             <>
-              <PickerBack title="Model" onBack={() => onPageChange("root")} />
+              <PickerBack
+                title="Model"
+                ariaLabel="Back to model menu"
+                onBack={() => onPageChange("root")}
+              />
               <div className="cx-model-list">
                 {MODELS.map((item) => (
                   <PopItem
@@ -1095,7 +1082,11 @@ export function ModelPicker({
             </>
           ) : page === "effort" ? (
             <>
-              <PickerBack title="Effort" onBack={() => onPageChange("root")} />
+              <PickerBack
+                title="Effort"
+                ariaLabel="Back to model menu"
+                onBack={() => onPageChange("root")}
+              />
               {EFFORT_LEVELS.map((item) => (
                 <PopItem
                   key={item.id}
@@ -1113,6 +1104,7 @@ export function ModelPicker({
             <>
               <PickerBack
                 title="Advanced"
+                ariaLabel="Back to model menu"
                 onBack={() => onPageChange("root")}
               />
               <PopItem
@@ -1134,24 +1126,20 @@ export function ModelPicker({
 
 function PickerBack({
   title,
+  ariaLabel,
   onBack,
 }: {
   title: string;
+  ariaLabel: string;
   onBack: () => void;
 }) {
   return (
-    <div className="pop-menu-title">
-      <IconButton
-        size="lg"
-        variant="ghost"
-        role="menuitem"
-        onClick={onBack}
-        aria-label="Back to model menu"
-      >
-        <CaretLeft size={16} aria-hidden="true" />
-      </IconButton>
-      <b>{title}</b>
-    </div>
+    <PopItem
+      icon={<CaretLeft size={16} aria-hidden="true" />}
+      title={title}
+      ariaLabel={ariaLabel}
+      onClick={onBack}
+    />
   );
 }
 

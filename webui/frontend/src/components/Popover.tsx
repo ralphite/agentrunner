@@ -492,6 +492,7 @@ export function PopItem({
   right,
   danger,
   disabled,
+  ariaLabel,
   className = "",
 }: {
   onClick?: () => void;
@@ -502,6 +503,7 @@ export function PopItem({
   right?: React.ReactNode;
   danger?: boolean;
   disabled?: boolean;
+  ariaLabel?: string;
   className?: string;
 }) {
   const inMenu = useContext(PopoverMenuContext);
@@ -519,6 +521,7 @@ export function PopItem({
       disabled={disabled}
       role={inMenu ? "menuitem" : undefined}
       tabIndex={inMenu ? -1 : undefined}
+      aria-label={ariaLabel}
       aria-current={active ? "true" : undefined}
     >
       {icon !== undefined && <span className="pop-ico">{icon}</span>}
