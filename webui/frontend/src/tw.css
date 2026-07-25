@@ -1596,6 +1596,10 @@
     .app { grid-template-columns: minmax(0, 1fr); }
     .sidebar { @apply fixed inset-y-0 left-0 z-40 shadow-lg; width: min(320px, calc(100vw - 48px)); }
     .app.collapsed .sidebar { @apply hidden; }
+    /* On phone/tablet this is the only door to projects and sessions. Match
+       the app's other mobile navigation controls instead of leaving a 32px
+       icon target in the top-left corner. */
+    .sidebar-show { @apply !h-11 !w-11; }
     .sidebar-close { @apply grid; }
     .sidebar-resize-handle { @apply hidden; }
     .project-heading-actions { @apply flex; }
