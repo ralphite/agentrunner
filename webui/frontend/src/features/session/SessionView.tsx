@@ -24,6 +24,8 @@ export interface SessionViewProps {
   topbar?: ReactNode;
   findBar?: ReactNode;
   view?: "chat" | "diff";
+  /** Compact Changes is a modal; its persistent desktop siblings must stand down. */
+  changesModal?: boolean;
   showSupervision?: boolean;
   conversation?: ReactNode;
   sidePanel?: ReactNode;
@@ -39,6 +41,7 @@ export function SessionView({
   topbar,
   findBar,
   view = "chat",
+  changesModal = false,
   showSupervision = false,
   conversation,
   sidePanel,
@@ -58,13 +61,17 @@ export function SessionView({
 
   return (
     <div className="session-view">
-      {daemonAlert}
-      {topbar}
-      {findBar}
+      {daemonAlert && <div className="contents" {...(changesModal ? { inert: "" } : {})}>{daemonAlert}</div>}
+      {/* Keep the desktop layout intact while making compact Changes the only
+          active layer. `contents` preserves the header/find bar's direct-child
+          layout contract; `inert` removes every background control from both
+          pointer and keyboard interaction without adding a visual scrim. */}
+      {topbar && <div className="contents" {...(changesModal ? { inert: "" } : {})}>{topbar}</div>}
+      {findBar && <div className="contents" {...(changesModal ? { inert: "" } : {})}>{findBar}</div>}
       <div
         className={`session-layout${view === "diff" ? " changes" : " single"}${showSupervision ? " environment" : ""}`}
       >
-        <main className="session-primary">{conversation}</main>
+        <main className="session-primary" {...(changesModal ? { inert: "" } : {})}>{conversation}</main>
         {sidePanel}
       </div>
     </div>

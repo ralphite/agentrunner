@@ -1140,6 +1140,19 @@
   .diff-viewtoggle > button:focus-visible {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
+  /* A compact Changes panel still has five resident actions. Keep their hit
+     boxes touch-safe, then reclaim only horizontal rhythm at phone widths;
+     scope, file navigation, Commit, and Close stay resident and unchanged. */
+  @media (max-width: 900px), (any-pointer: coarse) {
+    .diffbar .diff-toolbar-control { min-height: 44px; }
+    .diffbar .diff-toolbar-control[data-ui-icon-button] { min-width: 44px; }
+  }
+  @media (max-width: 680px) {
+    .diffbar { @apply gap-0 px-1; }
+    .diffbar .diff-scope-trigger { padding-inline: 6px !important; }
+    .diffbar .diff-summary { @apply gap-1; }
+    .diffbar .diff-wt-badge { @apply px-1; }
+  }
   .diff-scope-menu { @apply min-w-[200px] text-[12px]; }
   .diff-commit-caret { @apply transition-transform; }
   .diff-more-menu, .diff-files-menu { @apply min-w-[220px] text-[12px]; }
@@ -1618,7 +1631,7 @@
     /* INC-95: Changes is a full-surface mobile overlay with its own close
        control. Do not leave the underlying sidebar trigger focusable beneath
        the scope picker — it was visible at z20 but hit-tested the z26 panel. */
-    .main:has(.session-layout.changes) > .sidebar-show { display: none; }
+    .main:has(.session-layout.changes) > .sidebar-show { display: none !important; }
     .session-view .changes-panel.session-side {
       @apply absolute inset-3 z-[26] m-0 flex rounded-[16px] border border-line shadow-lg;
     }

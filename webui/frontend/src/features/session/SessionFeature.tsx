@@ -176,6 +176,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const [failureRetrying, setFailureRetrying] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const bp = useBreakpoint();
+  const changesModal = view === "diff" && (bp.compact || bp.tablet);
   // Environment is an on-demand inspector. Preserve an explicit user choice,
   // but never cover a newly opened conversation just because the viewport is
   // wide. A pending approval can still force it open below.
@@ -215,12 +216,13 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
 
   const approvalAdjustedSupervision = useRef<"opened" | "closed" | null>(null);
 
-  // Mobile navigation and Environment are both full-height overlays. Opening
-  // the navigation drawer must make it the sole active layer, otherwise its
-  // scrim traps a second drawer (and a second close button) underneath it.
+  // Mobile navigation, Environment and compact Changes are full-height
+  // layers. Opening navigation must leave it as the one active layer.
   useEffect(() => {
-    if (mobileNavigationOpen && (bp.compact || bp.tablet)) setSupervisionOpen(false);
-  }, [mobileNavigationOpen, bp.compact, bp.tablet]);
+    if (!mobileNavigationOpen || !(bp.compact || bp.tablet)) return;
+    setSupervisionOpen(false);
+    if (changesModal) closeDiff();
+  }, [mobileNavigationOpen, bp.compact, bp.tablet, changesModal]);
 
   // ⌘F / Ctrl-F opens the in-chat Find bar (Codex's Search chat). We take over
   // the browser's native find since Find operates on the rendered timeline.
@@ -729,6 +731,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   return (
     <SessionView
       daemonAlert={<DaemonAlert />}
+      changesModal={changesModal}
       topbar={(
         <SessionTopbar
           sid={sid}
@@ -748,6 +751,14 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
           onBackToParent={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))}
           onResume={act.resume}
           onToggleEnvironment={(opener) => {
+            // Compact Changes is modal. The inert topbar blocks ordinary
+            // pointer/keyboard access; keep the callback defensive too so an
+            // already-open menu or programmatic invocation cannot bypass the
+            // single close path and strand focus behind the modal.
+            if (changesModal) {
+              closeDiff();
+              return;
+            }
             if (view === "diff") setView("chat");
             if (showSupervision) closeSupervision();
             else openSupervision(opener);
@@ -761,9 +772,13 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
             toggleArchive(sid);
             toast(archived.includes(sid) ? "unarchived" : "archived", "info");
           }}
-          onShowConversation={() => setView("chat")}
+          onShowConversation={() => changesModal ? closeDiff() : setView("chat")}
           onShowChanges={() => openDiff()}
           onToggleSupervision={(opener) => {
+            if (changesModal) {
+              closeDiff();
+              return;
+            }
             if (showSupervision) {
               closeSupervision();
               return;

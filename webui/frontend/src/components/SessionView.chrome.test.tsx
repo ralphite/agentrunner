@@ -624,6 +624,57 @@ describe("TH-15 · one rail, one name, one door", () => {
 });
 
 describe("mobile session topbar", () => {
+  it("keeps compact Changes as the only active layer", async () => {
+    (window as any).innerWidth = 390;
+    useStore.setState({
+      health: {
+        version: "test",
+        daemonUp: false,
+        daemonManaged: true,
+        daemonExternal: false,
+        manageRequested: true,
+        daemonLogPath: "/tmp/agentrunner.log",
+        runtimeDir: "/tmp/agentrunner",
+      },
+    });
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    const more = screen.getByRole("button", { name: "More session actions" });
+    fireEvent.click(more);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+
+    const environment = screen.getByRole("button", { name: "Environment" });
+    expect(environment.closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" }).closest("[inert]")).not.toBeNull();
+    expect(container.querySelector(".session-primary")?.hasAttribute("inert")).toBe(true);
+
+    // Native pointer/keyboard input cannot reach an inert header. The callback
+    // still converges on closeDiff if a queued menu action reaches it.
+    fireEvent.click(environment);
+    await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());
+    expect(container.querySelector("aside.supervision-panel")).toBeNull();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(more);
+  });
+
+  it("closes compact Changes before mobile navigation becomes active", async () => {
+    (window as any).innerWidth = 390;
+    const { container, rerender } = render(<SessionView sid={SID} mobileNavigationOpen={false} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    const more = screen.getByRole("button", { name: "More session actions" });
+    fireEvent.click(more);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+
+    rerender(<SessionView sid={SID} mobileNavigationOpen />);
+    await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(more);
+  });
+
   it("closes the full-screen Changes overlay with Escape and restores its opener", async () => {
     (window as any).innerWidth = 390;
     const { container } = render(<SessionView sid={SID} />);
@@ -633,6 +684,13 @@ describe("mobile session topbar", () => {
     fireEvent.click(more);
     fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
     await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+    const dialog = screen.getByRole("dialog", { name: "Changes" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Close changes" }),
+      ),
+    );
 
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(container.querySelector(".changes-panel")).toBeNull());

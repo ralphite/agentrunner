@@ -161,6 +161,41 @@ describe("Changes toolbar (INC-41 RV-1)", () => {
     expect(bar.contains(screen.getByLabelText("Commit or push"))).toBe(true);
     expect(bar.contains(screen.getByLabelText("Close changes"))).toBe(true);
   });
+
+  it("treats compact Changes as a focus-contained modal", async () => {
+    (window as any).matchMedia = (query: string) => ({
+      matches: query === "(max-width: 680px)" || query === "(max-width: 1400px)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff }));
+    const onClose = vi.fn();
+    render(
+      <>
+        <button type="button">Outside opener</button>
+        <DiffView sid="mobile-modal" onClose={onClose} />
+        <button type="button">Outside after</button>
+      </>,
+    );
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const dialog = screen.getByRole("dialog", { name: "Changes" });
+    const close = screen.getByRole("button", { name: "Close changes" });
+    const scope = screen.getByRole("button", { name: "Change diff scope" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    await waitFor(() => expect(document.activeElement).toBe(close));
+
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>("button, summary"),
+    ).filter((element) => !element.matches(":disabled"));
+    const last = focusable[focusable.length - 1];
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(document.activeElement).toBe(scope);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("File headers (INC-41 RV-3 / RV-5)", () => {

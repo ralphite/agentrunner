@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CaretRight,
   CaretUp,
@@ -20,7 +20,7 @@ import {
 } from "./DiffParts";
 import { useWorktreeActions } from "./worktreeActions";
 import { useBreakpoint } from "../hooks/useBreakpoint";
-import { useEscapeLayer } from "../ui/FocusScope";
+import { FocusScope } from "../ui/FocusScope";
 
 export { DiffSkeleton } from "./DiffParts";
 
@@ -375,10 +375,28 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   }, []);
   const bp = useBreakpoint();
   const narrow = bp.compact || bp.tablet;
-  // At compact widths Changes is a full-surface overlay rather than a
-  // persistent desktop split. Give Escape the same close behaviour as its
-  // visible close control, including SessionFeature's opener restoration.
-  useEscapeLayer(onClose, narrow && !!onClose);
+  // At compact widths Changes is a modal inspection surface, not a persistent
+  // desktop rail. Follow the mobile-sidebar pattern: scope keyboard focus to
+  // the overlay, begin on the first meaningful control, and let the existing
+  // SessionFeature close path return focus to the exact opener.
+  const renderRoot = (children: ReactNode, className = "diffwrap") => {
+    if (narrow && onClose) {
+      return (
+        <FocusScope
+          key={data ? "ready" : err ? "error" : "loading"}
+          className={className}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Changes"
+          initialFocus='[aria-label="Close changes"]'
+          onEscape={onClose}
+        >
+          {children}
+        </FocusScope>
+      );
+    }
+    return <div className={className}>{children}</div>;
+  };
   // DIFF-CP · what the bar actually measures. A stable
   // callback ref, because the bar only exists once the diff has landed — a `[]`
   // effect would run against the skeleton and find nothing to observe. The
@@ -596,11 +614,11 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   );
 
   if (err)
-    return (
-      <div className="diffwrap">
+    return renderRoot(
+      <>
         {stateBar}
         <DiffStateView state={{ kind: "error", message: err, onRetry: load }} />
-      </div>
+      </>,
     );
   // INC-41 RVW-6 · the review loads the way the rest of the app does. This was a
   // single grey sentence ("Loading changes…") in a 658px panel — while the 40px
@@ -608,49 +626,49 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   // all draw skeleton bars. The summary card was loading more gracefully than the
   // panel it opens.
   if (!data)
-    return (
-      <div className="diffwrap">
+    return renderRoot(
+      <>
         {stateBar}
         <DiffStateView state={{ kind: "loading" }} />
-      </div>
+      </>,
     );
 
   if (scope === "last-turn" && data.available === false)
-    return (
-      <div className="diffwrap">
+    return renderRoot(
+      <>
         {stateBar}
         <DiffStateView
           state={{ kind: "last-turn-unavailable", reason: data.reason }}
         />
-      </div>
+      </>,
     );
 
   if (!data.known)
-    return (
-      <div className="diffwrap">
+    return renderRoot(
+      <>
         {stateBar}
         <DiffStateView
           state={{ kind: "workspace-unavailable", onRetry: load }}
         />
-      </div>
+      </>,
     );
   if (scope === "working-tree" && data.nested)
-    return (
-      <div className="diffwrap">
+    return renderRoot(
+      <>
         {stateBar}
         <DiffStateView
           state={{ kind: "nested", busy, onTrack: gitInit }}
         />
-      </div>
+      </>,
     );
   if (scope === "working-tree" && !data.isRepo)
-    return (
-      <div className="diffwrap">
+    return renderRoot(
+      <>
         {stateBar}
         <DiffStateView
           state={{ kind: "non-repo", busy, onTrack: gitInit }}
         />
-      </div>
+      </>,
     );
 
   const files = splitDiff(data.diff || "");
@@ -721,8 +739,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   const allShownOpen =
     shownCount > 0 && shownTracked.every((e) => isOpen(e.path)) && (shownUntrackedCount === 0 || untrackedOpen);
 
-  return (
-    <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
+  return renderRoot(
+    <>
       <DiffToolbar
         variant="ready"
         barRef={barRef}
@@ -869,7 +887,8 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
           </details>
         );
       })}
-    </div>
+    </>,
+    "diffwrap" + (wrap ? " diff-wrap" : ""),
   );
 }
 

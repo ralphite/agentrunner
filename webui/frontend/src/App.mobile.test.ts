@@ -22,7 +22,7 @@ describe("mobile navigation breakpoint", () => {
 
   it("removes the underlying sidebar trigger while the mobile Changes overlay owns the surface", () => {
     expect(css).toContain(
-      ".main:has(.session-layout.changes) > .sidebar-show { display: none; }",
+      ".main:has(.session-layout.changes) > .sidebar-show { display: none !important; }",
     );
   });
 
