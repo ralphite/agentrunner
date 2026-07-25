@@ -172,6 +172,26 @@ describe("TH-14 · one terminal banner above the composer", () => {
     expect(screen.queryByText("Follow-up queued — continuing in this conversation.")).toBeNull();
   });
 
+  it("resumes a paused recurring schedule from its current session", async () => {
+    arMock.schedule = vi.fn(async () => ({}));
+    useStore.setState({
+      sessions: [{
+        id: SID,
+        title: "weekday priorities",
+        status: "paused",
+        workspace: "/tmp/wt-th14",
+        schedule: "cron",
+        scheduleControl: true,
+      } as any],
+      refreshSessions: vi.fn(async () => {}),
+    });
+    render(<SessionView sid={SID} />);
+
+    expect(await screen.findByText("Schedule paused")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Resume schedule" }));
+    await waitFor(() => expect(arMock.schedule).toHaveBeenCalledWith(SID, "resume"));
+  });
+
   it("keeps unfinished progress visible at a step limit without requiring a goal banner", async () => {
     arMock.inspect = async () => ({
       goal: null,

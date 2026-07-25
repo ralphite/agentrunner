@@ -20,6 +20,7 @@ export function useSessionCommands(sid: string) {
       interrupt: () => api.interrupt(sid),
       resume: () => api.resume(sid),
       retry: () => api.retry(sid),
+      schedule: (action: "pause" | "resume") => api.schedule(sid, action),
       barrier: () => api.barrier(sid),
       inspect: () => api.inspect(sid),
       promote: () => api.promote(sid),

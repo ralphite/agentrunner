@@ -78,7 +78,7 @@ function fmtTokens(n: number): string {
 export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: string; mobileNavigationOpen?: boolean }) {
   const { clock, storage } = useAppServices();
   const commands = useSessionCommands(sid);
-  const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
+  const { select, openModal, toast, showSys, toggleSys, sessions, refreshSessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
   // `-sub-call_` marker is what the daemon appends. Plain `-sub-` also matches
@@ -370,6 +370,12 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // dangling "running…" with nothing active means it finished (QA #6).
   const listSession = sessions.find((s) => s.id === sid);
   const listStatus = listSession?.status;
+  // A paused recurring schedule is not an ordinary stopped conversation:
+  // sending another message does not restart its cadence. The session page must
+  // expose the same resume action as Scheduled, or a user is left to hunt for
+  // the series after arriving from the work they were doing.
+  const schedulePaused =
+    !!listSession?.scheduleControl && (listStatus || "").toLowerCase() === "paused";
   const live = folded.active || openApprovals.length > 0;
   const continuationPending =
     pending.length > 0 || queued.some((message) => !message.revoked);
@@ -500,6 +506,15 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
         toast(e.message);
       }
     },
+    resumeSchedule: async () => {
+      try {
+        await commands.schedule("resume");
+        toast("schedule resumed", "info");
+        await Promise.all([poll(), refreshSessions()]);
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
     retry: async () => {
       try {
         await commands.retry();
@@ -552,7 +567,15 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const durableTerminalNotice =
     live || failure
       ? null
-      : terminalNoticeFor(listStatus || folded.status.text, isDriver);
+      : schedulePaused
+        ? {
+            title: "Schedule paused",
+            body: "This recurring schedule will not run again until you resume it.",
+            tone: "attention" as const,
+            action: "resume" as const,
+            actionLabel: "Resume schedule",
+          }
+        : terminalNoticeFor(listStatus || folded.status.text, isDriver);
   const stepLimitContinuationPending =
     continuationPending && durableTerminalNotice?.action === "message";
   const terminalNotice = stepLimitContinuationPending
@@ -560,6 +583,10 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     : durableTerminalNotice;
   const runTerminalAction = () => {
     if (!terminalNotice) return;
+    if (schedulePaused) {
+      void act.resumeSchedule();
+      return;
+    }
     if (terminalNotice.action === "message") {
       document.querySelector<HTMLTextAreaElement>(".cx-session textarea")?.focus();
       return;
