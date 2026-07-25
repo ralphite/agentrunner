@@ -438,7 +438,7 @@ export const SessionQuickActionsReveal: Story = {
     await waitFor(() => expect(row!.querySelector(".session-quick-actions")).toBeVisible());
     await expect(canvas.getByRole("button", { name: "Unpin Keep running while quick actions are visible" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Unarchive Keep running while quick actions are visible" })).toBeVisible();
-    await expect(canvas.getByRole("status", { name: "Session running" })).toBeVisible();
+    await expect(canvas.queryByRole("status", { name: "Session running" })).not.toBeInTheDocument();
     await expect(canvas.getByLabelText("Worktree session")).not.toBeVisible();
   },
 };
@@ -449,9 +449,9 @@ export const SessionQuickActionsFocus: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    canvas.getByRole("button", { name: /Keep running while quick actions are visible · Running/ }).focus();
+    canvas.getByRole("button", { name: /Keep running while quick actions are visible · Worktree · Running/ }).focus();
     await expect(canvas.getByRole("button", { name: "Unpin Keep running while quick actions are visible" })).toBeVisible();
-    await expect(canvas.getByRole("status", { name: "Session running" })).toBeVisible();
+    await expect(canvas.queryByRole("status", { name: "Session running" })).not.toBeInTheDocument();
     await expect(canvas.getByLabelText("Worktree session")).not.toBeVisible();
   },
 };

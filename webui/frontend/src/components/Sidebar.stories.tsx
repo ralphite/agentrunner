@@ -188,8 +188,8 @@ const meta = {
     await expect(canvas.getByRole("button", { name: "Projects" }))
       .toHaveAttribute("aria-expanded", "true");
     await expect(canvas.getByText("Review component states")).toBeVisible();
-    await expect(canvas.getByRole("status", { name: "Connected to daemon" }))
-      .toBeVisible();
+    await expect(canvas.queryByRole("status", { name: "Connected to daemon" }))
+      .not.toBeInTheDocument();
   },
 } satisfies Meta<typeof Sidebar>;
 
@@ -377,8 +377,8 @@ export const ConnectionChecking: Story = {
   ),
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("status", { name: "Connecting to daemon" }),
-    ).toBeVisible();
+      within(canvasElement).queryByRole("status", { name: "Connecting to daemon" }),
+    ).not.toBeInTheDocument();
   },
 };
 
@@ -586,7 +586,7 @@ export const OverflowKeepsCurrentAnchor: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Current session beyond cap")).toBeVisible();
     await expect(canvasElement.querySelector(".project-session-wrap.current")).not.toBeNull();
-    await expect(canvas.getByRole("button", { name: "Show more projects" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show more sessions" })).toBeVisible();
   },
 };
 

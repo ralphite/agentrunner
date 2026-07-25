@@ -743,7 +743,7 @@ export const MiniDiff: Story = {
 export const MsgActions: Story = {
   render: () => (
     <LeafFrame>
-      <div className="msg assistant msg-last">
+      <div className="msg assistant pseudo-hover">
         <MsgActionsLeaf
           text="Direct message actions remain keyboard reachable."
           ts={at(65)}
@@ -757,7 +757,8 @@ export const MsgActions: Story = {
     const more = canvas.getByRole("button", { name: "More message actions" });
     more.focus();
     await userEvent.keyboard("{Enter}");
-    await expect(canvas.getByRole("menuitem", { name: "Continue in new session" })).toBeVisible();
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(page.getByRole("menuitem", { name: "Continue in new session" })).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Copy message" }),
     ).toBeVisible();
@@ -842,13 +843,13 @@ export const MsgActionsBusyAndError: Story = {
   render: () => (
     <LeafFrame>
       <div className="grid gap-4">
-        <div className="msg assistant msg-last">
+        <div className="msg assistant pseudo-hover">
           <MsgActionsLeaf
             text="Continue stays disabled while a fork is pending."
             onContinue={() => new Promise<void>(() => {})}
           />
         </div>
-        <div className="msg assistant msg-last">
+        <div className="msg assistant pseudo-hover">
           <MsgActionsLeaf
             text="Continue reports an inaccessible checkpoint."
             onContinue={async () => {
@@ -861,17 +862,20 @@ export const MsgActionsBusyAndError: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
     const moreButtons = canvas.getAllByRole("button", { name: "More message actions" });
     await userEvent.click(moreButtons[0]);
-    const pending = canvas.getByRole("menuitem", { name: "Continue in new session" });
+    const pending = page.getByRole("menuitem", { name: "Continue in new session" });
     await userEvent.click(pending);
     await expect(moreButtons[0]).toHaveAttribute("aria-label", "Continuing in new session");
+    await userEvent.click(moreButtons[0]);
+    await expect(page.getByRole("menuitem", { name: "Continue in new session" })).toBeDisabled();
 
     await userEvent.click(moreButtons[1]);
-    await userEvent.click(canvas.getByRole("menuitem", { name: "Continue in new session" }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Continue in new session" }));
     await expect(
-      await canvas.findByText("Checkpoint is no longer available"),
-    ).toBeInTheDocument();
+      await canvas.findByRole("status", { name: /Checkpoint is no longer available/ }),
+    ).toBeVisible();
     await expect(moreButtons[1]).toHaveAttribute("aria-label", "More message actions");
   },
 };

@@ -184,7 +184,7 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
     }
   };
   return (
-    <div className="msg-actions" aria-live="polite">
+    <div className={`msg-actions${continueError ? " msg-actions-error" : ""}`} aria-live="polite">
       {text && (
         <IconButton
           size="sm"
@@ -199,7 +199,7 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
       )}
       {onContinue && (
         <Menu
-          label={<DotsThree size={15} weight="bold" />}
+          label={continuing ? <Spinner size="sm" aria-hidden="true" /> : <DotsThree size={15} weight="bold" />}
           ariaLabel={continuing ? "Continuing in new session" : "More message actions"}
           triggerClassName="msg-copy"
           iconTrigger
@@ -209,7 +209,7 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
           </MenuItem>
         </Menu>
       )}
-      {continueError && <span className="sr-only">{continueError}</span>}
+      {continueError && <span className="msg-action-error" role="status" title={continueError}>{continueError} — try again</span>}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
   );

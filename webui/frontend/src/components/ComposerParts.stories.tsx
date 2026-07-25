@@ -821,7 +821,7 @@ export const SlashCommandResults: Story = {
     <StorySurface>
       <SlashCommandMenu
         commands={SLASH.filter((command) =>
-          ["goal", "loop", "bestof"].includes(command.name),
+          ["goal", "bestof"].includes(command.name),
         )}
         activeIndex={1}
         onActiveIndexChange={fn()}
@@ -831,7 +831,7 @@ export const SlashCommandResults: Story = {
   ),
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("option", { name: /\/loop/ }),
+      within(canvasElement).getByRole("option", { name: /\/bestof/ }),
     ).toHaveAttribute("aria-selected", "true");
   },
 };

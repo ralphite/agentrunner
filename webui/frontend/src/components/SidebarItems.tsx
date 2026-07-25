@@ -97,7 +97,7 @@ export function SidebarSessionItem({
         className="project-session max-[900px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
         onKeyDown={openContextFromKeyboard}
         title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
-        aria-label={`${title} · ${unread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
+        aria-label={`${title}${isWorktree ? " · Worktree" : ""} · ${unread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
         aria-current={active ? "page" : undefined}
       >
         <span className="project-session-title">{title}</span>

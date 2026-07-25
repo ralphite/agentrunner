@@ -472,6 +472,12 @@
   .project-session-wrap.pseudo-hover .session-quick-actions,
   .pseudo-hover .session-quick-actions,
   .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
+  /* Quick actions replace status chrome while a row is being acted on; showing
+     both made the trailing edge a noisy, shifting pile of unrelated icons. */
+  .project-session-wrap:hover .session-state-icons,
+  .project-session-wrap.pseudo-hover .session-state-icons,
+  .pseudo-hover .session-state-icons,
+  .project-session-wrap:focus-within .session-state-icons { @apply !hidden; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running { @apply bg-status-running; }
   .status-dot.appr, .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }
@@ -883,12 +889,15 @@
   .timeline .tl-inner .msg:hover .msg-actions,
   .timeline .tl-inner .msg.pseudo-hover .msg-actions,
   .timeline .tl-inner .msg:focus-within .msg-actions,
+  .timeline .tl-inner .msg .msg-actions-error,
   .timeline .tl-tail-row:hover .msg-actions,
-  .timeline .tl-tail-row:focus-within .msg-actions { @apply pointer-events-auto opacity-100; }
+  .timeline .tl-tail-row:focus-within .msg-actions,
+  .timeline .tl-tail-row .msg-actions-error { @apply pointer-events-auto opacity-100; }
   .timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time { @apply hidden; }
   .msg-copy { @apply grid h-6 w-6 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim opacity-60 hover:bg-panel-2 hover:text-ink hover:opacity-100; }
   .msg-actions-div { @apply h-4 w-px bg-line; }
   .msg-time, .who { @apply text-[11px] text-dim; }
+  .msg-action-error { @apply max-w-[22rem] truncate text-[11px] text-red; }
   .compact-divider { @apply my-5 flex items-center gap-2 text-[12px] text-dim; }
   .compact-divider::before, .compact-divider::after { content: ""; @apply h-px flex-1 bg-line; }
   .compact-divider-label { @apply inline-flex items-center gap-1 whitespace-nowrap; }
