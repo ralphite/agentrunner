@@ -357,8 +357,7 @@ export const SessionInteraction: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    // Touch rows keep one complete More menu visible; quick Pin/Archive
-    // controls remain desktop-only so each row still has one clear action.
+    // Touch rows keep one complete More menu visible.
     await expect(canvas.getAllByRole("button", { name: /More actions for/ })).toHaveLength(2);
 
     const runningRow = canvas.getByRole("button", {
@@ -402,7 +401,18 @@ export const SessionQuickActionsReveal: Story = {
   render: (args) => (
     <div className="pseudo-hover sidebar" style={{ width: 300, minHeight: 170 }}>
       <div className="project-list" style={{ paddingTop: 12 }}>
-        <SidebarSessionItem {...args} />
+        <SidebarSessionItem
+          {...args}
+          actions={(
+            <StorySessionActions
+              title={args.title}
+              pinned={args.pinned}
+              archived={args.archived}
+              onTogglePin={args.onTogglePin}
+              onToggleArchive={args.onToggleArchive}
+            />
+          )}
+        />
       </div>
     </div>
   ),
@@ -423,10 +433,14 @@ export const SessionQuickActionsReveal: Story = {
 
     await userEvent.hover(row!);
     await waitFor(() => expect(row!.querySelector(".session-quick-actions")).toBeVisible());
-    await expect(canvas.getByRole("button", { name: "Unpin Keep running while quick actions are visible" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Unarchive Keep running while quick actions are visible" })).toBeVisible();
-    await expect(canvas.queryByRole("status", { name: "Session running" })).not.toBeInTheDocument();
-    await expect(canvas.getByLabelText("Worktree session")).not.toBeVisible();
+    const more = canvas.getByRole("button", { name: "More actions for Keep running while quick actions are visible" });
+    await expect(more).toBeVisible();
+    await expect(canvas.getByRole("status", { name: "Session running" })).toBeVisible();
+    await expect(canvas.getByLabelText("Worktree session")).toBeVisible();
+    await expect(row!.scrollWidth).toBeLessThanOrEqual(row!.clientWidth);
+    await userEvent.click(more);
+    await expect(canvas.getByRole("menuitem", { name: "Unpin" })).toBeVisible();
+    await expect(canvas.getByRole("menuitem", { name: "Unarchive" })).toBeVisible();
   },
 };
 
@@ -437,9 +451,9 @@ export const SessionQuickActionsFocus: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     canvas.getByRole("button", { name: /Keep running while quick actions are visible · Worktree · Running/ }).focus();
-    await expect(canvas.getByRole("button", { name: "Unpin Keep running while quick actions are visible" })).toBeVisible();
-    await expect(canvas.queryByRole("status", { name: "Session running" })).not.toBeInTheDocument();
-    await expect(canvas.getByLabelText("Worktree session")).not.toBeVisible();
+    await expect(canvas.getByRole("button", { name: "More actions for Keep running while quick actions are visible" })).toBeVisible();
+    await expect(canvas.getByRole("status", { name: "Session running" })).toBeVisible();
+    await expect(canvas.getByLabelText("Worktree session")).toBeVisible();
   },
 };
 
@@ -677,8 +691,8 @@ export const ProjectActionsHover: Story = {
     const more = canvas.getByRole("button", { name: "More actions for Interactive project" });
     await expect(more).toBeVisible();
     await expect(canvas.getByRole("button", { name: "New chat in Interactive project" })).toBeVisible();
-    await expect(row!.querySelector(".proj-caret")).toBeVisible();
-    await expect(row!.querySelector(".proj-folder")).not.toBeVisible();
+    await expect(row!.querySelector('[data-project-icon="expanded"] .proj-folder')).toBeVisible();
+    await expect(row!.querySelector(".proj-caret")).toBeNull();
   },
 };
 

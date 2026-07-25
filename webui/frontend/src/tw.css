@@ -443,8 +443,6 @@
      generated disambiguation copy. */
   .proj-heading-text { @apply flex min-w-0 flex-1 flex-row items-baseline gap-[6px] text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
-  .proj-caret { @apply transition-transform; }
-  .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex w-full min-w-0 items-center rounded-[8px]; }
   .project-session-wrap.nested .project-session { @apply pl-[31px]; }
   /* Selection and hover/focus paint the same complete row, including trailing
@@ -472,12 +470,6 @@
   .project-session-wrap.pseudo-hover .session-quick-actions,
   .pseudo-hover .session-quick-actions,
   .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
-  /* Quick actions replace status chrome while a row is being acted on; showing
-     both made the trailing edge a noisy, shifting pile of unrelated icons. */
-  .project-session-wrap:hover .session-state-icons,
-  .project-session-wrap.pseudo-hover .session-state-icons,
-  .pseudo-hover .session-state-icons,
-  .project-session-wrap:focus-within .session-state-icons { @apply !hidden; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running { @apply bg-status-running; }
   .status-dot.appr, .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }
@@ -1978,26 +1970,9 @@
   .tl-notfound-id { @apply mt-1 font-mono text-[12px] text-dim; }
   .pop-section { @apply flex flex-col py-0.5; }
   .proj-folder { @apply shrink-0 text-dim; }
-  /* SIDE-PROJECT-CARET · a group row shows only its folder icon at rest; the
-     collapse caret appears on hover/focus in the SAME gutter slot (folder
-     hides) so the repo-name text column never shifts and stays aligned with
-     the nested session titles (SB-6). Caret + folder are stacked
-     absolutely-centered in a fixed 16px slot and we cross-fade opacity — no
-     layout gap, no left/right jump from the size mismatch (caret 11 /
-     folder 16). The caret keeps its .open rotate. Works in both themes. */
-  .proj-icon-slot { @apply relative shrink-0; width: 16px; height: 16px; }
-  .proj-icon-slot .proj-caret,
-  .proj-icon-slot .proj-folder {
-    @apply absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition;
-  }
-  .proj-icon-slot .proj-caret { @apply opacity-0; }
-  .proj-icon-slot .proj-folder { @apply opacity-100; }
-  .project-heading:hover .proj-caret,
-  .pseudo-hover .project-heading .proj-caret,
-  .project-heading:focus-visible .proj-caret { @apply opacity-100; }
-  .project-heading:hover .proj-folder,
-  .pseudo-hover .project-heading .proj-folder,
-  .project-heading:focus-visible .proj-folder { @apply opacity-0; }
+  /* Project fold state stays readable at rest without shifting the text:
+     folded uses Folder, expanded uses FolderOpen in the same fixed slot. */
+  .proj-icon-slot { @apply inline-grid h-4 w-4 shrink-0 place-items-center; }
 
   /* Subagents 行:成员名优先于 status/meta——共享组给的 flex-1 在窄
      rail 里会被按内容占位的邻居分到 0 剩余宽(QA-0719 实测 sa-name

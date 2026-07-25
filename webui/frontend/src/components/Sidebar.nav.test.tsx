@@ -87,7 +87,7 @@ describe("mobile sidebar dismissal", () => {
     expect(row.querySelector(".session-quick-actions")).toBeTruthy();
     const trigger = screen.getByRole("button", { name: "More actions for Mobile actions" });
     expect(trigger.className).toContain("session-touch-trigger");
-    expect(row.querySelectorAll(".session-touch-actions")).toHaveLength(1);
+    expect(row.querySelectorAll(".session-quick-actions")).toHaveLength(1);
     fireEvent.contextMenu(trigger, { clientX: 20, clientY: 30 });
     expect(screen.queryByRole("menu")).toBeNull();
 
@@ -237,7 +237,7 @@ describe("mobile sidebar dismissal", () => {
     );
   });
 
-  it("returns desktop quick-action focus to the relocated session row", async () => {
+  it("returns desktop menu focus to the relocated session row", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1280,
@@ -274,7 +274,8 @@ describe("mobile sidebar dismissal", () => {
     });
     const { container } = render(<Sidebar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Pin Desktop focus" }));
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Desktop focus" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
     await waitFor(() => {
       const row = container.querySelector<HTMLElement>(
         '[data-session-id="20260712-140000-desktop-focus"]',
@@ -345,19 +346,26 @@ describe("sidebar session row states and hover actions (INC-92)", () => {
     expect(localRow.querySelector(".session-quick-actions")).toBeTruthy();
   });
 
-  it("switches the reversible hover actions between pin/archive states", () => {
+  it("keeps state visible while the single hover menu exposes the complete actions", () => {
     const { container } = mount();
     let row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Managed worktree session"))!;
     expect(row.querySelector(".session-quick-actions")).toBeTruthy();
     fireEvent.mouseEnter(row);
 
-    fireEvent.click(row.querySelector('button[aria-label="Pin Managed worktree session"]')!);
+    const trigger = screen.getByRole("button", { name: "More actions for Managed worktree session" });
+    expect(trigger.hasAttribute("data-ui-icon-button")).toBe(true);
+    expect(row.querySelector('[aria-label="Worktree session"]')).toBeTruthy();
+    expect(row.querySelector('[aria-label="Session running"]')).toBeTruthy();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
     row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Managed worktree session"))!;
-    expect(row.querySelector('button[aria-label="Unpin Managed worktree session"]')).toBeTruthy();
 
-    fireEvent.click(row.querySelector('button[aria-label="Archive Managed worktree session"]')!);
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Managed worktree session" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
     row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Managed worktree session"))!;
-    expect(row.querySelector('button[aria-label="Unarchive Managed worktree session"]')).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Managed worktree session" }));
+    expect(screen.getByRole("menuitem", { name: "Unpin" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Unarchive" })).toBeTruthy();
     expect(row.querySelector('[aria-label="Session running"]')).toBeTruthy();
   });
 
@@ -604,10 +612,7 @@ describe("Projects section truncation + group fold (SB-4)", () => {
   });
 });
 
-describe("project group icon is always a closed folder (SIDEBAR-FOLDER-ICON)", () => {
-  // Two real-workspace groups so both render a heading; one is collapsed via
-  // localStorage, the other expanded. Codex's gold keeps the closed Folder on
-  // every group regardless of fold — expanded state rides the caret alone.
+describe("project group icon communicates its fold state (SIDEBAR-FOLDER-ICON)", () => {
   const twoGroups = [
     { id: "20260710-000000-a", status: "idle", turns: 1, title: "Session A", workspace: "/repo/aaa" },
     { id: "20260709-000000-b", status: "idle", turns: 1, title: "Session B", workspace: "/repo/bbb" },
@@ -630,7 +635,7 @@ describe("project group icon is always a closed folder (SIDEBAR-FOLDER-ICON)", (
 
   afterEach(() => localStorage.clear());
 
-  it("renders the identical closed-folder icon whether a group is expanded or collapsed", () => {
+  it("renders Folder when collapsed and FolderOpen when expanded in one fixed slot", () => {
     // Collapse the newest group (/repo/aaa) and leave the other expanded.
     localStorage.setItem("ar.sidebar.collapsedProjects", JSON.stringify(["/repo/aaa"]));
     const { container } = mount();
@@ -643,18 +648,17 @@ describe("project group icon is always a closed folder (SIDEBAR-FOLDER-ICON)", (
     expect(collapsed).toBeTruthy();
     expect(expanded).toBeTruthy();
 
-    const collapsedFolder = collapsed.querySelector(".proj-folder")!;
-    const expandedFolder = expanded.querySelector(".proj-folder")!;
+    const collapsedSlot = collapsed.querySelector('[data-project-icon="folded"]')!;
+    const expandedSlot = expanded.querySelector('[data-project-icon="expanded"]')!;
+    const collapsedFolder = collapsedSlot.querySelector(".proj-folder")!;
+    const expandedFolder = expandedSlot.querySelector(".proj-folder")!;
+    expect(collapsedSlot).toBeTruthy();
+    expect(expandedSlot).toBeTruthy();
     expect(collapsedFolder).toBeTruthy();
     expect(expandedFolder).toBeTruthy();
-    // FolderOpen and Folder differ in their SVG paths, so an identical icon
-    // markup on both states proves we never swap to FolderOpen when expanded.
-    expect(expandedFolder.innerHTML).toBe(collapsedFolder.innerHTML);
-
-    // The fold state is carried by the caret instead: open on the expanded group.
-    expect(expanded.querySelector(".proj-caret.open")).toBeTruthy();
-    expect(collapsed.querySelector(".proj-caret.open")).toBeNull();
-    expect(collapsed.querySelector(".proj-caret")).toBeTruthy();
+    expect(expandedFolder.innerHTML).not.toBe(collapsedFolder.innerHTML);
+    expect(expanded.querySelector(".proj-caret")).toBeNull();
+    expect(collapsed.querySelector(".proj-caret")).toBeNull();
   });
 });
 

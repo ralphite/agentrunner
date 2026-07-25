@@ -2,7 +2,6 @@ import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import {
   Archive as ArchiveBox,
   ArrowsSplit,
-  CaretRight,
   ChatCircle,
   DotsThree,
   EnvelopeSimple,
@@ -54,14 +53,11 @@ export function SidebarSessionItem({
   active = false,
   unread = false,
   archived = false,
-  pinned = false,
   onSelect,
   onOpenContext,
   onPreview,
   onPreviewEnd,
   onDismissPreview,
-  onTogglePin,
-  onToggleArchive,
 }: SidebarSessionItemProps) {
   const status = sessionFriendlyStatus(session);
   const isRunning = status.cls === "run";
@@ -151,38 +147,9 @@ export function SidebarSessionItem({
           )}
         </span>
       )}
-      <span
-        className="session-quick-actions max-[900px]:hidden! [@media(any-pointer:coarse)]:hidden!"
-        onClick={(event) => event.stopPropagation()}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-      >
-        <IconButton
-          size="sm"
-          variant="ghost"
-          className="session-quick-action"
-          aria-label={`${pinned ? "Unpin" : "Pin"} ${title}`}
-          title={pinned ? "Unpin" : "Pin"}
-          onClick={onTogglePin}
-        >
-          <PushPin size={17} weight={pinned ? "fill" : "regular"} />
-        </IconButton>
-        <IconButton
-          size="sm"
-          variant="ghost"
-          className="session-quick-action"
-          aria-label={`${archived ? "Unarchive" : "Archive"} ${title}`}
-          title={archived ? "Unarchive" : "Archive"}
-          onClick={onToggleArchive}
-        >
-          <ArchiveBox size={17} />
-        </IconButton>
-      </span>
       {actions && (
         <span
-          className="session-touch-actions hidden shrink-0 items-center max-[900px]:flex! [@media(any-pointer:coarse)]:flex!"
+          className="session-quick-actions max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!"
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -191,8 +158,9 @@ export function SidebarSessionItem({
           onMouseEnter={onDismissPreview}
         >
           <Menu
-            label={<DotsThree size={18} weight="bold" />}
+            label={<DotsThree size={16} />}
             ariaLabel={`More actions for ${title}`}
+            iconTrigger
             triggerClassName="session-touch-trigger max-[900px]:h-11! max-[900px]:w-11! [@media(any-pointer:coarse)]:h-11! [@media(any-pointer:coarse)]:w-11!"
           >
             {actions}
@@ -361,9 +329,14 @@ export function SidebarProjectItem({
           }}
           onKeyDown={openContextFromKeyboard}
         >
-          <span className="proj-icon-slot">
-            <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
-            <Folder className="proj-folder" size={16} />
+          <span
+            className="proj-icon-slot"
+            data-project-icon={folded ? "folded" : "expanded"}
+            aria-hidden="true"
+          >
+            {folded
+              ? <Folder className="proj-folder" size={16} />
+              : <FolderOpen className="proj-folder" size={16} />}
           </span>
           <span className="proj-heading-text">
             <span className="proj-heading-name">{name}</span>
