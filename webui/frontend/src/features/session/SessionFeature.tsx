@@ -193,6 +193,14 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const openSupervision = (opener: HTMLElement | null) => {
     supervisionOpenerRef.current = opener;
     setSupervision(true);
+    // Opening a contextual panel must move keyboard users into it. The shared
+    // focus scope can race with the header's pressed-state render, so hand the
+    // settled frame to the panel's first meaningful control explicitly.
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>('aside[aria-label="Environment"] button[aria-label="Hide Environment"]')
+        ?.focus();
+    });
   };
   const closeSupervision = () => {
     setSupervision(false);
