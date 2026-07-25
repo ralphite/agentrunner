@@ -21,9 +21,6 @@ function topbarProps(
     title: "Session chrome contract",
     isSub: false,
     needsRecovery: false,
-    canRetry: false,
-    showPrimaryRetry: false,
-    showCompactRetry: false,
     environmentOpen: false,
     environmentAttention: 0,
     pinned: false,
@@ -33,7 +30,6 @@ function topbarProps(
     showSystemEvents: false,
     onBackToParent: vi.fn(),
     onResume: vi.fn(),
-    onRetry: vi.fn(),
     onToggleEnvironment: vi.fn(),
     onPin: vi.fn(),
     onRename: vi.fn(),
@@ -69,6 +65,11 @@ describe("SessionTopbar", () => {
     expect(onResume).toHaveBeenCalledOnce();
     expect(onEnvironment).toHaveBeenCalledWith(expect.any(HTMLButtonElement));
     expect(screen.getByText("2")).toBeTruthy();
+    const environment = screen.getByRole("button", { name: "Environment" });
+    expect(environment.title).toBe(
+      "Show the Environment rail — workspace changes, worktree, git, goal",
+    );
+    expect(environment.textContent).toBe("2");
   });
 
   it("renders the sub-agent answer state without parent-only actions", () => {
@@ -109,6 +110,9 @@ describe("SessionTopbar", () => {
       screen.getByRole("button", { name: "More session actions" }),
     );
     expect(screen.getByRole("menuitem", { name: "Unpin session" })).toBeTruthy();
+    expect(
+      screen.queryByRole("menuitem", { name: "Retry last message" }),
+    ).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
     expect(onShowChanges).toHaveBeenCalledOnce();
   });

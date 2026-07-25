@@ -151,8 +151,9 @@ describe("Changes toolbar (INC-41 RV-1)", () => {
     // Phosphor SVGs are display:block under Tailwind's preflight. Without this
     // flex/nowrap contract the caret drops below "Working Tree" / "Last Turn",
     // turning the 390px review header into a visually broken second line.
-    for (const cls of ["inline-flex", "shrink-0", "items-center", "gap-1", "whitespace-nowrap"])
+    for (const cls of ["inline-flex", "shrink-0", "items-center", "whitespace-nowrap"])
       expect(scope.classList.contains(cls)).toBe(true);
+    expect(scope.getAttribute("data-ui-button")).toBe("");
     expect(scope.querySelector("svg")).toBeTruthy();
 
     expect(bar.contains(container.querySelector(".diff-summary"))).toBe(true);

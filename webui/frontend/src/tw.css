@@ -884,8 +884,9 @@
   .msg.user .bubble { @apply bg-panel-2; }
   .msg.assistant .bubble { @apply border-transparent bg-transparent px-0; }
   .msg-actions { @apply mt-1 flex items-center gap-[6px] text-[12px] text-dim transition-opacity; }
-  .timeline .tl-inner .msg .msg-actions,
-  .timeline .tl-tail-row .msg-actions { @apply pointer-events-none opacity-0; }
+  .timeline .tl-inner .msg:not(.msg-last) .msg-actions { @apply pointer-events-none opacity-0; }
+  .timeline .tl-inner .msg.msg-last .msg-actions,
+  .timeline .tl-tail-row .msg-actions { @apply pointer-events-auto opacity-100; }
   .timeline .tl-inner .msg:hover .msg-actions,
   .timeline .tl-inner .msg.pseudo-hover .msg-actions,
   .timeline .tl-inner .msg:focus-within .msg-actions,
@@ -1139,25 +1140,18 @@
   .diff-summary .del, .fd-counts .del, .changes-outcome-files .del { @apply text-red; }
   .diff-empty { @apply m-auto grid max-w-[360px] place-items-center gap-2 p-8 text-center text-dim; }
 
-  /* Diff toolbar controls */
-  /* DIFF-SCOPE-CHROMELESS: rest 态裸文字(无 border/fill),读作 'Last Turn ⌄'
-     标题而非盒装按钮,与右侧真盒装的 Commit or push pill 拉开层级。保留
-     px-2 py-1 命中区 + rounded-[6px] 供 hover/active 圆角;hover/active 给微弱
-     bg-panel-2 tint 作为 affordance。 */
-  .diff-scope-trigger { @apply rounded-[6px] px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel-2 text-ink; }
-  .diff-scope-trigger.active { @apply bg-panel-2 text-ink; }
+  /* Diff toolbar controls. Every resident control occupies the semantic md
+     control box; variants can still distinguish scope (quiet), icons (ghost),
+     and Commit (outlined) without the old 27/29/32px visual jitter. */
+  .diff-toolbar-control { @apply h-[var(--control-md)] rounded-[var(--radius-control)]; }
+  .diff-toolbar-control:focus-visible,
+  .diff-viewtoggle > button:focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-blue;
+  }
   .diff-scope-menu { @apply min-w-[200px] text-[12px]; }
-  .diff-commit-btn { @apply shrink-0 rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel text-ink; }
-  .diff-commit-btn:active { @apply bg-panel-2; }
-  .diff-commit-compact { @apply inline-flex items-center gap-1 whitespace-nowrap; }
   .diff-commit-caret { @apply transition-transform; }
-  .diff-closebtn { @apply shrink-0 rounded-[4px] p-1 transition-colors duration-100 hover:bg-panel-2; }
   .diff-more-menu, .diff-files-menu { @apply min-w-[220px] text-[12px]; }
-  .diff-wrap-btn { @apply rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100; }
-  .diff-wrap-btn.active { @apply bg-blue-soft text-blue; }
-
-  .diff-viewtoggle { @apply flex rounded-[8px] border border-line bg-panel-2 p-[2px]; }
-  .diff-viewtoggle .sel, .diff-iconbtn.active { @apply bg-panel text-ink shadow-sm; }
+  .diff-viewtoggle { @apply flex shrink-0 items-center gap-1; }
   .diff-hidden-note { @apply px-3 py-2 text-[12px] text-dim; }
   .diff-conflict-note { @apply flex shrink-0 items-center gap-2 border-b border-red bg-red-soft px-3 py-2 text-[12px] text-red; }
   .diff-filelist { @apply max-h-[320px] overflow-y-auto p-1; }
@@ -1955,7 +1949,7 @@
   .turn-error-action, .terminal-alert-action { @apply shrink-0 font-medium; }
 
   /* Worked 折叠 caret 旋转(此前永不旋转) */
-  .worked-caret { @apply ml-auto shrink-0 text-dim transition-transform; }
+  .worked-caret { @apply shrink-0 text-dim transition-transform; }
   .worked.open .worked-caret { @apply rotate-90; }
 
   /* dev 视图 turn 分隔与 sys 行 */

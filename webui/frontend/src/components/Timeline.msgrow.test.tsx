@@ -113,15 +113,15 @@ describe("TH-21 — no message shows a persistent timestamp", () => {
 });
 
 describe("INC-91 — anchored message actions", () => {
-  it("shows Continue for an eligible attachment-only user row and invokes its canonical item", async () => {
+  it("shows a direct Continue action for an eligible attachment-only user row", async () => {
     const calls: string[] = [];
     const item: BubbleItem = { ...user("u-empty", ""), itemId: "item-u", continueSide: "before_user", files: 1 };
     const { container } = render(<TimelineView items={[item]} pending={[]} typing="" showSys={false}
       onContinue={async (message) => { calls.push(message.itemId || ""); }} />);
     expect(container.textContent).toContain("×1 attached");
     expect(screen.queryByLabelText("Copy message")).toBeNull();
-    fireEvent.click(screen.getByLabelText("More message actions"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Continue in new session" }));
+    const continueButton = screen.getByLabelText("Continue in new session");
+    fireEvent.click(continueButton);
     await waitFor(() => expect(calls).toEqual(["item-u"]));
   });
 

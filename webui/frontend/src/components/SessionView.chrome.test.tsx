@@ -501,15 +501,17 @@ describe("scheduled selected-iteration semantics", () => {
 });
 
 describe("TH-15 · one rail, one name, one door", () => {
-  it("leaves exactly one tool pill in the topbar, named Environment", async () => {
+  it("keeps one icon-only Environment tool in the topbar", async () => {
     const { container } = render(<SessionView sid={SID} />);
 
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
     const tools = [...container.querySelectorAll(".session-topbar .topbar-tool")].map((b) => b.textContent!.trim());
-    expect(tools).toEqual(["Environment"]);
+    expect(tools).toEqual([""]);
     const environment = container.querySelector(".session-topbar .topbar-tool")!;
-    expect(environment.querySelector(".topbar-tool-label")!.textContent).toBe("Environment");
-    expect(environment.getAttribute("aria-label")).toMatch(/Environment/);
+    expect(environment.getAttribute("aria-label")).toBe("Environment");
+    expect(environment.getAttribute("title")).toBe(
+      "Show the Environment rail — workspace changes, worktree, git, goal",
+    );
     // The word the pill used to say — and the second door it used to sit next to.
     expect(tools).not.toContain("Supervision");
     expect(tools).not.toContain("Changes");
@@ -815,14 +817,14 @@ describe("single Stop entry point", () => {
     expect(labels).not.toContain("Run");
   });
 
-  it("renders a deliberate interrupt as Stopped + Retry, never Resume recovery", async () => {
+  it("renders a deliberate interrupt as Stopped without topbar Retry or Resume", async () => {
     useStore.setState({
       sessions: [{ id: SID, title: "stopped session", status: "interrupted", workspace: "/tmp/wt-th14" } as any],
     });
     const { container } = render(<SessionView sid={SID} />);
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
 
-    expect(screen.getByRole("button", { name: "Retry session" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Retry session" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
     expect(screen.queryByText("Session needs recovery")).toBeNull();
     expect(screen.getByPlaceholderText("Ask for follow-up changes")).toBeTruthy();

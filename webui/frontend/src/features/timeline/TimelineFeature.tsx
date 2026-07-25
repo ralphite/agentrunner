@@ -10,7 +10,6 @@ import {
   CheckCircle,
   Circle,
   Copy,
-  DotsThree,
   File,
   FileText,
   Globe,
@@ -56,7 +55,6 @@ import { Markdown } from "../../components/Markdown";
 import { sessionImageURL, uploadURL } from "../../api";
 import { IconButton } from "../../ui/IconButton";
 import { Lightbox } from "../../components/Lightbox";
-import { Menu, MenuItem } from "../../components/Menu";
 import {
   useTimelineScrollController,
   type TimelineScrollController,
@@ -151,9 +149,9 @@ export function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactN
   );
 }
 
-// MsgActions exposes only the content-level action that belongs to this message:
-// Copy. Session deep links remain a router / browser-bookmark capability, not a
-// repeated action under every message; fork / continue lives in Advanced.
+// MsgActions exposes the actions anchored to this message. A durable checkpoint
+// continuation is a direct icon action, matching Codex's final-message row; it
+// must not be hidden behind a one-item overflow menu.
 //
 // TH-21: the row is HOVER-ONLY on every message except the thread's last
 // assistant answer, which keeps it at rest — that is the one row Codex draws
@@ -198,16 +196,17 @@ export function MsgActions({ text, ts, onContinue }: { text: string; ts?: string
         </IconButton>
       )}
       {onContinue && (
-        <Menu
-          label={continuing ? <Spinner size="sm" aria-hidden="true" /> : <DotsThree size={15} weight="bold" />}
-          ariaLabel={continuing ? "Continuing in new session" : "More message actions"}
-          triggerClassName="msg-copy"
-          iconTrigger
+        <IconButton
+          size="sm"
+          variant="ghost"
+          className="msg-copy"
+          onClick={() => void continueInNewSession()}
+          disabled={continuing}
+          title={continuing ? "Continuing in new session" : "Continue in new session"}
+          aria-label={continuing ? "Continuing in new session" : "Continue in new session"}
         >
-          <MenuItem onClick={() => void continueInNewSession()} disabled={continuing}>
-            <ArrowUpRight size={15} /> Continue in new session
-          </MenuItem>
-        </Menu>
+          {continuing ? <Spinner size="sm" aria-hidden="true" /> : <ArrowUpRight size={15} />}
+        </IconButton>
       )}
       {continueError && <span className="msg-action-error" role="status" title={continueError}>{continueError} — try again</span>}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
@@ -848,9 +847,9 @@ export function WorkedFold({
 
   return (
     <div className={"worked" + (open ? " open" : "")}>
-      <button type="button" className="worked-row" onClick={onToggle} aria-expanded={open}>
-        <CaretRight size={15} className="worked-caret" />
+      <button type="button" className="worked-row items-center!" onClick={onToggle} aria-expanded={open}>
         <span>{label}</span>
+        <CaretRight size={15} className="worked-caret" />
       </button>
       {open && <div className="worked-body">{rows}</div>}
     </div>
@@ -1363,7 +1362,7 @@ export function TimelineFeature({
   // TAIL-ROW: a settled turn (run idle, nothing typing/pending) hoists the final
   // answer's action row out of the bubble and down past the turn's artifact /
   // changes cards, so Copy lands on the same bottom row as the
-  // goal verdict — matching Codex, which draws `⧉ … ↗ │ ⊘ Goal achieved in N`
+  // goal verdict — matching Codex, which draws `⧉ ↗ │ ⊘ Goal achieved in N`
   // AFTER the turn's full content. While the run is live the row stays inline
   // and persistent on `.msg-last` (TH-21), because the tail region below is
   // gated off until the turn settles.

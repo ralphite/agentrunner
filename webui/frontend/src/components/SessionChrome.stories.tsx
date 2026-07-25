@@ -29,7 +29,6 @@ function ChromeFrame({ children }: { children: React.ReactNode }) {
 const topbarActions = {
   onBackToParent: fn(),
   onResume: fn(),
-  onRetry: fn(),
   onToggleEnvironment: fn(),
   onPin: fn(),
   onRename: fn(),
@@ -48,9 +47,6 @@ const topbarArgs: SessionTopbarProps = {
   title: "Build deterministic Storybook coverage",
   isSub: false,
   needsRecovery: false,
-  canRetry: false,
-  showPrimaryRetry: false,
-  showCompactRetry: false,
   environmentOpen: false,
   environmentAttention: 0,
   pinned: false,
@@ -91,6 +87,7 @@ export const TopbarDefault: Story = {
     await expect(
       canvas.getByRole("button", { name: "Environment" }),
     ).toHaveClass("active");
+    await expect(canvas.queryByText("Environment")).not.toBeInTheDocument();
     await expect(canvas.getByText("3")).toBeVisible();
   },
 };
@@ -108,22 +105,6 @@ export const TopbarRecovery: Story = {
     await expect(resume).toBeVisible();
     await userEvent.click(resume);
     await expect(topbarActions.onResume).toHaveBeenCalled();
-  },
-};
-
-export const TopbarRetry: Story = {
-  args: {
-    canRetry: true,
-    showPrimaryRetry: true,
-  },
-  play: async ({ canvasElement }) => {
-    topbarActions.onRetry.mockClear();
-    const retry = within(canvasElement).getByRole("button", {
-      name: "Retry session",
-    });
-    retry.focus();
-    await userEvent.keyboard("{Enter}");
-    await expect(topbarActions.onRetry).toHaveBeenCalled();
   },
 };
 
@@ -159,9 +140,6 @@ export const TopbarReadOnlySubAgent: Story = {
     isSub: true,
     subAnswerRequested: false,
     needsRecovery: true,
-    canRetry: true,
-    showPrimaryRetry: true,
-    showCompactRetry: true,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -235,12 +213,8 @@ export const TopbarChangesView: Story = {
 export const TopbarOverflowActions: Story = {
   args: {
     reserveNavigationSlot: true,
-    canRetry: true,
-    showPrimaryRetry: false,
-    showCompactRetry: true,
   },
   play: async ({ canvasElement }) => {
-    topbarActions.onRetry.mockClear();
     const canvas = within(canvasElement);
     await expect(
       canvasElement.querySelector(".session-topbar-nav-slot"),
@@ -248,13 +222,9 @@ export const TopbarOverflowActions: Story = {
     await userEvent.click(
       canvas.getByRole("button", { name: "More session actions" }),
     );
-    const retry = canvas.getByRole("menuitem", {
-      name: "Retry last message",
-    });
-    await expect(retry).toBeVisible();
-    await humanPause();
-    await userEvent.click(retry);
-    await expect(topbarActions.onRetry).toHaveBeenCalled();
+    await expect(
+      canvas.queryByRole("menuitem", { name: "Retry last message" }),
+    ).not.toBeInTheDocument();
   },
 };
 

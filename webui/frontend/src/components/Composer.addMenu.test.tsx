@@ -110,8 +110,10 @@ describe("Composer add and advanced menu", () => {
     openAddMenu();
 
     const menu = document.querySelector<HTMLElement>(".cx-add-menu")!;
-    expect(menu.style.width).toBe("320px");
-    expect(menu.style.maxWidth).toBe("calc(100vw - 32px)");
+    const panel = menu.closest<HTMLElement>(".cx-pop-codex")!;
+    expect(panel.classList.contains("!w-[320px]")).toBe(true);
+    expect(panel.classList.contains("max-w-[calc(100vw-32px)]")).toBe(true);
+    expect(menu.classList.contains("!w-full")).toBe(true);
     expect(menu.classList.contains("[&_.pop-body]:flex-row")).toBe(true);
     expect(menu.classList.contains("[&_.pop-desc]:truncate")).toBe(true);
     expect([...menu.querySelectorAll(".pop-section-label")].map((label) => label.textContent)).toEqual(["Add", "Advanced"]);

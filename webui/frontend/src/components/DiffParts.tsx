@@ -26,6 +26,9 @@ import { IconButton } from "../ui/IconButton";
 import { SearchField } from "../ui/Field";
 import { Popover, PopItem, PopSection } from "./Popover";
 
+const TOOLBAR_ICON_SIZE = 16;
+export const DIFF_TOOLBAR_TIGHT_PX = 760;
+
 const STATUS_GLYPH: Record<FileStatus, string> = {
   modified: "M",
   added: "A",
@@ -59,12 +62,12 @@ export function DiffScopePicker({
     <Popover
       panelClass="diff-scope-menu"
       trigger={(open, toggle) => (
-        <button
+        <Button
           ref={triggerRef}
-          className={
-            "diff-scope-trigger inline-flex shrink-0 items-center gap-1 whitespace-nowrap" +
-            (open ? " active" : "")
-          }
+          size="md"
+          variant="ghost"
+          className="diff-toolbar-control diff-scope-trigger"
+          pressed={open}
           onClick={toggle}
           aria-label="Change diff scope"
           aria-haspopup="menu"
@@ -72,8 +75,8 @@ export function DiffScopePicker({
           title="Choose which workspace changes to review"
         >
           {scope === "working-tree" ? "Working Tree" : "Last Turn"}
-          <CaretDown size={12} />
-        </button>
+          <CaretDown size={TOOLBAR_ICON_SIZE} className="shrink-0" />
+        </Button>
       )}
     >
       {(close) => (
@@ -292,6 +295,7 @@ export function ChangedFilesMenu({
         <IconButton
           size="md"
           variant="ghost"
+          className="diff-toolbar-control"
           pressed={open || filtering}
           onClick={toggle}
           aria-label="Changed files"
@@ -303,7 +307,7 @@ export function ChangedFilesMenu({
               : "Changed files — jump to one, or filter the review"
           }
         >
-          <FileMagnifyingGlass size={15} />
+          <FileMagnifyingGlass size={TOOLBAR_ICON_SIZE} />
         </IconButton>
       )}
     >
@@ -441,6 +445,7 @@ export function DiffMoreActionsMenu({
         <IconButton
           size="md"
           variant="ghost"
+          className="diff-toolbar-control"
           pressed={open}
           onClick={toggle}
           aria-label="More changes actions"
@@ -448,7 +453,7 @@ export function DiffMoreActionsMenu({
           aria-expanded={open}
           title="More actions"
         >
-          <DotsThree size={18} weight="bold" />
+          <DotsThree size={TOOLBAR_ICON_SIZE} weight="bold" />
         </IconButton>
       )}
     >
@@ -585,41 +590,56 @@ export function CommitPushMenu({
   onPush: () => void;
 }) {
   const conflict = conflictCount > 0;
+  const title = !isRepo
+    ? "This workspace is not a Git repository"
+    : conflict
+      ? "Resolve merge conflicts before committing — Push remains available"
+      : empty
+        ? "No workspace changes to commit — you can still push existing commits"
+        : "Commit or push the workspace changes";
   return (
     <Popover
       align="right"
       panelClass="w-[264px] max-w-[calc(100vw-24px)]"
-      trigger={(open, toggle) => (
-        <button
-          className={
-            "sm diff-commit-btn" +
-            (open ? " active" : "") +
-            (compact ? " diff-commit-compact" : "")
-          }
-          onClick={toggle}
-          disabled={busy || !isRepo}
-          aria-label="Commit or push"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          title={
-            !isRepo
-              ? "This workspace is not a Git repository"
-              : conflict
-                ? "Resolve merge conflicts before committing — Push remains available"
-                : empty
-                  ? "No workspace changes to commit — you can still push existing commits"
-                  : "Commit or push the workspace changes"
-          }
-        >
-          <GitCommit size={14} />
-          {!compact && (
-            <>
-              Commit or push
-              <CaretDown size={12} className="diff-commit-caret" />
-            </>
-          )}
-        </button>
-      )}
+      trigger={(open, toggle) =>
+        compact ? (
+          <IconButton
+            size="md"
+            variant="outline"
+            className="diff-toolbar-control diff-commit-btn diff-commit-compact"
+            pressed={open}
+            onClick={toggle}
+            disabled={busy || !isRepo}
+            aria-label="Commit or push"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            title={title}
+          >
+            <GitCommit size={TOOLBAR_ICON_SIZE} />
+          </IconButton>
+        ) : (
+          <Button
+            size="md"
+            variant="outline"
+            className="diff-toolbar-control diff-commit-btn"
+            pressed={open}
+            onClick={toggle}
+            disabled={busy || !isRepo}
+            aria-label="Commit or push"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            title={title}
+          >
+            <GitCommit size={TOOLBAR_ICON_SIZE} />
+            Commit or push
+            <CaretDown
+              size={TOOLBAR_ICON_SIZE}
+              weight="bold"
+              className="diff-commit-caret shrink-0"
+            />
+          </Button>
+        )
+      }
     >
       {(close) => (
         <PopSection label="Commit or push">
@@ -714,11 +734,12 @@ function DiffCloseButton({ onClose }: { onClose?: () => void }) {
     <IconButton
       size="md"
       variant="ghost"
+      className="diff-toolbar-control"
       onClick={onClose}
       aria-label="Close changes"
       title="Close changes (back to the conversation)"
     >
-      <X size={15} />
+      <X size={TOOLBAR_ICON_SIZE} />
     </IconButton>
   );
 }
@@ -739,11 +760,12 @@ export function DiffToolbar(props: DiffToolbarProps) {
         <IconButton
           size="md"
           variant="ghost"
+          className="diff-toolbar-control"
           onClick={props.onRefresh}
           aria-label="Refresh changes"
           title="Refresh changes"
         >
-          <ArrowClockwise size={15} />
+          <ArrowClockwise size={TOOLBAR_ICON_SIZE} />
         </IconButton>
         <DiffCloseButton onClose={props.onClose} />
       </div>
@@ -754,7 +776,7 @@ export function DiffToolbar(props: DiffToolbarProps) {
       {!props.barTight && (
         <span className="diff-review-label inline-flex shrink-0 items-center gap-[4px] whitespace-nowrap rounded-[5px] border border-line-2 bg-panel-2 px-[7px] py-[2px] text-[12px] font-medium text-ink">
           <FileMagnifyingGlass
-            size={13}
+            size={TOOLBAR_ICON_SIZE}
             weight="bold"
             className="shrink-0"
           />
@@ -821,6 +843,7 @@ export function DiffToolbar(props: DiffToolbarProps) {
         <IconButton
           size="md"
           variant="ghost"
+          className="diff-toolbar-control"
           onClick={props.onToggleAll}
           aria-label={
             props.allShownOpen ? "Collapse all files" : "Expand all files"
@@ -830,9 +853,9 @@ export function DiffToolbar(props: DiffToolbarProps) {
           }
         >
           {props.allShownOpen ? (
-            <ArrowsInLineVertical size={15} />
+            <ArrowsInLineVertical size={TOOLBAR_ICON_SIZE} />
           ) : (
-            <ArrowsOutLineVertical size={15} />
+            <ArrowsOutLineVertical size={TOOLBAR_ICON_SIZE} />
           )}
         </IconButton>
       )}
@@ -848,52 +871,58 @@ export function DiffToolbar(props: DiffToolbarProps) {
         <IconButton
           size="md"
           variant="ghost"
+          className="diff-toolbar-control"
           onClick={props.onCopy}
           aria-label="Copy diff"
           title="Copy the whole diff to the clipboard"
         >
-          <Copy size={15} />
+          <Copy size={TOOLBAR_ICON_SIZE} />
         </IconButton>
       )}
       {!props.empty && !props.barTight && (
         <IconButton
           size="md"
           variant="ghost"
+          className="diff-toolbar-control"
           pressed={props.wrap}
           onClick={props.onToggleWrap}
           aria-label="Wrap long lines"
           title={props.wrap ? "Disable line wrap" : "Wrap long lines"}
         >
           {props.wrap ? (
-            <TextAlignLeft size={15} />
+            <TextAlignLeft size={TOOLBAR_ICON_SIZE} />
           ) : (
-            <ArrowsHorizontal size={15} />
+            <ArrowsHorizontal size={TOOLBAR_ICON_SIZE} />
           )}
         </IconButton>
       )}
       {!props.empty && !props.barTight && (
         <div className="diff-viewtoggle" role="group" aria-label="Diff layout">
-          <button
-            className={"sm icon" + (props.view === "inline" ? " sel" : "")}
+          <IconButton
+            size="md"
+            variant="ghost"
+            className="diff-toolbar-control"
+            pressed={props.view === "inline"}
             onClick={() => props.view !== "inline" && props.onToggleView()}
             title="Inline view"
             aria-label="Inline view"
-            aria-pressed={props.view === "inline"}
           >
-            <Rows size={14} />
-          </button>
-          <button
-            className={"sm icon" + (props.view === "split" ? " sel" : "")}
+            <Rows size={TOOLBAR_ICON_SIZE} />
+          </IconButton>
+          <IconButton
+            size="md"
+            variant="ghost"
+            className="diff-toolbar-control"
+            pressed={props.view === "split"}
             onClick={() => props.view !== "split" && props.onToggleView()}
             disabled={props.narrow}
             title={
               props.narrow ? "Split view needs a wider window" : "Split view"
             }
             aria-label="Split view"
-            aria-pressed={props.view === "split"}
           >
-            <Columns size={14} />
-          </button>
+            <Columns size={TOOLBAR_ICON_SIZE} />
+          </IconButton>
         </div>
       )}
       <CommitPushMenu

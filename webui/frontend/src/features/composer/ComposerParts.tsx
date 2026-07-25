@@ -617,7 +617,7 @@ export function AddMenu({
   return (
     <Popover
       align="left"
-      panelClass="cx-pop-codex"
+      panelClass="cx-pop-codex !w-[320px] max-w-[calc(100vw-32px)]"
       onOpen={onOpen}
       trigger={(open, toggle) => (
         <IconButton
@@ -638,12 +638,11 @@ export function AddMenu({
       {(close) => (
         <div
           className={
-            "cx-menu cx-add-menu [&_.pop-body]:flex-row [&_.pop-body]:items-baseline [&_.pop-body]:gap-2 " +
+            "cx-menu cx-add-menu !w-full [&_.pop-body]:flex-row [&_.pop-body]:items-baseline [&_.pop-body]:gap-2 " +
             "[&_.pop-title]:shrink-0 [&_.pop-desc]:min-w-0 [&_.pop-desc]:truncate" +
             (page === "agent" ? " cx-add-agent" : "")
           }
           ref={pageRef}
-          style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
           onClick={(event) => event.preventDefault()}
         >
           {page === "root" ? (
@@ -658,7 +657,7 @@ export function AddMenu({
                   }}
                 />
                 <PopItem
-                  icon={<Target size={14} />}
+                  icon={<Target size={16} />}
                   title="Goal"
                   desc={
                     goalMode
@@ -672,7 +671,7 @@ export function AddMenu({
                   }}
                 />
                 <PopItem
-                  icon={<ListChecks size={14} />}
+                  icon={<ListChecks size={16} />}
                   title="Plan mode"
                   desc={
                     planMode ? "Turn plan mode off" : "Turn plan mode on"
@@ -698,7 +697,7 @@ export function AddMenu({
                       ? "Background run"
                       : agentLabel(persona)
                   }
-                  right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
+                  right={<CaretRight className="cx-model-page-chev shrink-0" size={16} aria-hidden="true" />}
                   submenu
                   onHoverOpen={() => onPageChange("advanced")}
                   onArrowRight={() => onPageChange("advanced")}
@@ -716,7 +715,7 @@ export function AddMenu({
                 onClick={() => onPageChange("root")}
               />
               <PopItem
-                icon={<ChartBar size={14} />}
+                  icon={<ChartBar size={16} />}
                 title="Best of N"
                 desc="Keep the best of N tries"
                 onClick={() => {
@@ -737,12 +736,12 @@ export function AddMenu({
                 />
               )}
               <PopItem
-                icon={<UserCircle size={13} />}
+                icon={<UserCircle size={16} />}
                 title="Agent"
                 desc={
                   agentLabel(persona)
                 }
-                right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
+                right={<CaretRight className="cx-model-page-chev shrink-0" size={16} aria-hidden="true" />}
                 submenu
                 onHoverOpen={() => onPageChange("agent")}
                 onArrowRight={() => onPageChange("agent")}
@@ -761,7 +760,7 @@ export function AddMenu({
               {agents.map((item) => (
                 <PopItem
                   key={item.name}
-                  icon={<UserCircle size={13} />}
+                  icon={<UserCircle size={16} />}
                   title={agentLabel(item.name)}
                   desc={`${item.description || "Custom Agent"} · ${item.source}`}
                   active={persona === item.name}
@@ -972,7 +971,7 @@ export function ModelPicker({
     <Popover
       align="right"
       wrapClass="cx-model-wrap"
-      panelClass="cx-model-popover w-[360px] max-w-[calc(100vw-32px)] [@media(max-height:220px)]:py-px"
+      panelClass="cx-model-popover !w-[320px] max-w-[calc(100vw-32px)] [@media(max-height:220px)]:py-px"
       onOpen={onOpen}
       trigger={(open, toggle) => (
         <button
@@ -994,7 +993,7 @@ export function ModelPicker({
     >
       {(close) => (
         <div
-          className="cx-menu cx-model-menu w-full min-w-0 [@media(max-height:220px)]:p-0"
+          className="cx-menu cx-model-menu !w-full min-w-0 [@media(max-height:220px)]:p-0"
           ref={pageRef}
           onClick={(event) => event.preventDefault()}
         >
@@ -1008,7 +1007,7 @@ export function ModelPicker({
                       <span className="truncate">{modelLabel}</span>
                       <CaretRight
                         className="cx-model-page-chev shrink-0"
-                        size={13}
+                        size={16}
                         aria-hidden="true"
                       />
                     </span>
@@ -1024,7 +1023,7 @@ export function ModelPicker({
                       </span>
                       <CaretRight
                         className="cx-model-page-chev shrink-0"
-                        size={13}
+                        size={16}
                         aria-hidden="true"
                       />
                     </span>
@@ -1038,7 +1037,7 @@ export function ModelPicker({
                   right={
                     <CaretRight
                       className="cx-model-page-chev shrink-0"
-                      size={13}
+                      size={16}
                       aria-hidden="true"
                     />
                   }
@@ -1059,9 +1058,9 @@ export function ModelPicker({
                     key={item.provider + item.id}
                     icon={
                       item.provider === "anthropic" ? (
-                        <Cpu size={14} />
+                        <Cpu size={16} />
                       ) : (
-                        <Sparkle size={14} />
+                        <Sparkle size={16} />
                       )
                     }
                     title={item.label}
@@ -1103,7 +1102,7 @@ export function ModelPicker({
                 onBack={() => onPageChange("root")}
               />
               <PopItem
-                icon={<Code size={15} />}
+                icon={<Code size={16} />}
                 title="Custom model id…"
                 desc={`provider stays ${provider}`}
                 onClick={() => {

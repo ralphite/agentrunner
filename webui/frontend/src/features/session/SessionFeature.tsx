@@ -415,16 +415,9 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // thread already says "Stopped — you interrupted this turn" and the very
   // next send resumes it — painting it with the recovery banner ("The
   // previous host stopped…" + Resume) misreads a deliberate act as a crash.
-  // Recovery is for stranded sessions; interrupted keeps Retry (canRetry
-  // below still matches it) and the ordinary composer.
+  // Recovery is for stranded sessions; interrupted keeps the ordinary
+  // composer. Failed-turn retry stays beside the failure it acts on.
   const needsRecovery = !live && /strand/i.test(listStatus || "");
-  // Retry re-sends the last message as a NEW turn. A stranded session must
-  // Resume instead: replaying its last message could duplicate partial work.
-  // A driver owns a scheduled series, not a conversational last message.
-  // Its failure path is Run details / schedule actions; `ar retry` would expose
-  // the ordinary-session semantic beside copy that explicitly says the driver
-  // does not accept follow-up messages.
-  const canRetry = !isDriver && !live && !needsRecovery && /interrupt|crash|fail/i.test(listStatus || "");
   const running = status.cls === "run";
   // An explicitly-closed session still accepts input (a send reopens it), but
   // the composer alone reads as "live" — surface the closed state so it isn't
@@ -745,9 +738,6 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
           subAnswerRequested={askQuestions.length > 0}
           reserveNavigationSlot={bp.compact || bp.tablet}
           needsRecovery={needsRecovery}
-          canRetry={canRetry}
-          showPrimaryRetry={(bp.desktop || bp.wide) || !needsRecovery}
-          showCompactRetry={canRetry && (bp.compact || bp.tablet)}
           environmentOpen={showSupervision}
           environmentAttention={attentionCount}
           pinned={pinned.includes(sid)}
@@ -757,7 +747,6 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
           showSystemEvents={showSys}
           onBackToParent={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))}
           onResume={act.resume}
-          onRetry={act.retry}
           onToggleEnvironment={(opener) => {
             if (view === "diff") setView("chat");
             if (showSupervision) closeSupervision();

@@ -7,6 +7,7 @@ import type { DiffScope } from "../types";
 import {
   ChangedFilesMenu,
   CommitPushMenu,
+  DIFF_TOOLBAR_TIGHT_PX,
   DiffMoreActionsMenu,
   DiffScopePicker,
   DiffStateView,
@@ -192,7 +193,9 @@ function ToolbarHarness({ tight = false }: { tight?: boolean }) {
       resizeObserver.current = null;
       if (!element) return;
       const measure = () =>
-        setMeasuredTight(tight || element.clientWidth < 640);
+        setMeasuredTight(
+          tight || element.clientWidth < DIFF_TOOLBAR_TIGHT_PX,
+        );
       measure();
       resizeObserver.current = new ResizeObserver(measure);
       resizeObserver.current.observe(element);

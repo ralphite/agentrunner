@@ -33,9 +33,6 @@ export interface SessionTopbarProps {
   subAnswerRequested?: boolean;
   reserveNavigationSlot?: boolean;
   needsRecovery: boolean;
-  canRetry: boolean;
-  showPrimaryRetry: boolean;
-  showCompactRetry: boolean;
   environmentOpen: boolean;
   environmentAttention: number;
   pinned: boolean;
@@ -45,7 +42,6 @@ export interface SessionTopbarProps {
   showSystemEvents: boolean;
   onBackToParent: () => void;
   onResume: () => void;
-  onRetry: () => void;
   onToggleEnvironment: (opener: HTMLButtonElement) => void;
   onPin: () => void;
   onRename: () => void;
@@ -71,9 +67,6 @@ export function SessionTopbar({
   subAnswerRequested = false,
   reserveNavigationSlot = false,
   needsRecovery,
-  canRetry,
-  showPrimaryRetry,
-  showCompactRetry,
   environmentOpen,
   environmentAttention,
   pinned,
@@ -83,7 +76,6 @@ export function SessionTopbar({
   showSystemEvents,
   onBackToParent,
   onResume,
-  onRetry,
   onToggleEnvironment,
   onPin,
   onRename,
@@ -160,18 +152,6 @@ export function SessionTopbar({
           <span className="topbar-tool-label">Resume</span>
         </Button>
       )}
-      {!isSub && canRetry && showPrimaryRetry && (
-        <Button
-          variant="ghost"
-          className="topbar-tool"
-          onClick={onRetry}
-          title="Re-send your last message as a new turn; double-clicks are idempotent"
-          aria-label="Retry session"
-        >
-          <ArrowClockwise size={15} />{" "}
-          <span className="topbar-tool-label">Retry</span>
-        </Button>
-      )}
       <Button
         variant="ghost"
         pressed={environmentOpen}
@@ -184,8 +164,7 @@ export function SessionTopbar({
         }
         aria-label="Environment"
       >
-        <SlidersHorizontal size={16} />{" "}
-        <span className="topbar-tool-label">Environment</span>
+        <SlidersHorizontal size={16} />
         {environmentAttention > 0 && (
           <span className="topbar-attention">{environmentAttention}</span>
         )}
@@ -269,21 +248,13 @@ export function SessionTopbar({
               <Robot size={16} />
               Switch agent…
             </MenuItem>
-            {(showCompactRetry || needsRecovery) && (
+            {needsRecovery && (
               <>
                 <MenuLabel>Run</MenuLabel>
-                {showCompactRetry && (
-                  <MenuItem onClick={onRetry}>
-                    <ArrowClockwise size={16} />
-                    Retry last message
-                  </MenuItem>
-                )}
-                {needsRecovery && (
-                  <MenuItem onClick={onResume}>
-                    <ArrowClockwise size={16} />
-                    Resume session
-                  </MenuItem>
-                )}
+                <MenuItem onClick={onResume}>
+                  <ArrowClockwise size={16} />
+                  Resume session
+                </MenuItem>
               </>
             )}
           </>

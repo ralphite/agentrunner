@@ -151,6 +151,39 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("uses one 32px control family across the review toolbar", async () => {
+    arMock.diff = () => Promise.resolve(worktreeDiff());
+    render(<DiffView sid="s4-control-family" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    for (const control of [
+      screen.getByLabelText("Change diff scope"),
+      screen.getByLabelText("More changes actions"),
+      screen.getByLabelText("Changed files"),
+      screen.getByLabelText("Copy diff"),
+      screen.getByLabelText("Wrap long lines"),
+      screen.getByLabelText("Commit or push"),
+      screen.getByLabelText("Close changes"),
+    ]) {
+      expect(control.classList.contains("diff-toolbar-control")).toBe(true);
+      expect(control.getAttribute("data-ui-button")).toBe("");
+    }
+    for (const layoutControl of [
+      screen.getByLabelText("Inline view"),
+      screen.getByLabelText("Split view"),
+    ]) {
+      expect(layoutControl.classList.contains("diff-toolbar-control")).toBe(true);
+      expect(layoutControl.getAttribute("data-ui-icon-button")).toBe("");
+    }
+
+    const commit = screen.getByLabelText("Commit or push");
+    const commitIcons = commit.querySelectorAll("svg");
+    expect(commitIcons).toHaveLength(2);
+    expect(commitIcons[0].getAttribute("width")).toBe("16");
+    expect(commitIcons[1].getAttribute("width")).toBe("16");
+    expect(commitIcons[1].classList.contains("diff-commit-caret")).toBe(true);
+  });
+
   it("states the worktree's branch in the chip and its repo in the tooltip", async () => {
     arMock.diff = () => Promise.resolve(worktreeDiff());
     const { container } = render(<DiffView sid="s5" onClose={() => {}} />);

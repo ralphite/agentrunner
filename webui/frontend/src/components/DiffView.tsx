@@ -13,7 +13,11 @@ import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
-import { DiffStateView, DiffToolbar } from "./DiffParts";
+import {
+  DIFF_TOOLBAR_TIGHT_PX,
+  DiffStateView,
+  DiffToolbar,
+} from "./DiffParts";
 import { useWorktreeActions } from "./worktreeActions";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useEscapeLayer } from "../ui/FocusScope";
@@ -191,11 +195,9 @@ const saveScope = (storage: Storage, s: DiffScope) => {
 //      the row has to be *short enough*, which means the low-frequency controls
 //      have to leave it. The ✕ is last and unshrinkable, always.
 //
-// 640, not 600: the panel at a 1152px window is 467px and at 1280 it is 568px —
-// both already tight in every practical sense, and the extra 40px of margin is
-// what keeps a wider `+1,234 −5,678` summary or a longer branch chip from
-// walking the bar back over its own edge.
-const BAR_TIGHT_PX = 640;
+// The public md controls need a 760px bar to keep the full label/action set on
+// one row. Below that, the compact composition above protects the terminal
+// Commit and Close controls instead of letting them overflow out of the panel.
 
 // DIFF-FILE-EDGETOEDGE · a code review is one continuous surface, not a stack of
 // boxes. Codex runs its file sections edge-to-edge in the review rail — a single
@@ -377,7 +379,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   // persistent desktop split. Give Escape the same close behaviour as its
   // visible close control, including SessionFeature's opener restoration.
   useEscapeLayer(onClose, narrow && !!onClose);
-  // DIFF-CP · what the bar actually measures (see BAR_TIGHT_PX). A stable
+  // DIFF-CP · what the bar actually measures. A stable
   // callback ref, because the bar only exists once the diff has landed — a `[]`
   // effect would run against the skeleton and find nothing to observe. The
   // ResizeObserver is guarded for jsdom, which has none: no observer → not tight
@@ -388,7 +390,10 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
     barObs.current?.disconnect();
     barObs.current = null;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const measure = () => setBarTight(el.clientWidth > 0 && el.clientWidth < BAR_TIGHT_PX);
+    const measure = () =>
+      setBarTight(
+        el.clientWidth > 0 && el.clientWidth < DIFF_TOOLBAR_TIGHT_PX,
+      );
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     barObs.current = ro;
@@ -398,7 +403,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   // `narrow` is the window; `barTight` is the panel. Split view needs room in the
   // box that renders it, and only `narrow` (window ≤900px) may *refuse* it —
   // two columns would crush the diff column there. DIFF-SPLIT-TOGGLE-GONE ·
-  // `barTight` (a mid-width panel <640px, e.g. 605px at a 1440 window) must not:
+  // `barTight` (a mid-width panel <760px, e.g. 605px at a 1440 window) must not:
   // its toggle demotes into `…` (see the tight menu below) instead of vanishing,
   // so the panel honours the user's explicit `view`. `view` defaults to "inline",
   // so this only changes rendering once the user actively chooses split — it

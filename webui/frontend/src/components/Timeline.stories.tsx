@@ -754,13 +754,11 @@ export const MsgActions: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const more = canvas.getByRole("button", { name: "More message actions" });
-    more.focus();
-    await userEvent.keyboard("{Enter}");
-    const page = within(canvasElement.ownerDocument.body);
-    await expect(page.getByRole("menuitem", { name: "Continue in new session" })).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Copy message" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Continue in new session" }),
     ).toBeVisible();
   },
 };
@@ -862,21 +860,16 @@ export const MsgActionsBusyAndError: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-    const moreButtons = canvas.getAllByRole("button", { name: "More message actions" });
-    await userEvent.click(moreButtons[0]);
-    const pending = page.getByRole("menuitem", { name: "Continue in new session" });
-    await userEvent.click(pending);
-    await expect(moreButtons[0]).toHaveAttribute("aria-label", "Continuing in new session");
-    await userEvent.click(moreButtons[0]);
-    await expect(page.getByRole("menuitem", { name: "Continue in new session" })).toBeDisabled();
+    const buttons = canvas.getAllByRole("button", { name: "Continue in new session" });
+    await userEvent.click(buttons[0]);
+    await expect(buttons[0]).toHaveAttribute("aria-label", "Continuing in new session");
+    await expect(buttons[0]).toBeDisabled();
 
-    await userEvent.click(moreButtons[1]);
-    await userEvent.click(page.getByRole("menuitem", { name: "Continue in new session" }));
+    await userEvent.click(buttons[1]);
     await expect(
       await canvas.findByRole("status", { name: /Checkpoint is no longer available/ }),
     ).toBeVisible();
-    await expect(moreButtons[1]).toHaveAttribute("aria-label", "More message actions");
+    await expect(buttons[1]).toHaveAttribute("aria-label", "Continue in new session");
   },
 };
 

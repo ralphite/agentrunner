@@ -409,9 +409,9 @@ describe("mobile sidebar chrome touch targets", () => {
     }
 
     const brandRow = container.querySelector(".brand-main")!.parentElement!;
-    expect(brandRow.className).toContain("min-h-[44px]");
-    expect(brandRow.className).toContain("max-[900px]:pt-0!");
-    expect(brandRow.className).toContain("max-[900px]:pb-0!");
+    expect(brandRow.className).toContain("h-11");
+    expect(brandRow.className).toContain("shrink-0");
+    expect(brandRow.className).toContain("px-3");
   });
 });
 

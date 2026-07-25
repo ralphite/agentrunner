@@ -261,7 +261,7 @@ describe("…and it survives a narrow bar without deserting it (INC-41 DIFF-CP)"
   });
 
   it("keeps the label when the bar has room for it", async () => {
-    barWidth(700); // above BAR_TIGHT_PX
+    barWidth(800); // above DIFF_TOOLBAR_TIGHT_PX
     arMock.diff = (_sid: string, scope: DiffScope) =>
       Promise.resolve(scope === "last-turn" ? lastTurnResp() : baseDiff());
     render(<DiffView sid="cp8" />);
@@ -292,7 +292,7 @@ describe("…and it survives a narrow bar without deserting it (INC-41 DIFF-CP)"
   });
 
   it("keeps the split toggle on a bar with room for it", async () => {
-    barWidth(700);
+    barWidth(800);
     localStorage.setItem("ar.diff.scope", "working-tree");
     arMock.diff = () => Promise.resolve(baseDiff());
     const { container } = render(<DiffView sid="cp10" />);
@@ -362,7 +362,7 @@ describe("the ✕ never leaves the panel (INC-41 RD-8)", () => {
   });
 
   it("keeps Copy and Wrap resident — and out of … — on a bar with room", async () => {
-    barWidth(700); // above BAR_TIGHT_PX
+    barWidth(800); // above DIFF_TOOLBAR_TIGHT_PX
     localStorage.setItem("ar.diff.scope", "working-tree");
     arMock.diff = () => Promise.resolve(baseDiff());
     const { container } = render(<DiffView sid="rd8c" onClose={() => {}} />);

@@ -557,20 +557,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           home). Codex's rail opens with a plain "ChatGPT Codex" wordmark and
           nothing else. Same here: text only, so the first thing the eye lands
           on is a session, not a logo. */}
-      <div className="flex min-h-[44px] items-center justify-between pt-[6px] pr-2 pb-[6px] pl-3 max-[900px]:pt-0! max-[900px]:pb-0!">
+      <div className="flex h-11 shrink-0 items-center justify-between px-3">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
         <div className="flex items-center gap-[2px]">
           <IconButton
-            size="sm"
+            size="md"
             variant="ghost"
             className="max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
             onClick={onOpenPalette}
             title={`Search sessions (${keyLabel("mod")}K)`}
             aria-label="Search sessions"
           >
-            <MagnifyingGlass size={16} />
+            <MagnifyingGlass size={17} weight="regular" />
           </IconButton>
           <IconButton
             variant="ghost"
@@ -579,7 +579,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             title="Close sidebar"
             aria-label="Close sidebar"
           >
-            <X size={17} />
+            <X size={17} weight="regular" />
           </IconButton>
         </div>
       </div>
@@ -597,7 +597,10 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             onClick={() => { showPage(key); onNavigate?.(); }}
             title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
           >
-            <DestIcon size={17} /> <span>{label}</span>
+            <span className="inline-grid h-5 w-5 shrink-0 place-items-center">
+              <DestIcon size={17} weight="regular" />
+            </span>
+            <span className="leading-5">{label}</span>
             {key === "scheduled" && (schedUnread.length > 0 || runningRuns > 0) && (
               <span
                 className={`nav-notice${schedUnread.length > 0 ? " unread" : " running"}`}
