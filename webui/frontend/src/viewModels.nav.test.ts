@@ -181,10 +181,10 @@ describe("visibleProjectGroups (SB-4)", () => {
 
   it("truncates to the limit and reports the remainder", () => {
     const { groups: shown, hidden } = visibleProjectGroups(groups(127));
-    expect(shown).toHaveLength(8);
-    expect(hidden).toBe(119);
-    // Newest-first order is preserved — the cut is a tail cut, not a reshuffle.
-    expect(shown.map((g) => g.key)).toEqual(groups(8).map((g) => g.key));
+    expect(shown).toHaveLength(4);
+    expect(hidden).toBe(123);
+    // Newest-first order is preserved when there is no current project.
+    expect(shown.map((g) => g.key)).toEqual(groups(4).map((g) => g.key));
   });
 
   it("expanded shows everything with nothing hidden", () => {
@@ -195,16 +195,16 @@ describe("visibleProjectGroups (SB-4)", () => {
 
   it("always renders the group holding the current session, even past the limit", () => {
     const { groups: shown, hidden } = visibleProjectGroups(groups(127), { current: "s40" });
-    expect(shown).toHaveLength(9);
-    // Appended at the tail: the first 8 rows never shuffle under the user.
-    expect(shown[8].key).toBe("/repo/p40");
-    expect(hidden).toBe(118);
+    expect(shown).toHaveLength(4);
+    expect(shown[0].key).toBe("/repo/p40");
+    expect(hidden).toBe(123);
   });
 
   it("does not duplicate the current group when it is already inside the limit", () => {
     const { groups: shown, hidden } = visibleProjectGroups(groups(127), { current: "s2" });
-    expect(shown).toHaveLength(8);
+    expect(shown).toHaveLength(4);
+    expect(shown[0].key).toBe("/repo/p2");
     expect(shown.filter((g) => g.key === "/repo/p2")).toHaveLength(1);
-    expect(hidden).toBe(119);
+    expect(hidden).toBe(123);
   });
 });

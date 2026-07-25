@@ -527,16 +527,16 @@ describe("Projects section truncation + group fold (SB-4)", () => {
 
   afterEach(() => localStorage.clear());
 
-  it("renders only the 8 newest project groups, with the rest behind Show more projects", () => {
+  it("renders only the 4 newest project groups, with the rest behind Show more projects", () => {
     const { container } = mount();
-    expect(container.querySelectorAll(".project-group")).toHaveLength(8);
+    expect(container.querySelectorAll(".project-group")).toHaveLength(4);
     expect(headings(container)[0]).toContain("p11");
-    expect(headings(container)[7]).toContain("p04");
+    expect(headings(container)[3]).toContain("p08");
 
     const showMore = container.querySelector(".projects-show-more")!;
     expect(showMore.textContent).toContain("Show more projects");
     // Codex parity: no visible count; the full total lives in the aria-label
-    // so nothing is silently dropped for screen readers (12 = 8 shown + 4 withheld).
+    // so nothing is silently dropped for screen readers (12 = 4 shown + 8 withheld).
     expect(showMore.getAttribute("aria-label")).toContain("12");
   });
 
@@ -549,7 +549,7 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     const showLess = container.querySelector(".projects-show-more")!;
     expect(showLess.textContent).toContain("Show fewer projects");
     fireEvent.click(showLess);
-    expect(container.querySelectorAll(".project-group")).toHaveLength(8);
+    expect(container.querySelectorAll(".project-group")).toHaveLength(4);
   });
 
   it("collapsing a group hides its sessions and persists across a remount", () => {
@@ -583,22 +583,22 @@ describe("Projects section truncation + group fold (SB-4)", () => {
   });
 
   it("keeps the current session's project heading rendered past the limit without overriding its fold", () => {
-    // p00 is the 12th group — beyond the 8 the section shows — *and* collapsed.
+    // p00 is the 12th group — beyond the compact set the section shows — *and* collapsed.
     localStorage.setItem("ar.sidebar.collapsedProjects", JSON.stringify(["/repo/p00"]));
     const { container } = mount({ currentSid: "20260701-000000-session" });
 
-    // 8 + the current group, appended at the tail so the top never shuffles.
+    // Current work leads the compact list; recency follows it.
     const groups = [...container.querySelectorAll(".project-group")];
-    expect(groups).toHaveLength(9);
-    expect(headings(container)[8]).toContain("p00");
+    expect(groups).toHaveLength(4);
+    expect(headings(container)[0]).toContain("p00");
 
     // The user's fold still wins: only the current project heading is anchored.
-    const heading = groups[8].querySelector(".project-heading")!;
+    const heading = groups[0].querySelector(".project-heading")!;
     expect(heading.getAttribute("aria-expanded")).toBe("false");
-    expect(groups[8].querySelector(".project-session-wrap.current")).toBeNull();
+    expect(groups[0].querySelector(".project-session-wrap.current")).toBeNull();
 
     fireEvent.click(heading);
-    const current = groups[8].querySelector(".project-session-wrap.current");
+    const current = groups[0].querySelector(".project-session-wrap.current");
     expect(current).toBeTruthy();
     expect(current!.textContent).toContain("Session 0");
   });

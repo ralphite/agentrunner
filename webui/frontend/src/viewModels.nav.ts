@@ -49,9 +49,10 @@ export function paletteSessionGroups(
 // a short, one-screen list you scan. Ours rendered every group it had (127 on
 // the author's machine → 14073px of rail), so the account footer sat a dozen
 // screens below the fold and the section stopped being navigable at all.
-// Groups sort newest-first (buildSidebarModel), so the first 8 are the projects
-// you actually touched recently — the rest are history, one click away.
-export const PROJECT_GROUP_LIMIT = 8;
+// Groups sort newest-first (buildSidebarModel), but the current project must be
+// the first thing a working user sees. Keep that anchor plus three recent groups;
+// everything else is history behind one explicit Show more control.
+export const PROJECT_GROUP_LIMIT = 4;
 
 export interface VisibleProjectGroups {
   groups: ProjectGroup[];
@@ -66,18 +67,21 @@ export interface VisibleProjectGroups {
 // it sorts past the limit. Truncation is a default view, not a claim that the
 // current project should vanish. INC-90 narrows this guarantee to the project
 // heading: an explicit project fold may hide the current session row, but the
-// group itself stays reachable. The current group is appended at the tail so
-// the first `limit` rows never shuffle under the user.
+// group itself stays reachable. In the default compact view it leads the list:
+// current work is navigation, whereas recency is only supporting context.
 export function visibleProjectGroups(
   projects: ProjectGroup[],
   opts: { expanded?: boolean; limit?: number; current?: string } = {},
 ): VisibleProjectGroups {
   const limit = opts.limit ?? PROJECT_GROUP_LIMIT;
-  if (opts.expanded || projects.length <= limit) return { groups: projects, hidden: 0 };
-  const groups = projects.slice(0, limit);
+  if (opts.expanded) return { groups: projects, hidden: 0 };
   const current = opts.current
     ? projects.find((project) => project.sessions.some((session) => session.id === opts.current))
     : undefined;
-  if (current && !groups.includes(current)) groups.push(current);
+  if (!current) {
+    const groups = projects.slice(0, limit);
+    return { groups, hidden: projects.length - groups.length };
+  }
+  const groups = [current, ...projects.filter((project) => project !== current).slice(0, Math.max(0, limit - 1))];
   return { groups, hidden: projects.length - groups.length };
 }

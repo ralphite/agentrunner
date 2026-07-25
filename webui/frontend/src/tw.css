@@ -1618,7 +1618,6 @@
     .sidebar-show { @apply !h-11 !w-11; }
     .sidebar-close { @apply !grid; }
     .sidebar-resize-handle { @apply hidden; }
-    .project-heading-actions { @apply flex; }
     .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
     /* INC-95: Changes is a full-surface mobile overlay with its own close

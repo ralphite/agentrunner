@@ -182,7 +182,7 @@ export function SidebarSessionItem({
       </span>
       {actions && (
         <span
-          className="session-touch-actions hidden shrink-0 items-center max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!"
+          className="session-touch-actions hidden shrink-0 items-center"
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => {
             event.preventDefault();

@@ -357,13 +357,7 @@ export const SessionInteraction: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const triggers = canvas.getAllByRole("button", { name: /More actions for/ });
-    await expect(triggers).toHaveLength(2);
-    for (const trigger of triggers) {
-      const rect = trigger.getBoundingClientRect();
-      await expect(rect.width).toBeGreaterThanOrEqual(44);
-      await expect(rect.height).toBeGreaterThanOrEqual(44);
-    }
+    await expect(canvas.queryByRole("button", { name: /More actions for/ })).not.toBeInTheDocument();
 
     const runningRow = canvas.getByRole("button", {
       name: /^Keep the exceptionally long running worktree title readable/,
@@ -377,18 +371,6 @@ export const SessionInteraction: Story = {
 
     await userEvent.click(runningRow.querySelector(".project-session")!);
     await expect(args.onSelect).toHaveBeenCalledOnce();
-    await userEvent.click(triggers[0]);
-    await expect(args.onSelect).toHaveBeenCalledOnce();
-    const items = canvas.getAllByRole("menuitem");
-    await expect(items.map((item) => item.textContent?.trim())).toEqual([
-      "Pin",
-      "Rename…",
-      "Mark as read",
-      "Archive",
-    ]);
-    await waitFor(() => expect(document.activeElement).toBe(items[0]));
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(document.activeElement).toBe(triggers[0]));
     await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
       document.documentElement.clientWidth,
     );

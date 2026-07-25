@@ -616,7 +616,7 @@ export const ProjectGroupOverflow: Story = {
     const showAll = canvas.getByRole("button", { name: "Show all 9 projects" });
     await expect(showAll).toHaveTextContent("Show more projects");
     await userEvent.click(showAll);
-    await expect(canvas.getByRole("button", { name: "Show only the 8 most recent projects" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show only the 4 most recent projects" })).toBeVisible();
     await expect(canvas.getAllByRole("button", { name: /project-overflow-/i })).toHaveLength(9);
   },
 };
