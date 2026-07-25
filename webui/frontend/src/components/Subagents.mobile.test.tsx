@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { childAnswerRequests, Subagents, type InspectNode } from "./Subagents";
 
 describe("Subagents mobile layout", () => {
-  it("stacks long identity and metadata while capping deep indentation", () => {
+  it("keeps agent identity and metadata to single scan lines", () => {
     const leaf: InspectNode = {
       agent: "agent-with-a-very-long-name",
       session: "leaf-session",
@@ -19,7 +19,8 @@ describe("Subagents mobile layout", () => {
 
     const button = screen.getByRole("button", { name: /agent-with-a-very-long-name/i });
     expect(button.classList.contains("sa-row")).toBe(true);
-    expect(button.querySelector(".sa-status")?.classList.contains("whitespace-normal")).toBe(true);
+    expect(button.querySelector(".sa-name")?.classList.contains("truncate")).toBe(true);
+    expect(button.querySelector(".sa-status")?.classList.contains("truncate")).toBe(true);
     expect(button.textContent).toContain("123 steps");
     expect(button.textContent).toContain("195k tok");
     expect(button.textContent).toContain("open");
@@ -30,7 +31,7 @@ describe("Subagents mobile layout", () => {
     expect(onOpen).toHaveBeenCalledWith("leaf-session");
   });
 
-  it("uses each real delegation task as the primary identity", () => {
+  it("uses a stable agent name with a one-line delegation summary", () => {
     const nodes: InspectNode[] = [
       { call_id: "call-a", agent: "worker", session: "child-a", status: "running" },
       { call_id: "call-b", agent: "worker", session: "child-b", status: "waiting" },
@@ -51,13 +52,20 @@ describe("Subagents mobile layout", () => {
     expect(
       [...container.querySelectorAll(".sa-name")].map((item) => item.textContent),
     ).toEqual([
-      "Audit keyboard focus across the sidebar.",
-      "Review narrow-screen header layout.",
-      "Compare menu actions with Codex.",
+      "worker",
+      "worker",
+      "worker",
     ]);
-    expect(screen.getByRole("button", { name: /Audit keyboard focus.*worker · Running/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Review narrow-screen.*worker · Ready/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Compare menu actions.*worker · Completed/i })).toBeTruthy();
+    expect(
+      [...container.querySelectorAll(".sa-task")].map((item) => item.textContent),
+    ).toEqual([
+      "Audit keyboard focus across the sidebar",
+      "Review narrow-screen header layout",
+      "Compare menu actions with Codex",
+    ]);
+    expect(screen.getByRole("button", { name: /worker.*Audit keyboard focus.*Running/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /worker.*Review narrow-screen.*Ready/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /worker.*Compare menu actions.*Completed/i })).toBeTruthy();
     expect(container.querySelector('[title*="child-a"]')).toBeNull();
   });
 
@@ -75,12 +83,38 @@ describe("Subagents mobile layout", () => {
       />,
     );
 
-    expect(
-      screen.getByText(
-        "Inspect the responsive navigation. Verify focus restoration after closing it.",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText("Inspect the responsive navigation")).toBeTruthy();
     expect(screen.queryByText(/Do not expose this path/)).toBeNull();
+  });
+
+  it("does not put a long operational prompt into the default row", () => {
+    const onOpen = vi.fn();
+    render(
+      <Subagents
+        nodes={[{
+          agent: "engineer",
+          session: "parent-sub-call_1_0-a1",
+          status: "running",
+        }]}
+        delegations={[{
+          assigned_to: "parent-sub-call_1_0-a1",
+          description:
+            "You are engineer. Follow these steps: 1. use glob and read_file before send_message to child_session_abc123. 2. Return the full internal session ID.",
+        }]}
+        onOpen={onOpen}
+      />,
+    );
+
+    const row = screen.getByRole("button", { name: /engineer.*Delegated task.*Running/i });
+    const summary = row.querySelector(".sa-task");
+    expect(summary?.textContent).toBe("Delegated task");
+    expect(summary?.classList.contains("truncate")).toBe(true);
+    expect(row.textContent).not.toContain("read_file");
+    expect(row.textContent).not.toContain("child_session_abc123");
+    expect(row.getAttribute("title")).not.toContain("child_session_abc123");
+
+    fireEvent.click(row);
+    expect(onOpen).toHaveBeenCalledWith("parent-sub-call_1_0-a1");
   });
 
   it("lets a typed approval wait outrank the broad waiting status", () => {

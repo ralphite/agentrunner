@@ -95,7 +95,7 @@ export const KeyboardNavigation: Story = {
     (canvasElement.ownerDocument.activeElement as HTMLElement | null)?.blur();
     await userEvent.tab();
     await expect(
-      canvas.getByRole("button", { name: /Audit sidebar focus.*worker · Running/i }),
+      canvas.getByRole("button", { name: /worker.*Audit sidebar focus.*Running/i }),
     ).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     await expect(args.onOpen).toHaveBeenCalledWith("session-lead");

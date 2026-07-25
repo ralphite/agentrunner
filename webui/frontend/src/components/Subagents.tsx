@@ -90,8 +90,8 @@ function tokens(n?: number): string {
 }
 
 // A child opening prompt may carry an implementation-only workspace preamble.
-// The actual delegated task follows the blank line; never expose the preamble,
-// a worktree path, or the generated child session id as the person's identity.
+// Keep stripping it wherever a task is used, but do not use the raw task as an
+// Environment row identity: a child prompt can be pages of tool instructions.
 export function subagentTaskLabel(value?: string): string | undefined {
   let clean = value?.trim();
   if (!clean) return undefined;
@@ -105,11 +105,8 @@ export function subagentTaskLabel(value?: string): string | undefined {
   return clean.replace(/\s+/g, " ") || undefined;
 }
 
-export function subagentPrimaryIdentity(
-  node: InspectNode,
-  delegation?: InspectDelegation,
-): string {
-  const task =
+function delegatedTask(node: InspectNode, delegation?: InspectDelegation) {
+  return (
     subagentTaskLabel(delegation?.title) ||
     subagentTaskLabel(delegation?.task) ||
     subagentTaskLabel(delegation?.name) ||
@@ -117,8 +114,43 @@ export function subagentPrimaryIdentity(
     subagentTaskLabel(node.title) ||
     subagentTaskLabel(node.task) ||
     subagentTaskLabel(node.name) ||
-    subagentTaskLabel(node.description);
-  return task || node.agent?.trim() || "worker";
+    subagentTaskLabel(node.description)
+  );
+}
+
+// Environment is a scanning surface, not a second copy of the delegation
+// prompt. Keep one semantic sentence when it is already a concise task, and
+// otherwise use a neutral summary. Full instructions remain in the existing
+// child-session view opened by the row.
+export function subagentTaskSummary(
+  node: InspectNode,
+  delegation?: InspectDelegation,
+): string | undefined {
+  const task = delegatedTask(node, delegation);
+  if (!task) return undefined;
+  const withoutPersona = task
+    .replace(/^(?:you are|you will|你(?:是|扮演)).*?[。！？.!?]\s*/i, "")
+    .replace(/^(?:按要求执行(?:以下)?步骤|follow (?:these )?steps)[:：]?\s*/i, "")
+    .replace(/^\d+[.、)]\s*/, "")
+    .trim();
+  const sentence = withoutPersona.split(/[。！？.!?]/, 1)[0]?.trim() || "";
+  // Tool-heavy prompts and internal identifiers are implementation detail, not
+  // useful scan text. Their full content is available after opening the child.
+  if (
+    !sentence ||
+    /`|\b(?:glob|read_file|web_fetch|send_message|spawn_agent|session[_ -]?id)\b|child[_ -]?session|call_\w+/i.test(sentence)
+  ) {
+    return "Delegated task";
+  }
+  return sentence.length > 88 ? `${sentence.slice(0, 85).trimEnd()}…` : sentence;
+}
+
+export function subagentPrimaryIdentity(
+  node: InspectNode,
+  delegation?: InspectDelegation,
+): string {
+  void delegation;
+  return node.agent?.trim() || "worker";
 }
 
 // Subagents mirrors Codex's Subagents panel: a session's spawned children, each
@@ -190,9 +222,8 @@ export function SubagentItem({
   const children = dedupeInspectNodes(report.children || []);
   const clickable = !!node.session;
   const identity = subagentPrimaryIdentity(node, delegation);
-  const role = node.agent?.trim();
+  const taskSummary = subagentTaskSummary(node, delegation);
   const secondary = [
-    role && role !== identity ? role : "",
     status.text,
     report.gen_steps ? `${report.gen_steps} steps` : "",
     tokenCount ? `${tokens(tokenCount)} tok` : "",
@@ -212,10 +243,15 @@ export function SubagentItem({
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="sa-name line-clamp-2 block !max-w-none !flex-1 whitespace-normal text-left font-medium leading-4">
+          <span className="sa-name block !max-w-none truncate text-left font-medium leading-4">
             {identity}
           </span>
-          <span className="sa-status block min-w-0 whitespace-normal text-left text-[12px] leading-4 text-dim">
+          {taskSummary && (
+            <span className="sa-task block min-w-0 truncate text-left text-[12px] leading-4 text-dim" title={taskSummary}>
+              {taskSummary}
+            </span>
+          )}
+          <span className="sa-status block min-w-0 truncate text-left text-[12px] leading-4 text-dim">
             {secondary}
           </span>
         </span>
