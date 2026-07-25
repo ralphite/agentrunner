@@ -1051,6 +1051,37 @@ describe("RD-B · opening the rail does not re-lay-out the thread", () => {
   });
 });
 
+describe("approval Environment viewport fallback", () => {
+  it.each([1440, 1600])("closes only an approval-opened rail on %ipx → 390px", async (wide) => {
+    (window as any).innerWidth = wide;
+    arMock.events = async (_sid: string, after: number) => after ? [] : [
+      { seq: 1, type: "input_received", payload: { source: "cli", text: "run the check" } },
+      { seq: 2, type: "approval_requested", payload: { approval_id: "apr-viewport", call_id: "bash" } },
+    ];
+    useStore.setState({
+      sessions: [{ id: SID, title: "viewport approval", status: "waiting:input", workspace: "/repo/approval" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Approval required" })).toBeTruthy());
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
+
+    (window as any).innerWidth = 390;
+    fireEvent(window, new Event("resize"));
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).toBeNull());
+    expect(screen.getByRole("button", { name: "Approve once" })).toBeTruthy();
+
+    // A subsequent explicit open belongs to the user, not the approval effect.
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
+    (window as any).innerWidth = wide;
+    fireEvent(window, new Event("resize"));
+    (window as any).innerWidth = 390;
+    fireEvent(window, new Event("resize"));
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
+  });
+});
+
 describe("INC-98.3g · child approval truth", () => {
   it("uses the delegation worktree and protects the decision card at 1280px", async () => {
     const childSid = `${SID}-sub-call_1_0-a1`;

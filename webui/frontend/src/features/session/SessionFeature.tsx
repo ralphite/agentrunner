@@ -184,7 +184,12 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     () => (bp.desktop || bp.wide) && storage.local.getItem("arwebui.supervision") === "1",
   );
   const supervisionOpenerRef = useRef<HTMLElement | null>(null);
+  // Tracks only the temporary adjustment made by the approval effect. Manual
+  // Environment actions clear it, so responsive cleanup never overrides an
+  // explicit user choice.
+  const approvalAdjustedSupervision = useRef<"opened" | "closed" | null>(null);
   const setSupervision = (open: boolean) => {
+    approvalAdjustedSupervision.current = null;
     setSupervisionOpen(open);
     try {
       storage.local.setItem("arwebui.supervision", open ? "1" : "0");
@@ -213,8 +218,6 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
       supervisionOpenerRef.current = null;
     });
   };
-
-  const approvalAdjustedSupervision = useRef<"opened" | "closed" | null>(null);
 
   // Mobile navigation, Environment and compact Changes are full-height
   // layers. Opening navigation must leave it as the one active layer.
@@ -678,7 +681,9 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
       return;
     }
     if (hasApprovals && view === "chat") {
-      if (bp.desktop && supervisionOpen) {
+      if ((bp.compact || bp.tablet) && approvalAdjustedSupervision.current === "opened") {
+        setSupervisionOpen(false);
+      } else if (bp.desktop && supervisionOpen) {
         approvalAdjustedSupervision.current ||= "closed";
         setSupervisionOpen(false);
       } else if (bp.wide && !supervisionOpen) {
@@ -693,7 +698,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
       setSupervisionOpen(true);
     }
     approvalAdjustedSupervision.current = null;
-  }, [hasApprovals, hasChildAnswers, view, bp.desktop, bp.wide]);
+  }, [hasApprovals, hasChildAnswers, view, bp.compact, bp.tablet, bp.desktop, bp.wide]);
 
   const showSupervision = supervisionOpen && view === "chat";
   // The child journal's opening prompt is the durable delegation task. Prefer
