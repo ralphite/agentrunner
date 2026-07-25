@@ -133,6 +133,11 @@ describe("typed Scheduled detail journey (G56)", () => {
     expect(screen.getByText("gemini · gemini-2.5-pro")).toBeTruthy();
     expect(screen.getByText("4,096 token budget")).toBeTruthy();
     expect(screen.getByText("3 of 12")).toBeTruthy();
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        "Back to scheduled runs",
+      ),
+    );
     expect(screen.queryByText(/SECRET_SYSTEM_PROMPT|verifier command|tool config/i)).toBeNull();
   });
 

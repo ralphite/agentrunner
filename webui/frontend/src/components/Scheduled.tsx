@@ -1,4 +1,5 @@
 import { ArrowLeft, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, X } from "@phosphor-icons/react";
+import { useEffect, useRef } from "react";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
@@ -126,11 +127,31 @@ export function ScheduleDetailPanel({
   const progress = detail?.maxIterations
     ? `${detail.iterations} of ${detail.maxIterations}`
     : `${detail?.iterations || 0}`;
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const target = Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>("[data-schedule-detail-focus]") || [],
+      ).find((node) => {
+        if (node.hasAttribute("disabled")) return false;
+        const style = window.getComputedStyle(node);
+        return style.display !== "none" && style.visibility !== "hidden";
+      });
+      target?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   return (
-    <aside className="schedule-detail" aria-label={`Schedule details for ${title}`}>
+    <aside
+      ref={panelRef}
+      className="schedule-detail"
+      aria-label={`Schedule details for ${title}`}
+    >
       <header className="schedule-detail-head">
         <IconButton
+          data-schedule-detail-focus
           className="schedule-detail-back-icon"
           variant="ghost"
           size="md"
@@ -140,6 +161,7 @@ export function ScheduleDetailPanel({
           <ArrowLeft size={17} />
         </IconButton>
         <Button
+          data-schedule-detail-focus
           className="schedule-detail-back-label"
           variant="ghost"
           size="md"
@@ -150,6 +172,7 @@ export function ScheduleDetailPanel({
           <span>Scheduled</span>
         </Button>
         <IconButton
+          data-schedule-detail-focus
           className="schedule-detail-close"
           variant="ghost"
           size="md"
