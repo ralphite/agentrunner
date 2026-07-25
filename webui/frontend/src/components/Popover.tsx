@@ -485,6 +485,10 @@ export function PopSection({ label, children }: { label?: string; children: Reac
 
 export function PopItem({
   onClick,
+  onHoverOpen,
+  onArrowRight,
+  onArrowLeft,
+  submenu,
   active,
   icon,
   title,
@@ -496,6 +500,10 @@ export function PopItem({
   className = "",
 }: {
   onClick?: () => void;
+  onHoverOpen?: () => void;
+  onArrowRight?: () => void;
+  onArrowLeft?: () => void;
+  submenu?: boolean;
   active?: boolean;
   icon?: React.ReactNode;
   title: React.ReactNode;
@@ -518,11 +526,29 @@ export function PopItem({
         (className ? ` ${className}` : "")
       }
       onClick={onClick}
+      onMouseMove={() => {
+        if (disabled) return;
+        onHoverOpen?.();
+      }}
+      onKeyDown={(event) => {
+        if (disabled) return;
+        if (event.key === "ArrowRight" && onArrowRight) {
+          event.preventDefault();
+          onArrowRight();
+          return;
+        }
+        if (event.key === "ArrowLeft" && onArrowLeft) {
+          event.preventDefault();
+          onArrowLeft();
+        }
+      }}
       disabled={disabled}
       role={inMenu ? "menuitem" : undefined}
       tabIndex={inMenu ? -1 : undefined}
       aria-label={ariaLabel}
       aria-current={active ? "true" : undefined}
+      aria-haspopup={submenu ? "menu" : undefined}
+      aria-expanded={submenu ? false : undefined}
     >
       {icon !== undefined && <span className="pop-ico">{icon}</span>}
       <span className="pop-body">

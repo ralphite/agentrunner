@@ -141,6 +141,39 @@ describe("Composer add and advanced menu", () => {
     expect(mocks.newSession).not.toHaveBeenCalled();
   });
 
+  it("supports drill-in menu hover and ArrowRight / ArrowLeft navigation for Automation and Agent", async () => {
+    const { onSubmit } = mount();
+    openAddMenu();
+
+    const automation = screen.getByRole("menuitem", { name: /Automation/ });
+    expect(automation.getAttribute("aria-haspopup")).toBe("menu");
+    expect(automation.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.mouseMove(automation);
+    expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy();
+
+    const backToRoot = screen.getByRole("menuitem", { name: "Back to add menu" });
+    fireEvent.keyDown(backToRoot, { key: "ArrowLeft" });
+    expect(screen.getByRole("menuitem", { name: /Automation/ })).toBeTruthy();
+
+    const automationAgain = screen.getByRole("menuitem", { name: /Automation/ });
+    fireEvent.keyDown(automationAgain, { key: "ArrowRight" });
+    expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy();
+
+    await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
+    const agent = screen.getByRole("menuitem", { name: "Agent Dev" });
+    expect(agent.getAttribute("aria-haspopup")).toBe("menu");
+    expect(agent.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.keyDown(agent, { key: "ArrowRight" });
+    expect(screen.getByRole("menuitem", { name: "Back to automation menu" })).toBeTruthy();
+
+    const backToAdvanced = screen.getByRole("menuitem", { name: "Back to automation menu" });
+    fireEvent.keyDown(backToAdvanced, { key: "ArrowLeft" });
+    expect(screen.getByRole("menuitem", { name: "Agent Dev" })).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(mocks.newSession).not.toHaveBeenCalled();
+  });
+
   it("opens the YAML editor with the persona currently selected in the composer", async () => {
     mount();
     openAddMenu();

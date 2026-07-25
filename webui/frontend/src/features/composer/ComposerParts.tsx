@@ -702,6 +702,9 @@ export function AddMenu({
                       : agentLabel(persona)
                   }
                   right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
+                  submenu
+                  onHoverOpen={() => onPageChange("advanced")}
+                  onArrowRight={() => onPageChange("advanced")}
                   onClick={() => onPageChange("advanced")}
                 />
               </PopSection>
@@ -712,6 +715,7 @@ export function AddMenu({
                 icon={<CaretLeft size={16} aria-hidden="true" />}
                 title="Automation"
                 ariaLabel="Back to add menu"
+                onArrowLeft={() => onPageChange("root")}
                 onClick={() => onPageChange("root")}
               />
               <PopItem
@@ -751,6 +755,9 @@ export function AddMenu({
                   agentLabel(persona)
                 }
                 right={<CaretRight className="cx-model-page-chev shrink-0" size={13} aria-hidden="true" />}
+                submenu
+                onHoverOpen={() => onPageChange("agent")}
+                onArrowRight={() => onPageChange("agent")}
                 onClick={() => onPageChange("agent")}
               />
             </>
@@ -760,6 +767,7 @@ export function AddMenu({
                 icon={<CaretLeft size={16} aria-hidden="true" />}
                 title="Agent"
                 ariaLabel="Back to automation menu"
+                onArrowLeft={() => onPageChange("advanced")}
                 onClick={() => onPageChange("advanced")}
               />
               {agents.map((item) => (
