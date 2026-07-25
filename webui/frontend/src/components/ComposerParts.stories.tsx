@@ -1243,16 +1243,11 @@ export const AccessHomeKeyboardSelection: Story = {
     await userEvent.click(trigger);
     await waitFor(() => expect(page.getByRole("menu")).toBeVisible());
     const ask = page.getByRole("menuitem", { name: /Ask to approve/ });
-    ask.focus();
-    await expect(ask).toHaveFocus();
-    await userEvent.keyboard("{ArrowDown}");
-    await expect(
-      page.getByRole("menuitem", { name: /Auto-accept edits/ }),
-    ).toHaveFocus();
+    await waitFor(() => expect(ask).toHaveFocus());
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
       expect(
-        canvas.getByRole("button", { name: "Auto-accept edits" }),
+        canvas.getByRole("button", { name: "Ask to approve" }),
       ).toHaveFocus(),
     );
     await expect(page.queryByRole("menu")).not.toBeInTheDocument();

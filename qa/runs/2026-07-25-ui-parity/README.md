@@ -6,7 +6,8 @@
 
 | Batch | 状态 | Evidence |
 | --- | --- | --- |
-| Sidebar current-work hierarchy | current | [before / after / files](sidebar-current-work/README.md) |
+| Sidebar current-work hierarchy | shipped | [evidence](sidebar-current-work/README.md) · [`859cefbd`](https://github.com/ralphite/agentrunner/commit/859cefbdf8ef8c6e02799e6258961c9af7b2994d) · [CI](https://github.com/ralphite/agentrunner/actions/runs/30144047964) |
+| Access picker keyboard focus | current | [before / after / files](access-picker-focus/README.md) |
 | Quiet default session chrome | shipped | [`bbb04316`](https://github.com/ralphite/agentrunner/commit/bbb043168dbb8af8f34f10c8411be04c26f42c2f) |
 | Session action feedback | shipped | [`24f420a5`](https://github.com/ralphite/agentrunner/commit/24f420a5a0d29e40d8d1efa2774cd88ea622c6e1) |
 | Environment reachability | shipped | [`43d3bb52`](https://github.com/ralphite/agentrunner/commit/43d3bb529a89074d796709c8cb2a4afcbfebc37d) |

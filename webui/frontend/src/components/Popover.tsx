@@ -80,6 +80,17 @@ export function Popover({
     ) ?? null;
   const allMenuItems = () => getMenuItems(panelRef.current);
   const enabledMenuItems = () => getAvailableMenuItems(panelRef.current);
+  // A selection is the safest initial keyboard position: opening a menu and
+  // pressing Enter must never drift to the first (potentially higher-risk)
+  // option merely because it is first in DOM order. PopItem supplies the
+  // data attribute so this stays a shared menu-primitive rule, not a
+  // composer-specific exception.
+  const selectedMenuItem = () =>
+    enabledMenuItems().find(
+      (item) =>
+        item.dataset.popoverActive === "true" ||
+        item.getAttribute("aria-current") === "true",
+    ) ?? null;
   const focusMenuItem = (target: HTMLElement) => {
     setRovingMenuItem(panelRef.current, target);
     rovingItemRef.current = target;
@@ -198,7 +209,7 @@ export function Popover({
     if (!open || !placed || autoFocusedRef.current) return;
     const target =
       panelRole === "menu"
-        ? enabledMenuItems()[0]
+        ? selectedMenuItem() ?? enabledMenuItems()[0]
         : panelRef.current?.querySelector<HTMLElement>(
             "[data-popover-autofocus]",
           );
@@ -579,6 +590,7 @@ export function PopItem({
       tabIndex={inMenu ? -1 : undefined}
       aria-label={ariaLabel}
       aria-current={active ? "true" : undefined}
+      data-popover-active={active ? "true" : undefined}
       aria-haspopup={submenu ? "menu" : undefined}
       aria-expanded={submenu ? false : undefined}
     >
