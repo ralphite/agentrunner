@@ -1725,7 +1725,7 @@
       .cx-session .cx-bar-trailing {
         @apply ml-auto flex w-full max-w-full shrink-0 flex-nowrap gap-0 justify-end;
       }
-      .cx-bar-trailing .cx-model-wrap { @apply w-[86px] min-w-[86px] max-w-[86px] shrink-0; }
+      .cx-bar-trailing .cx-model-wrap { @apply w-[92px] min-w-[92px] max-w-[92px] shrink-0; }
       .cx-bar-trailing .cx-delivery { @apply gap-0; }
       .cx-bar-trailing .cx-model {
         @apply relative h-11 w-full max-w-full flex-col items-start justify-center gap-0 pl-0 pr-3;
