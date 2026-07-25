@@ -471,12 +471,6 @@
   .project-session-wrap.pseudo-hover .session-quick-actions,
   .pseudo-hover .session-quick-actions,
   .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
-  .project-session-wrap:hover .session-state-icons:not(.running),
-  .pseudo-hover .session-state-icons:not(.running),
-  .project-session-wrap:focus-within .session-state-icons:not(.running),
-  .project-session-wrap:hover .session-worktree-icon,
-  .pseudo-hover .session-worktree-icon,
-  .project-session-wrap:focus-within .session-worktree-icon { @apply hidden; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running { @apply bg-status-running; }
   .status-dot.appr, .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }

@@ -342,16 +342,14 @@ export function SidebarProjectItem({
 
   return (
     <div className="project-group" data-project-state={removed ? "removed" : "visible"}>
-      <div
-        className="project-heading-row"
-        onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
-        onMouseLeave={onPreviewEnd}
-      >
+      <div className="project-heading-row">
         <button
           className="project-heading min-w-0 flex-1"
           onClick={onToggle}
           title={workspace || name}
           aria-expanded={!folded}
+          onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
+          onMouseLeave={onPreviewEnd}
           onContextMenu={(event) => {
             event.preventDefault();
             onOpenContext(
@@ -370,7 +368,12 @@ export function SidebarProjectItem({
             <span className="proj-heading-name">{name}</span>
           </span>
         </button>
-        <span className="project-heading-actions" onClick={onDismissPreview}>
+        <span
+          className="project-heading-actions"
+          onClick={onDismissPreview}
+          onMouseEnter={onDismissPreview}
+          onFocusCapture={onDismissPreview}
+        >
           <Menu
             label={<DotsThree size={16} />}
             ariaLabel={`More actions for ${name}`}
