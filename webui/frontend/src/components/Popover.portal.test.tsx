@@ -423,7 +423,7 @@ describe("Popover plumbing survives the reposition", () => {
     expect(loaded.tabIndex).toBe(0);
   });
 
-  it("uses dialog semantics for form popovers without leaking menuitem roles", () => {
+  it("uses dialog semantics for form popovers without leaking menuitem roles or Tab focus", () => {
     render(
       <Popover
         panelRole="dialog"
@@ -444,8 +444,14 @@ describe("Popover plumbing survives the reposition", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
     expect(screen.getByRole("dialog", { name: "Project picker" })).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Search" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Storybook Demo" })).toBeTruthy();
+    const search = screen.getByRole("textbox", { name: "Search" });
+    const project = screen.getByRole("button", { name: "Storybook Demo" });
+    expect(document.activeElement).toBe(search);
+    project.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(search);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(project);
     expect(screen.queryByRole("menuitem")).toBeNull();
   });
 

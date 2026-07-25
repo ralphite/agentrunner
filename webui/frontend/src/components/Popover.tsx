@@ -14,7 +14,7 @@ import {
   getTabbableElements,
   setRovingMenuItem,
 } from "./menuFocus";
-import { useEscapeLayer } from "../ui/FocusScope";
+import { useEscapeLayer, useFocusScope } from "../ui/FocusScope";
 
 const PopoverMenuContext = createContext(true);
 const SUBMENU_HOVER_OPEN_DELAY_MS = 120;
@@ -130,6 +130,18 @@ export function Popover({
     },
     open,
   );
+
+  // Dialog popovers are temporary choice surfaces, not ordinary page content.
+  // They must keep Tab inside their own controls until the user chooses, closes,
+  // or escapes them. Menus deliberately retain their existing Tab handoff
+  // below, so this only changes panels that already declare dialog semantics.
+  useFocusScope(panelRef, {
+    initialFocus:
+      "[data-popover-autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])",
+    restoreFocus: false,
+    trapTab: true,
+    enabled: open && placed && panelRole === "dialog",
+  });
 
   // Measure the anchor, then pin the panel to those viewport coordinates.
   //
