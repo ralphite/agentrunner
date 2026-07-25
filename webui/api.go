@@ -78,7 +78,6 @@ func (s *server) routes() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
-	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
 	mux.HandleFunc("POST /api/sessions/{sid}/retry", s.handleRetry)
 	mux.HandleFunc("POST /api/sessions/{sid}/schedule", s.handleScheduleControl)
@@ -1457,30 +1456,6 @@ func (s *server) oneShotHandler(what string, argsFor func(id string) []string) h
 
 func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar interrupt", func(id string) []string { return []string{"interrupt", id} })(w, r)
-}
-
-func (s *server) handleKill(w http.ResponseWriter, r *http.Request) {
-	id, ok := sid(w, r)
-	if !ok {
-		return
-	}
-	var req struct {
-		Handle string `json:"handle"`
-	}
-	if !readBody(w, r, &req) {
-		return
-	}
-	req.Handle = strings.TrimSpace(req.Handle)
-	if req.Handle == "" {
-		badRequest(w, "kill needs a background-work handle")
-		return
-	}
-	res := s.runAR(r.Context(), oneShotTimeout, "kill", id, req.Handle)
-	if res.Err != nil {
-		arFail(w, "ar kill", res)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {

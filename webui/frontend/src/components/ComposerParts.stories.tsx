@@ -1303,7 +1303,6 @@ export const ModelPickerSummary: Story = {
   ),
   play: async ({ canvasElement }) => {
     await openPopover(canvasElement, /Gemini Flash/);
-    const page = body(canvasElement);
     await waitFor(() =>
       expect(
         canvasElement.ownerDocument.body.querySelector<HTMLElement>(".cx-model-popover[role='menu']"),
