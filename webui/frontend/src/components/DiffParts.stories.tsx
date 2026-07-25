@@ -209,7 +209,7 @@ function ToolbarHarness({ tight = false }: { tight?: boolean }) {
       )
     : files;
   return (
-    <Frame width={tight ? 390 : 720}>
+    <Frame width={tight ? 390 : DIFF_TOOLBAR_TIGHT_PX + 80}>
       <DiffToolbar
         variant="ready"
         barRef={barRef}
