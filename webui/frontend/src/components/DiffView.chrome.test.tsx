@@ -568,7 +568,12 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     fireEvent.click(container.querySelector(".diff-fileitem")!);
     await waitFor(() => expect(container.querySelector(".pop-panel")).toBeNull());
     expect(screen.queryByText("app.ts")).toBeNull();
-    expect(screen.getByLabelText("Changed files").className).toMatch(/active/);
+    // The trigger stays visibly on while a filter is narrowing the review.
+    // This used to assert `className` matched /active/, which only ever passed
+    // because the ghost button's utility list happened to contain the substring
+    // "active" (from `enabled:active:bg-line-2`) — it would have passed with no
+    // filter applied at all. Assert the state the component actually sets.
+    expect(screen.getByLabelText("Changed files").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("says so when nothing matches, instead of showing an empty list", async () => {

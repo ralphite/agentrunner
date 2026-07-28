@@ -36,25 +36,36 @@ const SPINNER_SIZE: Record<ButtonSize, "sm" | "md" | "lg"> = {
   lg: "lg",
 };
 
+/* CX-BTN (T7/T16). Two changes from the previous matrix:
+   1. Hover/press no longer swap background-color. They come from `.ix`, whose
+      translucent overlay composes over each variant's own fill — so one rule
+      serves ghost (transparent), outline (panel), and solid (accent) instead of
+      each tone hand-picking a hover fill, and a pressed/selected button still
+      darkens by a visible step.
+   2. The outlined button matches Codex's secondary: a 9%-black hairline over
+      white plus a 2% resting shadow, not a full --line box. That border is what
+      made our secondary buttons read a weight heavier than Codex's.
+   aria-pressed keeps an explicit fill: it is a persistent state, and an overlay
+   that only exists while hovered cannot express it. */
 const APPEARANCE_CLASSES: Record<
   ButtonTone,
   Record<ButtonVariant, string>
 > = {
   neutral: {
     ghost:
-      "border-transparent bg-transparent text-ink-2 shadow-none enabled:hover:border-line enabled:hover:bg-panel-2 enabled:hover:text-ink enabled:hover:shadow-none enabled:active:bg-line-2 aria-[pressed=true]:border-line aria-[pressed=true]:bg-panel-2 aria-[pressed=true]:text-ink disabled:border-transparent disabled:bg-transparent disabled:text-ink-2 disabled:shadow-none",
+      "border-transparent bg-transparent text-ink-2 shadow-none enabled:hover:text-ink aria-[pressed=true]:bg-panel-2 aria-[pressed=true]:text-ink disabled:border-transparent disabled:bg-transparent disabled:text-ink-2 disabled:shadow-none",
     outline:
-      "border-line bg-panel text-ink shadow-none enabled:hover:border-dim enabled:hover:bg-panel-2 enabled:active:bg-line-2 aria-[pressed=true]:border-dim aria-[pressed=true]:bg-panel-2 disabled:border-line disabled:bg-panel disabled:text-ink-2 disabled:shadow-none",
+      "border-card-line bg-panel text-ink shadow-[var(--shadow-micro)] [--ix-rest-shadow:var(--shadow-micro)] aria-[pressed=true]:bg-panel-2 disabled:border-card-line disabled:bg-panel disabled:text-ink-2",
     solid:
-      "border-accent bg-accent text-accent-ink shadow-none enabled:hover:border-accent enabled:hover:bg-accent enabled:hover:opacity-90 enabled:active:opacity-80 aria-[pressed=true]:opacity-80 disabled:border-accent disabled:bg-accent disabled:text-accent-ink disabled:shadow-none",
+      "border-accent bg-accent text-accent-ink shadow-none disabled:border-accent disabled:bg-accent disabled:text-accent-ink disabled:shadow-none",
   },
   danger: {
     ghost:
-      "border-transparent bg-transparent text-red shadow-none enabled:hover:border-red enabled:hover:bg-red-soft enabled:active:bg-red-soft aria-[pressed=true]:border-red aria-[pressed=true]:bg-red-soft disabled:border-transparent disabled:bg-transparent disabled:text-red disabled:shadow-none",
+      "border-transparent bg-transparent text-red shadow-none enabled:hover:bg-red-soft aria-[pressed=true]:bg-red-soft disabled:border-transparent disabled:bg-transparent disabled:text-red disabled:shadow-none",
     outline:
-      "border-red bg-panel text-red shadow-none enabled:hover:border-red enabled:hover:bg-red-soft enabled:active:bg-red-soft aria-[pressed=true]:bg-red-soft disabled:border-red disabled:bg-panel disabled:text-red disabled:shadow-none",
+      "border-red bg-panel text-red shadow-none enabled:hover:bg-red-soft aria-[pressed=true]:bg-red-soft disabled:border-red disabled:bg-panel disabled:text-red disabled:shadow-none",
     solid:
-      "border-red bg-red text-accent-ink shadow-none enabled:hover:border-red enabled:hover:bg-red enabled:hover:opacity-90 enabled:active:opacity-80 aria-[pressed=true]:opacity-80 disabled:border-red disabled:bg-red disabled:text-accent-ink disabled:shadow-none",
+      "border-red bg-red text-accent-ink shadow-none disabled:border-red disabled:bg-red disabled:text-accent-ink disabled:shadow-none",
   },
   inverse: {
     ghost:
@@ -78,7 +89,7 @@ export function buttonClassName({
   variant: ButtonVariant;
 }): string {
   return [
-    "relative m-0 inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[var(--radius-control)] border font-medium leading-none transition-[background-color,border-color,color,opacity,box-shadow] duration-100",
+    "ix relative m-0 inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[var(--radius-control)] border font-medium leading-none transition-[background-color,border-color,color,opacity,box-shadow] duration-100",
     BUTTON_SIZE_CLASSES[size],
     APPEARANCE_CLASSES[tone][variant],
     className,

@@ -20,9 +20,27 @@
   --bg: #ffffff;
   --sidebar: #f7f7f8;
   --panel: #ffffff;
-  --panel-2: #eeeeee;
-  --line: #dcdcdc;
-  --line-2: #efefef;
+  /* CX-TOKENS (T1–T3): the surface/line/ink scale below is pixel-sampled from
+     the Codex desktop app rather than eyeballed. Three findings drove it:
+     (1) our --line was a full four steps darker than Codex's hairline, which is
+     where most of the "AgentRunner reads harder than Codex" impression came
+     from; (2) Codex has FOUR neutral fills, not one, and using a single
+     --panel-2 for button fill / code block / inline chip / selected row flattened
+     four different meanings into one; (3) our greys were too black, so the
+     secondary→tertiary hierarchy never opened up. Keep --line/--ink-2/--dim as
+     plain #rrggbb: theme.ts applyContrast() mixes them numerically and silently
+     no-ops on color-mix()/oklch() values. */
+  --panel-2: #f3f3f3;
+  --fill-soft: #f4f4f4;
+  --chip: #e8e8e8;
+  --sel: #e9e9e9;
+  --line: #ececec;
+  --line-2: #f2f2f2;
+  /* Semi-transparent dividers ride ON TOP of whatever surface they cross, so a
+     header rule over white and the same rule over the composer shelf both read
+     correctly. Codex uses these for structural seams; --line stays for boxes. */
+  --hairline: rgba(0, 0, 0, 0.07);
+  --card-line: rgba(0, 0, 0, 0.09);
   /* COMPOSER-CHIP-SHELF (R95): the composer env-strip rides a faintly tinted
      shelf so the chip row reads as a shelf above the white input body — Codex's
      composer is two-tone (chip strip #F4F4F4 grey over a white field, pixel-
@@ -31,8 +49,9 @@
      the shelf. */
   --cx-shelf: #f5f5f5;
   --ink: #0d0d0d;
-  --ink-2: #606060;
-  --dim: #555555;
+  --ink-2: #6e6e6e;
+  --dim: #878787;
+  --placeholder: #c3c3c3;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
   --blue: #0169cc;
@@ -52,8 +71,18 @@
      (which glyphs/avatars/danger buttons rely on). Light mirrors the soft
      observation; dark stays close to --bg so an all-added file no longer
      reads as a saturated green/red wall. */
-  --diff-add-bg: #e7f6ec;
-  --diff-del-bg: #fdeceb;
+  --diff-add-bg: #eaf5e8;
+  --diff-del-bg: #fdeae4;
+  /* CX-DIFF (T4/T5): Codex染色 diff 的四个角色各有专用值,不共用语义绿/红。
+     行号槽与左侧 3px accent 条比行底更饱和(它们是"脊",要一眼扫出改动
+     位置);统计数字(+N −N)又比 accent 条更纯。语义 --green/--red 继续服务
+     status pill / 告警卡,不受影响。 */
+  --diff-add-num: #15932d;
+  --diff-del-num: #e72c21;
+  --diff-add-bar: #11aa3c;
+  --diff-del-bar: #ef6251;
+  --stat-add: #08a12d;
+  --stat-del: #e22b2f;
   --status-running: var(--green);
   --status-ready: var(--blue);
   --status-attention: var(--amber);
@@ -62,11 +91,17 @@
   /* Codex-aligned geometry and density scale. These semantic aliases let
      primitives and production surfaces share one vocabulary instead of
      growing another one-off radius/height/font value per Story. */
-  --radius-affordance: 6px;
-  --radius-control: 8px;
-  --radius-card: 12px;
-  --radius-overlay: 16px;
-  --radius-composer: 22px;
+  /* CX-RADIUS (T8): Codex's radius ladder has one rung per structural role, and
+     the role — not the pixel size — is what components should name. Our source
+     had ten hard-coded radii (5/6/7/9/10/12/14/16/22) scattered inline with no
+     rule for which to reach for; these six aliases replace them. */
+  --radius-affordance: 6px;  /* inline code chip, micro hit box */
+  --radius-row: 9px;         /* sidebar / list row highlight */
+  --radius-control: 11px;    /* button, tab, small pill */
+  --radius-card: 15px;       /* bubble, outcome card, neutral capsule */
+  --radius-menu: 12px;       /* attached dropdown */
+  --radius-overlay: 20px;    /* dialog, floating card, palette */
+  --radius-composer: 20px;
   --control-sm: 24px;
   --control-md: 32px;
   --control-lg: 40px;
@@ -75,8 +110,25 @@
   --type-ui: 13px;
   --type-body: 14px;
   --type-heading: 22px;
-  --shadow-float: 0 12px 32px rgb(0 0 0 / 10%), 0 1px 2px rgb(0 0 0 / 5%);
-  --shadow-composer: 0 8px 24px rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 4%);
+  /* CX-SHADOW (T6): four materials, not one blur ramp. Codex separates them by
+     what the surface IS — an attached menu (frosted, barely lifted), a floating
+     white panel (crisp, clearly above), a modal (deep), the composer (a resting
+     card). Sharing one --shadow-float made menus feel as heavy as dialogs. */
+  --shadow-micro: 0 1px 1px rgb(0 0 0 / 2%);
+  --shadow-composer: 0 7px 24px rgb(0 0 0 / 6.5%), 0 1px 2px rgb(0 0 0 / 6%);
+  --shadow-float: 0 10px 24px rgb(0 0 0 / 14%), 0 1px 3px rgb(0 0 0 / 4%);
+  --shadow-menu: 0 10px 28px rgb(0 0 0 / 8.5%), 0 2px 8px rgb(0 0 0 / 3.5%);
+  --shadow-dialog: 0 7px 20px rgb(0 0 0 / 12%), 0 1px 3px rgb(0 0 0 / 6%);
+  --shadow-modal: 0 18px 40px rgb(0 0 0 / 18%), 0 2px 10px rgb(0 0 0 / 7%);
+  --menu-bg: rgba(246, 246, 246, 0.7);
+  --menu-blur: blur(22px) saturate(180%);
+  --scrim: rgba(0, 0, 0, 0.133);
+  /* CX-IX (T7): hover/press are translucent ink overlays, not background swaps.
+     Values are the only two that survive being boxed in by their neighbours —
+     resting is 0%, a selected row is ~4.7%, so hover has to land between them
+     and press has to clear selected or a chosen row stops answering the mouse. */
+  --ix-hover: rgb(0 0 0 / 3%);
+  --ix-press: rgb(0 0 0 / 7.5%);
   --radius: var(--radius-card);
   --ui-font-size: 14px;
   --code-font-size: 12px;
@@ -107,9 +159,18 @@
     --bg: #0f0f11;
     --sidebar: #141416;
     --panel: #17171a;
+    /* CX-TOKENS dark leg: the Codex reference is light-only, so dark keeps its
+       existing values and only gains the new roles. Deliberately NOT re-derived
+       from the light values — inverting them would widen dark's contrast just
+       as the light pass was narrowing it. */
     --panel-2: #1f1f24;
+    --fill-soft: #1c1c21;
+    --chip: #2a2a31;
+    --sel: #26262e;
     --line: #3a3a42;
     --line-2: #232329;
+    --hairline: rgba(255, 255, 255, 0.09);
+    --card-line: rgba(255, 255, 255, 0.11);
     /* COMPOSER-CHIP-SHELF (R95): subtle lift between --panel and --panel-2 so
        the chip strip reads as a shelf in dark too, with panel-2 chip hover still
        visible against it. */
@@ -117,6 +178,7 @@
     --ink: #ececf1;
     --ink-2: #d0d0db;
     --dim: #a0a0ad;
+    --placeholder: #6a6a76;
     --accent: #ececf1;
     --accent-ink: #17171a;
     --blue: #6f9bff;
@@ -135,6 +197,12 @@
        all-added or all-deleted file reads as a faint wash, not a wall. */
     --diff-add-bg: #12211a;
     --diff-del-bg: #241514;
+    --diff-add-num: #5cc98a;
+    --diff-del-num: #f08a82;
+    --diff-add-bar: #3f9c63;
+    --diff-del-bar: #b8564e;
+    --stat-add: #6fd398;
+    --stat-del: #f0938c;
     --rs-accent: #4c9be6;
     --rs-accent-soft: #16283c;
     --hl-kw: #c792ea;
@@ -143,8 +211,16 @@
     --hl-fn: #56c7d6;
     --hl-com: #8a8a99;
     --hl-punc: #b4b4c0;
+    --shadow-micro: 0 1px 1px rgb(0 0 0 / 30%);
     --shadow-float: 0 16px 40px rgb(0 0 0 / 38%), 0 1px 2px rgb(0 0 0 / 30%);
     --shadow-composer: 0 10px 28px rgb(0 0 0 / 28%), 0 1px 2px rgb(0 0 0 / 24%);
+    --shadow-menu: 0 12px 30px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 28%);
+    --shadow-dialog: 0 10px 26px rgb(0 0 0 / 44%), 0 1px 3px rgb(0 0 0 / 30%);
+    --shadow-modal: 0 20px 44px rgb(0 0 0 / 52%), 0 2px 10px rgb(0 0 0 / 34%);
+    --menu-bg: rgba(34, 34, 40, 0.78);
+    --scrim: rgba(0, 0, 0, 0.5);
+    --ix-hover: rgb(255 255 255 / 5%);
+    --ix-press: rgb(255 255 255 / 10%);
   }
 }
 
@@ -153,14 +229,21 @@
   --bg: #0f0f11;
   --sidebar: #141416;
   --panel: #17171a;
+  /* CX-TOKENS dark leg — mirrors the prefers-color-scheme block above. */
   --panel-2: #1f1f24;
+  --fill-soft: #1c1c21;
+  --chip: #2a2a31;
+  --sel: #26262e;
   --line: #3a3a42;
   --line-2: #232329;
+  --hairline: rgba(255, 255, 255, 0.09);
+  --card-line: rgba(255, 255, 255, 0.11);
   /* COMPOSER-CHIP-SHELF (R95): dark shelf lift, see :root note. */
   --cx-shelf: #1b1b1f;
   --ink: #ececf1;
   --ink-2: #d0d0db;
   --dim: #a0a0ad;
+  --placeholder: #6a6a76;
   --accent: #ececf1;
   --accent-ink: #17171a;
   --blue: #6f9bff;
@@ -179,6 +262,12 @@
      all-added or all-deleted file reads as a faint wash, not a wall. */
   --diff-add-bg: #12211a;
   --diff-del-bg: #241514;
+  --diff-add-num: #5cc98a;
+  --diff-del-num: #f08a82;
+  --diff-add-bar: #3f9c63;
+  --diff-del-bar: #b8564e;
+  --stat-add: #6fd398;
+  --stat-del: #f0938c;
   --rs-accent: #4c9be6;
   --rs-accent-soft: #16283c;
   --hl-kw: #c792ea;
@@ -187,10 +276,21 @@
   --hl-fn: #56c7d6;
   --hl-com: #8a8a99;
   --hl-punc: #b4b4c0;
+  --shadow-micro: 0 1px 1px rgb(0 0 0 / 30%);
   --shadow-float: 0 16px 40px rgb(0 0 0 / 38%), 0 1px 2px rgb(0 0 0 / 30%);
   --shadow-composer: 0 10px 28px rgb(0 0 0 / 28%), 0 1px 2px rgb(0 0 0 / 24%);
+  --shadow-menu: 0 12px 30px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 28%);
+  --shadow-dialog: 0 10px 26px rgb(0 0 0 / 44%), 0 1px 3px rgb(0 0 0 / 30%);
+  --shadow-modal: 0 20px 44px rgb(0 0 0 / 52%), 0 2px 10px rgb(0 0 0 / 34%);
+  --menu-bg: rgba(34, 34, 40, 0.78);
+  --scrim: rgba(0, 0, 0, 0.5);
+  --ix-hover: rgb(255 255 255 / 5%);
+  --ix-press: rgb(255 255 255 / 10%);
 }
 
+/* Explicit `light` needs no palette of its own: the dark overrides live behind
+   `:root:not([data-theme])`, so setting data-theme="light" already falls back to
+   the `:root` light values. Only the tokens below were ever duplicated here. */
 :root[data-theme="light"] {
   color-scheme: light;
   --rs-accent: #0169cc;
@@ -219,11 +319,19 @@
   --color-sidebar: var(--sidebar);
   --color-panel: var(--panel);
   --color-panel-2: var(--panel-2);
+  --color-fill-soft: var(--fill-soft);
+  --color-chip: var(--chip);
+  --color-sel: var(--sel);
   --color-line: var(--line);
   --color-line-2: var(--line-2);
+  --color-hairline: var(--hairline);
+  --color-card-line: var(--card-line);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-dim: var(--dim);
+  --color-placeholder: var(--placeholder);
+  --color-stat-add: var(--stat-add);
+  --color-stat-del: var(--stat-del);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-blue: var(--blue);
@@ -270,7 +378,10 @@
     font: inherit;
     cursor: pointer;
   }
-  button:enabled:hover { @apply border-dim bg-panel-2; }
+  /* Codex never moves a border on hover — the fill carries the whole response.
+     Darkening the border too made every plain button "thicken" under the
+     cursor, which is what read as heavy next to Codex's quiet fill shift. */
+  button:enabled:hover { @apply bg-panel-2; }
   button:disabled { @apply cursor-default opacity-50 text-ink-2; }
   input, textarea, select {
     @apply border border-line bg-panel px-[9px] py-[7px] text-ink hover:border-dim;
@@ -282,11 +393,19 @@
   input, select { accent-color: var(--blue); }
   input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-2 ring-blue/30 ring-offset-0; }
   input:disabled, textarea:disabled, select:disabled { @apply cursor-not-allowed bg-panel-2 opacity-50 text-ink-2; }
+  /* CX-FOCUS (T7): Codex draws focus as a thin ring INSIDE the control's own
+     edge. The previous outward offset-2 ring was clipped wherever a focusable
+     row sat in an overflow-hidden container (sidebar rows, diff file cards),
+     so the ring was sometimes simply invisible. Inset never clips. Colour stays
+     var(--blue) rather than Codex's fixed rgba(4,87,167,.65), which would fail
+     to register on our dark theme. */
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
-    @apply outline outline-2 outline-offset-2 outline-blue;
+    outline: 1.5px solid var(--blue);
+    outline-offset: -1px;
   }
   .icon-only:focus, .topbar-icon:focus, .diff-iconbtn:focus {
-    @apply outline outline-2 outline-offset-2 outline-blue;
+    outline: 1.5px solid var(--blue);
+    outline-offset: -1px;
   }
   a { @apply cursor-pointer text-blue no-underline hover:underline; }
   summary { @apply cursor-pointer list-none; }
@@ -310,6 +429,58 @@
 }
 
 @layer components {
+  /* ── CX-IX (T7): one interaction vocabulary ──────────────────────────────
+     Every clickable surface in the app used to invent its own feedback, and
+     most of them said it with `hover:bg-panel-2`. That has a bug the moment a
+     row can also be SELECTED: a selected row is already filled with the hover
+     colour, so hovering it changes nothing and the row goes dead under the
+     cursor. Codex solves it by painting hover and press as translucent ink
+     OVERLAYS which compose over whatever fill is underneath — selected+hover
+     is always exactly one step darker than selected. Resting paints nothing,
+     so this layer is invisible until the pointer arrives.
+     `:where()` keeps specificity at 0 so any component can still override. */
+  /* --ix-rest-shadow is a slot: surfaces that carry a resting drop shadow (the
+     outlined button's 2% hairline) re-declare it so hovering composes the
+     overlay ON TOP of that shadow instead of replacing it and making the
+     element visibly flatten under the cursor. */
+  /* The selector list IS the opt-in — `.ix` cannot be `@apply`-ed because it is
+     a plain class, not a Tailwind utility, so surfaces join the layer by being
+     named here (or by carrying the literal `ix` class from a component). */
+  .ix, .menu-item, .pop-item, .cmdk-item, .cx-slash-item, .diff-fileitem,
+  .scheduled-row, .sched-suggest, .home-intent-suggestion {
+    cursor: pointer;
+    transition: box-shadow 90ms ease-out;
+    --ix-rest-shadow: 0 0 #0000;
+  }
+  .ix:where(:hover):not(:disabled):not([aria-disabled="true"]),
+  :is(.menu-item, .pop-item, .cmdk-item, .cx-slash-item, .diff-fileitem,
+      .scheduled-row, .sched-suggest, .home-intent-suggestion):where(:hover):not(:disabled) {
+    box-shadow: inset 0 0 0 999px var(--ix-hover), var(--ix-rest-shadow);
+  }
+  /* Press must out-darken selected, else a chosen row gives no click feedback.
+     No transition: the press must land on the same frame as the pointer. */
+  .ix:where(:active):not(:disabled):not([aria-disabled="true"]),
+  :is(.menu-item, .pop-item, .cmdk-item, .cx-slash-item, .diff-fileitem,
+      .scheduled-row, .sched-suggest, .home-intent-suggestion):where(:active):not(:disabled) {
+    box-shadow: inset 0 0 0 999px var(--ix-press), var(--ix-rest-shadow);
+    transition: none;
+  }
+  .ix:disabled, .ix[aria-disabled="true"] { cursor: default; opacity: 0.38; }
+  /* Row-shaped targets span their container edge-to-edge but paint an inset,
+     rounded highlight. An inset shadow would follow the full-bleed box, so
+     these get a ::before layer sized to the visible highlight instead. */
+  .ix-row { position: relative; }
+  .ix-row::before {
+    content: "";
+    position: absolute;
+    inset: 0 8px;
+    z-index: -1;
+    border-radius: var(--radius-row);
+    pointer-events: none;
+  }
+  .ix-row:where(:hover)::before { background: var(--ix-hover); }
+  .ix-row:where(:active)::before { background: var(--ix-press); }
+
   .mono {
     @apply font-mono;
     font-size: var(--code-font-size) !important;
@@ -323,13 +494,13 @@
   .subtle, button.subtle { @apply border-line bg-panel text-ink-2 hover:text-ink; }
   .sm, button.sm { @apply px-2 py-[3px] text-[12px]; }
   .icon-only, .topbar-icon, .diff-iconbtn {
-    @apply inline-grid place-items-center rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 transition-all duration-100 hover:border-line hover:bg-panel-2 hover:text-ink;
+    @apply inline-grid place-items-center rounded-[var(--radius-control)] border border-transparent bg-transparent p-0 text-ink-2 transition-all duration-100 hover:border-line hover:bg-panel-2 hover:text-ink;
   }
 
   .skip-link {
-    @apply fixed left-3 top-3 z-[80] -translate-y-16 rounded-[8px] bg-accent px-3 py-2 text-accent-ink focus:translate-y-0;
+    @apply fixed left-3 top-3 z-[80] -translate-y-16 rounded-[var(--radius-control)] bg-accent px-3 py-2 text-accent-ink focus:translate-y-0;
   }
-  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: var(--sidebar-width, 320px) minmax(0, 1fr); }
+  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr); }
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
@@ -337,11 +508,25 @@
      nav-slot 尺寸/坐标不对齐,盖住会话标题首字符。对齐 slot(36px)并
      垂直居中 48px header(top 6px + safe-area);桌面(>900 无 slot)
      collapsed 时由下面的 :has 规则给 topbar 让位。 */
-  .sidebar-show { @apply fixed left-3 z-20 h-9 w-9 rounded-[8px] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; top: max(6px, env(safe-area-inset-top)); }
+  .sidebar-show { @apply fixed left-3 z-20 h-9 w-9 rounded-[var(--radius-control)] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; top: max(6px, env(safe-area-inset-top)); }
   .main:has(> .sidebar-show) .session-topbar { @apply min-[901px]:pl-[60px]; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
-  .sidebar { @apply relative flex min-h-0 flex-col border-r border-line bg-sidebar; }
+  /* CX-SIDEBAR (T14): Codex's rail is a macOS vibrancy surface — a barely-there
+     horizontal fall-off ending in a half-pixel edge, not a flat panel with a
+     1px border. The gradient is what keeps the rail from reading as a second
+     "card" beside the content. Falls back to the flat token where gradients
+     are unavailable. */
+  .sidebar {
+    @apply relative flex min-h-0 flex-col border-0 bg-sidebar;
+    background-image: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--sidebar) 100%, transparent) 0%,
+      color-mix(in srgb, var(--sidebar) 100%, transparent) 92%,
+      color-mix(in srgb, var(--sidebar) 88%, var(--ink) 4%) 99.6%,
+      var(--line) 99.6%
+    );
+  }
   .sidebar-resize-handle {
     @apply absolute inset-y-0 right-[-4px] z-30 w-[8px] cursor-col-resize outline-none;
   }
@@ -356,7 +541,7 @@
   body.sidebar-resizing .sidebar-resize-handle::after { @apply bg-blue; }
   body.sidebar-resizing { @apply cursor-col-resize select-none; }
   .brand-main { @apply min-w-0 border-0 bg-transparent p-0 text-left hover:bg-transparent; }
-  .sidebar-close { @apply !hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink; }
+  .sidebar-close { @apply !hidden h-11 w-11 place-items-center rounded-[var(--radius-control)] border-0 bg-transparent p-0 text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-2 px-2 pb-2; }
   /* SIDEBAR-NAV-RHYTHM (parity R82): Codex keeps the top nav rows (New session /
      Scheduled) on the SAME row rhythm as the project/session rows below — same
@@ -373,10 +558,11 @@
      by dimming the label. So: label → `text-ink`, icon-only dimming via
      `[&>svg]:text-ink-2`; active then just bumps weight, no rest→active color jump. */
   .primary-nav button, .nav-row {
-    @apply flex h-[32px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink [&>svg]:text-ink-2 transition-colors duration-100 hover:bg-panel-2;
+    @apply flex h-[31px] items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink [&>svg]:text-ink-2 transition-colors duration-100;
   }
-  .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
-  .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
+  .primary-nav button:hover, .nav-row:hover { box-shadow: inset 0 0 0 999px var(--ix-hover); }
+  .primary-nav button.active { @apply bg-sel text-ink font-semibold; }
+  .menu-kbd { @apply ml-auto rounded-[var(--radius-affordance)] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
   }
@@ -395,17 +581,20 @@
      leans on the folder icon (not size) for hierarchy — exactly what the r47
      hierarchy. Match the 13px session size. */
   .project-heading {
-    @apply w-full rounded-[7px] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:text-ink;
+    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:text-ink;
   }
   /* Match session rows: one wrapper paints the heading and both trailing
      actions, so hover/focus never stops before the icons. */
-  .project-heading-row { @apply flex w-full min-w-0 items-center rounded-[8px] transition-colors duration-100; }
+  .project-heading-row { @apply flex w-full min-w-0 items-center rounded-[var(--radius-row)] transition-colors duration-100; }
   .project-heading-row:hover,
   .pseudo-hover .project-heading-row,
-  .project-heading-row:focus-within { @apply bg-panel-2; }
+  .project-heading-row:focus-within {
+    box-shadow: inset 0 0 0 999px var(--ix-hover);
+  }
   .project-heading:focus-visible { @apply outline-none; }
   .project-heading-row:has(:focus-visible) {
-    @apply outline outline-2 outline-offset-2 outline-blue;
+    outline: 1.5px solid var(--blue);
+    outline-offset: -1px;
   }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
@@ -416,14 +605,14 @@
   .project-quick-action,
   .session-quick-action,
   .session-touch-trigger {
-    @apply !h-7 !w-7 shrink-0 rounded-[8px] border border-transparent bg-transparent p-0 text-ink-2 shadow-none hover:border-line hover:bg-panel-2 hover:text-ink;
+    @apply !h-7 !w-7 shrink-0 rounded-[var(--radius-control)] border border-transparent bg-transparent p-0 text-ink-2 shadow-none hover:border-line hover:bg-panel-2 hover:text-ink;
   }
   @media (max-width: 900px), (any-pointer: coarse) {
     .project-heading-actions .menu-trigger,
     .project-quick-action,
     .session-quick-action,
     .session-touch-trigger {
-      @apply !h-11 !w-11 rounded-[10px];
+      @apply !h-11 !w-11 rounded-[var(--radius-row)];
     }
   }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
@@ -436,32 +625,68 @@
   .section-label {
     @apply text-[12px] font-normal normal-case tracking-normal;
   }
-  .section-toggle { @apply w-full rounded-[7px] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
+  .section-toggle { @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
   /* Repo heading keeps a single quiet line: just the project name, no extra
      generated disambiguation copy. */
   .proj-heading-text { @apply flex min-w-0 flex-1 flex-row items-baseline gap-[6px] text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
-  .project-session-wrap { @apply relative flex w-full min-w-0 items-center rounded-[8px]; }
+  .project-session-wrap { @apply relative flex w-full min-w-0 items-center rounded-[var(--radius-row)]; }
   .project-session-wrap.nested .project-session { @apply pl-[31px]; }
   /* Selection and hover/focus paint the same complete row, including trailing
      worktree/loading/action icons. Painting only `.project-session` left the
      icons visibly outside the highlight and made hover look narrower than the
      selected state. */
-  .project-session-wrap.current,
+  /* CX-ROW-STATE (T7/T14): selected and hovered are now two distinct steps.
+     They used to share --panel-2, so hovering the session you were already in
+     produced no change at all — the row you interact with most was the one row
+     that never answered the pointer. Selected takes the darker --sel; hover and
+     focus paint the translucent overlay, which stacks on top of --sel when both
+     are true. */
+  .project-session-wrap.current { @apply bg-sel; }
   .project-session-wrap:hover,
   .pseudo-hover .project-session-wrap,
-  .project-session-wrap:focus-within { @apply bg-panel-2; }
+  .project-session-wrap:focus-within {
+    box-shadow: inset 0 0 0 999px var(--ix-hover);
+  }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex min-h-[32px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
+    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
   }
   .project-session:focus-visible { @apply outline-none; }
   .project-session-wrap:has(:focus-visible) {
-    @apply outline outline-2 outline-offset-2 outline-blue;
+    outline: 1.5px solid var(--blue);
+    outline-offset: -1px;
   }
-  .project-session-title { @apply min-w-0 flex-1 truncate; }
+  /* T14/T23: Codex fades a too-long title out instead of cutting it with an
+     ellipsis, then — on hover — walks the text to its end so the tail is
+     readable without a tooltip. The walk is one-way and snaps back instantly on
+     leave (Codex has no return animation). Under prefers-reduced-motion the
+     mask still applies and only the movement is dropped. */
+  .project-session-title {
+    @apply min-w-0 flex-1 overflow-hidden whitespace-nowrap;
+    mask-image: linear-gradient(to right, #000 calc(100% - 25px), transparent calc(100% - 13px));
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 25px), transparent calc(100% - 13px));
+  }
+  /* --title-shift is written by the row on mouse-enter: how far the text
+     overflows, which CSS has no way to measure. Absent it, the rule is inert. */
+  @media (hover: hover) {
+    .project-session-wrap:hover .project-session-title {
+      text-indent: calc(var(--title-shift, 0px) * -1);
+      transition: text-indent 2s ease-in-out;
+    }
+  }
+  /* The selected row trades the fade for a real ellipsis: it also carries the
+     worktree/branch glyph, and a faded title would bleed into that icon. */
+  .project-session-wrap.current .project-session-title {
+    @apply text-ellipsis;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  :root[data-reduce-motion] .project-session-wrap:hover .project-session-title {
+    text-indent: 0;
+  }
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
   .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
   .session-loading-icon { @apply shrink-0; }
@@ -478,7 +703,7 @@
     @apply inline-grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-status-attention px-1 text-[10px] font-semibold leading-none text-white;
   }
   .show-more, .archive-toggle, .projects-show-more {
-    @apply mt-1 flex w-full items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[6px] text-left text-[12px] text-dim transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[12px] text-dim transition-colors duration-100 hover:text-ink;
   }
   /* This control expands sessions *inside* one project, so its text follows
      the nested session label — not the project heading. */
@@ -496,7 +721,7 @@
   .side-foot { @apply flex items-center gap-2 p-2; }
   .side-foot-connection { @apply border-t border-line; }
   .side-foot-quiet { @apply justify-end px-2 py-1; }
-  .account-badge { @apply flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border-0 bg-transparent px-2 py-[7px] text-left hover:bg-panel-2; }
+  .account-badge { @apply flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[7px] text-left hover:bg-panel-2; }
   .account-avatar { @apply relative grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-accent text-accent-ink; }
   .account-avatar.offline { @apply bg-red-soft text-red; }
   .account-avatar.connecting { @apply bg-panel-2 text-dim; }
@@ -505,14 +730,14 @@
   .connecting .account-presence { @apply bg-dim; }
   .account-meta { @apply min-w-0 truncate text-[12px] text-ink-2; }
   .session-preview {
-    @apply fixed z-40 w-[260px] rounded-[10px] border border-line bg-panel p-3 text-[12px] text-ink shadow-lg;
-    left: calc(var(--sidebar-width, 320px) - 8px);
+    @apply fixed z-40 w-[260px] rounded-[var(--radius-menu)] border border-line bg-panel p-3 text-[12px] text-ink shadow-lg;
+    left: calc(var(--sidebar-width, 240px) - 8px);
   }
   .session-preview > div { @apply flex min-w-0 items-center gap-2 py-[2px] text-ink-2; }
   .session-preview-head { @apply justify-between text-ink; }
   .project-preview {
-    @apply fixed z-40 w-[320px] rounded-[12px] border border-line bg-panel p-3 text-[13px] text-ink shadow-lg;
-    left: calc(var(--sidebar-width, 320px) - 8px);
+    @apply fixed z-40 w-[320px] rounded-[var(--radius-menu)] border border-line bg-panel p-3 text-[13px] text-ink shadow-lg;
+    left: calc(var(--sidebar-width, 240px) - 8px);
   }
   .project-preview > div { @apply flex min-w-0 items-center gap-2 py-[3px] text-ink-2; }
   .project-preview-head { @apply text-[15px] text-ink; }
@@ -536,7 +761,7 @@
      (R92) confirms 12px reproduces Codex's exact 2/2/2/1 wrap pattern while
      13px gives 2/2/2/2. Drop to 12px to match Codex label size + wrap rhythm. */
   .home-empty-card {
-    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[12px] font-medium transition-colors duration-100 hover:border-dim hover:bg-panel-2;
+    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[var(--radius-menu)] border border-line bg-panel px-4 py-3.5 text-left text-[12px] font-medium transition-colors duration-100 hover:border-dim hover:bg-panel-2;
   }
   .home-empty-card-icon { @apply grid h-[28px] w-[28px] shrink-0 place-items-center text-blue; }
   .home-empty-card-icon.teal { color: var(--teal); }
@@ -549,7 +774,7 @@
     margin-inline: auto;
   }
   .home-intent-suggestion {
-    @apply flex min-h-9 w-full items-center gap-2 rounded-[8px] border-transparent bg-transparent px-3 py-2 text-left text-[13px] text-ink-2 shadow-none transition-colors hover:border-transparent hover:bg-panel-2 hover:text-ink hover:shadow-none focus-visible:bg-panel-2 focus-visible:text-ink;
+    @apply flex min-h-9 w-full items-center gap-2 rounded-[var(--radius-control)] border-transparent bg-transparent px-3 py-2 text-left text-[13px] text-ink-2 shadow-none hover:border-transparent hover:text-ink hover:shadow-none focus-visible:text-ink;
   }
   .home-intent-icon { @apply grid h-4 w-4 shrink-0 place-items-center text-dim; }
   .home-intent-icon svg { @apply h-[14px] w-[14px]; }
@@ -560,10 +785,17 @@
     container-type: inline-size;
   }
   .cx-card {
-    @apply relative mx-auto w-full max-w-[720px] overflow-visible border border-line bg-panel;
+    @apply relative mx-auto w-full max-w-[720px] overflow-visible border bg-panel;
+    border-color: var(--card-line);
     border-radius: var(--radius-composer);
     box-shadow: var(--shadow-composer);
+    transition: border-color 120ms ease-out;
   }
+  /* Focus deepens the card's own edge. The app-wide focus ring is right for
+     discrete controls but wrong here — the composer is a surface, and a ring
+     around it read as an error state. */
+  .cx-card:focus-within { border-color: rgb(0 0 0 / 20%); }
+  :root[data-theme="dark"] .cx-card:focus-within { border-color: rgb(255 255 255 / 24%); }
   .cx-session .cx-card { @apply max-w-[660px]; }
   /* QA-0724-goal · the session composer sat flush against the viewport's bottom
      edge at desktop widths — only the ≤500px container query carried any
@@ -615,8 +847,11 @@
   .cx-pill-sub { @apply min-w-0 truncate text-dim; }
   .cx-input-wrap { @apply px-[14px] pt-[12px]; }
   .cx-input-wrap textarea {
-    @apply max-h-[180px] min-h-[48px] w-full resize-none border-0 bg-transparent p-0 text-[15px] leading-[1.45] outline-none placeholder:text-dim;
+    @apply max-h-[180px] min-h-[48px] w-full resize-none border-0 bg-transparent p-0 text-[15px] leading-[1.45] outline-none;
   }
+  /* Placeholder is its own tier, well below --dim: in Codex it reads as an
+     empty field's ghost, not as secondary copy competing with real labels. */
+  .cx-input-wrap textarea::placeholder { color: var(--placeholder); }
   @media (min-width: 901px) {
     .cx-input-wrap textarea {
       max-height: min(320px, 38dvh);
@@ -655,7 +890,7 @@
   .cx-att-ico, .cx-att-x { @apply shrink-0 text-dim; }
   .cx-att-name { @apply min-w-0 truncate; }
   .cx-slash {
-    @apply absolute bottom-[54px] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[12px] border border-line bg-panel p-1 shadow-lg;
+    @apply absolute bottom-[54px] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[var(--radius-menu)] border border-line bg-panel p-1 shadow-lg;
   }
   .cx-slash-hd { @apply px-2 py-[6px] text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
   /* R53 MENU-SECTION-LABEL-CASE: the composer "+" / env-chip menu section
@@ -667,7 +902,7 @@
      treatment above). */
   .pop-section-label { @apply px-2 py-[6px] text-[12px] font-medium normal-case tracking-normal text-dim; }
   .cx-slash-item {
-    @apply flex w-full items-center justify-between gap-3 rounded-[8px] border-0 bg-transparent px-2 py-[7px] text-left text-[13px] hover:bg-panel-2;
+    @apply flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[13px];
   }
   .cx-slash-item.on { @apply bg-blue-soft; }
   .cx-slash-text { @apply flex min-w-0 flex-col; }
@@ -677,7 +912,7 @@
   .cx-pop-codex, .cx-add-menu, .cx-model-menu { width: min(360px, calc(100vw - 32px)); }
   .cx-project-popover { @apply w-[360px]; }
   .cx-menu.wide { @apply min-w-[320px]; }
-  .cx-project-search { @apply m-1 flex items-center gap-2 rounded-[8px] border border-line bg-panel px-2 py-[6px] text-dim; }
+  .cx-project-search { @apply m-1 flex items-center gap-2 rounded-[var(--radius-control)] border border-line bg-panel px-2 py-[6px] text-dim; }
   .cx-project-search input { @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] outline-none; }
   .cx-model-list { @apply grid gap-1; }
   .cx-model-roots .pop-title { @apply font-semibold; }
@@ -691,9 +926,9 @@
   .cx-effort-dot { @apply mx-auto h-[9px] w-[9px] rounded-full border border-line bg-panel; }
   .cx-effort-stop.on .cx-effort-dot, .cx-effort-stop.done .cx-effort-dot { @apply border-blue bg-blue; }
   .cx-model-advanced { @apply border-t border-line p-1; }
-  .cx-model-adv-toggle { @apply flex w-full items-center justify-between rounded-[8px] border-0 bg-transparent px-2 py-[7px] text-[12px] text-ink-2 hover:bg-panel-2; }
+  .cx-model-adv-toggle { @apply flex w-full items-center justify-between rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-[12px] text-ink-2 hover:bg-panel-2; }
   .cx-model-adv-chev.open { @apply rotate-180; }
-  .cx-launcher { @apply mb-3 rounded-[14px] border border-line bg-panel p-3; }
+  .cx-launcher { @apply mb-3 rounded-[var(--radius-card)] border border-line bg-panel p-3; }
   .cx-launcher-hd, .cx-launcher-row { @apply flex items-center gap-2; }
   .cx-launcher-prompt { @apply my-2 w-full resize-none; }
   .cx-launcher-field { @apply flex min-w-0 flex-1 flex-col gap-1 text-[12px] text-dim; }
@@ -709,8 +944,26 @@
   .cx-access-ico.high { @apply text-red; }
 
   .pop-wrap, .menu { @apply relative inline-flex; }
+  /* CX-OVERLAY (T17): four materials, matched to what the surface IS.
+     An ATTACHED menu is frosted and barely lifted — it belongs to the control
+     that opened it. A MODAL is opaque and deeply shadowed — it replaces the
+     page. Sharing one shadow-lg made every dropdown claim modal weight. */
   .pop-panel, .menu-pop, .ctx-menu {
-    @apply z-50 min-w-[220px] overflow-auto rounded-[12px] border border-line bg-panel p-1 text-[13px] shadow-lg;
+    @apply z-50 min-w-[220px] overflow-auto rounded-[var(--radius-menu)] border p-1 text-[13px];
+    border-color: var(--card-line);
+    background: var(--menu-bg);
+    backdrop-filter: var(--menu-blur);
+    -webkit-backdrop-filter: var(--menu-blur);
+    box-shadow: var(--shadow-menu);
+  }
+  /* Frosting needs something behind it. Where a popover paints over its own
+     scrolling content (the model/effort sheets) the blur samples that content
+     and the text under it turns to mush, so those stay opaque. */
+  .cx-model-menu, .cx-add-menu, .cx-pop-codex, .cx-project-popover {
+    @apply bg-panel;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: var(--shadow-float);
   }
   .ctx-menu {
     @apply fixed max-h-[calc(100dvh-16px)] w-[220px] min-w-0 max-w-[calc(100vw-16px)];
@@ -721,13 +974,13 @@
     @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
   }
   .menu-pop { @apply absolute bottom-[calc(100%+8px)] right-0; }
-  .menu-trigger { @apply grid h-8 w-8 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
+  .menu-trigger { @apply grid h-8 w-8 place-items-center rounded-[var(--radius-control)] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .menu-item, .pop-item {
-    @apply flex w-full min-w-0 items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[7px] text-left text-[13px] text-ink transition-colors duration-100 hover:bg-panel-2;
+    @apply flex w-full min-w-0 items-center gap-2 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[13px] text-ink;
   }
   .menu-item.danger, .pop-item.danger { @apply text-red; }
   .menu-label, .pop-menu-title { @apply flex items-center gap-2 px-2 py-[6px] text-[12px] font-medium text-dim; }
-  .pop-back { @apply h-10 w-10 rounded-[6px] border-0 bg-transparent p-0 text-[18px] transition-colors duration-100 hover:bg-panel-2; }
+  .pop-back { @apply h-10 w-10 rounded-[var(--radius-affordance)] border-0 bg-transparent p-0 text-[18px] transition-colors duration-100 hover:bg-panel-2; }
   .pop-body { @apply flex min-w-0 flex-1 flex-col; }
   .pop-title { @apply min-w-0 truncate; }
   .pop-ico { @apply inline-grid h-[18px] min-w-[18px] shrink-0 place-items-center; }
@@ -735,9 +988,12 @@
   .pop-item.active, .pop-item[aria-checked="true"] { @apply bg-blue-soft text-ink; }
   .pop-item:disabled { @apply opacity-45; }
 
-  .backdrop { @apply fixed inset-0 z-50 grid place-items-start bg-black/35 p-[8vh_16px]; }
+  .backdrop { @apply fixed inset-0 z-50 grid place-items-start p-[8vh_16px]; background: var(--scrim); }
   .command-palette-back { padding-top: 15vh; }
-  .cmdk { @apply mx-auto flex w-full max-w-[560px] flex-col overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
+  .cmdk {
+    @apply mx-auto flex w-full max-w-[560px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-line bg-panel;
+    box-shadow: var(--shadow-modal);
+  }
   .cmdk-search { @apply relative; }
   .cmdk-input { @apply w-full rounded-none border-0 border-b border-line bg-panel px-4 py-3 text-[15px] outline-none; }
   /* CMDK-CLOSE-DESKTOP-HIDE (R90): the X close is a mobile-only affordance (base
@@ -746,7 +1002,7 @@
      Button base carries an `inline-flex` utility; utilities layer wins over this
      components-layer `hidden`, so the X leaked onto desktop. `!hidden` (+ `!grid` in
      the mobile block) forces the intended mobile-only visibility past that utility. */
-  .cmdk-close { @apply absolute right-2 top-1/2 -translate-y-1/2 !hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-dim hover:bg-panel-2 hover:text-ink; }
+  .cmdk-close { @apply absolute right-2 top-1/2 -translate-y-1/2 !hidden h-11 w-11 place-items-center rounded-[var(--radius-control)] border-0 bg-transparent p-0 text-dim hover:bg-panel-2 hover:text-ink; }
   .cmdk-list { @apply max-h-[60vh] overflow-y-auto p-2; }
   .cmdk-empty { @apply px-3 py-8 text-center text-dim; }
   /* CMDK-SECTION-CASE (R77): command-palette section labels match the .menu-label
@@ -759,7 +1015,7 @@
      text — a calm, scannable list level with the 15px search input. Ours were
      cramped at 13px/py-8px (~37px). Bumped to 14px text + py-[10px] so the list
      breathes like Codex instead of feeling like a dense dropdown. */
-  .cmdk-item { @apply flex w-full items-center gap-2 rounded-[9px] border-0 bg-transparent px-2 py-[10px] text-left text-[14px] transition-colors duration-100 hover:bg-panel-2; }
+  .cmdk-item { @apply flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[10px] text-left text-[14px]; }
   /* CMDK-SEL-NEUTRAL (R77): keyboard-selected row uses the same neutral grey as
      hover, not a blue accent — Codex golden (codex-crop-command-palette.jpg) renders
      the ⌘1 cursor row on a plain light-grey fill (same hue as hover), a quiet cursor
@@ -773,7 +1029,7 @@
      mono `.kbd` keycap treatment, which read as a pressable key. Split it out:
      `.cmdk-kbd` loses the border + font-mono; the real shortcut sheet `.kbd/.rs-kbd`
      keep the keycap look (they document actual pressable keys). */
-  .cmdk-kbd { @apply rounded-[5px] bg-panel-2 px-[6px] py-[2px] text-[12px] text-dim; }
+  .cmdk-kbd { @apply rounded-[var(--radius-affordance)] bg-panel-2 px-[6px] py-[2px] text-[12px] text-dim; }
   /* CMDK-KBD-SELVIS (R94): on the selected/hover row the row fill is bg-panel-2 —
      the very same token as the ⌘N badge above — so the badge dissolved into the
      cursor row and read as plain text (Codex golden codex-crop-command-palette.jpg
@@ -782,12 +1038,12 @@
      selected/hovered; white/default rows keep the R78 soft-grey pill unchanged. */
   .cmdk-item.sel .cmdk-kbd,
   .cmdk-item:hover .cmdk-kbd { @apply bg-line; }
-  .kbd, .rs-kbd { @apply rounded-[5px] border border-line bg-panel-2 px-[5px] py-[1px] font-mono text-[11px] text-dim; }
+  .kbd, .rs-kbd { @apply rounded-[var(--radius-affordance)] border border-line bg-panel-2 px-[5px] py-[1px] font-mono text-[11px] text-dim; }
   .shortcuts { @apply max-w-[720px]; }
   .sc-head { @apply flex items-center gap-3 border-b border-line p-3; }
   .sc-title { @apply font-medium; }
   .sc-close { @apply hidden shrink-0; }
-  .sc-search { @apply ml-auto max-w-[260px] rounded-[8px] border border-line px-2 py-[6px]; }
+  .sc-search { @apply ml-auto max-w-[260px] rounded-[var(--radius-control)] border border-line px-2 py-[6px]; }
   .sc-list { @apply p-3; }
   .sc-row, .rs-sc-row { @apply flex items-center justify-between gap-4 border-t border-line-2 py-2; }
   .sc-label, .rs-sc-label { @apply flex flex-col text-[13px]; }
@@ -795,7 +1051,13 @@
   .sc-keys, .rs-sc-keys { @apply flex flex-wrap justify-end gap-1; }
 
   .session-view { @apply relative flex min-h-0 flex-1 flex-col bg-bg; }
-  .session-topbar, .topbar { @apply flex h-[48px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
+  /* Structural seams take the translucent hairline: it sits on whatever the
+     surface under it is, so the header rule reads identically over the page
+     background and over a scrolled card. */
+  .session-topbar, .topbar {
+    @apply flex h-[48px] shrink-0 items-center gap-2 border-b bg-panel px-3;
+    border-bottom-color: var(--hairline);
+  }
   .tt-left { @apply min-w-0; }
   .tt-title { @apply truncate text-[13px] font-medium text-ink; }
   .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim font-medium; }
@@ -819,7 +1081,10 @@
     container-type: inline-size;
   }
   .timeline { @apply min-h-0 flex-1 overflow-y-auto; }
-  .tl-inner { @apply mx-auto flex w-full max-w-[720px] flex-col px-[30px] py-6; }
+  /* T20: Codex's conversation column is 767px. The extra 47px is spent on the
+     widest thing in a thread — code blocks and inline diffs — which is where
+     wrapping actually costs comprehension. */
+  .tl-inner { @apply mx-auto flex w-full max-w-[767px] flex-col px-[30px] py-6; }
   /* INC-98.4w: Review can make the conversation track narrow even on a wide
      desktop viewport. Respond to the track, not the window: retain useful
      message/card width and compact the composer's secondary labels before its
@@ -872,10 +1137,13 @@
   .avatar { @apply mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-panel-2 text-[12px] text-dim; }
   .msg-col { @apply min-w-0 max-w-full flex-1; }
   .msg.user .msg-col { @apply max-w-[78%] flex-none; }
-  .bubble { @apply rounded-[14px] border border-line bg-panel px-3 py-2 text-[14px] leading-[1.55] break-words overflow-hidden; }
+  /* CX-BUBBLE (T11): only the user's turn is a bubble; it gets Codex's neutral
+     fill and no border (the fill already bounds it — a border on top read as a
+     boxed quote). Assistant prose keeps the page as its ground. */
+  .bubble { @apply rounded-[var(--radius-card)] border-0 bg-panel px-[13px] py-[7px] text-[14px] leading-[22px] break-words overflow-hidden; }
   .msg.user .bubble { @apply bg-panel-2; }
   .msg.assistant .bubble { @apply border-transparent bg-transparent px-0; }
-  .msg-actions { @apply mt-1 flex items-center gap-[6px] text-[12px] text-dim transition-opacity; }
+  .msg-actions { @apply mt-1 flex items-center gap-[13px] text-[12px] text-dim transition-opacity; }
   .timeline .tl-inner .msg:not(.msg-last) .msg-actions { @apply pointer-events-none opacity-0; }
   .timeline .tl-inner .msg.msg-last .msg-actions,
   .timeline .tl-tail-row .msg-actions { @apply pointer-events-auto opacity-100; }
@@ -887,15 +1155,30 @@
   .timeline .tl-tail-row:focus-within .msg-actions,
   .timeline .tl-tail-row .msg-actions-error { @apply pointer-events-auto opacity-100; }
   .timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time { @apply hidden; }
-  .msg-copy { @apply grid h-6 w-6 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim opacity-60 hover:bg-panel-2 hover:text-ink hover:opacity-100; }
+  /* Codex's message actions are bare 15px glyphs at full opacity — no chip, no
+     resting fade. The 60% fade plus a hover fill made them read as disabled
+     controls that lit up, rather than quiet always-available affordances. */
+  .msg-copy { @apply grid h-[15px] w-[15px] place-items-center border-0 bg-transparent p-0 text-dim hover:bg-transparent hover:text-ink; }
   .msg-actions-div { @apply h-4 w-px bg-line; }
-  .msg-time, .who { @apply text-[11px] text-dim; }
+  .msg-time, .who { @apply text-[12px] text-dim; }
   .msg-action-error { @apply max-w-[22rem] truncate text-[11px] text-red; }
   .compact-divider { @apply my-5 flex items-center gap-2 text-[12px] text-dim; }
   .compact-divider::before, .compact-divider::after { content: ""; @apply h-px flex-1 bg-line; }
   .compact-divider-label { @apply inline-flex items-center gap-1 whitespace-nowrap; }
-  .step, .act-group, .runtime-event, .system-events-notice, .driver-note {
-    @apply my-2 rounded-[12px] border border-line bg-panel px-3 py-2 text-[13px] text-ink-2;
+  /* CX-TRACE (T9): a tool entry is a LINE, not a card. Codex prints the whole
+     entry — icon, verb, target, ±counts — in one grey, because inside an
+     expanded "Worked for…" region these are scaffolding for the answer above
+     them, not content competing with it. Boxing each entry made a long turn
+     read as a stack of cards that out-weighed the prose. The system notices
+     below keep card chrome: they are alerts, and Codex boxes those too. */
+  .step, .act-group {
+    @apply my-0 rounded-[var(--radius-affordance)] border-0 bg-transparent px-1 py-[1.5px] text-[13.5px] leading-[22px] text-ink-2;
+  }
+  /* Hover darkens the TEXT only. A fill here would re-introduce the card the
+     rule above just removed, and the trace sits on bare page background. */
+  .step > summary:hover, .act-group > summary:hover { @apply text-ink; }
+  .runtime-event, .system-events-notice, .driver-note {
+    @apply my-2 rounded-[var(--radius-menu)] border border-line bg-panel px-3 py-2 text-[13px] text-ink-2;
   }
   /* R53 GAP-WORKED-BORDER: the collapsed "Worked · N steps" fold header and
      neutral status chips ("Mode changed …") used to inherit the bordered
@@ -904,11 +1187,23 @@
      borderless gray text lines (the caret/label are markers, not cards), so
      the eye rests on content. Neutral tone → quiet line; warn/err chips keep
      the colored card chrome below (those are alerts — Codex boxes them too). */
-  .chip, .worked-row { @apply my-2 text-[13px] text-dim; }
+  /* CX-WORKED (T10): the fold header is a 28px rule-terminated line at Codex's
+     quieter grey, not a floating label. The hairline under it is what tells the
+     eye where the collapsed work ends and the answer begins. */
+  .chip { @apply my-2 text-[13px] text-dim; }
+  .worked-row {
+    @apply my-2 flex h-[28px] items-center gap-[7px] border-0 border-b bg-transparent p-0 text-[13px] text-ink-2;
+    border-bottom-color: var(--hairline);
+  }
+  .worked-row.static { @apply cursor-default; }
+  .worked-caret { @apply shrink-0 text-dim transition-transform; }
+  [aria-expanded="true"] > .worked-caret { @apply rotate-90; }
+  /* Codex's expanded trace runs on a 25px pitch (22px row + 3px). */
+  .worked-body, .act-body { @apply pt-[6px]; }
   .run-status-line { @apply my-2 flex min-w-0 items-center justify-between gap-3 text-[12px] text-dim; }
   .run-status-line > span:first-child { @apply min-w-0 font-medium text-ink-2; }
   .run-status-line > span:last-child { @apply shrink-0; }
-  .chip.warn, .chip.err { @apply rounded-[12px] border px-3 py-2; }
+  .chip.warn, .chip.err { @apply rounded-[var(--radius-menu)] border px-3 py-2; }
   .chip.warn, .run-status-line.warn, .terminal-alert.warn, .terminal-alert.attention { @apply border-amber bg-amber-soft text-amber; }
   .chip.err, .run-status-line.err, .terminal-alert.err, .terminal-alert.danger { @apply border-red bg-red-soft text-red; }
   .chip { @apply flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1; }
@@ -946,11 +1241,17 @@
   .delegated-task[open] > summary::before { content: "⌄"; }
   .delegated-task .utext { @apply mt-2 text-ink; }
   .thumbs, .imgchips { @apply mt-2 flex flex-wrap gap-2; }
-  .thumb, .imgchip { @apply h-[84px] w-[120px] overflow-hidden rounded-[10px] border border-line bg-panel-2 object-cover; }
-  .thumb-button { @apply m-0 h-[84px] w-[120px] overflow-hidden rounded-[10px] border border-line bg-panel-2 p-0; }
+  .thumb, .imgchip { @apply h-[84px] w-[120px] overflow-hidden rounded-[var(--radius-row)] border border-line bg-panel-2 object-cover; }
+  .thumb-button { @apply m-0 h-[84px] w-[120px] overflow-hidden rounded-[var(--radius-row)] border border-line bg-panel-2 p-0; }
   .thumb-button > .thumb { @apply h-full w-full rounded-none border-0; }
-  .shell, .cx-code, .cx-minidiff { @apply overflow-hidden rounded-[12px] border border-line bg-panel-2 font-mono text-[12px]; }
-  .cx-code-hd { @apply flex items-center justify-between border-b border-line bg-panel px-3 py-2 text-dim; }
+  /* CX-CODEBLOCK (T11): Codex's tool-output block is a flat soft-grey slab with
+     no border — the fill alone separates it. A border plus a fill read as two
+     nested boxes once the trace around it stopped being a card. */
+  .shell, .cx-code, .cx-minidiff {
+    @apply overflow-hidden rounded-[var(--radius-menu)] border-0 font-mono text-[12px];
+    background: var(--fill-soft);
+  }
+  .cx-code-hd { @apply flex items-center justify-between border-0 bg-transparent px-3 pt-2 pb-1 text-[13px] text-dim; }
   .shell-out, .cx-code-body {
     @apply overflow-x-auto p-3;
     scrollbar-width: thin;
@@ -977,16 +1278,19 @@
   .md-h1 { @apply text-[20px]; }
   .md-h2 { @apply text-[17px]; }
   .md-h3, .md-h4, .md-h5, .md-h6 { @apply text-[15px]; }
+  /* Inline code needs its own step: on --panel-2 it disappeared into the user
+     bubble, which is the same token. --chip is the darker rung Codex uses. */
   .md-code {
-    @apply rounded bg-panel-2 px-[4px] py-[1px] font-mono;
+    @apply rounded-[var(--radius-affordance)] px-[5px] py-[1px] font-mono;
+    background: var(--chip);
     font-size: var(--code-font-size);
   }
   .md-hljs, .runlog {
     font-size: var(--code-font-size) !important;
   }
   .md-img-grid { @apply my-3 grid gap-2; }
-  .md-img { @apply max-h-[200px] max-w-full cursor-zoom-in rounded-[12px] border border-line object-contain; }
-  .md-img-fallback { @apply inline-flex items-center gap-1 rounded-[8px] border border-line px-2 py-1 text-[12px]; }
+  .md-img { @apply max-h-[200px] max-w-full cursor-zoom-in rounded-[var(--radius-menu)] border border-line object-contain; }
+  .md-img-fallback { @apply inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-line px-2 py-1 text-[12px]; }
 
   .approval-stack { @apply mx-auto w-full max-w-[660px] px-4; }
 
@@ -995,13 +1299,13 @@
      pending message, text clamped to a single line (full text in the title
      tooltip), never a full-screen raw dump (QA-0719 iPhone screenshot). */
   .queued-list { @apply mx-auto mb-1 mt-2 flex w-full max-w-[660px] flex-col gap-1.5 px-4; }
-  .queued-row { @apply flex min-w-0 items-center gap-2.5 rounded-[12px] border border-line bg-panel px-3 py-2 text-[13px] shadow-sm; }
+  .queued-row { @apply flex min-w-0 items-center gap-2.5 rounded-[var(--radius-menu)] border border-line bg-panel px-3 py-2 text-[13px] shadow-sm; }
   .queued-ic { @apply shrink-0 text-blue; }
   .queued-kicker { @apply shrink-0 text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
   .queued-text { @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-ink-2; }
-  .queued-drop { @apply min-h-7 shrink-0 rounded-[8px] border border-line bg-transparent px-2.5 py-1 text-[12px] font-medium text-dim hover:text-ink; }
+  .queued-drop { @apply min-h-7 shrink-0 rounded-[var(--radius-control)] border border-line bg-transparent px-2.5 py-1 text-[12px] font-medium text-dim hover:text-ink; }
   .approval-card, .ask-form, .daemon-alert, .turn-error, .terminal-alert, .gbar {
-    @apply mx-auto my-3 w-full max-w-[660px] rounded-[14px] border border-line bg-panel p-3 text-[13px] shadow-sm;
+    @apply mx-auto my-3 w-full max-w-[660px] rounded-[var(--radius-card)] border border-line bg-panel p-3 text-[13px] shadow-sm;
   }
   .approval-heading, .ask-form-head, .daemon-alert, .turn-error, .terminal-alert, .gbar {
     @apply flex items-start gap-3;
@@ -1012,7 +1316,7 @@
   .daemon-alert-text b { @apply leading-5; }
   .daemon-alert-text span { @apply leading-5 text-dim; }
   .daemon-alert-retry {
-    @apply flex shrink-0 items-center justify-center gap-1.5 self-start rounded-[8px] border border-line px-3 py-1.5 text-[13px] font-medium;
+    @apply flex shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--radius-control)] border border-line px-3 py-1.5 text-[13px] font-medium;
   }
   .approval-kicker, .gbar-label { @apply text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
   .approval-description, .approval-agent, .approval-shortcut, .approval-scope, .turn-error-hint, .terminal-alert-meta, .gbar-sub {
@@ -1021,13 +1325,13 @@
   /* GBAR-META-GAP: the goal banner meta is two bare spans (checks + elapsed);
      give the row inline-flex + gap so they don't run together ("…checks249h"). */
   .gbar-meta { @apply inline-flex items-center gap-2 text-[12px] text-dim; }
-  .approval-subject, .approval-ws, .turn-error-raw { @apply mt-2 rounded-[8px] bg-panel-2 p-2 font-mono text-[12px]; }
+  .approval-subject, .approval-ws, .turn-error-raw { @apply mt-2 rounded-[var(--radius-control)] bg-panel-2 p-2 font-mono text-[12px]; }
   .approval-actions, .ask-actions, .gbar-actions, .goal-actions { @apply mt-3 flex flex-wrap items-center gap-2; }
   .deny-reason { @apply flex flex-1 gap-2; }
   .deny-reason input, .gbar-input, .goal-input { @apply min-w-0 flex-1; }
   .gbar { @apply mb-0 max-w-none rounded-none border-x-0 border-t-0 shadow-none; }
   .gbar.gbar-live {
-    @apply my-2 w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[14px] border bg-panel px-3 py-2 shadow-sm;
+    @apply my-2 w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[var(--radius-card)] border bg-panel px-3 py-2 shadow-sm;
     margin-left: max(12px, calc((100% - 660px) / 2));
   }
   .gbar.gbar-live .gbar-label { @apply whitespace-nowrap normal-case tracking-normal text-[13px] text-ink; }
@@ -1043,7 +1347,7 @@
     @apply col-span-2 justify-end;
   }
   .progress-summary {
-    @apply my-2 flex w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[14px] border border-line bg-panel px-3 py-2 text-[13px] text-ink shadow-sm;
+    @apply my-2 flex w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[var(--radius-card)] border border-line bg-panel px-3 py-2 text-[13px] text-ink shadow-sm;
     margin-left: max(12px, calc((100% - 660px) / 2));
   }
   .progress-summary > svg { @apply shrink-0 text-blue; }
@@ -1067,7 +1371,9 @@
      This base rule intentionally serves desktop and mobile so the two modes
      cannot drift back into different layout contracts. */
   .session-view .supervision-panel.session-side {
-    @apply absolute right-3 top-[60px] z-[25] block min-w-0 overflow-y-auto rounded-[16px] border border-line bg-panel shadow-lg;
+    @apply absolute right-3 top-[60px] z-[25] block min-w-0 overflow-y-auto rounded-[var(--radius-overlay)] border bg-panel;
+    border-color: var(--card-line);
+    box-shadow: var(--shadow-float);
     width: min(340px, calc(100% - 24px));
     max-height: calc(100% - 72px);
   }
@@ -1125,11 +1431,17 @@
      sticky top-0 本就假定 .diffwrap 是滚动容器——补上它,并让文件卡
      拒绝收缩(shrink-0),内容自然溢出、滚动条回归。 */
   .diffwrap { @apply flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg; }
-  .diffbar { @apply sticky top-0 z-10 flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
+  .diffbar {
+    @apply sticky top-0 z-10 flex min-h-[44px] shrink-0 items-center gap-2 border-b bg-panel px-3;
+    border-bottom-color: var(--hairline);
+  }
   .diffbar-state { @apply flex w-full shrink-0 items-center gap-2; }
   .diff-summary, .fd-counts { @apply inline-flex items-center gap-[6px] text-[12px] font-medium; }
-  .diff-summary .add, .fd-counts .add, .changes-outcome-files .add { @apply text-green; }
-  .diff-summary .del, .fd-counts .del, .changes-outcome-files .del { @apply text-red; }
+  /* T5: ± counts get their own brighter pair. --green/--red stay reserved for
+     status pills and alert cards, whose darker values are tuned for contrast on
+     a filled chip, not for a bare numeral beside a filename. */
+  .diff-summary .add, .fd-counts .add, .changes-outcome-files .add { color: var(--stat-add); }
+  .diff-summary .del, .fd-counts .del, .changes-outcome-files .del { color: var(--stat-del); }
   .diff-empty { @apply m-auto grid max-w-[360px] place-items-center gap-2 p-8 text-center text-dim; }
 
   /* Diff toolbar controls. Every resident control occupies the semantic md
@@ -1138,7 +1450,8 @@
   .diff-toolbar-control { @apply h-[var(--control-md)] rounded-[var(--radius-control)]; }
   .diff-toolbar-control:focus-visible,
   .diff-viewtoggle > button:focus-visible {
-    @apply outline outline-2 outline-offset-2 outline-blue;
+    outline: 1.5px solid var(--blue);
+    outline-offset: -1px;
   }
   /* A compact Changes panel still has five resident actions. Keep their hit
      boxes touch-safe, then reclaim only horizontal rhythm at phone widths;
@@ -1161,7 +1474,7 @@
   .diff-conflict-note { @apply flex shrink-0 items-center gap-2 border-b border-red bg-red-soft px-3 py-2 text-[12px] text-red; }
   .diff-filelist { @apply max-h-[320px] overflow-y-auto p-1; }
   .diff-filelist-empty { @apply px-3 py-2 text-center text-[12px] text-dim; }
-  .diff-fileitem { @apply flex w-full items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[6px] text-left transition-colors duration-100 hover:bg-panel-2; }
+  .diff-fileitem { @apply flex w-full items-center gap-2 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[6px] text-left; }
   .diff-fileitem-path { @apply min-w-0 flex-1 truncate; }
   /* DIFF-HEAD-COUNTS: .fd-path must NOT flex-1 — with .fd-spacer (also flex-1)
      it would eat 50% of the row and float the +/- counts into the center.
@@ -1170,7 +1483,7 @@
      right edge. .diff-fileitem-path (file-list popover) keeps flex-1 on purpose. */
   .fd-path { @apply min-w-0 truncate; }
 
-  .filediff { @apply m-3 shrink-0 overflow-hidden rounded-[10px] border border-line bg-panel; }
+  .filediff { @apply m-3 shrink-0 overflow-hidden rounded-[var(--radius-menu)] border bg-panel; border-color: var(--card-line); }
   .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-2 text-[12px]; }
   .fd-caret { @apply transition-transform; }
   details[open] > .fd-head .fd-caret { @apply rotate-90; }
@@ -1200,10 +1513,10 @@
      transparent — otherwise a white channel splits the accent bar from the
      tinted number/code field and every changed row reads as fragmented
      (Codex renders one continuous tint with the bar embedded). */
-  .dl.add .dl-marker { background: linear-gradient(to right, var(--green) 3px, var(--diff-add-bg) 3px); }
+  .dl.add .dl-marker { background: linear-gradient(to right, var(--diff-add-bar) 3px, var(--diff-add-bg) 3px); }
   /* QA-0718 用户实机:删除行 gutter 曾用红色斜纹 repeating-gradient,
      深色下极刺眼且非 Codex 形态——Codex 是极细纯色 accent 条。 */
-  .dl.del .dl-marker { background: linear-gradient(to right, var(--red) 3px, var(--diff-del-bg) 3px); }
+  .dl.del .dl-marker { background: linear-gradient(to right, var(--diff-del-bar) 3px, var(--diff-del-bg) 3px); }
   .dl-no { @apply select-none bg-transparent px-2 text-right text-dim text-[11px]; }
   .dl-text, .dls-half { @apply whitespace-pre px-2 text-ink; }
   .dl.add .dl-text, .dls-half.add { background-color: var(--diff-add-bg); }
@@ -1215,15 +1528,15 @@
      行的行号 gutter + 符号随增删染色(删红/增绿·context 灰),形成一条配色脊,
      一眼扫出哪些行动过。我方原先只染背景、行号/符号恒 text-dim。此处只补
      文字色,不动背景/marker/尺寸。用与 .dl-marker 同源的 var(--green)/var(--red)。*/
-  .dl.add .dl-no, .dl.add .dl-sign { color: var(--green); }
-  .dl.del .dl-no, .dl.del .dl-sign { color: var(--red); }
+  .dl.add .dl-no, .dl.add .dl-sign { color: var(--diff-add-num); }
+  .dl.del .dl-no, .dl.del .dl-sign { color: var(--diff-del-num); }
   /* split 视图:符号 .dl-sign 落在带 add/del 的 .dls-half 内,可直接选中;
      行号 .dl-no 是裸 span 且紧邻对应 .dls-half 之前,用 :has() 按右邻侧染色
      (左/右行号各自紧邻自己那半 code 列)。context 侧无 add/del,保持灰。 */
-  .fd-split .dls-half.add .dl-sign { color: var(--green); }
-  .fd-split .dls-half.del .dl-sign { color: var(--red); }
-  .fd-split .dl-no:has(+ .dls-half.add) { color: var(--green); }
-  .fd-split .dl-no:has(+ .dls-half.del) { color: var(--red); }
+  .fd-split .dls-half.add .dl-sign { color: var(--diff-add-num); }
+  .fd-split .dls-half.del .dl-sign { color: var(--diff-del-num); }
+  .fd-split .dl-no:has(+ .dls-half.add) { color: var(--diff-add-num); }
+  .fd-split .dl-no:has(+ .dls-half.del) { color: var(--diff-del-num); }
   /* QA-0718 用户实机:hunk heading(git @@ 行的 section 文本)曾整行
      bg-blue-soft,读起来像一段被高亮的正文代码。fold band 已表达折叠,
      heading 只留低调小字。 */
@@ -1242,8 +1555,8 @@
   /* RVW-MARKER: thin ~3px left accent bar, matching the inline view.
      R50 DIFF-MARKER-NOTCH: fill the rest of the cell with the row tint (not
      transparent) so the accent bar reads as embedded in a continuous field. */
-  .fd-split .dls-marker.add { background: linear-gradient(to right, var(--green) 3px, var(--diff-add-bg) 3px); }
-  .fd-split .dls-marker.del { background: linear-gradient(to right, var(--red) 3px, var(--diff-del-bg) 3px); }
+  .fd-split .dls-marker.add { background: linear-gradient(to right, var(--diff-add-bar) 3px, var(--diff-add-bg) 3px); }
+  .fd-split .dls-marker.del { background: linear-gradient(to right, var(--diff-del-bar) 3px, var(--diff-del-bg) 3px); }
 
   /* Context gap band: aligns to the diff row grid (marker + number + code) */
   /* QA-0718 用户实机:band 曾写成三列(18px/5ch/1fr)而 children 只有
@@ -1272,12 +1585,12 @@
 
   /* Diff skeleton: shimmer placeholders matching the file card and row structure */
   .diff-skeleton { @apply grid gap-3 p-3; }
-  .dsk-file { @apply rounded-[10px] border border-line p-3; }
+  .dsk-file { @apply rounded-[var(--radius-row)] border border-line p-3; }
   .dsk-head { @apply flex items-center gap-2; }
   .dsk-body { @apply mt-2 space-y-1; }
   .dsk-row { @apply flex items-center gap-2; }
   .dsk-bar { @apply h-3 animate-pulse bg-line rounded-[2px]; }
-  .dsk-glyph { @apply w-[18px] shrink-0 rounded-[5px]; }
+  .dsk-glyph { @apply w-[18px] shrink-0 rounded-[var(--radius-affordance)]; }
   .dsk-marker { @apply w-[18px]; }
   .dsk-path { @apply flex-1; max-width: 60%; }
   .dsk-counts { @apply w-[60px]; }
@@ -1296,9 +1609,16 @@
 
   .fd-split .fd-nobody { @apply p-4 text-center text-dim; }
 
-  .changes-outcome { @apply my-3 rounded-[14px] border border-line bg-panel p-3 text-[13px]; }
+  /* CX-OUTCOME (T13): this card is one of the few things Codex DOES box, so it
+     takes the full card treatment — 9%-black hairline, 15px radius — and its
+     leading glyph is a neutral rounded square, not a green success badge. The
+     green badge implied "succeeded"; the card only reports what changed. */
+  .changes-outcome { @apply my-3 rounded-[var(--radius-card)] border bg-panel p-3 text-[13px]; border-color: var(--card-line); }
   .changes-outcome-title { @apply font-medium; }
-  .changes-outcome-icon { @apply grid h-8 w-8 place-items-center rounded-full bg-green-soft text-green; }
+  .changes-outcome-icon {
+    @apply grid h-[34px] w-[34px] place-items-center rounded-[var(--radius-menu)] text-ink-2;
+    background: var(--fill-soft);
+  }
   .changes-outcome-files { @apply mt-2 grid gap-1; }
 
   /* Scheduled 页骨架(QA-0718 实测整页丢样式:副标题级联成大标题、
@@ -1332,7 +1652,7 @@
     @apply break-words text-[24px] font-normal leading-[1.25] text-ink;
   }
   .schedule-detail-prompt {
-    @apply mt-5 whitespace-pre-wrap break-words rounded-[12px] border border-line bg-bg px-4 py-3 text-[14px] leading-6 text-ink;
+    @apply mt-5 whitespace-pre-wrap break-words rounded-[var(--radius-menu)] border border-line bg-bg px-4 py-3 text-[14px] leading-6 text-ink;
   }
   .schedule-detail-section { @apply mt-6; }
   .schedule-detail-section h3 {
@@ -1344,7 +1664,7 @@
     @apply min-h-7 border-0 bg-transparent px-2 py-1 text-[12px] text-ink-2 shadow-none hover:bg-panel-2 hover:text-ink hover:shadow-none;
   }
   .schedule-detail-section dl {
-    @apply overflow-hidden rounded-[12px] border border-line bg-bg px-4 divide-y divide-line;
+    @apply overflow-hidden rounded-[var(--radius-menu)] border border-line bg-bg px-4 divide-y divide-line;
   }
   .schedule-detail-section dl > div {
     @apply grid min-w-0 grid-cols-[minmax(88px,0.35fr)_minmax(0,0.65fr)] gap-4 py-2.5 text-[13px];
@@ -1358,7 +1678,7 @@
   .schedule-detail-loading,
   .schedule-detail-error { @apply m-6 text-[13px] text-dim; }
   .schedule-detail-loading { @apply animate-pulse; }
-  .schedule-detail-error { @apply grid justify-items-start gap-2 rounded-[12px] border border-line bg-bg p-4; }
+  .schedule-detail-error { @apply grid justify-items-start gap-2 rounded-[var(--radius-menu)] border border-line bg-bg p-4; }
   .schedule-detail-error b { @apply text-[14px] text-ink; }
   @container scheduled-shell (max-width: 760px) {
     .scheduled-shell.has-detail > .scheduled-page { @apply hidden; }
@@ -1380,7 +1700,8 @@
      title, matching Codex's ~15px description line. */
   .page-heading h2 { @apply text-[28px] font-normal leading-tight max-[680px]:text-[24px]; }
   .page-heading p { @apply mt-1 text-[15px] font-normal text-dim; }
-  .page-action { @apply inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-panel px-3 text-[13px] font-medium hover:bg-panel-2; }
+  /* Codex's page-level Create is the one solid affordance on these screens. */
+  .page-action { @apply inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border-accent bg-accent px-3 text-[14px] font-medium text-accent-ink hover:bg-accent; }
   /* R40: a labeled Menu trigger (page-action) must not inherit the 32px
      icon-only width from .menu-trigger — .page-action overrides height/padding
      but never width, so `w-8` clamped the box and the "Create" label spilled
@@ -1392,8 +1713,11 @@
      horizontal for ordinary menus; only this richer option body stacks. */
   .scheduled-create-option b { @apply leading-4; }
   .scheduled-create-option small { @apply text-[12px] leading-4 text-dim; }
-  .empty-state { @apply grid justify-items-center gap-1.5 rounded-[12px] border border-line bg-panel px-4 py-8 text-center text-[13px] text-dim; }
-  .empty-state b { @apply text-[14px] text-ink; }
+  /* CX-EMPTY (T18): Codex's empty states are unboxed — icon, 17px semibold
+     title, 15px grey line, centred on the bare surface. A bordered panel around
+     "nothing here" drew a frame around absence. */
+  .empty-state { @apply grid justify-items-center gap-2.5 border-0 bg-transparent px-4 py-10 text-center text-[15px] text-dim; }
+  .empty-state b { @apply text-[17px] font-semibold text-ink; }
   /* R48 SCHED-SUGGEST-LABEL: Codex's Scheduled "Suggestions" heading is a calm
      title-case ~15px medium-weight dim heading, not a shouty uppercase micro-
      label. Mirror the R47 sidebar section-label quieting (was: text-[12px]
@@ -1409,15 +1733,15 @@
   .sched-toolbar { @apply mb-4 flex flex-col gap-3; }
   /* R79 SCHED-SEARCH-PILL: Codex golden (codex-crop-scheduled-list.jpg) shows the
      Scheduled search as a fully-rounded, roomy pill (radius = half height) with
-     ~15px placeholder — a calm search bar, not the boxy rounded-[10px]/h-9/13px
+     ~15px placeholder — a calm search bar, not the boxy rounded-[var(--radius-menu)]/h-9/13px
      dense field we had. Match the pill radius + taller height + larger text so it
      reads as the calm-list search that sits above the row list. */
   .sched-search { @apply flex w-full min-w-[220px] items-center gap-2 rounded-full border border-line bg-panel px-4 h-11 text-dim focus-within:border-ink-2; }
   .sched-search input { @apply flex-1 w-full border-0 bg-transparent p-0 text-[14px] text-ink outline-none placeholder:text-dim; }
   .sched-filters { @apply flex items-center justify-between gap-2; }
   .sched-tabs { @apply flex items-center gap-1; }
-  .sched-tab { @apply rounded-md border-0 bg-transparent px-2.5 py-1 text-[13px] font-normal text-ink-2 shadow-none transition-colors duration-100 hover:bg-panel-2 hover:text-ink hover:shadow-none; }
-  .sched-tab.on { @apply bg-panel-2 font-medium text-ink hover:bg-panel-2; }
+  .sched-tab { @apply h-[28px] rounded-[var(--radius-menu)] border-0 bg-transparent px-2.5 py-1 text-[14px] font-normal text-ink-2 shadow-none transition-colors duration-100 hover:text-ink hover:shadow-none; }
+  .sched-tab.on { @apply bg-panel-2 font-normal text-ink; }
   .scheduled-list, .sched-suggestions { @apply flex flex-col; }
   .sched-disclosure { @apply mt-1 flex items-center gap-1; }
   .sched-disclosure .show-more { @apply w-auto; }
@@ -1430,10 +1754,10 @@
      touch more vertical padding (py-3) so the un-ruled list reads airy, not
      cramped; .sched-suggest keeps its tighter py-2.5. */
   .scheduled-row, .sched-suggest {
-    @apply flex min-w-0 items-start gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-2.5 text-left hover:bg-panel-2;
+    @apply flex min-w-0 items-start gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-2.5 text-left;
   }
   .scheduled-row { @apply py-3; }
-  .scheduled-row-wrap.is-selected .scheduled-row { @apply bg-panel-2; }
+  .scheduled-row-wrap.is-selected .scheduled-row { @apply bg-sel; }
   .sched-glyph, .sched-suggest-icon { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full text-dim; }
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
   .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }
@@ -1472,18 +1796,21 @@
      pill — strip the base button chrome (border/bg/shadow). */
   .sched-markread { @apply shrink-0; }
 
-  .modal { @apply w-full max-w-[560px] overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
+  .modal {
+    @apply w-full max-w-[560px] overflow-hidden rounded-[var(--radius-overlay)] border border-line bg-panel;
+    box-shadow: var(--shadow-dialog);
+  }
   .mhead, .mfoot { @apply flex items-center justify-between gap-2 border-b border-line px-4 py-3; }
   .mfoot { @apply border-b-0 border-t; }
   .mbody { @apply grid gap-3 p-4; }
   .field { @apply grid gap-1 text-[12px] text-dim; }
   .field input, .field textarea, .field select { @apply w-full; }
   .pill { @apply inline-flex items-center rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
-  .seg { @apply flex rounded-[8px] border border-line bg-panel-2 p-[2px]; }
+  .seg { @apply flex rounded-[var(--radius-control)] border border-line bg-panel-2 p-[2px]; }
   .seg button { @apply transition-all duration-100; }
   .seg button.on { @apply bg-panel text-ink shadow-sm; }
   .rd-grid, .session-grid { @apply grid gap-3; }
-  .rd-section, .session-card, .advanced-settings { @apply rounded-[12px] border border-line bg-panel p-3; }
+  .rd-section, .session-card, .advanced-settings { @apply rounded-[var(--radius-menu)] border border-line bg-panel p-3; }
   /* Run details 的 hero/metrics/tools 在迁移中丢了样式(QA-0718 实测
      "Current run**dev**"、"**42.8K**Billed tokens" 挤成一行)。 */
   .run-details { @apply grid min-w-0 max-w-full gap-3; }
@@ -1496,7 +1823,7 @@
   .rd-metrics strong { @apply text-[15px] font-semibold; }
   .rd-metrics span { @apply text-[12px] text-dim; }
   .rd-summary { @apply text-[13px] text-dim; }
-  .rd-attention { @apply grid gap-1 rounded-[10px] border border-line bg-bg p-2 text-[13px]; }
+  .rd-attention { @apply grid gap-1 rounded-[var(--radius-row)] border border-line bg-bg p-2 text-[13px]; }
   .rd-tools { @apply grid gap-1.5; }
   .rd-tools > div { @apply flex min-w-0 items-baseline gap-2 text-[13px]; }
   .rd-tools > div > code { @apply min-w-0 truncate text-[12px] text-dim; }
@@ -1507,10 +1834,10 @@
   .rd-raw > summary { @apply flex cursor-pointer items-center gap-1.5 text-[13px] text-dim; }
   .rd-raw-caret { @apply shrink-0 transition-transform; }
   .rd-raw[open] .rd-raw-caret { @apply rotate-90; }
-  .rd-raw > pre { @apply mt-2 block w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto rounded-[10px] border border-line bg-bg p-2 text-[12px]; max-height: 300px; }
+  .rd-raw > pre { @apply mt-2 block w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto rounded-[var(--radius-menu)] border border-line bg-bg p-2 text-[12px]; max-height: 300px; }
 
   .findbar {
-    @apply absolute right-3 top-[56px] z-30 flex h-10 items-center gap-1 rounded-[10px] border border-line bg-panel p-1 shadow-lg;
+    @apply absolute right-3 top-[56px] z-30 flex h-10 items-center gap-1 rounded-[var(--radius-menu)] border border-line bg-panel p-1 shadow-lg;
     width: min(366px, calc(100vw - 24px));
   }
   .fb-ico { @apply grid h-7 w-6 shrink-0 place-items-center text-dim; }
@@ -1562,28 +1889,31 @@
   .rs-panel-title { @apply m-0 text-[22px] font-semibold; }
   .rs-panel-sub, .rs-row-desc, .rs-noresults, .rs-todo { @apply text-[13px] text-dim; }
   .rs-row, .rs-row-block, .rs-wt-card, .rs-archive-row, .rs-sc-group {
-    @apply mt-3 rounded-[12px] border border-line bg-panel p-3;
+    @apply mt-3 rounded-[var(--radius-overlay)] border border-line bg-panel p-3;
   }
   .rs-row-head, .rs-wt-head, .rs-archive-title { @apply flex items-center justify-between gap-3 font-medium; }
   .rs-row-label { @apply text-[13px] font-medium; }
   .rs-input, .rs-textarea { @apply w-full; }
-  .rs-seg { @apply inline-flex rounded-[8px] border border-line bg-panel-2 p-[2px]; }
-  .rs-seg-btn { @apply rounded-[6px] border-0 bg-transparent px-3 py-[5px] text-[12px] text-ink-2; }
+  .rs-seg { @apply inline-flex rounded-[var(--radius-control)] border border-line bg-panel-2 p-[2px]; }
+  .rs-seg-btn { @apply rounded-[var(--radius-affordance)] border-0 bg-transparent px-3 py-[5px] text-[12px] text-ink-2; }
   .rs-seg-btn.on { @apply bg-panel text-ink shadow-sm; }
-  .rs-switch { @apply relative h-[24px] w-[42px] rounded-full border border-line bg-panel-2 p-[2px]; }
-  .rs-switch.on { @apply bg-blue; }
-  .rs-switch-knob { @apply block h-[18px] w-[18px] rounded-full bg-panel shadow; }
-  .rs-switch.on .rs-switch-knob { @apply translate-x-[18px]; }
+  .rs-switch { @apply relative h-[20px] w-[33px] rounded-full border-0 p-[1.5px]; background: var(--chip); }
+  .rs-switch.on { background: #2d67c7; }
+  .rs-switch-knob {
+    @apply block h-[17px] w-[17px] rounded-full bg-white;
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 4%), 0 1px 2px rgb(0 0 0 / 8%);
+  }
+  .rs-switch.on .rs-switch-knob { @apply translate-x-[13px]; }
   .rs-slider { @apply w-full; }
   .rs-themecards { @apply grid grid-cols-3 gap-2; }
-  .rs-themecard { @apply rounded-[12px] border border-line bg-panel p-3 text-left; }
+  .rs-themecard { @apply rounded-[var(--radius-menu)] border border-line bg-panel p-3 text-left; }
   .rs-themecard.on { @apply border-blue bg-blue-soft; }
-  .rs-fontpreview, .rs-kv { @apply rounded-[10px] border border-line bg-panel-2 p-3; }
+  .rs-fontpreview, .rs-kv { @apply rounded-[var(--radius-row)] border border-line bg-panel-2 p-3; }
   .rs-kv-row { @apply flex justify-between gap-3 border-t border-line-2 py-2 text-[13px]; }
   .rs-archive-groups, .rs-wt-sessions { @apply grid gap-2; }
   .rs-archive-status, .rs-wt-path, .rs-wt-count { @apply text-[12px] text-dim; }
   .rs-wt-current { @apply rounded-full bg-blue-soft px-1.5 py-0.5 text-[11px] font-medium text-blue; }
-  .rs-tp, .rs-tp-body { @apply rounded-[10px] border border-line bg-panel p-2; }
+  .rs-tp, .rs-tp-body { @apply rounded-[var(--radius-row)] border border-line bg-panel p-2; }
 
   .hl-kw { color: var(--hl-kw); }
   .hl-str { color: var(--hl-str); }
@@ -1633,7 +1963,7 @@
        the scope picker — it was visible at z20 but hit-tested the z26 panel. */
     .main:has(.session-layout.changes) > .sidebar-show { display: none !important; }
     .session-view .changes-panel.session-side {
-      @apply absolute inset-3 z-[26] m-0 flex rounded-[16px] border border-line shadow-lg;
+      @apply absolute inset-3 z-[26] m-0 flex rounded-[var(--radius-overlay)] border border-line shadow-lg;
     }
   }
   /* Touch target sizing: 44×44px minimum per WCAG AA on any coarse-pointer device.
@@ -1875,14 +2205,18 @@
 
   /* 时间线/变更卡加载骨架——加载期不能是白板 */
   .tl-skeleton { @apply mx-auto flex w-full max-w-[760px] flex-col gap-3 px-4 py-6; }
-  .tl-skel-row { @apply h-12 animate-pulse rounded-[12px] bg-panel-2; }
+  .tl-skel-row { @apply h-12 animate-pulse rounded-[var(--radius-menu)] bg-panel-2; }
   .tl-skel-row.user { @apply ml-auto w-3/5; }
   .changes-outcome-skel { @apply flex flex-col gap-2 py-1; }
-  .changes-outcome-skel span { @apply block h-3 animate-pulse rounded-[6px] bg-panel-2; }
+  .changes-outcome-skel span { @apply block h-3 animate-pulse rounded-[var(--radius-affordance)] bg-panel-2; }
   .changes-outcome-skel span + span { @apply w-2/3; }
 
   /* 滚底浮钮(Timeline 根为该按钮与滚动区的共同父级) */
-  .tl-jump { @apply absolute bottom-5 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full p-0 shadow-md; }
+  .tl-jump {
+    @apply absolute bottom-5 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border bg-panel p-0 text-ink;
+    border-color: var(--line);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
+  }
   .tl-jump.has-updates { @apply w-auto min-w-9 gap-1.5 px-2.5; }
   .tl-jump-count { @apply text-[11px] font-semibold tabular-nums; }
 
@@ -1891,13 +2225,13 @@
   .cx-td-ic { @apply shrink-0 text-dim; }
   .cx-td-path { @apply min-w-0 truncate font-mono text-[12px] text-ink; }
   .cx-td-meta { @apply shrink-0 text-[11.5px] text-dim; }
-  .cx-td-pattern { @apply rounded-[6px] bg-panel-2 px-1.5 py-0.5 font-mono text-[12px]; }
+  .cx-td-pattern { @apply rounded-[var(--radius-affordance)] bg-panel-2 px-1.5 py-0.5 font-mono text-[12px]; }
   .cx-td-link { @apply text-[12px]; }
-  .cx-td-prompt { @apply mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-[8px] bg-panel-2 p-2 text-[12px] leading-[1.5] text-ink-2; }
+  .cx-td-prompt { @apply mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-[var(--radius-control)] bg-panel-2 p-2 text-[12px] leading-[1.5] text-ink-2; }
   .cx-td-sub { @apply mt-1 flex min-w-0 flex-wrap items-center gap-2 text-[12px] text-dim; }
   .cx-td-tag { @apply rounded-full border border-line px-2 py-0.5 text-[11px] text-dim; }
   .cx-td-tag.warn { @apply border-amber text-amber; }
-  .cx-td-err { @apply mt-1 whitespace-pre-wrap rounded-[8px] bg-red-soft p-2 font-mono text-[12px] text-red; }
+  .cx-td-err { @apply mt-1 whitespace-pre-wrap rounded-[var(--radius-control)] bg-red-soft p-2 font-mono text-[12px] text-red; }
   .cx-td-partial { @apply text-[11.5px] italic text-dim; }
   .cx-grep-files { @apply flex min-w-0 flex-col gap-1.5; }
   .cx-grep-file { @apply min-w-0; }
@@ -1928,7 +2262,7 @@
 
   /* ENVIRONMENT rail:行标签、worktree 路径明细与动作组 */
   .env-row-label { @apply min-w-0 flex-1 truncate text-left; }
-  .env-detail { @apply mt-1 rounded-[8px] bg-panel-2 p-2; }
+  .env-detail { @apply mt-1 rounded-[var(--radius-control)] bg-panel-2 p-2; }
   .env-detail-path { @apply flex min-w-0 items-center gap-2; }
   .env-path { @apply min-w-0 flex-1 truncate font-mono text-[11.5px] text-dim; }
   .env-wt-actions { @apply mt-2 flex flex-wrap gap-1.5; }
@@ -1952,9 +2286,9 @@
 @layer components {
   /* Modals 内部排版 */
   .confirm-copy { @apply m-0 text-[13.5px] leading-6 text-ink-2 [overflow-wrap:anywhere]; }
-  .confirm-details { @apply mt-3 overflow-hidden rounded-[12px] border border-line bg-panel-2; }
+  .confirm-details { @apply mt-3 overflow-hidden rounded-[var(--radius-menu)] border border-line bg-panel-2; }
   .confirm-detail { @apply flex items-start gap-3 border-b border-line px-3 py-2.5 last:border-b-0; }
-  .confirm-detail-icon { @apply mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-panel text-ink-2; }
+  .confirm-detail-icon { @apply mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-panel text-ink-2; }
   .confirm-detail b { @apply block text-[13px] font-medium text-ink; }
   .confirm-detail small { @apply mt-0.5 block text-[12px] leading-[1.45] text-dim [overflow-wrap:anywhere]; }
   .confirm-note { @apply mb-0 mt-3 text-[12px] leading-[1.55] text-dim [overflow-wrap:anywhere]; }
@@ -1964,13 +2298,13 @@
     @apply w-full font-mono leading-[1.55];
     font-size: var(--code-font-size);
   }
-  .fork-empty { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-dashed border-line bg-panel-2 p-3 text-[12.5px] text-dim; }
-  .fork-latest { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-line bg-panel-2 p-3 text-[12.5px]; }
+  .fork-empty { @apply flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-dashed border-line bg-panel-2 p-3 text-[12.5px] text-dim; }
+  .fork-latest { @apply flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-line bg-panel-2 p-3 text-[12.5px]; }
 
   /* approval Details 内部:gate 判定行与只读提示 */
   .approval-gates { @apply mt-2 flex flex-col gap-0.5 text-[11.5px] text-dim; }
   .approval-gates > span { @apply font-mono; }
-  .approval-readonly { @apply mt-2 rounded-[8px] bg-panel-2 p-2 text-[12.5px] text-dim; }
+  .approval-readonly { @apply mt-2 rounded-[var(--radius-control)] bg-panel-2 p-2 text-[12.5px] text-dim; }
 
   /* AskForm 自由文本输入(全局 input 基线之上补布局) */
   .ask-free { @apply mt-1 w-full; }
@@ -1992,7 +2326,7 @@
   .sched-pinned { @apply shrink-0 text-dim; }
 
   /* Settings:归档空态/脚注、快捷键组标题 */
-  .rs-archive-empty { @apply flex flex-col items-center gap-1.5 rounded-[12px] border border-dashed border-line px-4 py-8 text-center text-dim; }
+  .rs-archive-empty { @apply flex flex-col items-center gap-1.5 rounded-[var(--radius-menu)] border border-dashed border-line px-4 py-8 text-center text-dim; }
   .rs-archive-empty b { @apply text-ink-2; }
   .rs-archive-empty span { @apply text-[12.5px]; }
   .rs-archive-note { @apply mt-3 text-[12px] text-dim; }

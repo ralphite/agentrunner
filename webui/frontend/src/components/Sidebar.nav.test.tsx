@@ -864,7 +864,10 @@ describe("sidebar section folding and resize (INC-87)", () => {
   it("supports pointer, keyboard and reset resizing with hard clamps", () => {
     localStorage.clear();
     mount();
-    expect(SIDEBAR_DEFAULT_WIDTH).toBe(320);
+    // T21: the rail defaults to Codex's 240. The rest of this test drives the
+    // handle from SIDEBAR_DEFAULT_WIDTH, so the drag/clamp behaviour it guards
+    // is independent of the number itself — only this line pins the value.
+    expect(SIDEBAR_DEFAULT_WIDTH).toBe(240);
     const handle = screen.getByRole("separator", { name: "Resize sidebar" });
     expect(handle.className).toContain("max-[900px]:hidden!");
 

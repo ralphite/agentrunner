@@ -238,7 +238,11 @@ function loadSidebarCollapsed(storage: Storage): boolean {
 
 export const SIDEBAR_MIN_WIDTH = 220;
 export const SIDEBAR_MAX_WIDTH = 480;
-export const SIDEBAR_DEFAULT_WIDTH = 320;
+// T21: Codex's rail is a fixed 240. Only the DEFAULT moves — a width already in
+// localStorage is untouched, and the 220–480 drag range is unchanged, so anyone
+// who wants the old 320 (long CJK session titles fit better there) keeps it by
+// dragging once.
+export const SIDEBAR_DEFAULT_WIDTH = 240;
 const SIDEBAR_WIDTH_KEY = "arwebui.sidebarWidth";
 
 export function clampSidebarWidth(width: number): number {

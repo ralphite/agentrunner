@@ -86,7 +86,20 @@ export function SidebarSessionItem({
           onOpenContext(event.clientX, event.clientY, returnFocus);
         }
       }}
-      onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
+      onMouseEnter={(event) => {
+        // T23 marquee: CSS can style the walk but cannot measure how far the
+        // title overflows, so hand it the distance here. Publishing nothing when
+        // the title already fits leaves the CSS rule inert for short rows.
+        const label = event.currentTarget.querySelector<HTMLElement>(
+          ".project-session-title",
+        );
+        if (label) {
+          const overflow = label.scrollWidth - label.clientWidth;
+          if (overflow > 1) label.style.setProperty("--title-shift", `${overflow}px`);
+          else label.style.removeProperty("--title-shift");
+        }
+        onPreview(event.currentTarget.getBoundingClientRect().top);
+      }}
       onMouseLeave={onPreviewEnd}
     >
       <button
