@@ -24,6 +24,22 @@ describe("button pressed-state sizing (INC-89)", () => {
 // blocked that without any behaviour actually regressing.
 const paints = (rule) => /box-shadow:[^;]*--ix-hover|bg-panel-2|bg-sel/.test(rule);
 
+describe("menu surfaces stay opaque (CX-OVERLAY)", () => {
+  it("never leans on backdrop-filter to make a menu readable", () => {
+    // Shipped once and reverted: a frosted menu degrades to a see-through one
+    // on every path where the blur does not render. Here the minifier collapsed
+    // the hand-written `backdrop-filter` / `-webkit-backdrop-filter` pair down
+    // to the prefixed form alone, which the browser then ignored — leaving a
+    // 70%-opaque panel with the sidebar list legible straight through it.
+    expect(css).not.toMatch(/backdrop-filter\s*:/);
+  });
+
+  it("paints attached menus on a solid surface", () => {
+    const rule = css.match(/\.pop-panel,\s*\.menu-pop,\s*\.ctx-menu\s*\{[^}]*\}/s)?.[0] || "";
+    expect(rule).toMatch(/background:\s*var\(--panel\)/);
+  });
+});
+
 describe("sidebar session row highlight extent (INC-92)", () => {
   it("paints the complete wrapper for current, hover, and focus", () => {
     const hoverRule =

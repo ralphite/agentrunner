@@ -120,8 +120,6 @@
   --shadow-menu: 0 10px 28px rgb(0 0 0 / 8.5%), 0 2px 8px rgb(0 0 0 / 3.5%);
   --shadow-dialog: 0 7px 20px rgb(0 0 0 / 12%), 0 1px 3px rgb(0 0 0 / 6%);
   --shadow-modal: 0 18px 40px rgb(0 0 0 / 18%), 0 2px 10px rgb(0 0 0 / 7%);
-  --menu-bg: rgba(246, 246, 246, 0.7);
-  --menu-blur: blur(22px) saturate(180%);
   --scrim: rgba(0, 0, 0, 0.133);
   /* CX-IX (T7): hover/press are translucent ink overlays, not background swaps.
      Values are the only two that survive being boxed in by their neighbours —
@@ -217,7 +215,6 @@
     --shadow-menu: 0 12px 30px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 28%);
     --shadow-dialog: 0 10px 26px rgb(0 0 0 / 44%), 0 1px 3px rgb(0 0 0 / 30%);
     --shadow-modal: 0 20px 44px rgb(0 0 0 / 52%), 0 2px 10px rgb(0 0 0 / 34%);
-    --menu-bg: rgba(34, 34, 40, 0.78);
     --scrim: rgba(0, 0, 0, 0.5);
     --ix-hover: rgb(255 255 255 / 5%);
     --ix-press: rgb(255 255 255 / 10%);
@@ -282,7 +279,6 @@
   --shadow-menu: 0 12px 30px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 28%);
   --shadow-dialog: 0 10px 26px rgb(0 0 0 / 44%), 0 1px 3px rgb(0 0 0 / 30%);
   --shadow-modal: 0 20px 44px rgb(0 0 0 / 52%), 0 2px 10px rgb(0 0 0 / 34%);
-  --menu-bg: rgba(34, 34, 40, 0.78);
   --scrim: rgba(0, 0, 0, 0.5);
   --ix-hover: rgb(255 255 255 / 5%);
   --ix-press: rgb(255 255 255 / 10%);
@@ -944,26 +940,22 @@
   .cx-access-ico.high { @apply text-red; }
 
   .pop-wrap, .menu { @apply relative inline-flex; }
-  /* CX-OVERLAY (T17): four materials, matched to what the surface IS.
-     An ATTACHED menu is frosted and barely lifted — it belongs to the control
-     that opened it. A MODAL is opaque and deeply shadowed — it replaces the
-     page. Sharing one shadow-lg made every dropdown claim modal weight. */
+  /* CX-OVERLAY (T17): materials matched to what the surface IS. An attached
+     menu is lightly lifted — it belongs to the control that opened it; a modal
+     is deeply shadowed — it replaces the page. Sharing one shadow-lg made every
+     dropdown claim modal weight.
+     The menu surface is OPAQUE on purpose. Codex frosts its macOS right-click
+     menu, but that is composited by the OS; its own in-app panels are ~97%
+     opaque. Translucency was tried here and reverted: a menu is a decision
+     surface, and any path where the blur does not render (a minifier collapsing
+     a hand-written -webkit- pair, a browser ignoring the alias) leaves the
+     options being read against live content behind them. Do not reintroduce
+     backdrop-filter here — buttonPress.test.js guards it. */
   .pop-panel, .menu-pop, .ctx-menu {
     @apply z-50 min-w-[220px] overflow-auto rounded-[var(--radius-menu)] border p-1 text-[13px];
     border-color: var(--card-line);
-    background: var(--menu-bg);
-    backdrop-filter: var(--menu-blur);
-    -webkit-backdrop-filter: var(--menu-blur);
+    background: var(--panel);
     box-shadow: var(--shadow-menu);
-  }
-  /* Frosting needs something behind it. Where a popover paints over its own
-     scrolling content (the model/effort sheets) the blur samples that content
-     and the text under it turns to mush, so those stay opaque. */
-  .cx-model-menu, .cx-add-menu, .cx-pop-codex, .cx-project-popover {
-    @apply bg-panel;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow: var(--shadow-float);
   }
   .ctx-menu {
     @apply fixed max-h-[calc(100dvh-16px)] w-[220px] min-w-0 max-w-[calc(100vw-16px)];
