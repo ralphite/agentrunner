@@ -97,10 +97,14 @@ export function SidebarSessionItem({
       >
         <span className="project-session-title">{title}</span>
       </button>
-      {/* Crossing the quick actions on the way to the preview card must not kill
-          the card outright — the card sits to the right of the sidebar, so the
-          pointer path to it always passes over this strip. Use the same grace
-          delay the row uses; the card cancels it on enter. */}
+      {/* This strip owns the last ~60px of the row, so it sits squarely on the
+          only path from the row to the preview card. Starting the close
+          countdown here made the card unreachable: any move slower than
+          ~300px/s spent the whole grace period still inside the row, the card
+          died mid-travel, and it could not come back because the row's
+          mouseenter had already fired. Passing over the actions is not leaving
+          the row — the row's own mouseleave is. A click or keyboard focus still
+          dismisses immediately, which is what keeps the card off the menu. */}
       {actions && (
         <span
           className="session-quick-actions max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!"
@@ -112,7 +116,6 @@ export function SidebarSessionItem({
             event.preventDefault();
             event.stopPropagation();
           }}
-          onMouseEnter={onPreviewEnd}
           onFocusCapture={onDismissPreview}
         >
           <Menu
@@ -356,13 +359,13 @@ export function SidebarProjectItem({
             <span className="proj-heading-name">{name}</span>
           </span>
         </button>
-        {/* Same as the session row: merely passing over the actions on the way
-            to the preview card must not dismiss it instantly, or the card is
-            unreachable. Clicks and keyboard focus still dismiss immediately. */}
+        {/* Same as the session row: this strip is on the only path to the
+            preview card, so hovering it must not start the close countdown —
+            that is what made the card unreachable. Clicks and keyboard focus
+            still dismiss immediately. */}
         <span
           className="project-heading-actions"
           onClick={onDismissPreview}
-          onMouseEnter={onPreviewEnd}
           onFocusCapture={onDismissPreview}
         >
           <Menu

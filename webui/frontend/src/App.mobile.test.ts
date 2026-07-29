@@ -82,6 +82,26 @@ describe("Environment layout contract", () => {
     expect(rule).toContain("width: min(340px, calc(100% - 24px));");
     expect(rule).toContain("max-height: calc(100% - 72px);");
   });
+
+  it("reserves the card's strip on the box the whole column centres against", () => {
+    // Reserving on .timeline and .cx-session only moved those two: the cards
+    // between them — terminal alert, turn error, goal bar, queued list — are
+    // siblings that centre against .session-primary themselves, so they stayed
+    // on the full-width axis, ~150px right of the composer and half-buried
+    // under the card. One reservation on the shared parent moves all of them.
+    expect(css).toContain(
+      ".session-view:has(.supervision-panel.session-side) .session-primary {",
+    );
+    expect(css).not.toContain(
+      ".session-view:has(.supervision-panel.session-side) .timeline,",
+    );
+    const start = css.indexOf(
+      ".session-view:has(.supervision-panel.session-side) .session-primary {",
+    );
+    expect(css.slice(start, css.indexOf("}", start))).toContain(
+      "padding-right: 352px;",
+    );
+  });
 });
 
 describe("Settings focus return", () => {

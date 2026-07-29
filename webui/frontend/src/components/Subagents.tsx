@@ -172,12 +172,12 @@ export function Subagents({
   if (!nodes?.length) return null;
   const uniqueNodes = dedupeInspectNodes(nodes);
   return (
+    /* No heading of its own. The only caller is the rail's Agents section,
+       which already labels the list — "Agents" directly above "Subagents · 3"
+       was one list wearing two titles, and the second was the louder of the
+       two. The count moved up onto the section label, where Progress and the
+       other sections carry theirs. */
     <div className={depth ? "subagents nested contents" : "subagents"}>
-      {depth === 0 && (
-        <h4>
-          Subagents <span className="sa-count">· {uniqueNodes.length}</span>
-        </h4>
-      )}
       {uniqueNodes.map((node, index) => {
         const delegation = delegations.find(
           (item) =>

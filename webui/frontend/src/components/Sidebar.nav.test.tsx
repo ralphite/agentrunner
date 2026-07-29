@@ -724,8 +724,13 @@ describe("project hover and management controls (INC-87)", () => {
 
       // The card sits to the right of the sidebar, so the pointer crosses the
       // heading's quick actions on its way there. That crossing used to dismiss
-      // the card outright, which made it impossible to reach.
+      // the card, which made it impossible to reach. Checking only the instant
+      // after the crossing was what let the bug back in: the dismissal was a
+      // countdown, so the card was still on screen here and gone a fifth of a
+      // second later — while the pointer was still inside the row, and with no
+      // way to bring it back. Hold the clock down long past any grace period.
       fireEvent.mouseEnter(headingRow.querySelector(".project-heading-actions")!);
+      act(() => void vi.advanceTimersByTime(2000));
       expect(container.querySelector(".project-preview")).toBeTruthy();
 
       fireEvent.mouseLeave(headingRow);
@@ -736,6 +741,28 @@ describe("project hover and management controls (INC-87)", () => {
       fireEvent.mouseLeave(container.querySelector(".project-preview")!);
       act(() => void vi.advanceTimersByTime(1000));
       expect(container.querySelector(".project-preview")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a session row's preview alive while the pointer sits on its quick actions", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = mount();
+      const row = container.querySelector(".project-session-wrap")!;
+      fireEvent.mouseEnter(row);
+      expect(container.querySelector(".session-preview")).toBeTruthy();
+
+      // Same corridor as the project heading: the strip is the last stretch of
+      // the row before the card, so dwelling on it must not run the card down.
+      fireEvent.mouseEnter(row.querySelector(".session-quick-actions")!);
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(container.querySelector(".session-preview")).toBeTruthy();
+
+      fireEvent.mouseLeave(row);
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(container.querySelector(".session-preview")).toBeNull();
     } finally {
       vi.useRealTimers();
     }

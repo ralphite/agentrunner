@@ -259,6 +259,19 @@ describe("TH-3 · groups with content are untouched", () => {
     expect(screen.queryByText("Goal")).toBeNull();
   });
 
+  it("titles the agent list once, with the count on the section label", () => {
+    const { container } = renderPanel({ children: [child] });
+
+    // "Agents" directly above "Subagents · 1" was one list under two titles,
+    // and the inner one was the louder of the two. The count rides the section
+    // label now, the way Progress and every other section carries its own.
+    expect(container.querySelector(".supervision-agents .subagents h4")).toBeNull();
+    expect(screen.queryByText(/^Subagents/)).toBeNull();
+    const label = container.querySelector(".supervision-agents .supervision-label")!;
+    expect(label.textContent).toBe("Agents1");
+    expect(label.querySelector(".section-count")!.textContent).toBe("1");
+  });
+
   it("renders the Attention section when something needs a human", () => {
     const { container } = renderPanel({ approvals: 2 });
 

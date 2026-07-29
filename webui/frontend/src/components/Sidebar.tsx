@@ -57,9 +57,13 @@ type SidebarHover =
   | { kind: "session"; sid: string; top: number }
   | { kind: "project"; key: string; top: number };
 
-// Grace period before a hover preview closes. The card sits outside the
-// sidebar, so reaching it means crossing the row's quick actions and the
-// sidebar edge — 120ms was too tight and the card vanished mid-travel.
+// Grace period before a hover preview closes. The card's left edge meets the
+// row's right edge, so a straight move onto it hands over within a frame; the
+// delay is for the diagonal case, where the card is clamped away from the row's
+// own line and the pointer clips a few pixels of dead rail on the way.
+// (It is NOT what buys travel time across the row's quick actions — hovering
+// those no longer starts the countdown at all, which is what used to make the
+// card unreachable.)
 const HOVER_PREVIEW_CLOSE_DELAY_MS = 220;
 
 // SB-4 · Collapsed project groups, mirrored into localStorage.

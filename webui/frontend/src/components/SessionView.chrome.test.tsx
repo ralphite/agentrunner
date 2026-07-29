@@ -736,9 +736,11 @@ describe("mobile session topbar", () => {
     expect(navSlot.classList.contains("w-9")).toBe(true);
     expect(topbar.querySelector(".tt-title")!.textContent).toBe("深度黑盒 QA 任务 2026-07-12-A");
 
-    // Recovery is the only safe current-state action. Retrying a stranded
-    // message could repeat work that finished before the host disappeared.
-    expect(topbar.querySelector('button[aria-label="Resume session"]')).not.toBeNull();
+    // Recovery is the only safe current-state action — retrying a stranded
+    // message could repeat work that finished before the host disappeared —
+    // but the topbar is not where it is offered. The terminal alert below
+    // already carries it, so a topbar copy was the same button twice.
+    expect(topbar.querySelector('button[aria-label="Resume session"]')).toBeNull();
     expect(topbar.querySelector('button[aria-label="Retry session"]')).toBeNull();
     expect(topbar.querySelector('button[aria-label="Fork session from checkpoint"]')).toBeNull();
 
@@ -754,6 +756,7 @@ describe("mobile session topbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "More session actions" }));
     expect(screen.queryByRole("menuitem", { name: "Retry last message" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Continue in new session…" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Resume session" })).toBeTruthy();
   });
 
   it("shows a short session access label instead of a bare unknown icon", async () => {

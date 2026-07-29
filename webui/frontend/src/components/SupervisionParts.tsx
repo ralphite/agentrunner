@@ -8,6 +8,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { formatElapsed, type GoalDerived } from "../timeline";
+import { dedupeInspectNodes } from "../viewModels";
 import type { BackgroundWork } from "../types";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
@@ -262,7 +263,7 @@ export function ProgressSection({ progress }: { progress: ProgressItem[] }) {
     <section className="supervision-section">
       <div className="supervision-label">
         Progress
-        <span className="progress-count">
+        <span className="section-count">
           {progress.filter((item) => item.status === "done").length}/{progress.length}
         </span>
       </div>
@@ -334,7 +335,10 @@ export function SupervisionAgentsSection({
   if (children.length === 0) return null;
   return (
     <section className="supervision-section supervision-agents">
-      <div className="supervision-label">Agents</div>
+      <div className="supervision-label">
+        Agents
+        <span className="section-count">{dedupeInspectNodes(children).length}</span>
+      </div>
       <Subagents
         nodes={children}
         delegations={delegations}

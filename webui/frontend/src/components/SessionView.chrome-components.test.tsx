@@ -60,7 +60,13 @@ describe("SessionTopbar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Resume session" }));
+    // Recovery is offered by the terminal alert above the composer, not by a
+    // second button in the topbar; the menu keeps the keyboard-reachable copy.
+    expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "More session actions" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Resume session" }));
     fireEvent.click(screen.getByRole("button", { name: "Environment" }));
     expect(onResume).toHaveBeenCalledOnce();
     expect(onEnvironment).toHaveBeenCalledWith(expect.any(HTMLButtonElement));

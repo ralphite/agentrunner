@@ -1253,7 +1253,13 @@
     .session-topbar .menu-trigger { height: 29px !important; }
   }
   .session-topbar .menu-trigger { @apply text-[#777777] dark:text-ink-2; }
-  .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
+  /* A bare inline span took its height from the 10px line box, so `rounded-full`
+     drew a 15×10 ellipse — squashed, and visibly not the round count badge it
+     reads as elsewhere. Size the box instead of the glyph: a 16px circle for one
+     digit, growing into a pill only when the count needs the room. */
+  .topbar-attention {
+    @apply ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] leading-none text-white tabular-nums;
+  }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
   /* INC-98.4b/98.4w: size the review rail from the content area, not the whole
      window. The rail keeps Codex's 54% wide-screen proportion, but yields first
@@ -1660,10 +1666,15 @@
     /* The reservation must go on the element that CENTRES the column, not on the
        column itself: .tl-inner is `mx-auto max-w-767`, so padding inside it just
        squeezes the text and leaves the box exactly where it was. Padding the
-       scroll container shrinks the space the auto margins resolve against, which
-       is what actually moves the column clear of the card. */
-    .session-view:has(.supervision-panel.session-side) .timeline,
-    .session-view:has(.supervision-panel.session-side) .cx-session {
+       box the column's auto margins resolve against is what actually moves it
+       clear of the card.
+       That box is .session-primary, not .timeline: the cards BETWEEN the
+       timeline and the composer — terminal alert, turn error, goal bar,
+       progress summary, queued list — are its direct children and centre
+       against it themselves. Reserving on .timeline/.cx-session only reached
+       two of the siblings, so the recovery alert stayed centred on the full
+       width: ~150px right of the composer, with its tail under the card. */
+    .session-view:has(.supervision-panel.session-side) .session-primary {
       padding-right: 352px;
     }
   }
@@ -1689,9 +1700,6 @@
   .attention-row, .background-row, .progress-row, .sa-row, .env-row, .artifact-row, .goal-meta, .goal-settled-line {
     @apply flex min-w-0 items-center gap-2 border-0 bg-transparent px-3 py-2 text-[13px] hover:bg-panel-2;
   }
-  /* S55: "Subagents · N" 此前是裸 UA h4（14/700 直漏）。 */
-  .subagents h4 { @apply m-0 mb-1 px-3 text-[13.8px] font-medium text-ink; }
-  .subagents h4 .sa-count { @apply font-normal text-dim; }
   /* QA-0719 S5 · the goal phase (`Stopped` / `Cancelled` / `Satisfied`) is a
      compact status pill, NOT a full-width row. It used to share the heavy row
      rule above, which handed it `min-w-0` + the flex default `shrink:1`; as a
@@ -1721,7 +1729,7 @@
   .env-row-name { @apply min-w-0 shrink truncate; }
   /* env-row-val 是多枚 chip(`2 files` `+106` `−0`)的容器——QA-0718 实测无
      gap 时渲染成 "2 files+106"。与 .diff-summary 同用 6px gap。 */
-  .env-row-val, .sa-meta, .progress-count, .artifact-stream { @apply text-[12px] text-dim; }
+  .env-row-val, .sa-meta, .section-count, .artifact-stream { @apply text-[12px] text-dim; }
   .env-row-val { @apply inline-flex items-center gap-[6px]; }
 
   /* QA-0719 diff 全线不可用实测:.diffwrap 是 flex 列却没有 overflow-y,

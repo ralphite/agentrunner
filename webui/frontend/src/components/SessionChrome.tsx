@@ -149,18 +149,11 @@ export function SessionTopbar({
         )}
       </div>
       {!isSub && <span className="spacer" />}
-      {!isSub && needsRecovery && (
-        <Button
-          variant="ghost"
-          className="topbar-tool recovery"
-          onClick={onResume}
-          title="Resume this session from its last durable checkpoint"
-          aria-label="Resume session"
-        >
-          <ArrowClockwise size={15} />{" "}
-          <span className="topbar-tool-label">Resume</span>
-        </Button>
-      )}
+      {/* No Resume button here. A session that needs recovery already says so in
+          the terminal alert above the composer — where the reader is actually
+          looking — and that card carries the same action. A second copy in the
+          topbar was the same offer twice, two feet apart. The `…` menu keeps a
+          third, keyboard-reachable copy. */}
       <Button
         variant="ghost"
         pressed={environmentOpen}
