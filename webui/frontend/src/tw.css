@@ -595,7 +595,11 @@
      what read as "the icon isn't aligned": the boxes were centred to the
      pixel, the icon was simply too big for the line it sits on. */
   .primary-nav button, .nav-row {
-    @apply flex h-[31px] items-center gap-[7px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] font-normal [&>svg]:text-ink-2 transition-colors duration-100;
+    /* Codex's nav rows are their own spec, distinct from the session rows below
+       them: 14px/20 with NO tracking in a 30px pill at radius 11 — I had given
+       them the session row's 13.8/20.7/-0.09 and the workspace screen's -0.5px
+       glyph nudge, neither of which belongs to this row. */
+    @apply flex h-[30px] items-center gap-2 rounded-[11px] border-0 bg-transparent px-2 text-left text-[14px] leading-[20px] font-normal [&>svg]:text-ink-2 transition-colors duration-100;
     color: var(--side-ink);
   }
   /* Codex nudges the leading glyph half a pixel above the row's centre (measured
@@ -603,13 +607,11 @@
      in its line box, so an icon centred to the box reads as floating above the
      word it labels. The glyph is wrapped in a 20x20 grid cell, so the nudge goes
      on the wrapper — the svg is not a direct child. */
-  .primary-nav button > span:first-child,
-  .nav-row > span:first-child,
-  .project-heading > svg:first-child,
-  .project-heading-row > .project-heading > svg:first-child {
-    position: relative;
-    top: -0.5px;
-  }
+  /* Codex lifts the project heading's content half a pixel with `pb-[1px]` under
+     items-center rather than positioning the glyph — same result, no positioned
+     element. (An earlier `top:-0.5px` rule here never matched the real DOM and
+     measured 0.00; removed rather than left in place looking effective.) */
+  .project-heading { padding-bottom: 1px; }
   .primary-nav button:hover, .nav-row:hover { box-shadow: inset 0 0 0 999px var(--ix-hover); }
   /* 2b: Codex's selected rail row does not change weight — the fill carries the
      state on its own. A 500→600 jump also nudges the row's text width, so the
@@ -623,7 +625,7 @@
   .project-list { @apply min-h-0 flex-1 overflow-y-auto px-2 pb-2; }
   .sidebar-section { @apply mb-3; }
   .section-label, .project-heading {
-    @apply flex min-w-0 items-center gap-[7px] px-2 py-[6px] text-[11px] font-bold uppercase tracking-[0.1em] text-dim;
+    @apply flex min-w-0 items-center gap-2 px-2 py-[6px] text-[11px] font-bold uppercase tracking-[0.1em] text-dim;
   }
   /* R79 SIDE-HEADING-SIZE · the shared base rule above sets text-[11px]; this
      override changed case/weight/tracking/color but never the size, so repo
@@ -688,7 +690,7 @@
   .proj-heading-text { @apply flex min-w-0 flex-1 flex-row items-baseline gap-[6px] text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
   .project-session-wrap { @apply relative flex w-full min-w-0 items-center rounded-[var(--radius-row)]; }
-  .project-session-wrap.nested .project-session { @apply pl-[31px]; }
+  .project-session-wrap.nested .project-session { @apply pl-[32px]; }
   /* Selection and hover/focus paint the same complete row, including trailing
      worktree/loading/action icons. Painting only `.project-session` left the
      icons visibly outside the highlight and made hover look narrower than the
