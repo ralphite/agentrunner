@@ -304,6 +304,10 @@ export function Composer(props: ComposerProps) {
   // mirrors it through onProjectChange (RH-1). It opens on the last project the
   // user chose here.
   const [ws, setWs] = useState(() => recallProject(storage.local) || "");
+  // Mirror of `ws` for async callbacks: lets an in-flight branch fetch tell
+  // whether the project changed under it (its response is then stale).
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
   const [kind, setKind] = useState<"chat" | "background">("chat");
   const [runLocation, setRunLocation] = useState<"worktree" | "local">("worktree");
   const [startingBranch, setStartingBranch] = useState("");
@@ -486,13 +490,17 @@ export function Composer(props: ComposerProps) {
   }, [isSession, allWorkspaces]);
 
   // Home: discover the workspace's branches when a real repo path is set.
+  // Switching projects resets the branch state SYNCHRONOUSLY, before the new
+  // repo's discovery lands — the previous project's branch must never survive
+  // into the next project's send path (QA 2026-07-29: a send that raced this
+  // request tried to start a worktree from the old repo's branch and failed
+  // with "Couldn't find a commit named …").
   useEffect(() => {
     if (isSession) return;
     const dir = ws.trim();
-    if (!dir || !dir.startsWith("/")) {
-      setBranchInfo(null);
-      return;
-    }
+    setBranchInfo(null);
+    setStartingBranch("");
+    if (!dir || !dir.startsWith("/")) return;
     let alive = true;
     api.gitBranches(dir)
       .then((b) => {
@@ -502,7 +510,7 @@ export function Composer(props: ComposerProps) {
         // Non-repo OR a repo with no commits yet (unborn branch) can't host a
         // worktree — fall back to Local so the user never hits git's raw
         // "invalid starting ref" error (phone report 2026-07-12).
-        if (!b.isRepo || b.hasCommits === false) setRunLocation("local");
+        setRunLocation(b.isRepo && b.hasCommits !== false ? "worktree" : "local");
       })
       .catch(() => alive && setBranchInfo(null));
     return () => {
@@ -625,10 +633,22 @@ export function Composer(props: ComposerProps) {
 
   const resolveHomeWorkspace = async (): Promise<string> => {
     const source = await ensureWs();
+    if (runLocation !== "worktree") return source;
+    // A null branchInfo means discovery for `source` hasn't landed yet (the
+    // project was just switched) — fetch the repo's own state instead of
+    // silently downgrading to a local run or trusting a stale branch.
+    let info = branchInfo;
+    if (!info) {
+      try {
+        info = await api.gitBranches(source);
+      } catch {
+        info = null;
+      }
+    }
     // No worktree when it's not a repo, or the repo has no commits (unborn
     // branch): git worktree needs a real starting commit. Run local instead.
-    if (runLocation !== "worktree" || !branchInfo?.isRepo || branchInfo.hasCommits === false) return source;
-    return (await api.makeWorktree(source, "", startingBranch || branchInfo.current)).path;
+    if (!info?.isRepo || info.hasCommits === false) return source;
+    return (await api.makeWorktree(source, "", startingBranch || info.current)).path;
   };
 
   const resetInput = () => {
@@ -1304,17 +1324,9 @@ export function Composer(props: ComposerProps) {
     seeded.current = true;
     setProjectQuery("");
     setProjectMenuPage("projects");
-    api.gitBranches(workspace)
-      .then((info) => {
-        setBranchInfo(info);
-        setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
-        setRunLocation(info.isRepo ? "worktree" : "local");
-      })
-      .catch(() => {
-        setBranchInfo(null);
-        setStartingBranch("");
-        setRunLocation("local");
-      });
+    // Branch discovery is owned by the `ws` effect (single, guarded fetch) —
+    // a second unguarded fetch here could land out of order and resurrect the
+    // previous project's branch state.
   };
 
   const typeaheadListboxId =
@@ -1424,23 +1436,27 @@ export function Composer(props: ComposerProps) {
                       totalBranches: branchInfo?.branches.length || 0,
                       onOpen: () => {
                         setBranchQuery("");
-                        if (ws.trim()) {
-                          api
-                            .gitBranches(ws.trim())
-                            .then((info) => {
-                              setBranchInfo(info);
-                              if (!startingBranch) {
-                                setStartingBranch(
-                                  (info.current === "HEAD"
-                                    ? ""
-                                    : info.current) ||
-                                    info.branches[0] ||
-                                    "",
-                                );
-                              }
-                            })
-                            .catch(() => {});
-                        }
+                        const dir = ws.trim();
+                        if (!dir) return;
+                        api
+                          .gitBranches(dir)
+                          .then((info) => {
+                            // Stale guard: the project may have switched while
+                            // this refresh was in flight — never let the old
+                            // repo's answer overwrite the new repo's state.
+                            if (wsRef.current.trim() !== dir) return;
+                            setBranchInfo(info);
+                            setStartingBranch(
+                              (current) =>
+                                current ||
+                                (info.current === "HEAD"
+                                  ? ""
+                                  : info.current) ||
+                                info.branches[0] ||
+                                "",
+                            );
+                          })
+                          .catch(() => {});
                       },
                       onQueryChange: setBranchQuery,
                       onSelect: async (branch, close) => {
