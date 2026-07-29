@@ -1,10 +1,10 @@
-# An Actor-Model, Event-Sourced Agent Runtime and Harness
+# An Actor-Model, Event-Sourced Agent Runtime
 
 **架构设计（3 页）**
 
 > 本文讲一个通用 agent runtime 的内核该长什么样：会话模型、输入通道、
 > 多 agent、turn 内机制、持久化与恢复、provider 抽象。目标是能长期驻留、
-> 挺过进程死亡、支持多方随时插话的 harness，而不是一次性的 LLM 调用循环；
+> 挺过进程死亡、支持多方随时插话的执行环境，而不是一次性的 LLM 调用循环；
 > 不预设领域——写码、研究、运维、数据工作共用同一个内核。具体工具集、领域
 > 状态的快照与回滚、索引、生态接入、各类 surface 属于扩展层，本文略去。
 
@@ -177,7 +177,7 @@ restart，停在 failed 等人处理，不热循环。
 
 ```
 会话内核  Session actor · inbox · loop · turn · 子 session      ← 中心
-Turn 机制 context assembly · effect pipeline · 工具
+Turn 机制 context assembly · effect pipeline · 工具             ← 即 "harness"
 持久化    journal · fold · snapshot · CAS · in-doubt
 扩展层    时间旅行 · 迭代驱动（goal / 周期 / best-of-N）· 生态接入
 ```
@@ -210,6 +210,6 @@ guaranteed send 两通道，重连方必须从 event log 对账未决状态，�
 **不保证整树确定性重现**：保证的是 per-stream 可审计（causation / correlation
 链完整），不是跨 actor 消息交错的重现。**软标记不计入安全预算**：untrusted 框定
 只降低模型服从注入的概率，真正的缓解是 egress 控制、OS sandbox、permission floor
-这些与模型是否听话无关的硬防线，两类防线不得混记；凭据 redaction 同理——harness
+这些与模型是否听话无关的硬防线，两类防线不得混记；凭据 redaction 同理——runtime
 自身绝不写入凭据，但工具输出可能携带任意 secret，这是文档化的残余风险，不是闭合
 的保证。
