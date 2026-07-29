@@ -100,14 +100,22 @@ spawn 时**冻结**成不可变数据（子无法自行放宽，父事后的 mod
 
 ## 5. Turn 内机制
 
-**Context assembly 是一等组件**（`fold(journal) → 请求`）：system prompt 拼装
-顺序固定，其中 tool / skill / **子 agent 目录**的注入是 multi-agent 可用的前提
-——模型不知道某个子 agent 存在就永远不会 spawn 它。**prefix 稳定是显式不变量**
-（prompt caching 的经济性约 10x，没有它 agent loop 在经济上不可用）：环境变化
-一律**以追加消息进入上下文，绝不改写 prefix**；工具面因此分两级——mode 过滤只
-作用于关卡侧的 permitted 面，进 prefix 的 advertised 面在 session 内稳定。压缩
-同理：journal 留全量结果（truth），**只有装配视图降级**，故 resume 与 rewind
-的语义天然良定义。
+**Context assembly 是一等组件**：请求 = `assemble(fold(journal))`，两级分工
+——fold 是纯函数，只重建对话事实；assembly 负责 state → provider 请求的全部
+渲染：system prompt 拼装（顺序固定，其中 tool / skill / **子 agent 目录**的
+注入是 multi-agent 可用的前提——模型不知道某个子 agent 存在就永远不会 spawn
+它）、截断、配对重排。**prefix 稳定是显式不变量**（prompt caching 的经济性约
+10x，没有它 agent loop 在经济上不可用）：环境变化一律**以追加消息进入上下文，
+绝不改写 prefix**；工具面因此分两级——mode 过滤只作用于关卡侧的 permitted 面，
+进 prefix 的 advertised 面在 session 内稳定。
+
+**压缩不是 fold 的聪明逻辑，是记录在案的 activity**：摘要是一次 LLM 调用（非
+确定性副作用），走 effect pipeline、产出 `ContextCompacted{summary, boundary}`
+event 落进 journal，之后才改变后续 fold 的视图——fold 本身始终纯。另有一档无
+LLM 的轻量回收：只落一个单调 boundary 事件，由 assembly 把边界前可重算的
+read-class 工具结果渲染成占位符。共同 doctrine：journal 留全量结果（truth），
+**只有装配视图降级**——fold 到哪个 seq 就得到哪个视图，故 resume 与 rewind
+跨压缩边界的语义天然良定义。
 
 **Effect Pipeline**：每个副作用（模型调用、工具、spawn、发布产出）都是一个
 Effect，流经同一条管线——hooks、permission、审批、预算不是四个子系统：
