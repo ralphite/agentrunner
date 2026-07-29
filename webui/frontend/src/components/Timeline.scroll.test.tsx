@@ -151,6 +151,62 @@ describe("long-thread reading position", () => {
     expect(view.getByRole("button", { name: "Jump to latest" })).toBeTruthy();
   });
 
+  // Regression for the unscrollable-feed race: polling renders re-run the
+  // stick-to-bottom layout effect, and a render landing between an upward
+  // gesture and its (async) scroll event used to snap the feed back down; the
+  // scroll event then measured "at bottom" and re-latched stick forever.
+  it("an upward wheel gesture releases stick before a mid-gesture render can snap back", () => {
+    const base = { sessionKey: "wheel-race", pending: [], typing: "", showSys: false };
+    const view = render(<TimelineView {...base} items={[assistant("a1")]} />);
+    const timeline = view.container.querySelector(".timeline") as HTMLElement;
+    expect(timeline.scrollTop).toBe(2500); // mounted stuck to the tail
+
+    // Wheel intent fires synchronously — before the browser moves the viewport
+    // and long before the scroll event. A poll render right here must not snap.
+    fireEvent.wheel(timeline, { deltaY: -120 });
+    view.rerender(<TimelineView {...base} items={[assistant("a1"), assistant("a2")]} />);
+    expect(timeline.scrollTop).toBe(2500); // not snapped — stick already off
+
+    // The browser now applies the gesture; the scroll event confirms upward.
+    timeline.scrollTop = 2450;
+    fireEvent.scroll(timeline);
+    view.rerender(<TimelineView {...base} items={[assistant("a1"), assistant("a2"), assistant("a3")]} />);
+    expect(timeline.scrollTop).toBe(2450);
+  });
+
+  it("a coalesced scroll event with no net movement cannot re-latch stick", () => {
+    const base = { sessionKey: "coalesce-race", pending: [], typing: "", showSys: false };
+    const view = render(<TimelineView {...base} items={[assistant("a1")]} />);
+    const timeline = view.container.querySelector(".timeline") as HTMLElement;
+
+    fireEvent.wheel(timeline, { deltaY: -1 });
+    // The swallowed-gesture replay: an event that measures at-bottom with no
+    // movement (top === previous). It must not flip stick back on…
+    fireEvent.scroll(timeline);
+    // …so a follow-up render leaves the reader where they are and counts the
+    // update as unseen instead of snapping.
+    view.rerender(<TimelineView {...base} items={[assistant("a1"), assistant("a2")]} />);
+    expect(view.getByRole("button", { name: "1 new update; jump to latest" })).toBeTruthy();
+  });
+
+  it("a touch drag toward older history releases stick synchronously", () => {
+    const base = { sessionKey: "touch-race", pending: [], typing: "", showSys: false };
+    const view = render(<TimelineView {...base} items={[assistant("a1")]} />);
+    const timeline = view.container.querySelector(".timeline") as HTMLElement;
+
+    fireEvent.touchStart(timeline, { touches: [{ clientY: 300 }] });
+    fireEvent.touchMove(timeline, { touches: [{ clientY: 360 }] }); // finger down = scroll up
+    view.rerender(<TimelineView {...base} items={[assistant("a1"), assistant("a2")]} />);
+    expect(timeline.scrollTop).toBe(2500); // no snap while the drag is live
+
+    // Still inside the near-bottom band (50px < 80px) — exactly where the old
+    // measurement-only logic would re-latch and snap on the next render.
+    timeline.scrollTop = 2450;
+    fireEvent.scroll(timeline);
+    view.rerender(<TimelineView {...base} items={[assistant("a1"), assistant("a2"), assistant("a3")]} />);
+    expect(timeline.scrollTop).toBe(2450);
+  });
+
   it("treats an explicit send as authority to return to latest", () => {
     const view = render(
       <TimelineView sessionKey="send-session" items={[assistant("a1")]} pending={[]} typing="" showSys={false} />,

@@ -4,7 +4,9 @@ import {
   useRef,
   useState,
   type RefObject,
+  type TouchEventHandler,
   type UIEventHandler,
+  type WheelEventHandler,
 } from "react";
 import { useAppServices } from "../../app/appServices";
 
@@ -16,6 +18,9 @@ export interface TimelineScrollController {
   showJump: boolean;
   unseen: number;
   onScroll: UIEventHandler<HTMLDivElement>;
+  onWheel: WheelEventHandler<HTMLDivElement>;
+  onTouchStart: TouchEventHandler<HTMLDivElement>;
+  onTouchMove: TouchEventHandler<HTMLDivElement>;
   jumpToBottom: () => void;
 }
 
@@ -49,6 +54,11 @@ export function useTimelineScrollController({
   const activityReady = useRef(false);
   const prevActivityCount = useRef(activityCount);
   const prevPendingCount = useRef(pendingCount);
+  // Where the viewport sat when we last looked — scroll events compare against
+  // it to tell user direction. Programmatic jumps update it in place so their
+  // own (async, possibly coalesced) scroll event replays as a no-op.
+  const lastScrollTop = useRef(0);
+  const lastTouchY = useRef<number | null>(null);
   const scrollStorageKey = sessionKey ? `${STORAGE_PREFIX}${sessionKey}` : "";
 
   const clearSavedPosition = () => {
@@ -70,6 +80,7 @@ export function useTimelineScrollController({
       activityReady.current = false;
       prevActivityCount.current = activityCount;
       prevPendingCount.current = pendingCount;
+      lastTouchY.current = null;
       setShowJump(false);
       setUnseen(0);
     }
@@ -95,11 +106,15 @@ export function useTimelineScrollController({
         clearSavedPosition();
         el.scrollTop = el.scrollHeight;
       }
+      lastScrollTop.current = el.scrollTop;
       prevActivityCount.current = activityCount;
       activityReady.current = true;
       return;
     }
-    if (stick.current) el.scrollTop = el.scrollHeight;
+    if (stick.current) {
+      el.scrollTop = el.scrollHeight;
+      lastScrollTop.current = el.scrollTop;
+    }
   });
 
   // Sending re-sticks the feed so the user's own message cannot land below the
@@ -111,7 +126,10 @@ export function useTimelineScrollController({
       setUnseen(0);
       clearSavedPosition();
       const el = viewportRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+        lastScrollTop.current = el.scrollTop;
+      }
     }
     prevPendingCount.current = pendingCount;
   }, [pendingCount]);
@@ -133,19 +151,55 @@ export function useTimelineScrollController({
     prevActivityCount.current = activityCount;
   }, [activityCount, loading]);
 
+  // Leaving the tail must take effect *synchronously* with the user's gesture.
+  // Scroll events fire after the fact and lose the race against the render
+  // loop: a poll-driven render landing between the wheel tick and its scroll
+  // event used to snap the feed back to the bottom (stick was still true), and
+  // the follow-up scroll measurement then read "at bottom" and kept stick
+  // latched — the feed could not be scrolled up at all.
+  const releaseStick = () => {
+    stick.current = false;
+    setShowJump(true);
+  };
+
+  const onWheel: WheelEventHandler<HTMLDivElement> = (event) => {
+    if (event.deltaY < 0) releaseStick();
+  };
+
+  const onTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
+    lastTouchY.current = event.touches[0]?.clientY ?? null;
+  };
+
+  const onTouchMove: TouchEventHandler<HTMLDivElement> = (event) => {
+    const y = event.touches[0]?.clientY;
+    if (y === undefined) return;
+    const previous = lastTouchY.current;
+    lastTouchY.current = y;
+    // Finger moving down drags the content up — an upward-scroll intent.
+    if (previous !== null && y > previous) releaseStick();
+  };
+
   const onScroll: UIEventHandler<HTMLDivElement> = () => {
     const el = viewportRef.current;
     if (!el || !restored.current) return;
-    const nearBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    stick.current = nearBottom;
-    setShowJump(!nearBottom);
+    const top = el.scrollTop;
+    const previous = lastScrollTop.current;
+    lastScrollTop.current = top;
+    const nearBottom = el.scrollHeight - top - el.clientHeight < NEAR_BOTTOM_PX;
+    // Direction-gated stickiness. Upward movement always releases; only
+    // downward movement that reaches the tail re-latches. An event with no net
+    // movement (programmatic snap replay, coalesced with a swallowed gesture)
+    // must leave stick alone — re-latching here is exactly the race that used
+    // to eat upward gestures.
+    if (top < previous) stick.current = false;
+    else if (top > previous && nearBottom) stick.current = true;
+    setShowJump(!stick.current);
     if (nearBottom) {
       setUnseen(0);
       clearSavedPosition();
     } else if (scrollStorageKey) {
       try {
-        storage.session.setItem(scrollStorageKey, String(el.scrollTop));
+        storage.session.setItem(scrollStorageKey, String(top));
       } catch {
         // The in-memory interaction remains correct when storage is unavailable.
       }
@@ -167,6 +221,9 @@ export function useTimelineScrollController({
     showJump,
     unseen,
     onScroll,
+    onWheel,
+    onTouchStart,
+    onTouchMove,
     jumpToBottom,
   };
 }

@@ -1464,6 +1464,9 @@ function TimelineContentView({
       className="timeline"
       ref={scroll.viewportRef}
       onScroll={scroll.onScroll}
+      onWheel={scroll.onWheel}
+      onTouchStart={scroll.onTouchStart}
+      onTouchMove={scroll.onTouchMove}
     >
       <div className="tl-inner">
         {blank && loading && (
