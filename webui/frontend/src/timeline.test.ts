@@ -727,12 +727,29 @@ describe("model-call failure projection", () => {
     }
   });
 
-  it("raises an unrecovered model failure as an actionable notice, raw text intact", () => {
-    const folded = foldEvents(failEvents() as any);
+  it("raises an unrecovered FINAL model failure as an actionable notice, raw text intact", () => {
+    const folded = foldEvents(failEvents([
+      { seq: 117, type: "activity_started", payload: { activity_id: "llm-t9", kind: "llm", name: "complete", attempt: 2 } },
+      {
+        seq: 118,
+        type: "activity_failed",
+        payload: {
+          activity_id: "llm-t9",
+          attempt: 2,
+          final: true,
+          error: {
+            class: "provider_server",
+            message: "model returned an empty message (truncated at token cap, no text or tool calls) [provider_server]",
+            retryable: true,
+          },
+        },
+      },
+    ]) as any);
     expect(folded.failure).toMatchObject({
-      seq: 116,
+      seq: 118,
       cls: "provider_server",
       title: "The model returned an empty reply",
+      final: true,
       recovered: false,
     });
     expect(folded.failure!.hint).toMatch(/retry/i);
@@ -740,6 +757,18 @@ describe("model-call failure projection", () => {
     expect(folded.failure!.raw).toBe(
       "provider_server: model returned an empty message (truncated at token cap, no text or tool calls) [provider_server]",
     );
+    expect(folded.items).toContainEqual(
+      expect.objectContaining({ kind: "chip", text: "The model returned an empty reply", tone: "bad", fold: true }),
+    );
+  });
+
+  it("reports a non-final failure with final:false so the view can hold the banner", () => {
+    // Attempt 1 failed retryably and NOT finally: the runtime is in its
+    // backoff, about to retry by itself. The fold reports it honestly —
+    // final:false — and the session view only raises Retry chrome for it
+    // once the session itself stopped (SessionFeature).
+    const folded = foldEvents(failEvents() as any);
+    expect(folded.failure).toMatchObject({ seq: 116, final: false, recovered: false });
     expect(folded.items).toContainEqual(
       expect.objectContaining({ kind: "chip", text: "The model returned an empty reply", tone: "bad", fold: true }),
     );
@@ -761,6 +790,78 @@ describe("model-call failure projection", () => {
         fold: true,
       }),
     );
+  });
+
+  it("settles EVERY earlier attempt's chip when a later attempt lands, not just the newest", () => {
+    // attempt 1 and 2 both rate-limited, attempt 3 landed. All three chips
+    // must go quiet — a surviving red chip pair reads as an exhausted retry
+    // budget ("×2") on a turn that in fact recovered.
+    const rl = (seq: number, attempt: number) => ({
+      seq,
+      type: "activity_failed",
+      payload: {
+        activity_id: "llm-t3",
+        attempt,
+        error: { class: "provider_rate_limit", message: "429", retryable: true },
+      },
+    });
+    const folded = foldEvents([
+      { seq: 1, type: "activity_started", payload: { activity_id: "llm-t3", kind: "llm", name: "complete", attempt: 1 } },
+      rl(2, 1),
+      { seq: 3, type: "activity_started", payload: { activity_id: "llm-t3", kind: "llm", name: "complete", attempt: 2 } },
+      rl(4, 2),
+      { seq: 5, type: "activity_started", payload: { activity_id: "llm-t3", kind: "llm", name: "complete", attempt: 3 } },
+      { seq: 6, type: "activity_completed", payload: { activity_id: "llm-t3" } },
+    ] as any);
+    expect(folded.failure).toBeUndefined();
+    const chips = folded.items.filter(
+      (it) => it.kind === "chip" && it.text.startsWith("The model provider rate-limited this request"),
+    );
+    expect(chips).toHaveLength(2);
+    for (const chip of chips) {
+      expect(chip).toMatchObject({ tone: "warn", text: "The model provider rate-limited this request · retried automatically" });
+    }
+  });
+
+  it("an explicit Retry settles every failure of the abandoned turn — the next failure counts from one", () => {
+    // Turn 1: three consecutive rate limits, final on the third → banner.
+    // The user retries; the retry turn hits ONE more (non-final) rate limit.
+    // Every turn-1 chip goes quiet, and the fresh failure reports final:false
+    // (the view holds its banner while the runtime retries): the budget
+    // visibly reset.
+    const rl = (seq: number, attempt: number, final = false) => ({
+      seq,
+      type: "activity_failed",
+      payload: {
+        activity_id: "llm-t1",
+        attempt,
+        final,
+        error: { class: "provider_rate_limit", message: "429", retryable: true },
+      },
+    });
+    const folded = foldEvents([
+      { seq: 1, type: "input_received", payload: { text: "do the thing", source: "cli" }, command_id: "cmd-1" },
+      rl(2, 1),
+      rl(3, 2),
+      rl(4, 3, true),
+      { seq: 5, type: "input_received", payload: { text: "do the thing", source: "cli" }, command_id: "retry:cmd-1" },
+      {
+        seq: 6,
+        type: "activity_failed",
+        payload: {
+          activity_id: "llm-t2",
+          attempt: 1,
+          error: { class: "provider_rate_limit", message: "429", retryable: true },
+        },
+      },
+    ] as any);
+    expect(folded.failure).toMatchObject({ seq: 6, final: false, recovered: false });
+    // The three superseded failures fold into the retried block, quiet.
+    const retried = folded.items.find((it) => it.kind === "retried") as any;
+    expect(retried).toBeTruthy();
+    const buried = retried.children.filter((it: any) => it.kind === "chip");
+    expect(buried).toHaveLength(3);
+    for (const chip of buried) expect(chip.tone).toBe("warn");
   });
 
   it("leaves tool failures on their tool card (only model calls become notices)", () => {

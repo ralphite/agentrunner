@@ -552,7 +552,15 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // RT-5 · A model call that failed and never recovered. Shown while the
   // session is idle: if it's live, the runtime's own retry is still in flight
   // and an alarm would be premature. Sub-sessions are read-only (no retry).
-  const failure = !live && !isSub && !isDriver ? folded.failure : undefined;
+  // A NON-final failure gets Retry chrome only once the session itself
+  // stopped (failed/crashed/stranded): while the runtime is up, non-final
+  // means its own retry is mid-backoff — a banner would claim the turn
+  // stopped, the user would hit Retry, and the "retry budget" would look
+  // like it never resets when each attempt in fact counts from one.
+  const sessionStopped = /fail|crash|strand/i.test(listStatus || "");
+  const failure = !live && !isSub && !isDriver && folded.failure && (folded.failure.final || sessionStopped)
+    ? folded.failure
+    : undefined;
   const runFailureRetry = () => {
     setFailureRetrying(true);
     commands.retry()

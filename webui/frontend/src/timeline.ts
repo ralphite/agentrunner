@@ -276,6 +276,12 @@ export interface FailureNotice {
   hint?: string;
   raw: string; // the untouched technical string — never dropped
   attempt?: number;
+  // The runtime gave up on this activity (retries exhausted or unretryable).
+  // Only a final failure may become the actionable banner: a non-final one
+  // means the runtime is ABOUT to retry on its own — raising Retry chrome for
+  // it tells the user the turn stopped when it didn't. (A crash mid-backoff
+  // still ends in a final: resume's crash-settle renders one.)
+  final: boolean;
   recovered: boolean; // a later automatic attempt or explicit Retry addressed it
   recovery?: "automatic" | "manual";
 }
@@ -835,7 +841,12 @@ export function foldEvents(events: Envelope[]): Folded {
   // RT-5 · model-call (non-tool) failures, by activity_id: the chip we pushed
   // for each one is kept live so a later successful attempt of the SAME
   // activity can downgrade it from "this broke" to "we hiccuped and retried".
-  const llmFailures = new Map<string, { notice: FailureNotice; chip: ChipItem }>();
+  // Every attempt's failure for one llm activity, in order. Keyed by activity
+  // so a later completion (the runtime's own retry landing) settles ALL of the
+  // activity's earlier attempt failures — keeping only the newest one used to
+  // leave attempt-1/2 chips permanently red after attempt 3 recovered, which
+  // read as "the retry budget never resets" when it in fact does.
+  const llmFailures = new Map<string, { notices: FailureNotice[]; chips: ChipItem[] }>();
   // INC-84 · retry lineage: every human input item by its command id, so a
   // later "retry:<id>" input can fold the superseded block in place.
   const userItemByCommand = new Map<string, BubbleItem>();
@@ -922,9 +933,11 @@ export function foldEvents(events: Envelope[]): Folded {
             }
             items.push({ kind: "retried", key: "rt" + seq, children: superseded });
             for (const f of llmFailures.values()) {
-              if (f.notice.seq < seq) {
-                f.notice.recovered = true;
-                f.notice.recovery = "manual";
+              for (const notice of f.notices) {
+                if (notice.seq < seq) {
+                  notice.recovered = true;
+                  notice.recovery = "manual";
+                }
               }
             }
           }
@@ -1009,13 +1022,17 @@ export function foldEvents(events: Envelope[]): Folded {
         }
         break;
       case "activity_completed": {
-        // RT-5 · The runtime's own retry of a failed model call landed. The
-        // A later completion settles the failure. Command lineage has already
-        // marked an explicit Retry; otherwise this is the runtime's own retry.
+        // RT-5 · The runtime's own retry of a failed model call landed: this
+        // completion settles EVERY earlier attempt failure of the activity —
+        // the retry loop starts fresh after a success, and the thread must
+        // say so. Command lineage may already have marked an explicit Retry;
+        // otherwise this is the runtime's own retry.
         const failed = llmFailures.get(p.activity_id);
         if (failed) {
-          failed.notice.recovered = true;
-          failed.notice.recovery ??= "automatic";
+          for (const notice of failed.notices) {
+            notice.recovered = true;
+            notice.recovery ??= "automatic";
+          }
         }
         const t = toolByActivity.get(p.activity_id);
         if (t) {
@@ -1052,11 +1069,15 @@ export function foldEvents(events: Envelope[]): Folded {
             hint: ex.hint,
             raw: msg,
             attempt: p.attempt,
+            final: !!p.final,
             recovered: false,
           };
           const it: ChipItem = { kind: "chip", key: "c" + seq, text: ex.title, tone: "bad", fold: true };
           push(it);
-          llmFailures.set(p.activity_id, { notice, chip: it });
+          const entry = llmFailures.get(p.activity_id) || { notices: [], chips: [] };
+          entry.notices.push(notice);
+          entry.chips.push(it);
+          llmFailures.set(p.activity_id, entry);
         }
         break;
       }
@@ -1376,17 +1397,24 @@ export function foldEvents(events: Envelope[]): Folded {
   // RT-5 · Settle every model-call failure now that the whole journal is in.
   // Recovered ones become a calm, warn-toned fold note ("…, retried
   // automatically") — the run continued, so a red alarm would be a lie. The
-  // last unrecovered one is what the view raises as an actionable banner.
+  // last unrecovered one is reported as `failure` with its `final` flag
+  // intact; whether it deserves Retry chrome is the VIEW's call (a non-final
+  // failure only warrants a banner once the session itself stopped — while
+  // the runtime lives, its own retry is already coming).
   let failure: FailureNotice | undefined;
-  for (const { notice, chip: c } of llmFailures.values()) {
-    if (notice.recovered) {
-      c.tone = "warn";
-      c.text = notice.recovery === "manual"
-        ? notice.title
-        : notice.title + " · retried automatically";
-      continue;
+  for (const { notices, chips } of llmFailures.values()) {
+    for (let i = 0; i < notices.length; i++) {
+      const notice = notices[i];
+      const c = chips[i];
+      if (notice.recovered) {
+        c.tone = "warn";
+        c.text = notice.recovery === "manual"
+          ? notice.title
+          : notice.title + " · retried automatically";
+        continue;
+      }
+      if (!failure || notice.seq > failure.seq) failure = notice;
     }
-    if (!failure || notice.seq > failure.seq) failure = notice;
   }
 
   return { items, approvals, callArgs, status, lastGen, active, isDriver, bestIter: bestIter || undefined, seriesKind: seriesKind || undefined, failure };

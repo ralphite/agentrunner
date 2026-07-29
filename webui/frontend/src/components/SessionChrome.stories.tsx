@@ -235,6 +235,7 @@ const providerFailure: FailureNotice = {
   hint: "This is usually temporary and not something you did. Retry the turn.",
   raw: "503 fixture provider unavailable [provider_server]",
   attempt: 2,
+  final: true,
   recovered: false,
 };
 

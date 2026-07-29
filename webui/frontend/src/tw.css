@@ -1576,7 +1576,7 @@
      give the row inline-flex + gap so they don't run together ("…checks249h"). */
   .gbar-meta { @apply inline-flex items-center gap-2 text-[12px] text-dim; }
   .approval-subject, .approval-ws, .turn-error-raw { @apply mt-2 rounded-[var(--radius-control)] bg-panel-2 p-2 font-mono text-[12px]; }
-  .approval-actions, .ask-actions, .gbar-actions, .goal-actions { @apply mt-3 flex flex-wrap items-center gap-2; }
+  .approval-actions, .ask-actions, .gbar-actions, .goal-actions, .turn-error-actions { @apply mt-3 flex flex-wrap items-center gap-2; }
   /* S56: 卡内动作钮走 31 高（与 Edited 卡的 Review 同档）。按钮自带
      min-h-11（44 触控保底）+ sm:min-h-32——只在桌面档压到 31，移动端不动。 */
   @media (min-width: 640px) {
@@ -2697,7 +2697,7 @@
   .ask-free { @apply mt-1 w-full; }
 
   /* 错误卡/终态条动作:开关走文字链,主动作加重 */
-  .turn-error-toggle { @apply self-start border-0 bg-transparent p-0 text-[12px] text-blue shadow-none hover:border-0 hover:bg-transparent hover:underline hover:shadow-none; }
+  .turn-error-toggle { @apply border-0 bg-transparent p-0 text-[12px] text-blue shadow-none hover:border-0 hover:bg-transparent hover:underline hover:shadow-none; }
   .turn-error-action, .terminal-alert-action { @apply shrink-0 font-medium; }
 
   /* Worked 折叠 caret 旋转(此前永不旋转) */

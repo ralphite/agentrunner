@@ -803,6 +803,36 @@ describe("session failure chrome", () => {
     expect(screen.getByText("The model provider had a server error")).toBeTruthy();
     expect(screen.queryByText("Session failed")).toBeNull();
   });
+
+  it("holds the Retry banner for a non-final failure while the session is still up", async () => {
+    // Same journal shape — attempt 1 failed, NOT final — but the session is
+    // alive (running): the runtime's own retry is mid-backoff. Retry chrome
+    // here would claim the turn stopped, prompt a needless manual Retry, and
+    // make the per-turn retry budget look like it never resets.
+    arMock.events = async (_sid: string, after: number) =>
+      after
+        ? []
+        : [
+            { seq: 1, type: "input_received", payload: { source: "cli", text: "check health" } },
+            { seq: 2, type: "activity_started", payload: { activity_id: "llm-t1", kind: "llm", name: "complete", attempt: 1 } },
+            {
+              seq: 3,
+              type: "activity_failed",
+              payload: {
+                activity_id: "llm-t1",
+                attempt: 1,
+                error: { class: "provider_rate_limit", message: "429 too many requests", retryable: true },
+              },
+            },
+          ];
+    useStore.setState({
+      sessions: [{ id: SID, title: "rate limited session", status: "running", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(screen.getByText("check health")).toBeTruthy());
+    expect(container.querySelector(".turn-error")).toBeNull();
+  });
 });
 
 describe("sub-agent session identity", () => {

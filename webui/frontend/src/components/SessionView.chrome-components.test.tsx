@@ -124,6 +124,7 @@ const failure: FailureNotice = {
   title: "The model provider had a server error",
   hint: "Retry the turn.",
   raw: "503 provider unavailable",
+  final: true,
   recovered: false,
 };
 

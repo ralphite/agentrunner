@@ -288,6 +288,9 @@ export function TurnFailureCard({
   onToggleDetails,
   onRetry,
 }: TurnFailureCardProps) {
+  // Retry lives in the body's action row, under the text — the same place
+  // every other card in this family (approval, ask) puts its actions. Pinned
+  // top-right it floated beside the title while the card grew downward.
   return (
     <div className="turn-error" role="alert">
       <span className="turn-error-ic">
@@ -298,32 +301,34 @@ export function TurnFailureCard({
         {failure.hint && (
           <span className="turn-error-hint">{failure.hint}</span>
         )}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="turn-error-toggle"
-          aria-expanded={detailsOpen}
-          pressed={detailsOpen}
-          onClick={onToggleDetails}
-        >
-          {detailsOpen ? "Hide technical details" : "Technical details"}
-        </Button>
+        <div className="turn-error-actions">
+          <Button
+            size="sm"
+            variant="outline"
+            className="turn-error-action"
+            loading={retrying}
+            onClick={onRetry}
+            title="Re-send your last message as a new turn; double-clicks are idempotent"
+          >
+            <ArrowClockwise size={14} /> Retry
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="turn-error-toggle"
+            aria-expanded={detailsOpen}
+            pressed={detailsOpen}
+            onClick={onToggleDetails}
+          >
+            {detailsOpen ? "Hide technical details" : "Technical details"}
+          </Button>
+        </div>
         {detailsOpen && (
           <pre className="turn-error-raw max-w-full overflow-x-auto">
             {failure.raw}
           </pre>
         )}
       </div>
-      <Button
-        size="sm"
-        variant="outline"
-        className="turn-error-action"
-        loading={retrying}
-        onClick={onRetry}
-        title="Re-send your last message as a new turn; double-clicks are idempotent"
-      >
-        <ArrowClockwise size={14} /> Retry
-      </Button>
     </div>
   );
 }
