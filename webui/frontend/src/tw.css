@@ -734,9 +734,9 @@
   }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    /* S1: 14/20 with no tracking — the 13.8/20.7/-0.09 this used to carry is the
-       WORKSPACE screen's `.task-row`, a different layout from the one our rail
-       actually is. Pulling from the wrong screen is what kept these rows off. */
+    /* S1: 14/20 with no tracking — the 13.8/20.7/-0.09 this used to carry came
+       from the WORKSPACE screen's row list, a different layout from the one our
+       rail actually is. Pulling from the wrong screen is what kept these rows off. */
     @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[7px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[14px] leading-[20px] transition-colors duration-100;
     color: var(--side-ink);
   }
