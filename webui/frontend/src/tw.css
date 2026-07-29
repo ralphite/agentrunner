@@ -61,10 +61,16 @@
   /* Measured off the Codex mock's own build. Its sidebar rows are NOT the same
      ink as body copy — rows sit at #2f2f2f and only the selected one goes to
      #0d0d0d, which is how the rail stays quieter than the content beside it. */
-  --side-ink: #2f2f2f;
+  /* Codex's browse-screen rail uses a distinct grey per row role — measured off
+     its own build, not interpolated. They sit within a few units of each other
+     on purpose: the rail reads as one quiet block, but the hierarchy is real. */
+  --side-ink: #323232;        /* session rows        (S14) */
+  --side-nav-ink: #303030;    /* nav rows            (S8)  */
+  --side-proj-ink: #333333;   /* project names       (S15) */
+  --side-label: #9d9b9b;      /* Pinned / Projects   (S6)  */
   --worked-ink: #707070;
   --side-quiet: #9f9e9e;
-  --side-empty: #bcbcbc;
+  --side-empty: #b6b4b4;
   --path-ink: #4d4d4d;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
@@ -193,11 +199,17 @@
     --dim: #a0a0ad;
     --placeholder: #6a6a76;
   --side-ink: #c8c8d2;
+  --side-nav-ink: #c8c8d2;
+  --side-proj-ink: #d0d0db;
+  --side-label: #7c7c88;
   --worked-ink: #a0a0ad;
   --side-quiet: #7c7c88;
   --side-empty: #5c5c66;
   --path-ink: #b4b4bf;
     --side-ink: #c8c8d2;
+    --side-nav-ink: #c8c8d2;
+    --side-proj-ink: #d0d0db;
+    --side-label: #7c7c88;
     --worked-ink: #a0a0ad;
     --side-quiet: #7c7c88;
     --side-empty: #5c5c66;
@@ -577,7 +589,10 @@
   body.sidebar-resizing { @apply cursor-col-resize select-none; }
   .brand-main { @apply min-w-0 border-0 bg-transparent p-0 text-left hover:bg-transparent; }
   .sidebar-close { @apply !hidden h-11 w-11 place-items-center rounded-[var(--radius-control)] border-0 bg-transparent p-0 text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink; }
-  .primary-nav { @apply flex flex-col gap-2 px-2 pb-2; }
+  /* S7: Codex's nav rows sit on a 31px pitch — 30px row + a 1px gap. Ours used
+     gap-2, which spread them to 38 and made the two entry points read as a
+     looser, lower-density list than everything below them. */
+  .primary-nav { @apply flex flex-col gap-px px-2 pb-2; }
   /* SIDEBAR-NAV-RHYTHM (parity R82): Codex keeps the top nav rows (New session /
      Scheduled) on the SAME row rhythm as the project/session rows below — same
      13px type, same 32px pitch — distinguishing hierarchy by the leading icon,
@@ -604,7 +619,7 @@
        them the session row's 13.8/20.7/-0.09 and the workspace screen's -0.5px
        glyph nudge, neither of which belongs to this row. */
     @apply flex h-[30px] items-center gap-2 rounded-[11px] border-0 bg-transparent px-2 text-left text-[14px] leading-[20px] font-normal [&>svg]:text-ink-2 transition-colors duration-100;
-    color: var(--side-ink);
+    color: var(--side-nav-ink);
   }
   /* Codex nudges the leading glyph half a pixel above the row's centre (measured
      off its own build: iconCenter - rowCenter = -0.5). Text sits optically low
@@ -640,9 +655,10 @@
      leans on the folder icon (not size) for hierarchy — exactly what the r47
      hierarchy. Match the 13px session size. */
   .project-heading {
-    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[13.8px] leading-[20.7px] normal-case tracking-[-0.09px] transition-colors duration-100;
-    font-weight: 450;
-    color: var(--side-ink);
+    /* S2: Codex does NOT weight project names above their sessions — 400, same
+       as the rows beneath. The folder glyph carries the hierarchy. */
+    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[14px] leading-[20px] font-normal normal-case tracking-normal transition-colors duration-100;
+    color: var(--side-proj-ink);
   }
   /* Match session rows: one wrapper paints the heading and both trailing
      actions, so hover/focus never stops before the icons. */
@@ -683,8 +699,12 @@
      medium normal-weight repo-name treatment above (folder icon, not font
      weight, distinguishes hierarchy). Overrides the shared base's case/weight/
      tracking/size for section-label only (no other selector affected). */
+  /* S5/S6: these were two full steps smaller than Codex's (12 vs 14) and a
+     shade darker, which made "Pinned"/"Projects" read as micro-labels instead
+     of the calm section dividers they are in the mock. */
   .section-label {
-    @apply text-[12px] font-normal normal-case tracking-normal;
+    @apply text-[14px] leading-[20px] font-normal normal-case tracking-normal;
+    color: var(--side-label);
   }
   .section-toggle { @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
@@ -714,7 +734,10 @@
   }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[7px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] transition-colors duration-100;
+    /* S1: 14/20 with no tracking — the 13.8/20.7/-0.09 this used to carry is the
+       WORKSPACE screen's `.task-row`, a different layout from the one our rail
+       actually is. Pulling from the wrong screen is what kept these rows off. */
+    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[7px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[14px] leading-[20px] transition-colors duration-100;
     color: var(--side-ink);
   }
   .project-session:focus-visible { @apply outline-none; }
@@ -763,14 +786,14 @@
   /* Codex renders these at the same 13.8px as the rows they extend, one tone
      lighter (#9f9e9e) — not a size step down. */
   .show-more, .archive-toggle, .projects-show-more {
-    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] transition-colors duration-100 hover:text-ink;
+    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[14px] leading-[20px] transition-colors duration-100 hover:text-ink;
     color: var(--side-quiet);
   }
   /* This control expands sessions *inside* one project, so its text follows
      the nested session label — not the project heading. */
   .project-show-more { @apply pl-[31px]; }
-  .sidebar-empty { @apply grid place-items-center gap-1 px-3 py-8 text-center text-[13.8px]; color: var(--side-empty); }
-  .sidebar-empty b { @apply text-[13px] text-ink; }
+  .sidebar-empty { @apply grid place-items-center gap-1 px-3 py-8 text-center text-[14px] leading-[20px]; color: var(--side-empty); }
+  .sidebar-empty b { @apply text-[14px] text-ink; }
   .sidebar-loading, .sidebar-history-loading { @apply px-2 py-3 text-[12px] text-dim; }
   .sidebar-loading span, .dsk-bar, .tl-skel-avatar, .tl-skel-bubble {
     @apply block rounded-full;

@@ -419,7 +419,11 @@ describe("mobile sidebar chrome touch targets", () => {
     const brandRow = container.querySelector(".brand-main")!.parentElement!;
     expect(brandRow.className).toContain("h-11");
     expect(brandRow.className).toContain("shrink-0");
-    expect(brandRow.className).toContain("px-3");
+    // px-4, not px-3: the wordmark's left edge is meant to sit on the same 16px
+    // column as the nav glyphs below it (Codex puts its "Codex" wordmark there
+    // too). The row's height contract — what this test is actually about — is
+    // unchanged.
+    expect(brandRow.className).toContain("px-4");
   });
 });
 
