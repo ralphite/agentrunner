@@ -1,11 +1,16 @@
 // Package skill discovers agent skills by the Claude Code convention
 // (S5.2): <root>/.claude/skills/<name>/SKILL.md with a YAML frontmatter
-// block. Only the DIRECTORY (name + description + path) is injected into the
-// prompt prefix; the body is loaded on demand by the model via read_file —
-// prefix stability and size both depend on bodies staying out.
+// block, plus a SHIPPED layer embedded in the binary (builtin/*/SKILL.md) so
+// core skills exist in every workspace. A workspace skill shadows a shipped
+// one of the same name — the same override rule as the agent catalog. Only
+// the DIRECTORY (name + description + path) is injected into the prompt
+// prefix; the body is loaded on demand (skill tool, or read_file for
+// workspace skills) — prefix stability and size both depend on bodies
+// staying out.
 package skill
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +19,48 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed builtin/*/SKILL.md
+var builtinFS embed.FS
+
+// BuiltinRaw returns the embedded SKILL.md for a shipped skill. Callers that
+// read a workspace skill first fall back here on a miss, giving workspace
+// files shadow precedence.
+func BuiltinRaw(name string) ([]byte, bool) {
+	raw, err := builtinFS.ReadFile("builtin/" + name + "/SKILL.md")
+	if err != nil {
+		return nil, false
+	}
+	return raw, true
+}
+
+// Builtin lists the shipped skills as directory entries. Path is the
+// "builtin:<name>" marker (not a readable file path) — the skill tool loads
+// these by name.
+func Builtin() []Skill {
+	entries, err := builtinFS.ReadDir("builtin")
+	if err != nil {
+		return nil
+	}
+	var out []Skill
+	for _, e := range entries {
+		raw, ok := BuiltinRaw(e.Name())
+		if !ok {
+			continue
+		}
+		fm, err := parseFrontmatter(raw)
+		if err != nil {
+			continue // a malformed shipped skill is a build defect; never break the prompt
+		}
+		name := fm.Name
+		if name == "" {
+			name = e.Name()
+		}
+		out = append(out, Skill{Name: name, Description: fm.Description, Path: "builtin:" + e.Name()})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
 
 // Skill is one discovered skill: directory-level metadata only.
 type Skill struct {
@@ -29,16 +76,17 @@ type frontmatter struct {
 	Description string `yaml:"description"`
 }
 
-// Discover walks <root>/.claude/skills for SKILL.md files. A missing skills
-// directory is not an error — most workspaces have none. Malformed skills
-// are skipped with an error listing them (caller decides whether to warn).
-func Discover(root string) ([]Skill, error) {
+// DiscoverWith walks <root>/.claude/skills for SKILL.md files and merges
+// three shadow layers into one directory, nearest context first: workspace
+// skills, then extra (an agent spec's bundled skills), then shipped
+// builtins. A later layer never displaces an earlier name. A missing skills
+// directory is not an error — most workspaces have none. Malformed workspace
+// skills are skipped with an error listing them (caller decides whether to
+// warn).
+func DiscoverWith(root string, extra []Skill) ([]Skill, error) {
 	dir := filepath.Join(root, ".claude", "skills")
 	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
+	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("skills: %w", err)
 	}
 	var out []Skill
@@ -67,12 +115,47 @@ func Discover(root string) ([]Skill, error) {
 		}
 		out = append(out, Skill{Name: name, Description: fm.Description, Path: rel})
 	}
+	seen := make(map[string]bool, len(out))
+	for _, s := range out {
+		seen[s.Name] = true
+	}
+	for _, s := range extra {
+		if !seen[s.Name] {
+			seen[s.Name] = true
+			out = append(out, s)
+		}
+	}
+	for _, s := range Builtin() {
+		if !seen[s.Name] {
+			out = append(out, s)
+		}
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	if len(bad) > 0 {
 		sort.Strings(bad)
 		return out, fmt.Errorf("skills: malformed frontmatter in %s", strings.Join(bad, ", "))
 	}
 	return out, nil
+}
+
+// FromDir reads one skills directory (a dir containing SKILL.md) into a
+// directory entry — the loader for an agent spec's path-based skills. Path
+// is the absolute SKILL.md location.
+func FromDir(dir string) (Skill, error) {
+	mdPath := filepath.Join(dir, "SKILL.md")
+	raw, err := os.ReadFile(mdPath)
+	if err != nil {
+		return Skill{}, fmt.Errorf("skill %s: %w", dir, err)
+	}
+	fm, err := parseFrontmatter(raw)
+	if err != nil {
+		return Skill{}, fmt.Errorf("skill %s: %v", mdPath, err)
+	}
+	name := fm.Name
+	if name == "" {
+		name = filepath.Base(dir)
+	}
+	return Skill{Name: name, Description: fm.Description, Path: mdPath}, nil
 }
 
 // parseFrontmatter extracts the YAML block between the leading "---" fences.
@@ -103,7 +186,7 @@ func RenderDirectory(skills []Skill) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("<skills>\nAvailable skills (read the file at the given path for full instructions):\n")
+	b.WriteString("<skills>\nAvailable skills (call the skill tool with the name to get full instructions):\n")
 	for _, s := range skills {
 		fmt.Fprintf(&b, "- %s: %s (%s)\n", s.Name, s.Description, s.Path)
 	}

@@ -162,7 +162,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | MCP resources/prompts、structured/multimodal result | ✅ | UJ-19 | INC-11.4；namespaced protocol tools，内容块保真 · TestConnectStdioPreservesRichResultsResourcesAndPrompts（G30 还锚 audit-0717 C1） |
 | MCP HTTP OAuth bearer（env 引用） | ✅ | UJ-19 | INC-11.4；token 不进 spec/journal · TestConnectHTTPAuthListChangedAndReconnect（Bearer 头+AccessTokenEnv）（G30 还锚 audit-0717 C1） |
 | MCP 交互 OAuth 登录 / refresh-token 持久化 | 🧊 | UJ-19 | 凭据 UX；runtime 不持久化 secret |
-| skills（Claude Code 约定：读侧目录注入 + 模型侧 invoke + context:fork 一次性子 agent 执行） | ✅ | UJ-19 | S5 · INC-20（`skill` 工具按 name 返回正文,去 frontmatter,WS 边界+防遍历;QA-29 真机）· INC-31（context:fork ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控;TestForkSkill* · QA-37 真机七红线） |
+| skills（Claude Code 约定：读侧目录注入 + 模型侧 invoke + context:fork 一次性子 agent 执行；三层 shadow 合并 workspace > spec `skills:` > shipped——shipped 层随 binary embed（`internal/skill/builtin/`），spec 层为 shipped 名或含 SKILL.md 的目录路径（相对 spec 文件解析、load 时物化+fail-fast，正文经 Executor.SkillPaths 定点读 workspace 外）） | ✅ | UJ-19/26 | S5 · INC-20（`skill` 工具按 name 返回正文,去 frontmatter,WS 边界+防遍历;QA-29 真机）· INC-31（context:fork ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控;TestForkSkill* · QA-37 真机七红线）· 分层:TestDiscoverNoSkillsDirYieldsShippedLayer/TestWorkspaceSkillShadowsShipped/TestSkillTool{ShippedAndShadow,SpecBundledPath}/TestLoadSpecMaterializesSkillPaths |
+| 对话内创建自定义 agent（shipped `create-agent` skill 引导收集→起草→`save_agent` 落盘 user catalog（先 LoadSpec 全量校验后原子落盘,name=文件名,防误覆写）→呈现 review；落盘即在 webui agent picker 与 `ar new <name>` 可用） | ✅ | UJ-26 | TestSaveAgent{WritesUserCatalog,RejectsInvalidSpecWithoutLanding,RejectsNameMismatchAndBadNames,OverwriteSemantics,RejectsModelField} · QA 2026-07-29（真 Gemini 端到端+webui 浏览器验证） |
 | memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 · TestCollectHierarchyOrder/TestCollectNoRepoStopsAtRoot · QA-23（G30 还锚 audit-0717 C1） |
 | 记忆写回（`ar remember`，append 项目 CLAUDE.md；取 A：追加 program 输入本会话即遵循，文件供下次 session 冻结；并发 session 跨进程单写 + 原子替换） | ✅ | UJ-09 | INC-14+INC-67 · TestMemoryAppend*/TestMemoryAppendConcurrentWritersLoseNoNotes/TestRememberControl* · QA-23 |
 | 自定义命令 / slash 面 | ✅ | UJ-19 | INC-8 · TestExpand*/TestDiscover · 真实 API（`.claude/commands/*.md` 的 `/name` 在 new+send 两路展开进 journal） |
@@ -239,12 +240,14 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 （注：`dictate`/`optimize` 是前台一次性 CLI 不经 daemon；`hook` 走
 HTTP ingress（INC-50），均非 wire 命令。）
 
-**内置 tool 定义**（`internal/tool/defs/*.json`，26 个）：
+**内置 tool 定义**（`internal/tool/defs/*.json`，27 个）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`
 `spawn_agent` `handoff_agent` `publish_artifact` `publish_note`
 `read_notes` `keyword_search` `grep`（INC-3）`glob`（INC-3）`skill`（INC-20）
 `exit_plan_mode` `schedule_next` `finish_series`
 `ask_user`（INC-5）`web_fetch`（INC-5）`progress_update`（INC-37）
 `send_message`（INC-12）`artifacts_list` `artifacts_read`（INC-40）
-`goal_complete` `goal_status`（INC-10）
+`goal_complete` `goal_status`（INC-10）`save_agent`（对话内创建 agent,
+loop 侧执行:LoadSpec 校验后落盘 user catalog,定点豁免 workspace 界——
+publish_artifact 同例）
 （注：`escalate` 无独立 def，提权走 spawn 路径强制人审。）

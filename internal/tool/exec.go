@@ -24,6 +24,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/index"
 	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/skill"
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
@@ -92,6 +93,12 @@ type Executor struct {
 	// the agent tree, so the whole tree shares one index per workspace.
 	indexOnce sync.Once
 	index     *index.Indexer
+	// skillPaths maps spec-bundled skill names to SKILL.md files outside the
+	// workspace (the spec author granted that fixed set). Guarded like blobs:
+	// a shared-workspace child reuses the parent's executor, so first set
+	// wins — the root spec's bundle stays authoritative for the tree.
+	skillMu    sync.Mutex
+	skillPaths map[string]string
 	// Network containment (S7 模块 5). The executor is shared down the agent
 	// tree, so containment is a RATCHET: any spec in the tree demanding
 	// network=none flips it for everyone, and nothing widens it back.
@@ -204,6 +211,27 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 // SECURITY: the name is a bare identifier — any path separator or traversal
 // is refused, and WS.Resolve bounds the final path to the workspace, so this
 // can never read outside .claude/skills.
+// SetSkillPaths installs the spec-bundled skill map, first set wins (the
+// shared-executor rule — see the field comment).
+func (e *Executor) SetSkillPaths(m map[string]string) {
+	if len(m) == 0 {
+		return
+	}
+	e.skillMu.Lock()
+	defer e.skillMu.Unlock()
+	if e.skillPaths == nil {
+		e.skillPaths = m
+	}
+}
+
+// SkillPath looks up a spec-bundled skill's SKILL.md path.
+func (e *Executor) SkillPath(name string) (string, bool) {
+	e.skillMu.Lock()
+	defer e.skillMu.Unlock()
+	p, ok := e.skillPaths[name]
+	return p, ok
+}
+
 func (e *Executor) skill(rawArgs json.RawMessage) Result {
 	var args struct {
 		Name string `json:"name"`
@@ -223,7 +251,18 @@ func (e *Executor) skill(rawArgs json.RawMessage) Result {
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return errResult("skill %q not found (check the <skills> directory for available names)", args.Name)
+		// Workspace miss → spec-bundled skill (a fixed path set granted by
+		// the spec author, the system_prompt_file trust level — the one
+		// sanctioned read outside the workspace) → shipped layer.
+		if specPath, ok := e.SkillPath(args.Name); ok {
+			raw, err = os.ReadFile(specPath)
+		}
+		if err != nil {
+			var ok bool
+			if raw, ok = skill.BuiltinRaw(args.Name); !ok {
+				return errResult("skill %q not found (check the <skills> directory for available names)", args.Name)
+			}
+		}
 	}
 	body := stripFrontmatter(string(raw))
 	if strings.TrimSpace(body) == "" {

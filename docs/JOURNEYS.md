@@ -445,6 +445,18 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`一行安装(curl|sh)` `预构建多平台产物` `升级即重装(版本化目录+symlink)` `sha256 校验` `私有 repo token 下载` `release CI(tag→构建→smoke→发布)`
 
+### UJ-26 对话内创建自定义 agent `进阶` `✅（2026-07-29，真 Gemini + webui 验证）`
+
+**场景**：用户在对话里描述想要的助手（"给我做一个写 release notes 的
+agent"），agent 用 shipped 的 `create-agent` skill 收集需求、起草 spec、
+`save_agent` 落盘到 `~/.config/agentrunner/agents/`，把 YAML 全文呈现给
+用户 review；用户随后在 webui 的 New session agent picker（或
+`ar new <name>`）直接用它，后续在对话里迭代（overwrite 重存）。spec 可用
+`skills:` 字段捆绑 shipped skills（按名）或 path-based skills（含
+SKILL.md 的目录）。
+
+**覆盖功能**：`shipped skills 层(embed)` `create-agent skill` `save_agent 工具(校验先行落盘)` `user catalog 即时可用` `spec skills 字段(builtin 名+路径)`
+
 ---
 
 ## §5 功能清单 × Journey 覆盖索引
@@ -541,6 +553,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 - code review（只评不改）— UJ-11
 - CI 诊断修复 / rebase — UJ-12
 - 外部系统读写（MCP ticket）— UJ-19
+- 对话内创建自定义 agent（create-agent skill + save_agent + spec skills）— UJ-26
 - 仓库约定遵循 / 硬约束 — UJ-10
 
 **有意不覆盖**（记录决策，防止误当遗漏）

@@ -402,6 +402,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	l.ensureRouter() // before any input lands: a Target forward needs the fabric
 	l.ensureApprovals()
 	l.applySandbox()
+	l.applySkills()
 	ownedMCP, err := l.ensureMCP(ctx)
 	if err != nil {
 		return RunResult{}, err
@@ -455,7 +456,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 			return RunResult{}, fmt.Errorf("durable opening recovery: %w", err)
 		}
 	}
-	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
+	memoryBlock, skillsBlock := renderContextBlocks(wsRoot, l.Spec.Skills)
 	commandTools := l.discoverCommandTools(wsRoot)
 	providerEnvelope := provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, provider.Capabilities{})
 	if l.Provider != nil {
@@ -756,6 +757,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	l.ensureRouter() // before any input lands: a Target forward needs the fabric
 	l.ensureApprovals()
 	l.applySandbox()
+	l.applySkills()
 	ownedMCP, err := l.ensureMCP(ctx)
 	if err != nil {
 		return RunResult{}, err
@@ -2173,6 +2175,16 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			res := p.res
 			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 				*res = runProgressTool(call.Args, serialAppend)
+				return res.Payload, nil, res.IsError, nil
+			}
+		}
+		if p.call.Name == "save_agent" {
+			// User-catalog authoring runs loop-side: validation needs
+			// LoadSpec, which the tool package cannot import (cycle).
+			call := p.call
+			res := p.res
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				*res = runSaveAgentTool(call.Args)
 				return res.Payload, nil, res.IsError, nil
 			}
 		}

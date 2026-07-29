@@ -83,7 +83,7 @@ func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
 	if err != nil {
 		return nil, err
 	}
-	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
+	memoryBlock, skillsBlock := renderContextBlocks(wsRoot, spec.Skills)
 	return &event.SpecChanged{
 		SpecName: spec.Name, Model: spec.Model.ID,
 		Spec: specJSON, SpecPath: specPath, Source: "user",
@@ -95,9 +95,10 @@ func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
 }
 
 // renderContextBlocks freezes the memory (CLAUDE.md merge) and skills
-// directory blocks at session start (S5.2). Discovery problems degrade to a
-// warning — a malformed skill must not block the run.
-func renderContextBlocks(wsRoot string) (memoryBlock, skillsBlock string) {
+// directory blocks at session start (S5.2). The skills directory merges
+// three shadow layers — workspace, spec-bundled, shipped. Discovery problems
+// degrade to a warning — a malformed skill must not block the run.
+func renderContextBlocks(wsRoot string, specSkills []string) (memoryBlock, skillsBlock string) {
 	if wsRoot == "" {
 		return "", ""
 	}
@@ -106,7 +107,7 @@ func renderContextBlocks(wsRoot string) (memoryBlock, skillsBlock string) {
 		slog.Warn("memory discovery failed; continuing without", "err", err)
 	}
 	memoryBlock = memory.Render(files, wsRoot)
-	skills, err := skill.Discover(wsRoot)
+	skills, err := skill.DiscoverWith(wsRoot, specSkillEntries(specSkills))
 	if err != nil {
 		slog.Warn("skill discovery issues; continuing with the well-formed ones", "err", err)
 	}

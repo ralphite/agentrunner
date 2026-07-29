@@ -1,0 +1,23 @@
+{
+  "name": "save_agent",
+  "description": "Save an agent definition into the user catalog (~/.config/agentrunner/agents/<name>.yaml) — the ONLY way to write there; file tools cannot leave the workspace. The YAML is fully validated before anything lands on disk: invalid specs are rejected with the parse error and nothing is written. The spec's `name:` field must equal the name argument. Once saved, the agent is immediately usable: it appears in the webui's agent picker and `agentrunner new <name>` accepts it. An existing agent is never overwritten unless overwrite is set.",
+  "class": "edit",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Agent name, a bare identifier (lowercase letters, digits, - and _). Becomes the filename <name>.yaml and must equal the spec's `name:` field."
+      },
+      "yaml": {
+        "type": "string",
+        "description": "The complete agent spec YAML (name, system_prompt or system_prompt_file, tools, and any optional fields). Must not contain a `model:` field — the model is chosen per session, not per agent."
+      },
+      "overwrite": {
+        "type": "boolean",
+        "description": "Replace an existing <name>.yaml. Without this, saving over an existing agent fails so an accidental clobber cannot happen."
+      }
+    },
+    "required": ["name", "yaml"]
+  }
+}

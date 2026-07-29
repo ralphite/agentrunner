@@ -3,6 +3,7 @@ package skill
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -18,28 +19,38 @@ func writeSkill(t *testing.T, root, dir, content string) {
 	}
 }
 
+// byName indexes a Discover result for assertions that must not depend on
+// how many shipped skills the binary carries.
+func byName(skills []Skill) map[string]Skill {
+	m := make(map[string]Skill, len(skills))
+	for _, s := range skills {
+		m[s.Name] = s
+	}
+	return m
+}
+
 func TestDiscoverAndRender(t *testing.T) {
 	root := t.TempDir()
 	writeSkill(t, root, "deploy", "---\nname: deploy\ndescription: ship it safely\n---\nFull instructions here.\n")
 	writeSkill(t, root, "review", "---\ndescription: review code\n---\nBody.\n") // name falls back to dir
 
-	skills, err := Discover(root)
+	skills, err := DiscoverWith(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(skills) != 2 {
-		t.Fatalf("skills = %+v", skills)
+	m := byName(skills)
+	if m["deploy"].Description != "ship it safely" {
+		t.Errorf("deploy = %+v", m["deploy"])
 	}
-	// Sorted by name: deploy, review.
-	if skills[0].Name != "deploy" || skills[0].Description != "ship it safely" {
-		t.Errorf("skills[0] = %+v", skills[0])
+	if _, ok := m["review"]; !ok {
+		t.Errorf("name fallback to directory failed: %+v", skills)
 	}
-	if skills[1].Name != "review" {
-		t.Errorf("name fallback to directory failed: %+v", skills[1])
+	if !strings.HasSuffix(m["deploy"].Path, filepath.Join("deploy", "SKILL.md")) ||
+		filepath.IsAbs(m["deploy"].Path) {
+		t.Errorf("path should be workspace-relative: %q", m["deploy"].Path)
 	}
-	if !strings.HasSuffix(skills[0].Path, filepath.Join("deploy", "SKILL.md")) ||
-		filepath.IsAbs(skills[0].Path) {
-		t.Errorf("path should be workspace-relative: %q", skills[0].Path)
+	if !sort.SliceIsSorted(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name }) {
+		t.Errorf("directory not sorted: %+v", skills)
 	}
 
 	dir := RenderDirectory(skills)
@@ -54,10 +65,48 @@ func TestDiscoverAndRender(t *testing.T) {
 	}
 }
 
-func TestDiscoverNoSkillsDir(t *testing.T) {
-	skills, err := Discover(t.TempDir())
-	if err != nil || skills != nil {
-		t.Fatalf("missing skills dir must be (nil, nil): %v, %v", skills, err)
+func TestDiscoverNoSkillsDirYieldsShippedLayer(t *testing.T) {
+	skills, err := DiscoverWith(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := byName(skills)
+	ca, ok := m["create-agent"]
+	if !ok {
+		t.Fatalf("shipped create-agent missing without a workspace skills dir: %+v", skills)
+	}
+	if ca.Path != "builtin:create-agent" || ca.Description == "" {
+		t.Errorf("shipped entry = %+v", ca)
+	}
+}
+
+func TestWorkspaceSkillShadowsShipped(t *testing.T) {
+	root := t.TempDir()
+	writeSkill(t, root, "create-agent", "---\nname: create-agent\ndescription: workspace override\n---\nLocal body.\n")
+
+	skills, err := DiscoverWith(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hits []Skill
+	for _, s := range skills {
+		if s.Name == "create-agent" {
+			hits = append(hits, s)
+		}
+	}
+	if len(hits) != 1 || hits[0].Description != "workspace override" ||
+		strings.HasPrefix(hits[0].Path, "builtin:") {
+		t.Fatalf("workspace must shadow shipped exactly once: %+v", hits)
+	}
+}
+
+func TestBuiltinRaw(t *testing.T) {
+	raw, ok := BuiltinRaw("create-agent")
+	if !ok || !strings.Contains(string(raw), "save_agent") {
+		t.Fatalf("BuiltinRaw(create-agent) = ok=%v", ok)
+	}
+	if _, ok := BuiltinRaw("no-such-skill"); ok {
+		t.Fatal("unknown shipped skill must miss")
 	}
 }
 
@@ -66,12 +115,16 @@ func TestDiscoverMalformedSkillSkipped(t *testing.T) {
 	writeSkill(t, root, "good", "---\nname: good\ndescription: fine\n---\n")
 	writeSkill(t, root, "bad", "no frontmatter at all")
 
-	skills, err := Discover(root)
+	skills, err := DiscoverWith(root, nil)
 	if err == nil || !strings.Contains(err.Error(), "bad") {
 		t.Errorf("err = %v, want malformed listing 'bad'", err)
 	}
-	if len(skills) != 1 || skills[0].Name != "good" {
+	m := byName(skills)
+	if _, ok := m["good"]; !ok {
 		t.Errorf("well-formed skill should survive: %+v", skills)
+	}
+	if _, ok := m["bad"]; ok {
+		t.Errorf("malformed skill should be skipped: %+v", skills)
 	}
 }
 

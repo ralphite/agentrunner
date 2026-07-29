@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/skill"
 	"gopkg.in/yaml.v3"
 )
 
@@ -89,7 +90,17 @@ func (l *Loop) forkSkillArgs(raw json.RawMessage) (json.RawMessage, bool) {
 	}
 	rawSkill, err := os.ReadFile(path)
 	if err != nil {
-		return nil, false
+		// Workspace miss → spec-bundled skill → shipped layer (the same
+		// shadow order as the skill executor).
+		if specPath, ok := l.Exec.SkillPath(args.Name); ok {
+			rawSkill, err = os.ReadFile(specPath)
+		}
+		if err != nil {
+			var ok bool
+			if rawSkill, ok = skill.BuiltinRaw(args.Name); !ok {
+				return nil, false
+			}
+		}
 	}
 	fm, body, ok := parseSkillFile(string(rawSkill))
 	if !ok || fm.Context != "fork" {

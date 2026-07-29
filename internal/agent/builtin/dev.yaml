@@ -79,7 +79,8 @@ system_prompt: |
   - Use ask_user only when blocked on a decision genuinely the user's to
     make; otherwise pick the sensible default and proceed.
 tools: [read_file, write_file, edit_file, bash, grep, glob, keyword_search,
-        web_fetch, skill, ask_user, spawn_agent, kill, exit_plan_mode]
+        web_fetch, skill, save_agent, ask_user, spawn_agent, kill,
+        exit_plan_mode]
 agents: [worker, explore, plan]
 permissions:
   - { action: allow }

@@ -21,8 +21,15 @@ import (
 	"github.com/ralphite/agentrunner/internal/mcp"
 	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/skill"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
+
+// skillEntryIsPath distinguishes a skills[] path entry from a shipped skill
+// name: anything with a separator or a leading dot is a path.
+func skillEntryIsPath(e string) bool {
+	return strings.ContainsAny(e, `/\`) || strings.HasPrefix(e, ".")
+}
 
 // SchemaJSON carries a JSON schema as JSON bytes. See the type doc above the
 // package clause for the rationale.
@@ -96,6 +103,14 @@ type AgentSpec struct {
 	// names (mcp__<server>__<tool>). Empty = every discovered tool. Built-in
 	// tools are unaffected — they are selected by Tools.
 	AllowedTools []string `yaml:"allowed_tools,omitempty"`
+	// Skills bundles skills with the agent: each entry is a shipped skill
+	// name (e.g. "create-agent") or a path to a directory containing a
+	// SKILL.md. Relative paths resolve against the spec file's directory at
+	// load time (the system_prompt_file rule) and are materialized to
+	// absolute paths, so the frozen spec stays resumable. These merge into
+	// the session's skills directory; on a name collision the workspace
+	// layer wins over spec skills, which win over shipped ones.
+	Skills []string `yaml:"skills,omitempty"`
 	// Description is what a PARENT's agents directory shows for this spec
 	// when it appears as a spawnable sub-agent (S5.3).
 	Description string `yaml:"description,omitempty"`
@@ -236,6 +251,33 @@ func loadSpec(path string, allowLegacyModel bool) (*AgentSpec, error) {
 		spec.SystemPromptFile = ""
 	}
 
+	// Materialize skills (same fail-fast doctrine as the sub-agent check
+	// below): a name must be a shipped skill, a path must hold a readable
+	// SKILL.md — caught at load, not mid-session on first invoke. Relative
+	// paths materialize to absolute against the spec's directory so the
+	// frozen spec resumes from anywhere.
+	for i, entry := range spec.Skills {
+		e := strings.TrimSpace(entry)
+		if e == "" {
+			return nil, fmt.Errorf("spec %s: field skills[%d]: must be a shipped skill name or a directory path", path, i)
+		}
+		if !skillEntryIsPath(e) {
+			if _, ok := skill.BuiltinRaw(e); !ok {
+				return nil, fmt.Errorf("spec %s: field skills[%d]: unknown shipped skill %q (use a path like ./skills/%s for a custom skill)", path, i, e, e)
+			}
+			continue
+		}
+		dir := e
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(filepath.Dir(path), dir)
+		}
+		md := filepath.Join(dir, "SKILL.md")
+		if _, err := os.Stat(md); err != nil {
+			return nil, fmt.Errorf("spec %s: field skills[%d]: %s: %v", path, i, md, err)
+		}
+		spec.Skills[i] = dir
+	}
+
 	if spec.MaxGenerationSteps == 0 {
 		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
 	}
@@ -305,7 +347,7 @@ func BindModel(spec *AgentSpec, model ModelSpec, path string) error {
 // specFields lists AgentSpec's top-level yaml keys for the unknown-field
 // hint. Keep in sync with the AgentSpec struct tags.
 const specFields = "name, system_prompt, system_prompt_file, tools, " +
-	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
+	"max_generation_steps, permissions, mode, budget, allowed_tools, skills, " +
 	"compact_at_tokens, microcompact_at_tokens, description, agents, agents_dynamic, " +
 	"agent_workspace, escalate, receipts, outputs, sandbox, mcp"
 

@@ -71,3 +71,60 @@ func TestSkillToolPathTraversalRefused(t *testing.T) {
 		}
 	}
 }
+
+// A shipped (embedded) skill loads by name when the workspace has no
+// override, and a workspace file of the same name shadows it.
+func TestSkillToolShippedAndShadow(t *testing.T) {
+	e, root := newExec(t)
+
+	res := e.Execute(context.Background(), "skill", json.RawMessage(`{"name":"create-agent"}`))
+	if res.IsError {
+		t.Fatalf("skill(create-agent) errored: %s", res.Payload)
+	}
+	var body string
+	if err := json.Unmarshal(res.Payload, &body); err != nil {
+		t.Fatalf("payload not a JSON string: %s", res.Payload)
+	}
+	if !strings.Contains(body, "save_agent") {
+		t.Errorf("shipped body missing save_agent flow: %q", body)
+	}
+
+	writeSkill(t, root, "create-agent", "---\nname: create-agent\ndescription: local\n---\nWorkspace override body.\n")
+	res = e.Execute(context.Background(), "skill", json.RawMessage(`{"name":"create-agent"}`))
+	if res.IsError {
+		t.Fatalf("shadowed skill errored: %s", res.Payload)
+	}
+	_ = json.Unmarshal(res.Payload, &body)
+	if !strings.Contains(body, "Workspace override body.") {
+		t.Errorf("workspace file should shadow the shipped skill: %q", body)
+	}
+}
+
+// A spec-bundled skill (SetSkillPaths) loads from outside the workspace and
+// sits between the workspace and shipped layers.
+func TestSkillToolSpecBundledPath(t *testing.T) {
+	e, _ := newExec(t)
+	ext := t.TempDir() // outside the workspace on purpose
+	if err := os.WriteFile(filepath.Join(ext, "SKILL.md"),
+		[]byte("---\nname: ritual\ndescription: spec-bundled\n---\nBundled body.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.SetSkillPaths(map[string]string{"ritual": filepath.Join(ext, "SKILL.md")})
+
+	res := e.Execute(context.Background(), "skill", json.RawMessage(`{"name":"ritual"}`))
+	if res.IsError {
+		t.Fatalf("skill(ritual) errored: %s", res.Payload)
+	}
+	var body string
+	_ = json.Unmarshal(res.Payload, &body)
+	if !strings.Contains(body, "Bundled body.") {
+		t.Errorf("spec-bundled body not loaded: %q", body)
+	}
+
+	// First set wins: a second install must not displace the root's map.
+	e.SetSkillPaths(map[string]string{"ritual": "/nonexistent/SKILL.md"})
+	res = e.Execute(context.Background(), "skill", json.RawMessage(`{"name":"ritual"}`))
+	if res.IsError {
+		t.Fatalf("first-wins violated: %s", res.Payload)
+	}
+}

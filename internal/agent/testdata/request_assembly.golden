@@ -13,7 +13,7 @@
       }
     ],
     "model": "model-x",
-    "system": "\u003cenv\u003eNORMALIZED\u003c/env\u003e\n\nbe precise",
+    "system": "\u003cenv\u003eNORMALIZED\u003c/env\u003e\n\n\u003cskills\u003e\nAvailable skills (call the skill tool with the name to get full instructions):\n- create-agent: Create or update a custom agent in the user catalog (~/.config/agentrunner/agents) from a description of what it should do; the saved agent is immediately usable in the webui agent picker and via `agentrunner new \u003cname\u003e`. (builtin:create-agent)\n\u003c/skills\u003e\n\nbe precise",
     "tools": [
       "read_file",
       "edit_file",
@@ -89,7 +89,7 @@
       }
     ],
     "model": "model-x",
-    "system": "\u003cenv\u003eNORMALIZED\u003c/env\u003e\n\nbe precise",
+    "system": "\u003cenv\u003eNORMALIZED\u003c/env\u003e\n\n\u003cskills\u003e\nAvailable skills (call the skill tool with the name to get full instructions):\n- create-agent: Create or update a custom agent in the user catalog (~/.config/agentrunner/agents) from a description of what it should do; the saved agent is immediately usable in the webui agent picker and via `agentrunner new \u003cname\u003e`. (builtin:create-agent)\n\u003c/skills\u003e\n\nbe precise",
     "tools": [
       "read_file",
       "edit_file",
