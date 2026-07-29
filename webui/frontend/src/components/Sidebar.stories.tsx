@@ -613,11 +613,9 @@ export const ProjectGroupOverflow: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const showAll = canvas.getByRole("button", { name: "Show all 9 projects" });
-    await expect(showAll).toHaveTextContent("Show more projects");
-    await userEvent.click(showAll);
-    await expect(canvas.getByRole("button", { name: "Show only the 4 most recent projects" })).toBeVisible();
+    // Every project renders — there is no section-level Show more control.
     await expect(canvas.getAllByRole("button", { name: /project-overflow-/i })).toHaveLength(9);
+    await expect(canvas.queryByText("Show more projects")).toBeNull();
   },
 };
 

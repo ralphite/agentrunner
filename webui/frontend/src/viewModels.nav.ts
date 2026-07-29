@@ -2,7 +2,7 @@
 // so the palette's grouping is a pure, testable function rather than JSX-local
 // arithmetic.
 import type { Session } from "./types";
-import { type ProjectGroup, quickSwitchSessions, sessionNeedsAttention } from "./viewModels";
+import { quickSwitchSessions, sessionNeedsAttention } from "./viewModels";
 
 export interface PaletteSessionGroups {
   // The Sessions group is exactly the list the global ⌘1..9 binding indexes.
@@ -44,44 +44,11 @@ export function paletteSessionGroups(
   return { quick, attention };
 }
 
-// PROJECT_GROUP_LIMIT — how many project groups the Projects section renders
-// before the section-level "Show more" (SB-4). Codex's sidebar is a *navigator*:
-// a short, one-screen list you scan. Ours rendered every group it had (127 on
-// the author's machine → 14073px of rail), so the account footer sat a dozen
-// screens below the fold and the section stopped being navigable at all.
-// Groups sort newest-first (buildSidebarModel), but the current project must be
-// the first thing a working user sees. Keep that anchor plus three recent groups;
-// everything else is history behind one explicit Show more control.
-export const PROJECT_GROUP_LIMIT = 4;
-
-export interface VisibleProjectGroups {
-  groups: ProjectGroup[];
-  // Groups the section is withholding. 0 ⇒ no "Show more" row to render.
-  hidden: number;
-}
-
-// visibleProjectGroups truncates the Projects section to `limit` groups.
-//
-// SB-4 invariant (the same one visibleProjectSessions holds one level down):
-// the group holding the session you have open is *always* rendered, even when
-// it sorts past the limit. Truncation is a default view, not a claim that the
-// current project should vanish. INC-90 narrows this guarantee to the project
-// heading: an explicit project fold may hide the current session row, but the
-// group itself stays reachable. In the default compact view it leads the list:
-// current work is navigation, whereas recency is only supporting context.
-export function visibleProjectGroups(
-  projects: ProjectGroup[],
-  opts: { expanded?: boolean; limit?: number; current?: string } = {},
-): VisibleProjectGroups {
-  const limit = opts.limit ?? PROJECT_GROUP_LIMIT;
-  if (opts.expanded) return { groups: projects, hidden: 0 };
-  const current = opts.current
-    ? projects.find((project) => project.sessions.some((session) => session.id === opts.current))
-    : undefined;
-  if (!current) {
-    const groups = projects.slice(0, limit);
-    return { groups, hidden: projects.length - groups.length };
-  }
-  const groups = [current, ...projects.filter((project) => project !== current).slice(0, Math.max(0, limit - 1))];
-  return { groups, hidden: projects.length - groups.length };
-}
+// The Projects section renders every group, always, in the order the model
+// gives (activity mtime, buildSidebarModel). There is deliberately no section
+// truncation and no current-project promotion: the rail's order may only move
+// on a real mutation to a project (a new turn, a pin), never because the user
+// merely *selected* a session. An earlier SB-4 design capped the section at 4
+// groups behind "Show more projects" and floated the current group to the top;
+// both made selection reorder the rail and were removed (user adjudication
+// 2026-07-28).

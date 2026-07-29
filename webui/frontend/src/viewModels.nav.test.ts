@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildArchivedModel, buildSidebarModel, quickSwitchSessions, scheduledUnread } from "./viewModels";
-import { PROJECT_GROUP_LIMIT, paletteSessionGroups, visibleProjectGroups } from "./viewModels.nav";
+import { paletteSessionGroups } from "./viewModels.nav";
 import type { Session } from "./types";
 
 const opts = (over: Partial<Parameters<typeof buildSidebarModel>[1]>) => ({
@@ -163,48 +163,3 @@ describe("archived settings model (J4)", () => {
   });
 });
 
-describe("visibleProjectGroups (SB-4)", () => {
-  const groups = (n: number) =>
-    Array.from({ length: n }, (_v, i) => ({
-      key: `/repo/p${i}`,
-      label: `p${i}`,
-      workspace: `/repo/p${i}`,
-      sessions: [{ id: `s${i}`, status: "idle", turns: 1 } as Session],
-    }));
-
-  it("renders every group when the list is already short", () => {
-    const all = groups(PROJECT_GROUP_LIMIT);
-    const { groups: shown, hidden } = visibleProjectGroups(all);
-    expect(shown).toHaveLength(PROJECT_GROUP_LIMIT);
-    expect(hidden).toBe(0);
-  });
-
-  it("truncates to the limit and reports the remainder", () => {
-    const { groups: shown, hidden } = visibleProjectGroups(groups(127));
-    expect(shown).toHaveLength(4);
-    expect(hidden).toBe(123);
-    // Newest-first order is preserved when there is no current project.
-    expect(shown.map((g) => g.key)).toEqual(groups(4).map((g) => g.key));
-  });
-
-  it("expanded shows everything with nothing hidden", () => {
-    const { groups: shown, hidden } = visibleProjectGroups(groups(127), { expanded: true });
-    expect(shown).toHaveLength(127);
-    expect(hidden).toBe(0);
-  });
-
-  it("always renders the group holding the current session, even past the limit", () => {
-    const { groups: shown, hidden } = visibleProjectGroups(groups(127), { current: "s40" });
-    expect(shown).toHaveLength(4);
-    expect(shown[0].key).toBe("/repo/p40");
-    expect(hidden).toBe(123);
-  });
-
-  it("does not duplicate the current group when it is already inside the limit", () => {
-    const { groups: shown, hidden } = visibleProjectGroups(groups(127), { current: "s2" });
-    expect(shown).toHaveLength(4);
-    expect(shown[0].key).toBe("/repo/p2");
-    expect(shown.filter((g) => g.key === "/repo/p2")).toHaveLength(1);
-    expect(hidden).toBe(123);
-  });
-});

@@ -785,7 +785,7 @@
   }
   /* Codex renders these at the same 13.8px as the rows they extend, one tone
      lighter (#9f9e9e) — not a size step down. */
-  .show-more, .archive-toggle, .projects-show-more {
+  .show-more, .archive-toggle {
     @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[14px] leading-[20px] transition-colors duration-100 hover:text-ink;
     color: var(--side-quiet);
   }
@@ -2228,7 +2228,7 @@
      (e.g. tablets at 900px). See Problem 5 fix for unified breakpoint system. */
   @media (max-width: 680px) {
     /* m6: every other row in this list is a 44px touch target; these two were 31. */
-    .show-more, .archive-toggle, .projects-show-more, .project-show-more { @apply min-h-11; }
+    .show-more, .archive-toggle, .project-show-more { @apply min-h-11; }
     .menu-trigger { @apply h-11 w-11; }
     .topbar-tool { @apply !h-11 !w-11 !min-w-11; }
     .supervision-close { @apply !h-11 !w-11; }

@@ -36,7 +36,6 @@ import {
   sessionUpdatedDate,
   visibleProjectSessions,
 } from "../viewModels";
-import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
 import { Spinner } from "../ui/Spinner";
@@ -152,10 +151,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     setSidebarWidth,
   } = useStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // SB-4: locally-collapsed groups (localStorage-backed) + the section-level
-  // "show every project" escape hatch.
+  // Locally-collapsed groups (localStorage-backed).
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedProjects(storage.local));
-  const [showAllProjects, setShowAllProjects] = useState(false);
   const [showRemovedProjects, setShowRemovedProjects] = useState(false);
   const [foldedSections, setFoldedSections] = useState<Set<FoldableSection>>(
     () => loadFoldedSections(storage.local),
@@ -285,12 +282,10 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     return () => cancelAnimationFrame(frame);
   }, [currentSid, sessionsReady, orderedIds]);
 
-  // SB-4: the Projects section renders the 8 most recent groups (plus, always,
-  // the group holding the open session) — the rest hide behind Show more.
-  const { groups: shownProjects, hidden: hiddenProjects } = useMemo(
-    () => visibleProjectGroups(orderedProjects, { expanded: showAllProjects, current: currentSid || undefined }),
-    [orderedProjects, showAllProjects, currentSid],
-  );
+  // The Projects section renders every group. Order comes from the model
+  // (activity mtime) plus explicit pins — selecting a session is not a
+  // mutation, so it never truncates or reorders the rail.
+  const shownProjects = orderedProjects;
 
   // Workspace-less sessions use a plain heading with no folder, caret or indent.
   // Capping reuses visibleProjectSessions so the current session remains visible.
@@ -730,27 +725,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               </SidebarProjectItem>
             );
           })}
-          {/* SB-4 · section-level Show more. Same row language as the per-group
-              one (`.show-more`), one level out: it governs how many *projects*
-              the section renders, not how many sessions a project renders. */}
-          {hiddenProjects > 0 && (
-            <button
-              className="show-more projects-show-more"
-              onClick={() => setShowAllProjects(true)}
-              aria-label={`Show all ${orderedProjects.length} projects`}
-            >
-              Show more projects
-            </button>
-          )}
-          {showAllProjects && orderedProjects.length > PROJECT_GROUP_LIMIT && (
-            <button
-              className="show-more projects-show-more"
-              onClick={() => setShowAllProjects(false)}
-              aria-label={`Show only the ${PROJECT_GROUP_LIMIT} most recent projects`}
-            >
-              Show fewer projects
-            </button>
-          )}
           </>)}
         </section>
         )}
