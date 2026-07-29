@@ -597,7 +597,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             onClick={() => { showPage(key); onNavigate?.(); }}
             title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
           >
-            <span className="inline-grid h-5 w-5 shrink-0 place-items-center">
+            <span className="inline-grid h-4 w-4 shrink-0 place-items-center">
               <DestIcon size={16} weight="regular" />
             </span>
             <span className="leading-5">{label}</span>

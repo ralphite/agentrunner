@@ -58,6 +58,13 @@
   --ink-2: #6e6e6e;
   --dim: #878787;
   --placeholder: #c3c3c3;
+  /* Measured off the Codex mock's own build. Its sidebar rows are NOT the same
+     ink as body copy — rows sit at #2f2f2f and only the selected one goes to
+     #0d0d0d, which is how the rail stays quieter than the content beside it. */
+  --side-ink: #2f2f2f;
+  --side-quiet: #9f9e9e;
+  --side-empty: #bcbcbc;
+  --path-ink: #4d4d4d;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
   --blue: #0169cc;
@@ -183,6 +190,14 @@
     --ink-2: #d0d0db;
     --dim: #a0a0ad;
     --placeholder: #6a6a76;
+  --side-ink: #c8c8d2;
+  --side-quiet: #7c7c88;
+  --side-empty: #5c5c66;
+  --path-ink: #b4b4bf;
+    --side-ink: #c8c8d2;
+    --side-quiet: #7c7c88;
+    --side-empty: #5c5c66;
+    --path-ink: #b4b4bf;
     --accent: #ececf1;
     --accent-ink: #17171a;
     --blue: #6f9bff;
@@ -580,7 +595,8 @@
      what read as "the icon isn't aligned": the boxes were centred to the
      pixel, the icon was simply too big for the line it sits on. */
   .primary-nav button, .nav-row {
-    @apply flex h-[31px] items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-3 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] font-normal text-ink [&>svg]:text-ink-2 transition-colors duration-100;
+    @apply flex h-[31px] items-center gap-[7px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] font-normal [&>svg]:text-ink-2 transition-colors duration-100;
+    color: var(--side-ink);
   }
   /* Codex nudges the leading glyph half a pixel above the row's centre (measured
      off its own build: iconCenter - rowCenter = -0.5). Text sits optically low
@@ -598,7 +614,7 @@
   /* 2b: Codex's selected rail row does not change weight — the fill carries the
      state on its own. A 500→600 jump also nudges the row's text width, so the
      label shifts slightly the moment you select it. */
-  .primary-nav button.active { @apply bg-sel text-ink font-normal; }
+  .primary-nav button.active { @apply bg-sel font-normal; color: var(--ink); }
   .menu-kbd { @apply ml-auto rounded-[var(--radius-affordance)] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
@@ -618,7 +634,9 @@
      leans on the folder icon (not size) for hierarchy — exactly what the r47
      hierarchy. Match the 13px session size. */
   .project-heading {
-    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[13.8px] leading-[20.7px] font-medium normal-case tracking-[-0.09px] text-ink transition-colors duration-100 hover:text-ink;
+    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[13.8px] leading-[20.7px] normal-case tracking-[-0.09px] transition-colors duration-100;
+    font-weight: 450;
+    color: var(--side-ink);
   }
   /* Match session rows: one wrapper paints the heading and both trailing
      actions, so hover/focus never stops before the icons. */
@@ -682,6 +700,7 @@
      focus paint the translucent overlay, which stacks on top of --sel when both
      are true. */
   .project-session-wrap.current { @apply bg-sel; }
+  .project-session-wrap.current .project-session { color: var(--ink); }
   .project-session-wrap:hover,
   .pseudo-hover .project-session-wrap,
   .project-session-wrap:focus-within {
@@ -689,7 +708,8 @@
   }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] text-ink transition-colors duration-100 hover:text-ink;
+    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[7px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] transition-colors duration-100;
+    color: var(--side-ink);
   }
   .project-session:focus-visible { @apply outline-none; }
   .project-session-wrap:has(:focus-visible) {
@@ -737,12 +757,13 @@
   /* Codex renders these at the same 13.8px as the rows they extend, one tone
      lighter (#9f9e9e) — not a size step down. */
   .show-more, .archive-toggle, .projects-show-more {
-    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] text-dim transition-colors duration-100 hover:text-ink;
+    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] transition-colors duration-100 hover:text-ink;
+    color: var(--side-quiet);
   }
   /* This control expands sessions *inside* one project, so its text follows
      the nested session label — not the project heading. */
   .project-show-more { @apply pl-[31px]; }
-  .sidebar-empty { @apply grid place-items-center gap-1 px-3 py-8 text-center text-[12px] text-dim; }
+  .sidebar-empty { @apply grid place-items-center gap-1 px-3 py-8 text-center text-[13.8px]; color: var(--side-empty); }
   .sidebar-empty b { @apply text-[13px] text-ink; }
   .sidebar-loading, .sidebar-history-loading { @apply px-2 py-3 text-[12px] text-dim; }
   .sidebar-loading span, .dsk-bar, .tl-skel-avatar, .tl-skel-bubble {
@@ -1225,7 +1246,7 @@
   /* CX-BUBBLE (T11): only the user's turn is a bubble; it gets Codex's neutral
      fill and no border (the fill already bounds it — a border on top read as a
      boxed quote). Assistant prose keeps the page as its ground. */
-  .bubble { @apply rounded-[var(--radius-card)] border-0 bg-panel px-[13px] py-[7px] text-[14px] leading-[22px] break-words overflow-hidden; }
+  .bubble { @apply rounded-[var(--radius-card)] border-0 bg-panel px-[13px] py-[7px] text-[13.8px] leading-[20.4px] tracking-[-0.08px] break-words overflow-hidden; }
   .msg.user .bubble { @apply bg-panel-2; }
   .msg.assistant .bubble { @apply border-transparent bg-transparent px-0; }
   .msg-actions { @apply mt-1 flex items-center gap-[8px] text-[12px] text-dim transition-opacity; }
@@ -1370,7 +1391,9 @@
   .shell-out::-webkit-scrollbar-thumb:hover, .cx-code-body::-webkit-scrollbar-thumb:hover {
     background-color: var(--line-2);
   }
-  .md, .cx-md { @apply max-w-none text-[14px] leading-[1.6] text-ink; }
+  /* Codex's chat prose measures 13.8px / 20.424 (=1.48) / -0.08px. Ours ran a
+     fifth larger and a notch looser, which is why the same thread read taller. */
+  .md, .cx-md { @apply max-w-none text-[13.8px] leading-[1.48] tracking-[-0.08px] text-ink; }
   .md-p { @apply my-2; }
   .md-list { @apply my-2 pl-5; }
   /* M24: --line is tuned for box edges on white; as the only mark identifying a
@@ -1758,7 +1781,8 @@
     @apply grid h-[34px] w-[34px] place-items-center rounded-[var(--radius-menu)] text-ink-2;
     background: var(--fill-soft);
   }
-  .changes-outcome-files { @apply mt-2 grid gap-1; }
+  .changes-outcome-files { @apply mt-2 grid gap-1 text-[13.8px] tracking-[-0.08px]; }
+  .changes-outcome-files > * { color: var(--path-ink); }
 
   /* Scheduled 页骨架(QA-0718 实测整页丢样式:副标题级联成大标题、
      Create 按钮碎裂、empty-state 挤行)。page-heading 是"标题行容器"
