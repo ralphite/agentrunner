@@ -175,7 +175,7 @@ export function Subagents({
     <div className={depth ? "subagents nested contents" : "subagents"}>
       {depth === 0 && (
         <h4>
-          Subagents · {uniqueNodes.length}
+          Subagents <span className="sa-count">· {uniqueNodes.length}</span>
         </h4>
       )}
       {uniqueNodes.map((node, index) => {

@@ -104,7 +104,7 @@ export function AskForm({
       {questions.map((q, qi) => (
         <div className="ask-q mt-2 min-w-0" key={qi}>
           <div
-            className="ask-q-text mb-1.5 text-[13px] leading-[1.4] text-ink"
+            className="ask-q-text mb-1.5 text-[13.8px] leading-[1.4] text-ink"
             id={`${formId}-question-${qi}`}
           >
             {q.question}
@@ -117,7 +117,7 @@ export function AskForm({
                 return (
                   <button
                     type="button"
-                    className={`ask-opt flex w-full min-w-0 items-start gap-2 rounded-[8px] border px-2.5 py-2 text-left text-[13px] leading-[1.35] text-ink transition-colors ${
+                    className={`ask-opt flex w-full min-w-0 items-start gap-2 rounded-[10px] border px-2.5 py-2 text-left text-[13.8px] leading-[1.35] text-ink transition-colors ${
                       isSel
                         ? "sel border-blue bg-blue-soft hover:border-blue hover:bg-blue-soft"
                         : "border-line bg-transparent hover:border-dim hover:bg-panel-2"

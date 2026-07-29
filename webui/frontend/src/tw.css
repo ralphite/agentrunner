@@ -841,7 +841,7 @@
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 pb-4 pt-8; }
   .home-empty { @apply flex w-full flex-col items-center gap-8 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
-  .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-normal leading-tight text-ink; }
+  .home-empty-headline { @apply m-0 max-w-[760px] text-[26.5px] font-normal leading-[38px] tracking-[-0.65px] text-ink; } /* S57: mock 落地页 h1 */
   .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-normal; }
   .home-empty-cards { @apply grid w-full max-w-[720px] grid-cols-4 gap-4; }
   /* HOME-CARD-WRAP (R52) + HOME-CARD-LABEL-12PX (R92): Codex new-session cards
@@ -1217,9 +1217,10 @@
   .tt-left { @apply min-w-0; }
   .tt-title { @apply truncate text-[13.8px] font-medium tracking-[-0.07px] text-ink; } /* S22 */
   .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim font-medium; }
-  /* S24: mock 头部胶囊高 29（Button md 默认 32）；⋯ 触发钮走 mock 的 #777。 */
+  /* S24: mock 头部胶囊高 29（Button md 默认 32）；⋯ 触发钮走 mock 的 #777。
+     S54: ⋯ 也同压 29——S24 只压了 .topbar-tool，两钮并排差 3px 一眼歪。 */
   .topbar-tool { @apply relative !h-[29px]; }
-  .session-topbar .menu-trigger { @apply text-[#777777] dark:text-ink-2; }
+  .session-topbar .menu-trigger { @apply !h-[29px] text-[#777777] dark:text-ink-2; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
   /* INC-98.4b/98.4w: size the review rail from the content area, not the whole
@@ -1358,7 +1359,7 @@
   /* CX-WORKED (T10): the fold header is a 28px rule-terminated line at Codex's
      quieter grey, not a floating label. The hairline under it is what tells the
      eye where the collapsed work ends and the answer begins. */
-  .chip { @apply my-2 text-[13px] text-dim; }
+  .chip { @apply my-2 text-[13.5px] text-dim; } /* S59: 与轨迹条目同级 */
   /* S21: mock 是通栏 28px 条 + 底部发丝线；此前按钮 fit-content，底线只垫在
      文字下面，读起来像枚胶囊。rounded-none 抵掉 base button 的圆角。 */
   .worked-row {
@@ -1371,6 +1372,18 @@
   [aria-expanded="true"] > .worked-caret { @apply rotate-90; }
   /* Codex's expanded trace runs on a 25px pitch (22px row + 3px). */
   .worked-body, .act-body { @apply pt-[6px]; }
+  /* S51: JSONDetail 兜底的 <pre> 此前一个类都没有——白底裸 mono 浮在正文里。
+     套 mock 的工具输出 slab（与 .shell-out 同族），10 行渐隐裁切同款。
+     :not() 放过已有自己样式的错误/部分输出块。 */
+  .step-detail > pre:not(.cx-td-err):not(.cx-td-partial) {
+    @apply m-0 overflow-x-auto rounded-[10px] p-3 font-mono text-[14px] leading-[21.5px] text-ink;
+    background: var(--fill-soft);
+    max-height: calc(12px * 2 + 21.5px * 10);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 21.5px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 21.5px), transparent);
+  }
+  /* S53: mock 实测 chevron 是「已展开」的状态标记、紧跟文字——折叠态不画。 */
+  details.step:not([open]) .step-caret { @apply hidden; }
   .run-status-line { @apply my-2 flex min-w-0 items-center justify-between gap-3 text-[12px] text-dim; }
   .run-status-line > span:first-child { @apply min-w-0 font-medium text-ink-2; }
   .run-status-line > span:last-child { @apply shrink-0; }
@@ -1388,10 +1401,13 @@
      far right of a 707px column, ~320px of blank space away from the words it
      counts. Codex does not render a count here at all; keeping it, it belongs
      beside its label. */
-  .act-label { @apply min-w-0 shrink; }
-  .act-count { @apply ml-[6px] mr-auto shrink-0; }
+  /* S52: mock 轨迹行永远单行——标签截断，不许折行撑高。 */
+  .act-label { @apply min-w-0 shrink truncate; }
   .act-ic, .step-ic, .cx-activity-ic { @apply mt-[2px] text-dim; }
-  .act-count, .step-tag, .step-tok { @apply rounded-full bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
+  /* S52/S58: mock 轨迹行内注记全是同色裸文字，没有胶囊底。 */
+  .act-count, .step-tag, .step-tok { @apply text-[11px] text-dim; }
+  .act-count { @apply ml-[6px] mr-auto shrink-0 text-[12px]; }
+  .act-cat svg { @apply h-4 w-4; } /* S52: 类别图标 16（原 14） */
   /* R41 EMPTY-STACK: this used to be `text-center` only — no flex/grid — so its
      icon · <b> title · <span> sub · action ran together on one inline line
      ("Session not foundNo session matches…" with the CTA jammed mid-sentence).
@@ -1509,8 +1525,10 @@
   .queued-kicker { @apply shrink-0 text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
   .queued-text { @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-ink-2; }
   .queued-drop { @apply min-h-7 shrink-0 rounded-[var(--radius-control)] border border-line bg-transparent px-2.5 py-1 text-[12px] font-medium text-dim hover:text-ink; }
+  /* S56: 基字对齐正文 13.8（此前 13）；圆角本就是 --radius-card=15，但组件行内的
+     rounded-[8px] utility 一直压着它（R1 陷阱）——那个 utility 已删。 */
   .approval-card, .ask-form, .daemon-alert, .turn-error, .terminal-alert, .gbar {
-    @apply mx-auto my-3 w-full max-w-[707px] rounded-[var(--radius-card)] border border-line bg-panel p-3 text-[13px] shadow-sm;
+    @apply mx-auto my-3 w-full max-w-[707px] rounded-[var(--radius-card)] border border-line bg-panel p-3 text-[13.8px] shadow-sm;
   }
   .approval-heading, .ask-form-head, .daemon-alert, .turn-error, .terminal-alert, .gbar {
     @apply flex items-start gap-3;
@@ -1524,14 +1542,20 @@
     @apply flex shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--radius-control)] border border-line px-3 py-1.5 text-[13px] font-medium;
   }
   .approval-kicker, .gbar-label { @apply text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
+  /* S56: 描述档 13/#616161（原 12/#878787）。 */
   .approval-description, .approval-agent, .approval-shortcut, .approval-scope, .turn-error-hint, .terminal-alert-meta, .gbar-sub {
-    @apply text-[12px] text-dim;
+    @apply text-[13px] text-[#616161] dark:text-dim;
   }
   /* GBAR-META-GAP: the goal banner meta is two bare spans (checks + elapsed);
      give the row inline-flex + gap so they don't run together ("…checks249h"). */
   .gbar-meta { @apply inline-flex items-center gap-2 text-[12px] text-dim; }
   .approval-subject, .approval-ws, .turn-error-raw { @apply mt-2 rounded-[var(--radius-control)] bg-panel-2 p-2 font-mono text-[12px]; }
   .approval-actions, .ask-actions, .gbar-actions, .goal-actions { @apply mt-3 flex flex-wrap items-center gap-2; }
+  /* S56: 卡内动作钮走 31 高（与 Edited 卡的 Review 同档）。按钮自带
+     min-h-11（44 触控保底）+ sm:min-h-32——只在桌面档压到 31，移动端不动。 */
+  @media (min-width: 640px) {
+    .approval-actions .ix, .ask-actions .ix { height: 31px !important; min-height: 31px !important; }
+  }
   .deny-reason { @apply flex flex-1 gap-2; }
   .deny-reason input, .gbar-input, .goal-input { @apply min-w-0 flex-1; }
   .gbar { @apply mb-0 max-w-none rounded-none border-x-0 border-t-0 shadow-none; }
@@ -1610,9 +1634,13 @@
   .supervision-quiet, .supervision-empty, .supervision-loading { @apply text-[12px] text-dim; }
   /* RVW: 无边框透明扁平行(Codex)。base button{} 给 <button> 型行默认
      border+bg,故须显式 border-0 bg-transparent 覆盖。 */
+  /* S55: 行距 py-1.5→2——面板行太挤，末行贴着 Run details。 */
   .attention-row, .background-row, .progress-row, .sa-row, .env-row, .artifact-row, .goal-meta, .goal-settled-line {
-    @apply flex min-w-0 items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-[13px] hover:bg-panel-2;
+    @apply flex min-w-0 items-center gap-2 border-0 bg-transparent px-3 py-2 text-[13px] hover:bg-panel-2;
   }
+  /* S55: "Subagents · N" 此前是裸 UA h4（14/700 直漏）。 */
+  .subagents h4 { @apply m-0 mb-1 px-3 text-[13.8px] font-medium text-ink; }
+  .subagents h4 .sa-count { @apply font-normal text-dim; }
   /* QA-0719 S5 · the goal phase (`Stopped` / `Cancelled` / `Satisfied`) is a
      compact status pill, NOT a full-width row. It used to share the heavy row
      rule above, which handed it `min-w-0` + the flex default `shrink:1`; as a
@@ -2688,7 +2716,7 @@
      QA-0719 移动端实测). Full width like every other rail row; the flex
      spacer absorbs the slack on desktop. */
   .sa-row { @apply w-full; }
-  .sa-name { @apply max-w-[9rem] flex-none shrink-0 truncate font-medium; }
+  .sa-name { @apply max-w-[9rem] flex-none shrink-0 truncate text-[13.8px] font-medium; } /* S55 */
   /* QA-0719 S4 二修:status 桌面上永不收缩。identity 组曾是 flex-1
      (basis 0),flex 解析先让 trailing meta 组按内容拿满,identity 只分
      到剩余 grow——缺口全压给唯一可缩的 status,"Completed" 视觉截成

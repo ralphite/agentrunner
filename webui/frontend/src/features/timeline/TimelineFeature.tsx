@@ -605,7 +605,8 @@ export function ToolCard({ t }: { t: ToolItem }) {
       <summary className="flex min-w-0 items-start gap-2">
         <StepIcon status={t.status} />
         <span className="step-verb shrink-0">{verb}</span>
-        <span className={"step-body min-w-0 flex-1 truncate" + (mono ? " mono" : "")} title={body || undefined}>
+        {/* S53: 不 flex-1 拉满——注记与 chevron 跟着文字走（mock 轨迹行左聚拢）。 */}
+        <span className={"step-body min-w-0 shrink truncate" + (mono ? " mono" : "")} title={body || undefined}>
           {summaryBody}{hasMoreBody && !summaryBody.endsWith("…") ? " …" : ""}
         </span>
         {t.background && <span className="step-tag shrink-0">background</span>}

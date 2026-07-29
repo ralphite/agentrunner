@@ -57,12 +57,13 @@ export function ApprovalCard({
   };
 
   return (
-    <section className="approval-card min-w-0 overflow-hidden rounded-[8px] shadow-none" aria-label="Approval required">
+    // S56: rounded-[8px]/shadow-none utility 曾压掉族规则的 r15+shadow-sm（R1 陷阱）。
+    <section className="approval-card min-w-0 overflow-hidden" aria-label="Approval required">
       <div className="approval-heading min-w-0 flex-wrap gap-2">
         <span className="approval-icon mt-0.5"><ShieldCheck size={15} weight="duotone" /></span>
         <div className="min-w-0 flex-1">
           <span className="approval-kicker block">Approval required</span>
-          <h3 className="m-0 mt-0.5 text-[13px] font-medium leading-[1.4]">{presentation.title}</h3>
+          <h3 className="m-0 mt-0.5 text-[13.8px] font-medium leading-[1.4]">{presentation.title}</h3>
         </div>
         {approval.agent && (
           <span className="approval-agent max-w-[45%] shrink-0 text-right [overflow-wrap:anywhere]">
@@ -93,7 +94,7 @@ export function ApprovalCard({
 
       <details className="approval-details mt-2 min-w-0 border-t border-line pt-2">
         <summary className="inline-flex min-h-11 cursor-pointer items-center gap-1 text-[12px] text-ink-2 sm:min-h-0"><CaretRight size={12} /> Details</summary>
-        <pre className="m-0 mt-2 max-h-48 max-w-full overflow-auto whitespace-pre-wrap rounded-[8px] bg-panel-2 p-2 text-[11px] [overflow-wrap:anywhere]">
+        <pre className="m-0 mt-2 max-h-48 max-w-full overflow-auto whitespace-pre-wrap rounded-[10px] bg-panel-2 p-2 text-[12px] [overflow-wrap:anywhere]">
           {pretty(approval.args)}
         </pre>
         {approval.gates.length > 0 && (
