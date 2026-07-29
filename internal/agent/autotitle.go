@@ -16,9 +16,18 @@ import (
 // autotitleSystemPrompt instructs the title distiller. Like the compaction
 // summarizer it is a harness-owned maintenance prompt, not the agent's own
 // turn — the model never directed it.
-const autotitleSystemPrompt = "You name a work session. Given the user's opening message, reply with a " +
-	"short title of 3 to 6 words that captures the prompt. Reply with ONLY the title — no quotes, no " +
-	"punctuation at the end, no preamble. Keep it under 60 characters."
+// The instruction never uses the phrase it is asking for. Saying "reply with a
+// short title" got weaker models to answer with the literal words "Short
+// title" often enough to reach real sessions — the instruction's own vocabulary
+// is the likeliest thing to be echoed, so it names the work instead, and the
+// examples show the shape rather than describing it.
+const autotitleSystemPrompt = "Read the user's opening message and name the work it asks for, in 3 to 6 " +
+	"words. Reply with ONLY that name: no quotes, no trailing punctuation, no preamble, no explanation. " +
+	"Write it in the language the user wrote in. Keep it under 60 characters.\n\n" +
+	"Opening message: can you add retry logic to the http client, it keeps dying on 503s\n" +
+	"Add retry to HTTP client\n\n" +
+	"Opening message: 帮我看看为什么 CI 上的测试挂了，本地是好的\n" +
+	"排查 CI 测试失败"
 
 // autotitleActivityID is the stable id of the one title-distilling LLM
 // activity per session: gated to fire once, it never collides with a turn.
@@ -124,10 +133,25 @@ func (l *Loop) maybeAutoTitle(ctx context.Context, ds *driveState, appendE Appen
 			Text: "auto-title skipped: " + redact.FromEnv().String(err.Error())})
 		return nil
 	}
-	if title == "" {
-		return nil // empty distillation: keep the first-line fallback
+	if title == "" || titleEchoesInstruction(title) {
+		return nil // nothing usable: keep the first-line fallback
 	}
 	return l.journalAutoTitle(appendE, title)
+}
+
+// titleEchoesInstruction reports whether a reply restates what was asked for
+// instead of naming the work — "Short title", "Session name", "Untitled". The
+// prompt above avoids handing the model those words, but a weak model finds
+// them anyway, and the opening line is a strictly better name than any of
+// them. Belt to the prompt's braces: this is what a real session shipped as
+// its display name before both were in place.
+func titleEchoesInstruction(title string) bool {
+	switch strings.ToLower(strings.TrimSpace(title)) {
+	case "title", "short title", "session", "session title", "session name",
+		"work session", "name", "untitled", "标题", "会话标题":
+		return true
+	}
+	return false
 }
 
 // decodeTitleResult reads a recorded autotitle activity result (a JSON string

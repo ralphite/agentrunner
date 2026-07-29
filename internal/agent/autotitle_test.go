@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"iter"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -188,6 +189,34 @@ func TestAutoTitleSkipsShortPrompt(t *testing.T) {
 	}
 	if n, _ := countTitled(t, l.Store.Dir()); n != 0 {
 		t.Fatalf("titled events = %d, want 0", n)
+	}
+}
+
+// A model that answers with the instruction's own vocabulary ("Short title")
+// must not become the session's display name — the opening first line is a
+// strictly better fallback. This shipped to a real session before the guard
+// and the reworded prompt were in place.
+func TestAutoTitleRejectsEchoedInstruction(t *testing.T) {
+	for _, echo := range []string{"Short title", "  title  ", "Session name", "Untitled", "标题"} {
+		p := &titleProvider{text: echo}
+		l, ds, appendE := titleTestLoop(t, p)
+		openTurn(t, appendE, longPrompt)
+		if err := l.maybeAutoTitle(context.Background(), ds, appendE); err != nil {
+			t.Fatalf("%q: %v", echo, err)
+		}
+		if ds.s.Session.TitleSource != "" {
+			t.Fatalf("%q landed as a title: %q", echo, ds.s.Session.RawTitle)
+		}
+		if n, _ := countTitled(t, l.Store.Dir()); n != 0 {
+			t.Fatalf("%q: titled events = %d, want 0", echo, n)
+		}
+	}
+}
+
+// The instruction must not hand the model the phrase it is most likely to echo.
+func TestAutoTitlePromptAvoidsEchoBait(t *testing.T) {
+	if strings.Contains(strings.ToLower(autotitleSystemPrompt), "short title") {
+		t.Error("the prompt hands the model the exact words that came back as a session name")
 	}
 }
 

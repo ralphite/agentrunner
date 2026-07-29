@@ -50,6 +50,7 @@ import {
   type ToolItem,
   type WorkFold,
 } from "../../timeline";
+import { LifecycleStatus } from "../../ui/LifecycleStatus";
 import { Spinner } from "../../ui/Spinner";
 import { Markdown } from "../../components/Markdown";
 import { sessionImageURL, uploadURL } from "../../api";
@@ -1530,9 +1531,20 @@ function TimelineContentView({
         })}
         {statusLine}
         {approvalSlot}
+        {/* A working turn shows that it is working. A robot face is a portrait
+            of who is talking, which the thread already makes obvious; what the
+            reader is actually waiting on is progress, so this slot carries the
+            same spinning glyph every other running state in the app uses. */}
         {typing && (
           <div className="msg assistant">
-            <div className="avatar a"><Robot size={14} weight="bold" /></div>
+            <div className="avatar a">
+              <LifecycleStatus
+                accessibleLabel="Working"
+                aria-hidden="true"
+                size="sm"
+                state="running"
+              />
+            </div>
             <div className="bubble typing" role="status" aria-label="Thinking" />
           </div>
         )}
