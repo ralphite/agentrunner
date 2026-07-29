@@ -125,5 +125,15 @@ func optimizeSystemPrompt(contextHint string) string {
 		b.WriteString("user's intent: the DRAFT alone says what to rewrite.\n\n")
 		b.WriteString(h)
 	}
+	// Language rules last, for the same measured reason as dictate: whichever
+	// Chinese sample the model reads last sets the character forms, and the
+	// context is the longest one in the prompt. See dictateSystemPrompt.
+	b.WriteString("\n\nHow to write the rewrite, overriding anything above:\n")
+	b.WriteString("- Use the same language the draft uses, and keep its language mixing intact — Chinese and English may sit in ")
+	b.WriteString("one sentence.\n")
+	b.WriteString("- Write ALL Chinese in SIMPLIFIED characters (简体), never traditional (繁體), whatever character forms appear ")
+	b.WriteString("in the reference data above.\n")
+	b.WriteString("- Keep technical terms, proper nouns and code identifiers in the language and casing the draft used; never ")
+	b.WriteString("translate or localize them.")
 	return b.String()
 }

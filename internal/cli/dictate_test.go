@@ -361,3 +361,77 @@ func TestDictateNoContextNoPreamble(t *testing.T) {
 		t.Errorf("empty context still emitted the reference-data preamble: %q", sys)
 	}
 }
+
+// TestDictateLanguagePolicy: 简体 preference and Chinese/English mixing are one
+// instruction, and the prompt has to state both — separately, each one licenses
+// the wrong behavior (localizing an English term / translating Chinese speech).
+func TestDictateLanguagePolicy(t *testing.T) {
+	sys := dictateSystemPrompt("", "")
+	for _, want := range []string{
+		"may mix languages",           // mixing allowed
+		"even inside one sentence",    // ...intra-sentence, not just per-turn
+		"Never translate or localize", // mixing is not a translation cue
+		"SIMPLIFIED characters (简体)",  // the new preference
+		"Never traditional (繁體)",
+		"constrains character forms only", // ...bounded to character forms
+		"including capitalization",
+		`"arwebui" is "arwebui"`, // the casing failure we actually observed
+	} {
+		if !strings.Contains(sys, want) {
+			t.Errorf("system prompt missing %q:\n%s", want, sys)
+		}
+	}
+}
+
+// TestDictateLanguageRulesComeAfterContext locks in an ordering that was found
+// empirically, not chosen for tidiness: with the 简体 rule stated BEFORE the
+// reference data, a 繁體 context pulled the transcript traditional in 2 of 3
+// real Gemini runs — and still 2 of 3 with a disclaimer added right before the
+// context. Moving the rules after it made 5 of 5 runs simplified. The context is
+// the longest Chinese sample in the prompt, so it wins on recency unless the
+// rule is the last thing read. Anyone "cleaning up" this order will silently
+// reintroduce 繁體 output, so the test names the reason.
+func TestDictateLanguageRulesComeAfterContext(t *testing.T) {
+	sys := dictateSystemPrompt("# Recent conversation\nuser: 然後看一下 journal 裡那條", "journal, envelope")
+
+	ctxAt := strings.Index(sys, "# Recent conversation")
+	termsAt := strings.Index(sys, "# Terms")
+	ruleAt := strings.Index(sys, "SIMPLIFIED characters (简体)")
+	if ctxAt < 0 || termsAt < 0 || ruleAt < 0 {
+		t.Fatalf("prompt missing a required section (ctx=%d terms=%d rule=%d):\n%s", ctxAt, termsAt, ruleAt, sys)
+	}
+	if ruleAt < ctxAt || ruleAt < termsAt {
+		t.Errorf("language rules must come AFTER the reference data (rule=%d ctx=%d terms=%d):\n%s", ruleAt, ctxAt, termsAt, sys)
+	}
+	// And they must announce that they outrank it.
+	if !strings.Contains(sys, "overriding anything above") {
+		t.Errorf("language rules do not claim precedence over the context:\n%s", sys)
+	}
+	// The data-pin still precedes the untrusted text.
+	pinAt := strings.Index(sys, "REFERENCE DATA")
+	if pinAt < 0 || pinAt > ctxAt {
+		t.Errorf("reference-data pin must precede the context (pin=%d ctx=%d)", pinAt, ctxAt)
+	}
+}
+
+// TestOptimizeLanguagePolicy: the rewrite must not silently convert 简体→繁體 or
+// translate a technical term — that would change what the user asked for. Same
+// after-the-context ordering as dictate, for the same measured reason.
+func TestOptimizeLanguagePolicy(t *testing.T) {
+	sys := optimizeSystemPrompt("# Recent conversation\nuser: 然後看一下那條")
+	for _, want := range []string{
+		"same language the draft uses",
+		"language mixing intact",
+		"SIMPLIFIED characters (简体)",
+		"never traditional (繁體)",
+		"never translate or localize them",
+		"overriding anything above",
+	} {
+		if !strings.Contains(sys, want) {
+			t.Errorf("optimize prompt missing %q:\n%s", want, sys)
+		}
+	}
+	if strings.Index(sys, "SIMPLIFIED characters (简体)") < strings.Index(sys, "# Recent conversation") {
+		t.Errorf("optimize language rules must come after the reference data:\n%s", sys)
+	}
+}
