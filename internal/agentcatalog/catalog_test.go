@@ -88,6 +88,24 @@ func TestResolveExplicitPath(t *testing.T) {
 	}
 }
 
+// A resolved builtin ref ("builtin:dev") travels over the daemon wire as
+// RunRequest.SpecPath and is resolved AGAIN daemon-side — Resolve must accept
+// the ref form it mints, or every `ar new <builtin-name>` fails on the daemon
+// with "unknown Agent \"builtin:dev\"" (found by QA 2026-07-28).
+func TestResolveRoundTripsBuiltinRef(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	spec, source, err := Resolve("builtin:dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Name != "dev" || source != "builtin:dev" {
+		t.Fatalf("Resolve(builtin:dev) = name %q, source %q", spec.Name, source)
+	}
+	if _, _, err := Resolve("builtin:nope"); err == nil {
+		t.Fatal("Resolve(builtin:nope) should fail")
+	}
+}
+
 func stringContainsModel(s string) bool {
 	return stringContains(s, "\nmodel:") || stringContains(s, "model:") && len(s) >= 6 && s[:6] == "model:"
 }

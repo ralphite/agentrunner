@@ -20,12 +20,21 @@ type Entry struct {
 	YAML        string `json:"yaml"`
 }
 
-// Resolve accepts an effective catalog name or an explicit YAML path. Existing
-// paths always mean paths; bare names check user overrides before shipped data.
+// Resolve accepts an effective catalog name, an explicit YAML path, or a
+// "builtin:<name>" ref — the form Resolve itself mints for shipped agents, so
+// a resolved ref shipped across the daemon wire (or frozen in a journal)
+// round-trips back through Resolve. Existing paths always mean paths; bare
+// names check user overrides before shipped data.
 func Resolve(ref string) (*agent.AgentSpec, string, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return nil, "", fmt.Errorf("agent is required")
+	}
+	if name, ok := strings.CutPrefix(ref, "builtin:"); ok {
+		if spec, ok := agent.BuiltinSpec(name); ok {
+			return spec, "builtin:" + name, nil
+		}
+		return nil, "", fmt.Errorf("unknown built-in Agent %q (run `agentrunner agents` to list available names)", name)
 	}
 	if looksLikePath(ref) {
 		abs, err := filepath.Abs(ref)
