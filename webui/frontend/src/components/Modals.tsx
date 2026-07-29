@@ -24,9 +24,11 @@ import { Input, Select, Textarea } from "../ui/Field";
 import { friendlyStatus } from "./pill";
 import {
   recallAccess,
+  recallLastModel,
   recallModel,
   recallSpec,
   rememberAccess,
+  rememberLastModel,
   rememberModel,
   rememberSpec,
 } from "./sessionSpecs";
@@ -425,13 +427,18 @@ export function NewSessionModal({
   const [mode, setMode] = useState("");
   const [spec, setSpec] = useState(initialSpec || "");
   const [worker, setWorker] = useState(initialWorker || "");
+  // Fall back to the device-wide last choice, not the bundled default, so a
+  // launcher opened from Home agrees with the composer's pills.
+  const [lastModel] = useState(() => recallLastModel(storage.local));
   const [provider, setProvider] = useState(
-    initialProvider || DEFAULT_MODEL.provider,
+    initialProvider || lastModel?.provider || DEFAULT_MODEL.provider,
   );
-  const [model, setModel] = useState(initialModel || DEFAULT_MODEL.id);
+  const [model, setModel] = useState(
+    initialModel || lastModel?.model || DEFAULT_MODEL.id,
+  );
   const [effort, setEffort] = useState<EffortId>(
-    EFFORT_LEVELS.some((level) => level.id === initialEffort)
-      ? (initialEffort as EffortId)
+    EFFORT_LEVELS.some((level) => level.id === (initialEffort || lastModel?.effort))
+      ? ((initialEffort || lastModel?.effort) as EffortId)
       : DEFAULT_EFFORT,
   );
   const [busy, setBusy] = useState(false);
@@ -472,6 +479,7 @@ export function NewSessionModal({
       });
       rememberSpec(r.sid, spec, storage.local);
       rememberModel(r.sid, { provider, model, effort }, storage.local);
+      rememberLastModel({ provider, model, effort }, storage.local);
       close();
       await refreshSessions();
       select(r.sid);
@@ -563,7 +571,7 @@ export function RunModal({
   cadence?: CadenceSpec;
   returnFocus?: HTMLElement;
 }) {
-  const { api, clock } = useAppServices();
+  const { api, clock, storage } = useAppServices();
   const { openModal, select, selectRun, refreshRuns, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose } = useWorkspace();
   // SC-18 — the form OPENS on the cadence the caller already showed the user (a
@@ -578,9 +586,15 @@ export function RunModal({
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState("");
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
-  const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
-  const [model, setModel] = useState(DEFAULT_MODEL.id);
-  const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
+  // Same device-wide last choice the composer seeds from.
+  const [lastModel] = useState(() => recallLastModel(storage.local));
+  const [provider, setProvider] = useState(lastModel?.provider || DEFAULT_MODEL.provider);
+  const [model, setModel] = useState(lastModel?.model || DEFAULT_MODEL.id);
+  const [effort, setEffort] = useState<EffortId>(
+    EFFORT_LEVELS.some((level) => level.id === lastModel?.effort)
+      ? (lastModel!.effort as EffortId)
+      : DEFAULT_EFFORT,
+  );
   const [schedule, setSchedule] = useState<ScheduleKind>(formDefaults.schedule);
   const [interval, setInterval] = useState(formDefaults.interval);
   const [cron, setCron] = useState(formDefaults.cron);
@@ -953,9 +967,12 @@ export function AgentModal({
   const { api, storage } = useAppServices();
   const { openModal, toast } = useStore();
   const rawRememberedSpec = recallSpec(sid, storage.local) || "";
+  // This session's own record first; otherwise the device-wide last choice
+  // (a session born in the CLI has no record of its own).
   const remembered =
     recallModel(sid, storage.local) ||
-    legacyModelFromSpec(rawRememberedSpec);
+    legacyModelFromSpec(rawRememberedSpec) ||
+    recallLastModel(storage.local);
   const [spec, setSpec] = useState(() =>
     stripLegacyModel(rawRememberedSpec));
   const [worker, setWorker] = useState("");
@@ -1004,6 +1021,7 @@ export function AgentModal({
       });
       rememberSpec(sid, spec, storage.local);
       rememberModel(sid, { provider, model, effort }, storage.local);
+      rememberLastModel({ provider, model, effort }, storage.local);
       close();
       toast("agent spec switched", "info");
     } catch (e: any) {

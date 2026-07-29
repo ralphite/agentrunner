@@ -33,10 +33,12 @@ import { parseSlash, SLASH, type SlashCmd } from "./slash";
 import {
   recallAccess,
   recallDraft,
+  recallLastModel,
   recallModel,
   recallSpec,
   rememberAccess,
   rememberDraft,
+  rememberLastModel,
   rememberModel,
   rememberSpec,
 } from "./sessionSpecs";
@@ -183,9 +185,31 @@ export function Composer(props: ComposerProps) {
   const [deliveryMode, setDeliveryMode] = useState<"steer" | "queue">("queue");
 
   // model + reasoning effort + access posture + persona
-  const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
-  const [model, setModel] = useState(DEFAULT_MODEL.id);
-  const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
+  //
+  // Seed from the device-wide last choice (the model/effort twin of
+  // `arwebui.lastAccess`), so a new session opens on what you last picked
+  // instead of snapping back to the bundled default. A session that carries
+  // its own remembered choice overrides this in the seed effect below, and a
+  // remembered model that has since left the catalog falls back rather than
+  // showing a dead id.
+  const [modelSeed] = useState(() => {
+    const saved = recallLastModel(storage.local);
+    if (
+      saved &&
+      modelById(saved.provider, saved.model) &&
+      EFFORT_LEVELS.some((level) => level.id === saved.effort)
+    ) {
+      return saved;
+    }
+    return {
+      provider: DEFAULT_MODEL.provider,
+      model: DEFAULT_MODEL.id,
+      effort: DEFAULT_EFFORT as string,
+    };
+  });
+  const [provider, setProvider] = useState(modelSeed.provider);
+  const [model, setModel] = useState(modelSeed.model);
+  const [effort, setEffort] = useState<EffortId>(modelSeed.effort as EffortId);
   // The compact root mirrors Codex's Model / Effort / Advanced summary. Each
   // dimension swaps to its own page, so short phones never have to scroll past
   // the full model list just to reach effort or advanced settings.
@@ -835,15 +859,20 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  // Every explicit pick — on Home or inside a session — becomes the device-wide
+  // default for the next new session. The per-session record still wins when
+  // reopening a session that has one.
   const chooseModel = async (p: string, id: string) => {
     setProvider(p);
     setModel(id);
+    rememberLastModel({ provider: p, model: id, effort }, storage.local);
     await applyModelSpec(p, id, effort);
     if (isSession) toast(`Model → ${modelById(p, id)?.label || id} (from your next message)`, "info");
   };
 
   const chooseEffort = async (eff: EffortId) => {
     setEffort(eff);
+    rememberLastModel({ provider, model, effort: eff }, storage.local);
     await applyModelSpec(provider, model, eff);
     if (isSession) toast(`Reasoning → ${effortById(eff).label} (from your next message)`, "info");
   };

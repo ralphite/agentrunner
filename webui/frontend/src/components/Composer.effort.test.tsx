@@ -205,4 +205,47 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     expect(body.model).toBe("gemini-flash-latest");
     expect(body.spec).not.toContain("model:");
   });
+
+  it("offers Gemini as the two -latest aliases only", () => {
+    const { container } = mount();
+    openMenu(container);
+    fireEvent.click(item("Model"));
+
+    const menu = container.querySelector<HTMLElement>(".cx-model-menu")!;
+    const offered = [...menu.querySelectorAll('[role="menuitem"] .pop-title')]
+      .map((node) => node.textContent?.trim())
+      .filter((label) => label !== "Model");
+    expect(offered).toEqual(["Gemini Flash", "Gemini Pro", "Claude Sonnet 5"]);
+  });
+
+  it("opens a new composer on the last model and effort the user picked", () => {
+    const first = mount();
+    openMenu(first.container);
+    fireEvent.click(item("Model"));
+    fireEvent.click(item("Gemini Pro"));
+    openMenu(first.container);
+    fireEvent.click(item("Effort"));
+    fireEvent.click(item("High"));
+    cleanup();
+
+    // A fresh composer — the next new session — reads the stored choice
+    // instead of snapping back to Gemini Flash / Medium.
+    const next = mount();
+    openMenu(next.container);
+    expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Pro");
+    expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("High");
+  });
+
+  it("falls back to the default when the stored model has left the catalog", () => {
+    localStorage.setItem(
+      "arwebui.lastModel",
+      JSON.stringify({ provider: "gemini", model: "gemini-3.5-flash", effort: "high" }),
+    );
+
+    const { container } = mount();
+    openMenu(container);
+
+    expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Flash");
+    expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Medium");
+  });
 });

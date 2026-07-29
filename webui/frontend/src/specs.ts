@@ -14,10 +14,11 @@ export interface ModelChoice {
   sub: string;
 }
 
+// Gemini is offered as the two `-latest` aliases only: pinned point releases
+// go stale on their own schedule and a picker full of near-duplicates makes
+// the fast/capable choice — the only one that matters here — harder to see.
 export const MODELS: ModelChoice[] = [
   { provider: "gemini", id: "gemini-flash-latest", label: "Gemini Flash", sub: "Fast · default" },
-  { provider: "gemini", id: "gemini-flash-lite-latest", label: "Gemini Flash Lite", sub: "Fastest, lightest" },
-  { provider: "gemini", id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", sub: "Newest flash" },
   { provider: "gemini", id: "gemini-pro-latest", label: "Gemini Pro", sub: "Most capable" },
   { provider: "anthropic", id: "claude-sonnet-5", label: "Claude Sonnet 5", sub: "Anthropic · needs creds" },
 ];

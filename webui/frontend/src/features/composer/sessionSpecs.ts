@@ -96,6 +96,36 @@ export const recallModel = (
   return undefined;
 };
 
+// The device-wide last choice, the model/effort counterpart to
+// `arwebui.lastAccess`. A new session opens on whatever you last picked
+// instead of resetting to the bundled default every time; the per-session
+// map above still wins for a session that already has its own choice.
+const LAST_MODEL_KEY = "arwebui.lastModel";
+
+export const rememberLastModel = (
+  model: RememberedModel,
+  storage = localDefault(),
+) => {
+  if (!model.provider || !model.model || !model.effort) return;
+  try {
+    storage.setItem(LAST_MODEL_KEY, JSON.stringify(model));
+  } catch {
+    /* quota — stay best-effort */
+  }
+};
+
+export const recallLastModel = (
+  storage = localDefault(),
+): RememberedModel | undefined => {
+  try {
+    const value = JSON.parse(storage.getItem(LAST_MODEL_KEY) || "");
+    if (value?.provider && value?.model && value?.effort) return value;
+  } catch {
+    /* absent/unavailable storage */
+  }
+  return undefined;
+};
+
 // Per-session composer text drafts: switching sessions and reloading this tab
 // keeps what you were typing (send/clear wipes it). sessionStorage is exactly
 // the intended lifetime: reload-safe but tab-local, so two tabs editing the same
