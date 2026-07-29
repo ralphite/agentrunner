@@ -573,14 +573,32 @@
      keeps nav labels near-black and gets contrast from a grey leading icon, not
      by dimming the label. So: label → `text-ink`, icon-only dimming via
      `[&>svg]:text-ink-2`; active then just bumps weight, no rest→active color jump. */
+  /* Sidebar typography measured off the Codex mock's own build
+     (app/dist/standalone.html): rows are 13.8px/20.7 at weight 400 with a
+     -0.09px tracking, and the leading glyph is 16px — not 17. A 17px icon
+     against 13px text is 1.31x the type size where Codex is 1.16x, which is
+     what read as "the icon isn't aligned": the boxes were centred to the
+     pixel, the icon was simply too big for the line it sits on. */
   .primary-nav button, .nav-row {
-    @apply flex h-[31px] items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink [&>svg]:text-ink-2 transition-colors duration-100;
+    @apply flex h-[31px] items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-3 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] font-normal text-ink [&>svg]:text-ink-2 transition-colors duration-100;
+  }
+  /* Codex nudges the leading glyph half a pixel above the row's centre (measured
+     off its own build: iconCenter - rowCenter = -0.5). Text sits optically low
+     in its line box, so an icon centred to the box reads as floating above the
+     word it labels. The glyph is wrapped in a 20x20 grid cell, so the nudge goes
+     on the wrapper — the svg is not a direct child. */
+  .primary-nav button > span:first-child,
+  .nav-row > span:first-child,
+  .project-heading > svg:first-child,
+  .project-heading-row > .project-heading > svg:first-child {
+    position: relative;
+    top: -0.5px;
   }
   .primary-nav button:hover, .nav-row:hover { box-shadow: inset 0 0 0 999px var(--ix-hover); }
   /* 2b: Codex's selected rail row does not change weight — the fill carries the
      state on its own. A 500→600 jump also nudges the row's text width, so the
      label shifts slightly the moment you select it. */
-  .primary-nav button.active { @apply bg-sel text-ink; }
+  .primary-nav button.active { @apply bg-sel text-ink font-normal; }
   .menu-kbd { @apply ml-auto rounded-[var(--radius-affordance)] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
@@ -600,7 +618,7 @@
      leans on the folder icon (not size) for hierarchy — exactly what the r47
      hierarchy. Match the 13px session size. */
   .project-heading {
-    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:text-ink;
+    @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-[13.8px] leading-[20.7px] font-medium normal-case tracking-[-0.09px] text-ink transition-colors duration-100 hover:text-ink;
   }
   /* Match session rows: one wrapper paints the heading and both trailing
      actions, so hover/focus never stops before the icons. */
@@ -671,7 +689,7 @@
   }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
+    @apply flex min-h-[31px] min-w-0 flex-1 self-stretch items-center gap-[6px] rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-0 text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] text-ink transition-colors duration-100 hover:text-ink;
   }
   .project-session:focus-visible { @apply outline-none; }
   .project-session-wrap:has(:focus-visible) {
@@ -683,49 +701,26 @@
      readable without a tooltip. The walk is one-way and snaps back instantly on
      leave (Codex has no return animation). Under prefers-reduced-motion the
      mask still applies and only the movement is dropped. */
-  /* m1 (regression from T14): the fade was unconditional, so titles that fit
-     comfortably still had their last glyph eaten and looked mis-rendered. The
-     mask is now applied only by the row script, which measures overflow first.
-     M14 (regression from T23): the walk also needs a LEFT fade — without it the
-     text was sheared mid-glyph on the way out, and the tail it was walking to
-     stayed half-transparent under the right fade once it arrived. */
-  .project-session-title {
-    @apply min-w-0 flex-1 overflow-hidden whitespace-nowrap;
-  }
-  .project-session-title[data-overflow] {
-    mask-image: linear-gradient(to right, transparent 0, #000 var(--title-lead, 0px), #000 calc(100% - 25px), transparent calc(100% - 13px));
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--title-lead, 0px), #000 calc(100% - 25px), transparent calc(100% - 13px));
-  }
-  /* --title-shift is written by the row on mouse-enter: how far the text
-     overflows, which CSS has no way to measure. Absent it, the rule is inert. */
-  @media (hover: hover) {
-    .project-session-wrap:hover .project-session-title[data-overflow] {
-      text-indent: calc(var(--title-shift, 0px) * -1);
-      transition: text-indent 2s ease-in-out;
-      --title-lead: 12px;
-    }
-  }
-  /* The selected row trades the fade for a real ellipsis: it also carries the
-     worktree/branch glyph, and a faded title would bleed into that icon. */
-  .project-session-wrap.current .project-session-title,
-  .project-session-wrap.current .project-session-title[data-overflow] {
-    @apply text-ellipsis;
-    mask-image: none;
-    -webkit-mask-image: none;
-  }
-  :root[data-reduce-motion] .project-session-wrap:hover .project-session-title {
-    text-indent: 0;
-  }
+  /* Session titles truncate with a plain ellipsis. A previous pass gave them a
+     Codex-style fade plus a hover marquee that walked the text to reveal its
+     tail; both were reverted — they changed how the row BEHAVES (and needed a
+     JS measurement hook in the row's mouseenter to work at all), which is not
+     something a visual alignment pass should be doing. The full title is still
+     available from the row's native tooltip. */
+  .project-session-title { @apply min-w-0 flex-1 truncate; }
+
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
   .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
   .session-loading-icon { @apply shrink-0; }
-  /* m5: revealing the actions on hover stole 32px from the title, so every row's
-     text jumped sideways under the cursor. Reserve the slot; only reveal the ink. */
-  .session-quick-actions { @apply invisible inline-flex shrink-0 items-center gap-[2px] pr-1; }
+  /* Reverted: reserving this slot cost every row 32px of title at rest. Codex
+     narrows the title on hover too (SidebarBrowse `width: hovered ? 163 : 224`)
+     — the text never moves, only the clip point does, so there was nothing to
+     fix and the "fix" was strictly worse. */
+  .session-quick-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .project-session-wrap:hover .session-quick-actions,
   .project-session-wrap.pseudo-hover .session-quick-actions,
   .pseudo-hover .session-quick-actions,
-  .project-session-wrap:focus-within .session-quick-actions { @apply visible; }
+  .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
   /* R1+M11: LifecycleStatus ships `!h-auto !w-auto !rounded-none !bg-transparent`,
      which erased this rule wherever the sidebar used it — the same class and the
      same title rendered as a 13px amber warning glyph in the rail and a 7px dot
@@ -739,8 +734,10 @@
   .status-count {
     @apply inline-grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-status-attention px-1 text-[10px] font-semibold leading-none text-white;
   }
+  /* Codex renders these at the same 13.8px as the rows they extend, one tone
+     lighter (#9f9e9e) — not a size step down. */
   .show-more, .archive-toggle, .projects-show-more {
-    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[12px] text-dim transition-colors duration-100 hover:text-ink;
+    @apply mt-1 flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[6px] text-left text-[13.8px] leading-[20.7px] tracking-[-0.09px] text-dim transition-colors duration-100 hover:text-ink;
   }
   /* This control expands sessions *inside* one project, so its text follows
      the nested session label — not the project heading. */

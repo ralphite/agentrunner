@@ -598,7 +598,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
           >
             <span className="inline-grid h-5 w-5 shrink-0 place-items-center">
-              <DestIcon size={17} weight="regular" />
+              <DestIcon size={16} weight="regular" />
             </span>
             <span className="leading-5">{label}</span>
             {key === "scheduled" && (schedUnread.length > 0 || runningRuns > 0) && (

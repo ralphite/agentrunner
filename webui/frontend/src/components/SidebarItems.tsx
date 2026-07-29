@@ -86,27 +86,7 @@ export function SidebarSessionItem({
           onOpenContext(event.clientX, event.clientY, returnFocus);
         }
       }}
-      onMouseEnter={(event) => {
-        // T23 marquee: CSS can style the walk but cannot measure how far the
-        // title overflows, so hand it the distance here. Publishing nothing when
-        // the title already fits leaves the CSS rule inert for short rows.
-        const label = event.currentTarget.querySelector<HTMLElement>(
-          ".project-session-title",
-        );
-        if (label) {
-          const overflow = label.scrollWidth - label.clientWidth;
-          if (overflow > 1) {
-            // The fade mask and the walk are both gated on this attribute: an
-            // unconditional mask ate the last glyph of titles that fit fine.
-            label.dataset.overflow = "";
-            label.style.setProperty("--title-shift", `${overflow}px`);
-          } else {
-            delete label.dataset.overflow;
-            label.style.removeProperty("--title-shift");
-          }
-        }
-        onPreview(event.currentTarget.getBoundingClientRect().top);
-      }}
+      onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
       onMouseLeave={onPreviewEnd}
     >
       <button
