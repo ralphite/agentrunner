@@ -14,6 +14,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 )
@@ -988,8 +989,12 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// The mode transition is folded from exit_plan_mode's OWN completion
 		// so it is atomic — a crash can never leave the tool result saying
 		// "now in default mode" while s.Mode is still "plan" (correctness
-		// review #2). The gate already guarantees this only fires from plan.
-		if inFlight && started.Name == "exit_plan_mode" && !p.IsError {
+		// review #2). This is the agent half of the 3.6c table and its only
+		// production caller: an agent may reach default this way and no other
+		// way, which is what `ValidTransition` states. (The user half is open
+		// and lives on the control path, `agent.applyModeControl`.)
+		if inFlight && started.Name == "exit_plan_mode" && !p.IsError &&
+			pipeline.ValidTransition(s.CurrentMode(), pipeline.ModeDefault) {
 			s.Mode = ""
 		}
 

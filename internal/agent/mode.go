@@ -22,13 +22,18 @@ func modePromptSuffix(mode string) string {
 
 // applyModeControl is the user-command mode transition (INC-42, G29) — the
 // third trigger in {startup, approved exit_plan_mode, user command}. Validity
-// is the 3.6c table narrowed to user sovereignty over approvals only:
-// default↔acceptEdits. Bypass stays a process-start choice, and leaving plan
-// stays exit_plan_mode's approval flow even though the table would allow
-// plan→default (widening that is a separate ruling, not a side effect here).
+// is the 3.6c table's user half (pipeline.ValidUserTransition): any known mode,
+// at any time, including entering and leaving plan and switching bypass on or
+// off. The approval posture is the supervising human's control panel; the gate
+// is there to stop the *agent* widening its own posture, which the agent half
+// of the table (ValidTransition, reached only through an approved
+// exit_plan_mode) still does.
+//
 // The permitted face follows automatically — effects carry the live fold mode
-// (PermissionGate.effectiveMode) — and neither side of default↔acceptEdits
-// differs in advertised face or prompt suffix, so the prefix stays stable.
+// (PermissionGate.effectiveMode). Entering or leaving plan also moves the
+// prompt's mode suffix, which breaks the prefix cache: exactly the cost
+// decision #10 already accepts for an explicit transition, now simply
+// available more often. The advertised face stays session-stable either way.
 func (l *Loop) applyModeControl(ds *driveState, appendE AppendFunc, ctl protocol.Control) error {
 	from := ds.s.CurrentMode()
 	target := ctl.Directive
@@ -37,9 +42,7 @@ func (l *Loop) applyModeControl(ds *driveState, appendE AppendFunc, ctl protocol
 		return l.rejectModeControl(appendE, ctl, "unknown mode "+strconv.Quote(target))
 	case target == from:
 		return nil // idempotent re-request → the generic no_op receipt
-	case from == pipeline.ModePlan:
-		return l.rejectModeControl(appendE, ctl, "leave plan mode via exit_plan_mode approval")
-	case !pipeline.ValidTransition(from, target):
+	case !pipeline.ValidUserTransition(from, target):
 		return l.rejectModeControl(appendE, ctl, from+" → "+target+" is not a valid runtime transition")
 	}
 	if _, err := appendE(event.TypeModeChanged, &event.ModeChanged{

@@ -36,7 +36,6 @@ import {
   agentLabel,
   EFFORT_LEVELS,
   MODELS,
-  runtimeModeTarget,
   type AccessId,
   type EffortId,
 } from "../../specs";
@@ -840,10 +839,7 @@ export interface AccessPickerProps {
   risk?: string;
   triggerRef?: Ref<HTMLButtonElement>;
   onHomeSelect?: (access: AccessId, close: () => void) => void;
-  onSessionSelect?: (
-    target: "default" | "acceptEdits",
-    close: () => void,
-  ) => void;
+  onSessionSelect?: (access: AccessId, close: () => void) => void;
 }
 
 export function AccessPicker({
@@ -875,7 +871,7 @@ export function AccessPicker({
           title={
             session
               ? active
-                ? "The session's live approval mode — click to switch Ask ↔ Auto-accept edits"
+                ? "The session's live approval mode — click to switch"
                 : "This session's approval posture comes from its spec"
               : "How the agent's actions are approved"
           }
@@ -900,37 +896,25 @@ export function AccessPicker({
                 : "How should actions be approved?"
             }
           >
-            {ACCESS_LEVELS.map((item) => {
-              const target = runtimeModeTarget(item.id);
-              const desc =
-                session && item.id === "full"
-                  ? "Set at launch — mid-session switching only toggles Ask ↔ Auto-accept edits"
-                  : session && item.id === "plan"
-                    ? "Plan mode exits through an approval, not this switch"
-                    : item.desc;
-              return (
-                <PopItem
-                  key={item.id}
-                  icon={<AccessIcon id={item.id} risk={item.risk} />}
-                  title={item.label}
-                  desc={desc}
-                  active={active === item.id}
-                  disabled={session && target === null}
-                  onClick={
-                    session
-                      ? target
-                        ? () => onSessionSelect?.(target, close)
-                        : undefined
-                      : () => onHomeSelect?.(item.id, close)
-                  }
-                />
-              );
-            })}
+            {ACCESS_LEVELS.map((item) => (
+              <PopItem
+                key={item.id}
+                icon={<AccessIcon id={item.id} risk={item.risk} />}
+                title={item.label}
+                desc={item.desc}
+                active={active === item.id}
+                onClick={
+                  session
+                    ? () => onSessionSelect?.(item.id, close)
+                    : () => onHomeSelect?.(item.id, close)
+                }
+              />
+            ))}
           </PopSection>
           <div className="cx-pop-note">
             {session
-              ? "Approvals still surface here whenever a gate asks. Full access and Plan are fixed once the session starts."
-              : "Approvals still surface here whenever a gate asks; the posture is fixed once the session starts."}
+              ? "Approvals still surface here whenever a gate asks. A switch takes effect from your next message."
+              : "Approvals still surface here whenever a gate asks; you can change this at any time."}
           </div>
         </div>
       )}

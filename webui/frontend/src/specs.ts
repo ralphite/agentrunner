@@ -73,10 +73,14 @@ export function accessById(id: string): AccessLevel {
   return ACCESS_LEVELS.find((a) => a.id === id) || ACCESS_LEVELS[0];
 }
 
-export function runtimeModeTarget(id: AccessId): "default" | "acceptEdits" | null {
-  if (id === "ask") return "default";
+// The runtime mode each posture runs under. `ask` and `full` share `default`:
+// what separates them is the spec's permissions block, not the mode — so
+// switching between them mid-session means rewriting the spec (see
+// `chooseSessionAccess`), and every posture is reachable at any time.
+export function runtimeModeTarget(id: AccessId): "default" | "acceptEdits" | "plan" {
   if (id === "acceptEdits") return "acceptEdits";
-  return null;
+  if (id === "plan") return "plan";
+  return "default";
 }
 
 function permissionsBlock(access: AccessId): string {

@@ -40,28 +40,47 @@ func TestAdvertisedToolsByMode(t *testing.T) {
 	}
 }
 
-// 3.6c: the transition rule table.
+// 3.6c: the transition rule table, split by who asks. The agent half stays
+// narrow — an agent may never widen its own posture — while the user half is
+// open, because the approval posture is the supervising human's control panel.
 func TestModeTransitionTable(t *testing.T) {
-	allowed := [][2]string{
-		{pipeline.ModePlan, pipeline.ModeDefault},
-		{pipeline.ModeDefault, pipeline.ModeAcceptEdits},
-		{pipeline.ModeAcceptEdits, pipeline.ModeDefault},
+	agentAllowed := [][2]string{
+		{pipeline.ModePlan, pipeline.ModeDefault}, // approved exit_plan_mode
 	}
-	denied := [][2]string{
+	agentDenied := [][2]string{
 		{pipeline.ModeDefault, pipeline.ModePlan},
 		{pipeline.ModeDefault, pipeline.ModeBypass},
+		{pipeline.ModeDefault, pipeline.ModeAcceptEdits},
 		{pipeline.ModePlan, pipeline.ModeBypass},
 		{pipeline.ModeBypass, pipeline.ModeDefault},
 	}
-	for _, tr := range allowed {
+	for _, tr := range agentAllowed {
 		if !pipeline.ValidTransition(tr[0], tr[1]) {
-			t.Errorf("%s → %s must be allowed", tr[0], tr[1])
+			t.Errorf("agent %s → %s must be allowed", tr[0], tr[1])
 		}
 	}
-	for _, tr := range denied {
+	for _, tr := range agentDenied {
 		if pipeline.ValidTransition(tr[0], tr[1]) {
-			t.Errorf("%s → %s must be denied", tr[0], tr[1])
+			t.Errorf("agent %s → %s must be denied", tr[0], tr[1])
 		}
+	}
+
+	userAllowed := [][2]string{
+		{pipeline.ModeDefault, pipeline.ModeAcceptEdits},
+		{pipeline.ModeAcceptEdits, pipeline.ModeDefault},
+		{pipeline.ModeDefault, pipeline.ModePlan},
+		{pipeline.ModePlan, pipeline.ModeDefault},
+		{pipeline.ModeDefault, pipeline.ModeBypass},
+		{pipeline.ModeBypass, pipeline.ModeDefault},
+		{pipeline.ModePlan, pipeline.ModeBypass},
+	}
+	for _, tr := range userAllowed {
+		if !pipeline.ValidUserTransition(tr[0], tr[1]) {
+			t.Errorf("user %s → %s must be allowed", tr[0], tr[1])
+		}
+	}
+	if pipeline.ValidUserTransition(pipeline.ModeDefault, "nonsense") {
+		t.Error("an unknown mode must stay rejected even for a user command")
 	}
 }
 

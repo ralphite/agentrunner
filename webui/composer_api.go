@@ -78,11 +78,11 @@ func (s *server) handleClear(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleMode switches the session's permission mode at its next safe boundary
-// (INC-42, G29): `ar mode <sid> <default|acceptEdits>`. Exposed to the
-// composer as the /mode slash command. Runtime switching covers the
-// user-sovereignty pair only — plan exits via exit_plan_mode approval and
-// bypass is a start-time choice — and the loop owns final validity; this
-// handler pre-rejects only the obviously invalid.
+// (INC-42, G29): `ar mode <sid> <default|plan|acceptEdits|bypass>`. Exposed to
+// the composer as the approval-mode pill and the /mode slash command. Every
+// known mode is reachable at any time — the posture is the supervising user's
+// control panel (3.6c user half, LOG 2026-07-29) — and the loop owns final
+// validity; this handler pre-rejects only the obviously invalid.
 func (s *server) handleMode(w http.ResponseWriter, r *http.Request) {
 	id, ok := sid(w, r)
 	if !ok {
@@ -95,8 +95,8 @@ func (s *server) handleMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := strings.TrimSpace(req.Mode)
-	if m != "default" && m != "acceptEdits" {
-		badRequest(w, "mode must be default|acceptEdits (plan and bypass are start-time choices)")
+	if m != "default" && m != "plan" && m != "acceptEdits" && m != "bypass" {
+		badRequest(w, "mode must be default|plan|acceptEdits|bypass")
 		return
 	}
 	res := s.runAR(r.Context(), oneShotTimeout, "mode", id, m)

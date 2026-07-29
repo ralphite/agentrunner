@@ -19,6 +19,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -659,13 +660,13 @@ func titleCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 // modeCmd switches a session's permission mode at its next safe boundary
-// (INC-42, G29): `agentrunner mode <session> <default|acceptEdits>`. Runtime
-// switching covers the user-sovereignty pair only — plan exits via the
-// exit_plan_mode approval flow and bypass stays a process-start choice — so
-// anything else is rejected here before a command is even sent.
+// (INC-42, G29): `agentrunner mode <session> <default|plan|acceptEdits|bypass>`.
+// Every known mode is reachable at any time — the posture is the supervising
+// user's control panel. The narrow half of the 3.6c table still applies to the
+// agent, which can only reach default through an approved exit_plan_mode.
 func modeCmd(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 || (args[1] != "default" && args[1] != "acceptEdits") {
-		fmt.Fprintln(stderr, "usage: agentrunner mode <session-id-or-prefix> <default|acceptEdits>\n(plan and bypass are start-time choices: spec `mode:` or --mode)")
+	if len(args) != 2 || !pipeline.ValidMode(args[1]) {
+		fmt.Fprintln(stderr, "usage: agentrunner mode <session-id-or-prefix> <default|plan|acceptEdits|bypass>")
 		return ExitUsage
 	}
 	cmd := daemon.Command{Cmd: "mode", Session: resolvePrefixLenient(args[0]), Directive: args[1]}

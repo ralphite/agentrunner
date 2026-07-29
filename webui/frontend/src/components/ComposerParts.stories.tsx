@@ -1115,8 +1115,8 @@ function AccessHarness({
           setActive(next);
           close();
         }}
-        onSessionSelect={(target, close) => {
-          setActive(target === "default" ? "ask" : "acceptEdits");
+        onSessionSelect={(next, close) => {
+          setActive(next);
           close();
         }}
       />

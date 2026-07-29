@@ -183,22 +183,19 @@ func TestModeControlSwitchBack(t *testing.T) {
 	}
 }
 
-// Invalid targets never transition and answer with an explicit rejected
-// receipt: bypass (start-only), unknown names, and any switch out of plan
-// (approval-gated via exit_plan_mode, not user command).
-func TestModeControlRejectsInvalid(t *testing.T) {
+// Only a name the gate does not know is rejected. Every mode a user can name
+// is reachable; what stays gated is the *agent* widening its own posture,
+// which never travels this path.
+func TestModeControlRejectsUnknownMode(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "ready"}, {Finish: "end_turn"}}},
 	}}
 	_, es, inbox, controls, done := modeControlLoop(t, fix, "")
 
 	waitForEvent(t, es, event.TypeAssistantMessage, 1)
-	controls <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-bypass", CommandSeq: 1},
-		Kind: protocol.ControlMode, Directive: pipeline.ModeBypass}
-	waitForEvent(t, es, event.TypeCommandHandled, 1)
-	controls <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-nonsense", CommandSeq: 2},
+	controls <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-nonsense", CommandSeq: 1},
 		Kind: protocol.ControlMode, Directive: "yolo"}
-	waitForEvent(t, es, event.TypeCommandHandled, 2)
+	waitForEvent(t, es, event.TypeCommandHandled, 1)
 
 	close(inbox)
 	if err := <-done; err != nil {
@@ -206,7 +203,7 @@ func TestModeControlRejectsInvalid(t *testing.T) {
 	}
 
 	if n := len(modeChanges(t, es.Dir())); n != 0 {
-		t.Fatalf("invalid controls produced %d ModeChanged events, want 0", n)
+		t.Fatalf("an unknown mode produced %d ModeChanged events, want 0", n)
 	}
 	if m := foldMode(t, es.Dir()); m != pipeline.ModeDefault {
 		t.Errorf("folded mode = %q, want default", m)
@@ -223,14 +220,40 @@ func TestModeControlRejectsInvalid(t *testing.T) {
 		}
 		results = append(results, dec.(*event.CommandHandled).Result)
 	}
-	if len(results) != 2 || !strings.Contains(results[0], "rejected") ||
-		!strings.Contains(results[0], "not a valid runtime transition") ||
-		!strings.Contains(results[1], "rejected") || !strings.Contains(results[1], "unknown mode") {
-		t.Fatalf("receipts = %q, want two explicit rejections", results)
+	if len(results) != 1 || !strings.Contains(results[0], "rejected") ||
+		!strings.Contains(results[0], "unknown mode") {
+		t.Fatalf("receipts = %q, want one explicit unknown-mode rejection", results)
+	}
+}
+
+// The approval posture is the supervising user's control panel: bypass is
+// reachable mid-session, and a user command may leave plan without waiting for
+// the agent to ask through exit_plan_mode.
+func TestModeControlUserReachesBypassAndLeavesPlan(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "ready"}, {Finish: "end_turn"}}},
+	}}
+	_, es, inbox, controls, done := modeControlLoop(t, fix, "")
+
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-bypass", CommandSeq: 1},
+		Kind: protocol.ControlMode, Directive: pipeline.ModeBypass}
+	waitForEvent(t, es, event.TypeModeChanged, 1)
+
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 
-	// Plan mode: user command may not leave plan — that is exit_plan_mode's
-	// approval flow.
+	mcs := modeChanges(t, es.Dir())
+	if len(mcs) != 1 || mcs[0].To != pipeline.ModeBypass || mcs[0].Cause != "user" {
+		t.Fatalf("mode changes = %+v, want one user→bypass", mcs)
+	}
+	if m := foldMode(t, es.Dir()); m != pipeline.ModeBypass {
+		t.Errorf("folded mode = %q, want bypass", m)
+	}
+
+	// Leaving plan by user command — no exit_plan_mode approval in the way.
 	planFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "planning"}, {Finish: "end_turn"}}},
 	}}
@@ -238,23 +261,18 @@ func TestModeControlRejectsInvalid(t *testing.T) {
 	waitForEvent(t, es2, event.TypeAssistantMessage, 1)
 	controls2 <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-plan", CommandSeq: 1},
 		Kind: protocol.ControlMode, Directive: pipeline.ModeDefault}
-	waitForEvent(t, es2, event.TypeCommandHandled, 1)
+	waitForEvent(t, es2, event.TypeModeChanged, 2) // startup(plan) + user(default)
 	close(inbox2)
 	if err := <-done2; err != nil {
 		t.Fatal(err)
 	}
-	if m := foldMode(t, es2.Dir()); m != pipeline.ModePlan {
-		t.Errorf("plan session folded mode = %q, want plan", m)
+	if m := foldMode(t, es2.Dir()); m != pipeline.ModeDefault {
+		t.Errorf("plan session folded mode = %q, want default", m)
 	}
-	evs2, _ := store.ReadEvents(es2.Dir())
-	for _, e := range evs2 {
-		if e.Type != event.TypeCommandHandled {
-			continue
-		}
-		dec, _ := event.DecodePayload(e)
-		if r := dec.(*event.CommandHandled).Result; !strings.Contains(r, "exit_plan_mode") {
-			t.Errorf("plan rejection receipt = %q, want exit_plan_mode pointer", r)
-		}
+	planChanges := modeChanges(t, es2.Dir())
+	last := planChanges[len(planChanges)-1]
+	if last.To != pipeline.ModeDefault || last.Cause != "user" {
+		t.Fatalf("last plan-session mode change = %+v, want user→default", last)
 	}
 }
 

@@ -19,6 +19,7 @@ import {
   MODELS,
   modelById,
   personaFromSpec,
+  runtimeModeTarget,
   type AccessId,
   type EffortId,
 } from "../../specs";
@@ -1014,11 +1015,34 @@ export function Composer(props: ComposerProps) {
   // ControlMode commands, live folds, rejected receipts and toasts. The toast
   // is a delivery ack only — a busy session applies the switch at the next safe
   // boundary and the timeline chip (accepted) or rejected receipt is the truth.
-  const switchMode = async (target: "default" | "acceptEdits") => {
+  const switchMode = async (target: "default" | "acceptEdits" | "plan" | "bypass") => {
     const sid = (props as any).sid as string;
     try {
       await api.mode(sid, target);
       toast("Mode change requested — the timeline shows the outcome", "info");
+    } catch (e: any) {
+      props.onError(e.message);
+    }
+  };
+
+  // Switching a live session's approval posture is two moves, because a
+  // posture is two things: the spec's permissions block (all that separates
+  // Full access from Ask — both run under the `default` mode) and the runtime
+  // mode (what makes Auto-accept edits and Plan different). Sending only the
+  // mode command used to leave a session launched at Full access still
+  // ungated after "switching" to Ask, which is why those rows were disabled
+  // rather than fixed. Do both, spec first, so the posture the pill claims is
+  // the posture that gates the next message.
+  const chooseSessionAccess = async (id: AccessId, close: () => void) => {
+    close();
+    const sid = (props as any).sid as string;
+    try {
+      const agent = await requireSelectedAgent();
+      const spec = buildSpec({ agent, access: id });
+      await api.switchAgent(sid, spec, [], { provider, model, effort });
+      rememberSpec(sid, spec, storage.local);
+      rememberAccess(sid, id, storage.local);
+      await switchMode(runtimeModeTarget(id));
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -1552,10 +1576,7 @@ export function Composer(props: ComposerProps) {
           : accessLevel?.risk || "low",
         triggerRef: !isSession ? homeAccessTriggerRef : undefined,
         onHomeSelect: chooseHomeAccess,
-        onSessionSelect: (target, close) => {
-          switchMode(target);
-          close();
-        },
+        onSessionSelect: chooseSessionAccess,
       }}
       goalOptions={
         goalMode

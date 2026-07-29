@@ -10,13 +10,26 @@ import {
 } from "./specs";
 
 describe("runtimeModeTarget", () => {
-  it("maps only the daemon-supported runtime transitions", () => {
+  it("maps every posture to a runtime mode, with Ask and Full sharing default", () => {
+    // Ask and Full both run under `default` — the permissions block in the
+    // spec is what separates them, so a switch between the two is a spec
+    // rewrite, not a mode command. Every posture is reachable at any time.
     expect(runtimeModeTarget("ask")).toBe("default");
+    expect(runtimeModeTarget("full")).toBe("default");
     expect(runtimeModeTarget("acceptEdits")).toBe("acceptEdits");
-    expect(runtimeModeTarget("full")).toBeNull();
-    expect(runtimeModeTarget("plan")).toBeNull();
-    expect(ACCESS_LEVELS.filter((a) => runtimeModeTarget(a.id) !== null).map((a) => a.id))
-      .toEqual(["ask", "acceptEdits"]);
+    expect(runtimeModeTarget("plan")).toBe("plan");
+    expect(ACCESS_LEVELS.every((a) => runtimeModeTarget(a.id) !== null)).toBe(true);
+  });
+
+  it("gives Full and Ask different permissions so the shared mode still gates differently", () => {
+    const agent: AgentCatalogEntry = {
+      name: "dev",
+      description: "d",
+      source: "shipped",
+      yaml: "name: dev\nsystem_prompt: p\ntools: []\npermissions:\n  - { action: ask }\n",
+    };
+    expect(buildSpec({ agent, access: "full" })).toContain("{ action: allow }");
+    expect(buildSpec({ agent, access: "ask" })).toContain("{ action: ask }");
   });
 });
 

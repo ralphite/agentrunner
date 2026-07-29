@@ -620,9 +620,16 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   随 mode 任意变、deny 拦截）；**advertised 面**（进 prefix 的 tools
   参数与目录）session 内稳定——否则每次进出 plan mode 都打爆
   tools 级缓存。`ExitPlanMode` 常驻 advertised 面。
-  **跃迁触发器三个**（3.6c 表是唯一裁决）：startup（spec/CLI 设定）、
+  **跃迁触发器三个**（3.6c 表是唯一裁决，**表按发起方分两半**，
+  2026-07-29 修订，见 LOG 同日条）：startup（spec/CLI 设定）、
   exit_plan_mode 审批通过（plan→default，从工具自身完成事件原子 fold）、
-  mode control（user，default↔acceptEdits，INC-42——见 §12 control 家族）。
+  mode control（**user**，任意已知 mode 之间随时可切，含进出 plan 与
+  bypass，INC-42——见 §12 control 家族）。**agent 一侧仍窄**
+  （`ValidTransition`：只有审批通过的 exit_plan_mode），闸的作用是
+  拦 agent 自升权，不是把监督者锁在启动时的选择里
+  （`ValidUserTransition` 是用户一侧）。进出 plan 会动 mode suffix
+  从而打爆 prefix——正是决策 #10 已为"显式跃迁"接受的代价，
+  这里只是让它更常发生。
 - **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 的命令文本
   无法可靠映射成路径（一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
   **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），

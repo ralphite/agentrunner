@@ -7916,3 +7916,43 @@ Scheduled 点开进对话、sessions 投影、review 修复、G59 收编),另摘
 schedule runtime(INC-74)、goal、best-of-N、INC-85/86 修复不受影响。
 DESIGN 决策 #21 还原为 INC-102 前原文。重做设计稿 INC-103(设计先行,
 经用户评审后才实施)。
+
+---
+
+## 2026-07-29 · 3.6c 跃迁表按发起方分两半(不变量修订,用户裁决)
+
+**旧不变量原文**(DESIGN §3.6c):"**跃迁触发器三个**(3.6c 表是唯一裁决):
+startup(spec/CLI 设定)、exit_plan_mode 审批通过(plan→default)、
+mode control(user,**default↔acceptEdits**,INC-42)"。代码实现:
+`pipeline.ValidTransition` 只放行 plan→default 与 default↔acceptEdits;
+`agent.applyModeControl` 另有 `from == ModePlan` 硬拒(指向 exit_plan_mode);
+CLI `modeCmd` 白名单只收 default|acceptEdits;webui 把 Full access 与
+Plan 两行灰掉,文案写"fixed once the session starts"。
+
+**为什么必须动**:用户报 bug——"审批模式应随时可改"。审批闸的作用是拦
+**agent** 越权,不是拦**人**;把监督者锁在启动时的选择里,是把安全机制
+指错了方向。另有一个被这条不变量掩盖的实现漏洞:Full access 与 Ask 的
+区别根本不在 runtime mode(两者都跑 `default`),而在 spec 的 permissions
+块;原先会话内切 access 只发 mode 命令、不改 spec,所以一个以 Full access
+启动的会话"切到 Ask"后其实仍然全放行。灰掉那两行等于用 UI 掩盖了这个
+漏洞而不是修它。
+
+**新表述**:3.6c 表按发起方分两半。**agent 一侧**(`ValidTransition`)收窄
+到只剩审批通过的 exit_plan_mode——agent 永远不能自升权,这是闸的本体。
+**user 一侧**(`ValidUserTransition`)放开:任意已知 mode 之间随时可切,
+含进出 plan 与 bypass。未知 mode 名两侧都拒。
+
+**代价**:进出 plan 会动 mode suffix 从而打爆 prompt prefix 缓存。这正是
+决策 #10 已经为"显式跃迁"接受的代价(assembly.go 注释原文:"only the mode
+suffix moves, and only on an explicit mode transition (an accepted cache
+break, decision #10)"),本次不新增违反,只是让它更常发生。advertised 面
+仍 session 内稳定,双门第二道(permitted 面随 fold mode 变)照常收紧。
+
+**波及面**:`internal/pipeline/mode.go`(拆两个谓词)、
+`internal/agent/mode.go`(applyModeControl 改判据、去 plan 硬拒)、
+`internal/cli/conversation.go`(modeCmd 收全部四种)、
+`internal/agent/mode_test.go` 与 `mode_control_test.go`(旧断言钉的是旧
+不变量,按两半重写)、webui `specs.ts`(runtimeModeTarget 不再返回 null)、
+`api.ts`、`ComposerParts.tsx`(去 disabled 与"fixed once the session
+starts"文案)、`ComposerController.tsx`(新增 chooseSessionAccess:**先改
+spec permissions 再发 mode 命令**,补上上面那个漏洞)。
