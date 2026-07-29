@@ -466,9 +466,24 @@ func TestBashFailsClosedWithoutOSSandbox(t *testing.T) {
 	}
 }
 
+// Terminal parity does not depend on a sandbox backend: a machine with no
+// sandbox-exec/bwrap still runs bash (决策 #34 修订). Fail-closed guards the
+// containment a spec asked for, never the default.
+func TestBashRunsWithoutSandboxBackendByDefault(t *testing.T) {
+	e, _ := newExec(t)
+	e.ProbeSandbox = func(bool) error { return errors.New("sandbox disabled") }
+	out, isErr := run(t, e, "bash", `{"command":"echo parity-ok"}`)
+	if isErr || !strings.Contains(out["stdout"].(string), "parity-ok") {
+		t.Fatalf("default bash must not require a sandbox backend: %v", out)
+	}
+}
+
+// The OPT-IN filesystem=workspace boundary: reads outside the workspace and
+// credential-shaped files inside it are denied, and credential env is withheld.
 func TestBashFilesystemSandbox(t *testing.T) {
 	e, root := newExec(t)
 	t.Setenv("INC11_API_KEY", "ENV-SECRET")
+	e.ContainFilesystem()
 	if _, err := e.SandboxInfo(); err != nil {
 		t.Skipf("no OS sandbox backend here: %v", err)
 	}

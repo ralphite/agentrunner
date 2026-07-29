@@ -427,6 +427,9 @@ func (l *Loop) childExecutorFromJournal(dir, session string) (*tool.Executor, er
 		if l.Exec.NetworkContained() {
 			exec.ContainNetwork()
 		}
+		if l.Exec.FilesystemContained() {
+			exec.ContainFilesystem()
+		}
 		// Same seal inheritance as spawn: the revived child's spec must not
 		// re-decide the credential env face.
 		if names, sealed := l.Exec.EnvPassthroughSeal(); sealed {

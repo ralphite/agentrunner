@@ -111,9 +111,16 @@ type Executor struct {
 	// Network containment (S7 模块 5). The executor is shared down the agent
 	// tree, so containment is a RATCHET: any spec in the tree demanding
 	// network=none flips it for everyone, and nothing widens it back.
-	netNone       atomic.Bool
+	netNone atomic.Bool
+	// Filesystem containment is OPT-IN (决策 #34 修订, 2026-07-29). The default
+	// is TERMINAL PARITY: bash runs unwrapped with the operator's full
+	// environment and real HOME, because an agent whose shell cannot see
+	// gh/git/cloud credentials cannot do the work it was asked to do. A spec
+	// asking for sandbox.filesystem=workspace ratchets the whole tree into the
+	// OS boundary — same tighten-only rule as the network ratchet.
+	fsNone        atomic.Bool
 	sandboxMu     sync.Mutex
-	sandboxProbes map[bool]sandboxProbe
+	sandboxProbes map[sandboxKey]sandboxProbe
 	// ProbeSandbox injects a backend capability failure after the real
 	// platform probe (tests only).
 	ProbeSandbox func(networkNone bool) error
@@ -164,6 +171,16 @@ func (e *Executor) ContainNetwork() { e.netNone.Store(true) }
 
 // NetworkContained reports whether bash egress is removed.
 func (e *Executor) NetworkContained() bool { return e.netNone.Load() }
+
+// ContainFilesystem ratchets bash executions into the OS workspace boundary
+// (isolated HOME/TMP, credential-path denial). Opt-in per 决策 #34 修订 and
+// irreversible for the executor's lifetime — a child spec can tighten the
+// whole tree, never widen it back.
+func (e *Executor) ContainFilesystem() { e.fsNone.Store(true) }
+
+// FilesystemContained reports whether bash runs inside the workspace-bounded
+// OS sandbox instead of with terminal parity.
+func (e *Executor) FilesystemContained() bool { return e.fsNone.Load() }
 
 // SetBlobs injects the media-read CAS (INC-33). First set wins: the executor
 // is shared down the agent tree and every member injects the same tree-root

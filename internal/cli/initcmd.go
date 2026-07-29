@@ -45,11 +45,17 @@ permissions:
 # agents: [worker]              # sibling worker.yaml specs allowed to spawn
 # agents_dynamic: true          # also allow inline role definitions
 # agent_workspace: isolated     # isolated (default) | shared
-# sandbox:
+# sandbox:                      # default: terminal parity — bash inherits your
+#                               # full env and real HOME, so gh/git/cloud auth
+#                               # works as in a shell you opened yourself
 #   network: none               # remove bash egress (a ratchet: children can never widen it)
-#   env_passthrough: [GEMINI_API_KEY]  # credential env vars bash/hooks may see
-#                               # (default: every *_API_KEY/_TOKEN/_SECRET is withheld;
-#                               #  the tool result lists what was withheld by name)
+#   filesystem: workspace       # opt into the OS workspace boundary: isolated
+#                               # HOME/TMP, credential paths denied, no reads
+#                               # outside the workspace (also a ratchet)
+#   env_passthrough: [GEMINI_API_KEY]  # under filesystem: workspace, the credential
+#                               # env vars bash may still see (there every
+#                               #  *_API_KEY/_TOKEN/_SECRET is withheld and the
+#                               #  tool result lists what was withheld by name)
 
 # MCP servers are connected automatically in run/resume/daemon/driver paths.
 # Secrets are referenced by environment-variable NAME, never embedded here.

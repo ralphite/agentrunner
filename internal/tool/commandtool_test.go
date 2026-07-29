@@ -67,10 +67,13 @@ func TestRunCommandToolExitCode(t *testing.T) {
 	}
 }
 
-// Fail closed: with no OS sandbox backend, a command tool refuses to run —
-// the same hard boundary bash enforces (决策 #34). No user command executes.
+// Fail closed for the containment a spec ASKED for: once filesystem=workspace
+// is ratcheted, a missing OS sandbox backend makes a command tool refuse to
+// run — the same hard boundary bash enforces (决策 #34, 修订: the gate now
+// guards the opt-in, not the default).
 func TestRunCommandToolFailsClosedWithoutSandbox(t *testing.T) {
 	e, _ := newExec(t)
+	e.ContainFilesystem()
 	e.ProbeSandbox = func(bool) error { return errors.New("sandbox disabled") }
 	res := e.RunCommandTool(context.Background(), "echo should-not-run", nil)
 	if !res.IsError {

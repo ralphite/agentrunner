@@ -13,8 +13,14 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
+// Fail-closed guards the containment a spec ASKED for (决策 #34 修订): with
+// filesystem=workspace ratcheted, a missing backend denies before any
+// activity starts. Without the opt-in, bash runs with terminal parity and
+// needs no backend at all.
 func TestSandboxCapabilityMissingDeniesBeforeActivity(t *testing.T) {
 	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	l.Spec.Sandbox.Filesystem = "workspace"
+	l.applySandbox()
 	l.Exec.ProbeSandbox = func(bool) error { return errors.New("backend disabled") }
 	ds := &driveState{s: state.State{}}
 	outcome, allowed, err := l.adjudicate(context.Background(), ds, l.appender(ds), pipeline.Effect{
@@ -33,8 +39,11 @@ func TestSandboxCapabilityMissingDeniesBeforeActivity(t *testing.T) {
 	}
 }
 
-// INC-11.3 e2e: sandbox.network=none contains bash in the platform OS sandbox, and the
-// journal's EffectResolved records the containment actually in force.
+// INC-11.3 e2e: sandbox.network=none removes bash egress via the platform OS
+// sandbox, and the journal's EffectResolved records the containment actually
+// in force. Since 决策 #34 修订 the two dimensions are independent, so the
+// filesystem stamp stays "host" — the network ratchet no longer drags
+// credential isolation along with it.
 func TestSandboxNetworkNoneEndToEnd(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -82,9 +91,9 @@ func TestSandboxNetworkNoneEndToEnd(t *testing.T) {
 	if resolved == nil {
 		t.Fatal("no EffectResolved for the bash call")
 	}
-	if resolved.Containment == nil || resolved.Containment.Filesystem != "workspace" ||
+	if resolved.Containment == nil || resolved.Containment.Filesystem != "host" ||
 		resolved.Containment.Network != "none" || resolved.Containment.Backend == "" {
-		t.Errorf("containment = %+v, want workspace + network none", resolved.Containment)
+		t.Errorf("containment = %+v, want host filesystem + network none", resolved.Containment)
 	}
 
 	// The command really ran behind the recorded boundary.
@@ -176,8 +185,8 @@ func TestMCPToolsStayOutsideContainment(t *testing.T) {
 		t.Errorf("mcp containment = %+v, want nil (journal must not over-claim)", c)
 	}
 	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
-		ToolName: "bash"}); c == nil || c.Filesystem != "workspace" || c.Backend == "" {
-		t.Errorf("bash containment = %+v, want workspace OS sandbox", c)
+		ToolName: "bash"}); c == nil || c.Network != "none" || c.Backend == "" {
+		t.Errorf("bash containment = %+v, want a real OS-sandbox stamp with network none", c)
 	}
 	ds := &driveState{s: state.New()}
 	outcome, allowed, err := l.adjudicate(context.Background(), ds, l.appender(ds), pipeline.Effect{

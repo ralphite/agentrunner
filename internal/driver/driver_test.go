@@ -1602,7 +1602,10 @@ func TestVerifierActivityTrace(t *testing.T) {
 			resolved := decoded.(*event.EffectResolved)
 			if resolved.Verdict == event.VerdictAllow {
 				resolvedAllow++
-				if resolved.Containment != nil && resolved.Containment.Filesystem == "workspace" && resolved.Containment.Backend != "" {
+				// Terminal parity is the default (决策 #34 修订), so the
+				// honest stamp is host/none — the evidence must still be
+				// there, it must just not over-claim containment.
+				if resolved.Containment != nil && resolved.Containment.Filesystem == "host" && resolved.Containment.Backend != "" {
 					contained++
 				}
 			}
@@ -1631,6 +1634,9 @@ func TestVerifierSandboxCapabilityMissingFailsClosed(t *testing.T) {
 		Name: "goal", Prompt: "check", MaxIterations: 1,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	}, child)
+	// Opt into the workspace boundary: fail-closed guards the containment the
+	// operator asked for, not the terminal-parity default (决策 #34 修订).
+	d.Exec.ContainFilesystem()
 	d.Exec.ProbeSandbox = func(bool) error { return errors.New("disabled") }
 	if _, err := d.Run(context.Background()); err != nil {
 		t.Fatal(err)

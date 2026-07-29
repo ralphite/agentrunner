@@ -11,15 +11,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/pipeline"
-	"github.com/ralphite/agentrunner/internal/redact"
 )
 
 // DefaultTimeout bounds each hook process.
@@ -37,23 +34,6 @@ type Runner struct {
 	Lifecycle map[string][]string
 	Dir       string        // working directory (workspace root)
 	Timeout   time.Duration // 0 = DefaultTimeout
-	// Credential env passthrough (audit-0718 P0-2), sealed first-wins by the
-	// root loop before any hook fires — same face as the bash sandbox. Plain
-	// fields, no lock: the Runner is struct-copied for children (spawn), and
-	// the single seal happens at loop entry before any concurrent use.
-	envPassthrough []string
-	envSealed      bool
-}
-
-// SealEnvPassthrough fixes the credential env vars hooks may see. The first
-// seal wins; a child loop re-applying its own spec is a no-op (a copied
-// child Runner inherits the parent's seal).
-func (r *Runner) SealEnvPassthrough(names []string) {
-	if r.envSealed {
-		return
-	}
-	r.envSealed = true
-	r.envPassthrough = append([]string(nil), names...)
 }
 
 // Lifecycle event names (INC-15, G19 first batch). Each fires at its journal
@@ -103,13 +83,12 @@ func (r *Runner) RunLifecycle(ctx context.Context, in LifecycleInput, blockable 
 		return LifecycleResult{}
 	}
 	payload, _ := json.Marshal(in)
-	_, withheld := r.scrubbedEnv()
 	var out LifecycleResult
 	for _, cmd := range cmds {
 		exit, stdout, stderr, err := r.runOne(ctx, cmd, payload)
 		switch {
 		case err != nil:
-			out.Notes = append(out.Notes, fmt.Sprintf("%s hook %q error: %v%s", in.Event, cmd, err, withheldNote(withheld)))
+			out.Notes = append(out.Notes, fmt.Sprintf("%s hook %q error: %v", in.Event, cmd, err))
 		case blockable && exit == BlockExitCode:
 			out.Blocked = true
 			out.Reason = strings.TrimSpace(stderr)
@@ -154,13 +133,12 @@ type PreResult struct {
 // RunPre executes every pre hook in order; the first block wins.
 func (r *Runner) RunPre(ctx context.Context, in PreInput) PreResult {
 	payload, _ := json.Marshal(in)
-	_, withheld := r.scrubbedEnv()
 	var out PreResult
 	for _, cmd := range r.PreTool {
 		exit, _, stderr, err := r.runOne(ctx, cmd, payload)
 		switch {
 		case err != nil:
-			out.Notes = append(out.Notes, fmt.Sprintf("pre hook %q error: %v%s", cmd, err, withheldNote(withheld)))
+			out.Notes = append(out.Notes, fmt.Sprintf("pre hook %q error: %v", cmd, err))
 		case exit == BlockExitCode:
 			out.Blocked = true
 			out.Reason = strings.TrimSpace(stderr)
@@ -180,16 +158,15 @@ func (r *Runner) RunPre(ctx context.Context, in PreInput) PreResult {
 // RunPost executes every post hook; their stdout lines become notes.
 func (r *Runner) RunPost(ctx context.Context, in PostInput) []string {
 	payload, _ := json.Marshal(in)
-	_, withheld := r.scrubbedEnv()
 	var notes []string
 	for _, cmd := range r.PostTool {
 		exit, stdout, _, err := r.runOne(ctx, cmd, payload)
 		if err != nil {
-			notes = append(notes, fmt.Sprintf("post hook %q error: %v%s", cmd, err, withheldNote(withheld)))
+			notes = append(notes, fmt.Sprintf("post hook %q error: %v", cmd, err))
 			continue
 		}
 		if exit != 0 {
-			notes = append(notes, fmt.Sprintf("post hook %q exit %d%s", cmd, exit, withheldNote(withheld)))
+			notes = append(notes, fmt.Sprintf("post hook %q exit %d", cmd, exit))
 			continue
 		}
 		if s := strings.TrimSpace(stdout); s != "" {
@@ -197,45 +174,6 @@ func (r *Runner) RunPost(ctx context.Context, in PostInput) []string {
 		}
 	}
 	return notes
-}
-
-// scrubbedEnv is the parent environment minus credential variables — unless
-// the root spec's sandbox.env_passthrough names them (audit-0718 P0-2). It
-// also returns the NAMES withheld so a failing hook can say so instead of
-// dying mysteriously (P0-3).
-func (r *Runner) scrubbedEnv() (env, withheld []string) {
-	allow := map[string]bool{}
-	for _, name := range r.envPassthrough {
-		allow[name] = true
-	}
-	env = make([]string, 0, len(os.Environ()))
-	for _, kv := range os.Environ() {
-		k, _, _ := strings.Cut(kv, "=")
-		secret := false
-		for _, suffix := range redact.Suffixes {
-			if strings.HasSuffix(k, suffix) {
-				secret = true
-				break
-			}
-		}
-		if secret && !allow[k] {
-			withheld = append(withheld, k)
-			continue
-		}
-		env = append(env, kv)
-	}
-	sort.Strings(withheld)
-	return env, withheld
-}
-
-// withheldNote renders the explicit-withholding suffix appended to a failing
-// hook's note: names only, never values.
-func withheldNote(withheld []string) string {
-	if len(withheld) == 0 {
-		return ""
-	}
-	return fmt.Sprintf(" (%d credential env vars withheld from hooks: %s — list needed ones in spec sandbox.env_passthrough)",
-		len(withheld), strings.Join(withheld, ", "))
 }
 
 // runOne executes a single hook command with the JSON payload on stdin.
@@ -250,12 +188,10 @@ func (r *Runner) runOne(ctx context.Context, command string, stdin []byte) (exit
 	cmd := exec.CommandContext(hctx, "sh", "-c", command)
 	cmd.Dir = r.Dir
 	cmd.Stdin = bytes.NewReader(stdin)
-	// Strip harness credentials from the hook's environment: a lint/audit
-	// hook has no need for GEMINI_API_KEY etc., and the journal never sees
-	// them either — the hook must not be a cleartext side channel. The root
-	// spec's sandbox.env_passthrough names the exceptions.
-	env, _ := r.scrubbedEnv()
-	cmd.Env = env
+	// A hook inherits the operator's environment whole (决策 #34 修订): hooks
+	// are the user's own commands, and a lint/deploy/notify hook that cannot
+	// see the auth it needs is a hook that cannot run. cmd.Env stays nil, so
+	// this is os.Environ() verbatim — same face as terminal-parity bash.
 	// Own process group so a forking hook's children die with it, and a
 	// killed hook's grandchildren don't hold the output pipes hostage.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

@@ -2,13 +2,15 @@ package tool
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
 
-// The sandbox env withholds credential vars by default, reports their NAMES,
-// and passes through exactly the ones the sealed spec list allows
-// (audit-0718 P0-2/P0-3). Pure function — no OS sandbox backend needed.
+// Under the OPT-IN filesystem=workspace mode the sandbox env withholds
+// credential vars, reports their NAMES, and passes through exactly the ones
+// the sealed spec list allows (audit-0718 P0-2/P0-3). Pure function — no OS
+// sandbox backend needed.
 func TestSandboxEnvironmentWithholdsAndPassesThrough(t *testing.T) {
 	t.Setenv("SBXTEST_API_KEY", "value-a-12345")
 	t.Setenv("SBXTEST_TOKEN", "value-b-12345")
@@ -54,12 +56,68 @@ func TestSealEnvPassthroughFirstWins(t *testing.T) {
 	}
 }
 
-// End-to-end through the real OS sandbox: the bash result carries the
-// explicit withheld list, and a passthrough var is visible to the command.
+// THE DEFAULT (决策 #34 修订): bash is a terminal window the operator opened.
+// It sees their credentials and their real HOME, needs no sandbox backend, and
+// therefore can never fail closed — an agent whose shell cannot reach gh/git/
+// cloud auth cannot do the work it was asked to do.
+func TestBashTerminalParityInheritsAuthAndHome(t *testing.T) {
+	e, _ := newExec(t)
+	t.Setenv("SBXHOST_API_KEY", "inherited-value-1234")
+
+	info, err := e.SandboxInfo()
+	if err != nil {
+		t.Fatalf("terminal parity must never fail closed: %v", err)
+	}
+	if info.Filesystem != "host" || info.Network != "all" || info.Backend != hostBackend {
+		t.Fatalf("default containment stamp = %+v, want host/all/%s", info, hostBackend)
+	}
+
+	out, _ := run(t, e, "bash", `{"command":"printf -- \"key=$SBXHOST_API_KEY home=$HOME\""}`)
+	stdout, _ := out["stdout"].(string)
+	if !strings.Contains(stdout, "key=inherited-value-1234") {
+		t.Fatalf("credential env not inherited by default: %v", out)
+	}
+	if want := os.Getenv("HOME"); want != "" && !strings.Contains(stdout, "home="+want) {
+		t.Fatalf("HOME is not the operator's %q: %v", want, out)
+	}
+	if _, ok := out["credential_env_withheld"]; ok {
+		t.Fatalf("terminal parity must withhold nothing: %v", out)
+	}
+}
+
+// The two ratchets are INDEPENDENT: asking for network=none removes egress
+// without dragging credential isolation along with it, so an offline agent
+// still has its auth and its real HOME.
+func TestNetworkContainmentKeepsHostFilesystem(t *testing.T) {
+	e, _ := newExec(t)
+	t.Setenv("SBXNET_API_KEY", "net-visible-1234")
+	e.ContainNetwork()
+
+	info, err := e.SandboxInfo()
+	if err != nil {
+		t.Skipf("no OS sandbox backend here: %v", err)
+	}
+	if info.Filesystem != "host" || info.Network != "none" {
+		t.Fatalf("network-only containment = %+v, want host/none", info)
+	}
+	out, _ := run(t, e, "bash", `{"command":"printf -- \"key=$SBXNET_API_KEY home=$HOME\""}`)
+	stdout, _ := out["stdout"].(string)
+	if !strings.Contains(stdout, "key=net-visible-1234") {
+		t.Fatalf("network containment wrongly stripped credentials: %v", out)
+	}
+	if want := os.Getenv("HOME"); want != "" && !strings.Contains(stdout, "home="+want) {
+		t.Fatalf("network containment wrongly isolated HOME (want %q): %v", want, out)
+	}
+}
+
+// OPT-IN filesystem=workspace, end-to-end through the real OS sandbox: the
+// bash result carries the explicit withheld list, and a passthrough var is
+// visible to the command.
 func TestBashCredentialWithholdingExplicitAndPassthrough(t *testing.T) {
 	e, _ := newExec(t)
 	t.Setenv("SBXE2E_API_KEY", "with-held-value-1234")
 	t.Setenv("SBXE2E_TOKEN", "passed-thru-value-1234")
+	e.ContainFilesystem()
 	if _, err := e.SandboxInfo(); err != nil {
 		t.Skipf("no OS sandbox backend here: %v", err)
 	}

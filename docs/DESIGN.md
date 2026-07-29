@@ -599,8 +599,8 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   恒生效、project 层需 trust）。**hooks 不重放**：事件在点位被 LIVE
   跨越时触发，resume 重读 journal 不触发（recovery 路径的 settle 不发
   hook）；durable command 重放会重问 hook 并得到一致裁决。handler 仍
-  command-only（sh -c + JSON stdin + 凭据剥离 + 超时），prompt/agent/
-  http handler 与更多事件是后续增量。
+  command-only（sh -c + JSON stdin + **操作者环境全继承** + 超时；决策 #34
+  修订前是凭据剥离），prompt/agent/http handler 与更多事件是后续增量。
 - **每种关卡结果都定义"模型看到什么"**。所有 provider 都要求 tool call
   与结果配对（Anthropic 按 call id、Gemini 按数量+位置且更严格），
   且 agent loop 在多数失败后应当继续：
@@ -638,15 +638,18 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
 - **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 的命令文本
   无法可靠映射成路径（一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
   **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
-  而真正的路径边界由**强制 OS workspace sandbox**闭环：bash/command verifier
-  只可读写 workspace（linked-worktree 的 git metadata 是成文 carve-out，
-  **用户批准的 grant 路径是第二条**，2026-07-29），workspace 外用户数据与
-  workspace 内凭据形文件默认不可读；敏感 env 不传给子进程。sandbox 的
-  writable 列表**每条命令现构造**（`sandboxedBash`），所以会话中途新增的
-  grant 下一条命令即生效，无需重启——这也是"文件工具批了、bash 却还被
-  OS 拒"这种同一意图两个答案的修补点。Seatbelt（macOS）/Bubblewrap（Linux）缺席或不可用时在 containment
-  gate **fail closed**，不得降级裸跑。这层关系明文写出，不假装 path 规则
-  覆盖 shell。
+  而更硬的路径边界由**可选的 OS workspace sandbox**兜底（决策 #34 修订）：
+  spec 写 `sandbox.filesystem: workspace` 时，bash/command verifier 只可读写
+  workspace（linked-worktree 的 git metadata 是成文 carve-out，**用户批准的
+  grant 路径是第二条**，2026-07-29），workspace 外用户数据与 workspace 内
+  凭据形文件默认不可读、敏感 env 不传给子进程，且 Seatbelt（macOS）/
+  Bubblewrap（Linux）缺席或不可用时在 containment gate **fail closed**、不得
+  降级裸跑。该模式下 sandbox 的 writable 列表**每条命令现构造**
+  （`sandboxedBash`），所以会话中途新增的 grant 下一条命令即生效、无需重启
+  ——这也是"文件工具批了、bash 却还被 OS 拒"这种同一意图两个答案的修补点。
+  **默认不开**：默认是终端等价——bash 继承操作者的完整环境与真实 HOME，
+  因为看不到 gh/git/云凭据的 shell 干不了活（那时也无需 grant，路径本就可达）。
+  这层关系明文写出：path 规则不假装覆盖 shell，默认档也不假装有 OS 边界。
 - **命令粒度匹配（INC-16，#53）**：一条 bash 命令的规则匹配是**逐子命令
   聚合**，不是整条匹配——否则一条 `Bash(git *)` allow 会误放行
   `git status && rm -rf x` 里搭便车的 `rm` 段。`splitCompound` 按顶层
@@ -658,7 +661,7 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   -delete` 排除、含 `>`/`` ` ``/`$(` 的段排除）无规则时免提示 allow。
   **安全序**：显式 deny/ask 规则**先于**只读集与 default（`deny cat *`
   能挡 cat）；拆分/剥离拿不准退回整体匹配（fail-safe：只更严不更松）；
-  只读命令仍受 OS sandbox 边界约束。
+  只读命令在 opt-in 的 OS sandbox 下仍受其边界约束。
 - **protected 写路径（INC-18，#59）**：`acceptEdits` 自动放行一切 edit，
   但对**敏感配置/系统文件**的写（`.git`/`.claude`(除 `.claude/worktrees`)
   /shell rc/包管理器 rc/`.gitconfig`/`.mcp.json`/`.claude.json`/CI 配置等，
@@ -705,7 +708,8 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
      `untrusted_content` 标记注入。
   防线分两类，**不得混记**：**硬防线** = egress 控制（execute-class
   审批、link-local/metadata 无条件封禁、收容棘轮 fail-closed）、OS
-  sandbox 边界、凭据 redaction + 硬排除表、permission Floor——这些
+  sandbox 边界（**opt-in 时**，决策 #34 修订）、凭据 redaction + 硬排除表、
+  permission Floor——这些
   与模型是否"听话"无关，是 exfil/破坏的真正缓解；**软标记** =
   untrusted 框定/定界符措辞，只降低服从注入的概率，**不计入任何
   安全预算**。推论（红线）：不可信内容里的"指令"至多影响模型产出
@@ -791,15 +795,17 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   子串替换必然碎裂无关文本（`*_TOKEN=test` 曾把所有输出面打花），且
   它们不是真凭据；<8 字符的真 secret 不再被值替换，属**已裁决的残余
   风险**（journal/fixture 双面同一规则）。
-- **凭据环境剔除是显式的、root spec 可放行的**（audit-0718 P0-2/P0-3，
-  owner 拍板）：bash/command-tool 沙箱与 hooks 默认剔除
-  `*_API_KEY/_TOKEN/_SECRET` 环境变量，但（1）剔除**必须显式回报**——
-  bash result 带 `credential_env_withheld`（只报名字，绝不报值），
-  hook 失败 note 附剔除名单，静默失败违反本条；（2）root session spec
-  的 `sandbox.env_passthrough` 可按名放行——**首封生效（seal）**：root
-  loop 在任何 child 存在前封印共享 executor 与 hook runner，child/
-  模型起草的 inline role spec 永远不能放宽此面；放行的值仍过全部
-  journal redaction（放宽的是子进程可见性，不是落盘面）。
+- **凭据环境剔除只发生在 opt-in 的 workspace 沙箱里**（audit-0718 P0-2/P0-3
+  经决策 #34 修订收窄）：默认档（终端等价）与 hooks **全继承**操作者环境
+  ——用户自己 export 的凭据不是越界，扣掉它才是 bug。仅当 spec 写
+  `sandbox.filesystem: workspace` 时才剔除 `*_API_KEY/_TOKEN/_SECRET`
+  环境变量，且（1）剔除**必须显式回报**——bash result 带
+  `credential_env_withheld`（只报名字，绝不报值），静默失败违反本条；
+  （2）root session spec 的 `sandbox.env_passthrough` 可按名放行——
+  **首封生效（seal）**：root loop 在任何 child 存在前封印共享 executor，
+  child/模型起草的 inline role spec 永远不能放宽此面；放行的值仍过全部
+  journal redaction。**子进程可见性与落盘面从来不是一个问题**：放宽前者
+  不放宽后者，这也是"全继承"不动 redaction 红线的原因。
 - **at-least-once + in-doubt 检测**：崩溃发生在"执行后、落盘前"时，
   恢复看到有 `Started` 无 `Completed` → in-doubt。崩溃几乎必然砸中
   in-flight activity（agent 的墙钟全在 LLM 调用和 bash 里），所以
@@ -1173,9 +1179,11 @@ resume 永不重读 live default。
   （模型的 args 是 stdin **数据**、不是命令行），过完整管线
   （FloorGate→hooks→permission→budget）——permission gate 按 bash 命令行
   同款机件裁决固定命令（分段/wrapper 剥离/read-only 集），execute 默认
-  ask；用户可用 `command:`/`tool:` 规则放行。执行走**决策 #34 强制 OS
-  sandbox**（复用 `sandboxedBash`：isolated HOME/TMP、凭据路径拒读、
-  secret env 剥离、network ratchet；backend 缺失 fail closed），args JSON
+  ask；用户可用 `command:`/`tool:` 规则放行。执行走**决策 #34（修订后）的
+  同一条 `sandboxedBash` 路径**：默认终端等价（完整 env、真实 HOME、不包
+  wrapper），spec opt-in `filesystem: workspace` 时才是 isolated HOME/TMP ＋
+  凭据路径拒读 ＋ secret env 剥离；network ratchet 独立生效，**被请求的**
+  收容缺 backend 时 fail closed。args JSON
   从 **stdin** 传入；EffectResolved 载 containment evidence。**不新造放行
   路径**：未 trust 的 project tool 不进 fold=不可 dispatch，加载后每次调用
   与 bash 同管线同沙箱。timeout 用 manifest 值（durable-timer substrate 拥有
@@ -1838,7 +1846,7 @@ resume 永不重读 live default。
 | 31 | 静止模型（2026-07-05） | 只有一种 durable session，不存在第二种会话实体。静止=形状（无在飞工作+无定时自触发+turn 已收尾）；静止时 outputs→barrier→parent 回执（既有子回执）；`ar run` = 开 session+发消息+等静止+读结果 | 双实体模型与 session/turn 大量重复且定义不清（开发者裁定）；driver/headless 的需求由"静止+回执"完全覆盖。 |
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
 | 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
-| 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**） | bash/command verifier（INC-55 补：自定义 command tool 同族，execute-class 一律强制）默认强制 OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap），凭据路径与敏感 env 隔离；backend 缺失在 Activity 前 fail closed。in-session 与 driver command verifier 都必须产生 EffectRequested/Resolved（含 containment evidence）与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | command pattern/path 静态规则无法约束 shell 间接文件访问；UNGATED goal verifier 还可绕过 mode/deny/approval。OS boundary 与统一 effect path 才能让 policy、审计和执行事实一致。 |
+| 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**；**2026-07-29 不变量修订**：强制 → opt-in） | bash/command verifier（INC-55 补：自定义 command tool 同族）**默认终端等价**：不包 wrapper，继承操作者的完整环境与真实 HOME，与用户手开一个 shell 窗口无差别；hooks 同。OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap，凭据路径与敏感 env 隔离）降为 **spec opt-in**（`sandbox.filesystem: workspace`），与 `sandbox.network` 同为**彼此独立**的 tighten-only 棘轮——`network: none` 不再牵连凭据/HOME 隔离。fail closed 只守**被请求的**收容：opt-in 后 backend 缺失仍在 Activity 前 deny，默认档不依赖任何 backend（缺 sandbox-exec/bwrap 的机器照常跑 bash）。containment evidence 照旧必填且**诚实**：默认档记 `host/all/none`，绝不假称已收容。in-session 与 driver command verifier 仍必须产生 EffectRequested/Resolved 与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | 原表述把"防越界"买在"能干活"之上，代价是 agent 的 shell 看不见 `~/.config/gh`、`~/.gitconfig`、`~/.aws`（HOME 指向沙箱临时目录，不是被拒而是找不到）、拿不到任何 `*_API_KEY/_TOKEN/_SECRET`，连 workspace 内自家 `.env` 也被 deny read——`gh` 显示未登录、`git commit` 报 Author identity unknown、项目自己的构建脚本读不到自己的配置。这不是"更安全的默认"，是让功能不成立的默认（用户 2026-07-29 裁定："all features should not satisfice usability"）。收容能力一条不删，只从"强制"改为"声明即生效"；redaction 红线、凭据路径硬排除表、egress fail-closed（#33）全部不动——子进程可见性与落盘面从来不是一个问题。 |
 | 35 | 树内消息与静止子唤醒（INC-12,2026-07-09） | agent 是 send 通道的一等发送方：`send_message` 向树内成员的 durable inbox 投递（AppendInbox 幂等,来源前缀+source=agent）;静止子由直接父 `ChildRevived` re-host(原 handle、同 journal context 延续、第二次回执、usage 按 baseline delta);daemon 子会话 send 经树根转投(单宿主单写者);user-kill 标记仅 user-class 邮件可越 | "回执可多次发生"与"send 对任何 session 成立"的机制兑现;树内协作(评审往复/进度汇报)不再全经父转发烧上下文。 |
 | 36 | 动态角色（INC-12,2026-07-09） | `spec.agents_dynamic` 开 inline role 面：spawn_agent{role:{name,description,instructions,tools?,permissions?,escalate?}};role=不可信模型输出（无 hooks/MCP/skills/model/budget 面,tools 仅父子集,沙箱棘轮继承）;构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec（revive/审计真相） | 工程团队场景要求运行时组队;信任面由结构封死（决策 #19/#20 同族）,预定义 spec 白名单继续并存。 |
 | 37 | 记忆写回（INC-14,2026-07-09,取 A,G9） | `remember` control（durable command，与 compact/clear 同族）append 到 **workspace-root CLAUDE.md**（append-only、`## Remembered` 段、同 note 幂等去重）+ 追加一条 program-source `InputReceived`（本会话即遵循，触发确认续跑，同 goal 回灌）。文件供**下次** session start 冻结进 prefix。**取 A（不动 prefix→不触不变量）**；取 B（MemoryChanged 重冻本 run 立即换代）留待需求出现。 | 写侧闭合 read 侧注入（S5.2）；memory 是 workspace 内容、非 journaled fold，rewind 不 un-write（接受项，同 harness-config 排除）；写文件副作用靠 Append 幂等吸收 durable-command 崩溃重放。 |
@@ -2029,8 +2037,8 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **审批（ask）** | `ApprovalRequested`（可带 payload_ref 指 artifact）→ WAITING_APPROVAL → 应答/拒绝理由回灌模型。 |
 | **budget** | reserve-then-settle；树预算沿 correlation 聚合；超限 = 优雅收尾（LimitExceeded），不掐断。 |
 | **hooks** | 管线机件（observe+block），不是 effect；只认 spec/user 层（信任模型）。 |
-| **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取/OS sandbox 一体适用）；bash 子进程不继承敏感 env；log 0600。 |
-| **收容棘轮** | bash 默认 filesystem=workspace；`sandbox.network` 收紧由 Seatbelt/Bubblewrap 落实后全树不放宽；backend 缺席 fail closed。in-process 带网工具(`web_fetch`,`def.network`)在收紧时自我拒跑（决策 #33/#34）。 |
+| **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取/opt-in OS sandbox 一体适用）；**opt-in `filesystem: workspace` 下**bash 子进程不继承敏感 env（默认档与 hooks 全继承，决策 #34 修订）；log 0600。 |
+| **收容棘轮** | bash 默认 `filesystem=host`（终端等价，无需 backend）；`sandbox.filesystem` 与 `sandbox.network` 是两条**独立**棘轮，任一由 spec 收紧后经 Seatbelt/Bubblewrap 落实、全树不放宽；**被请求的**收容 backend 缺席时 fail closed。in-process 带网工具(`web_fetch`,`def.network`)在收紧时自我拒跑（决策 #33/#34）。 |
 
 ### 18.6 多 agent
 

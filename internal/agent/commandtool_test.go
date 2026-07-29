@@ -100,8 +100,10 @@ func TestCommandToolEndToEnd(t *testing.T) {
 	if resolved == nil || resolved.Verdict != event.VerdictAllow {
 		t.Fatalf("EffectResolved = %+v", resolved)
 	}
-	if resolved.Containment == nil || resolved.Containment.Filesystem != "workspace" || resolved.Containment.Backend == "" {
-		t.Errorf("command tool ran without recorded containment: %+v", resolved.Containment)
+	// Terminal parity is the default (决策 #34 修订): the evidence must be
+	// recorded and must be honest — host/none, not a containment claim.
+	if resolved.Containment == nil || resolved.Containment.Filesystem != "host" || resolved.Containment.Backend == "" {
+		t.Errorf("command tool ran without recorded containment evidence: %+v", resolved.Containment)
 	}
 	if !echoed {
 		t.Error("the model's args did not reach the command's stdin")

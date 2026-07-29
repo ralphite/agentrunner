@@ -8006,3 +8006,79 @@ workspace" 改为 "needs approval",红线本身(不静默放行 + run 正常继�
 (§path 规则的边界诚实),所以 bash 只能用"文件工具批过的 grant"。想让 agent
 用 shell 碰某个外部文件,先经一次文件工具的批准。这是刻意的:给 bash 造一个
 路径级审批需要解析 shell,而那正是这条设计明说不做的事。
+---
+
+## 2026-07-29 不变量修订:bash/hooks 默认终端等价,OS sandbox 降为 opt-in(决策 #34)
+
+**与上一条的关系**:上一条(Floor 改判 ask + grant 路径)把"文件工具批过的
+grant"接进 sandbox 的 writable 列表,解决"文件工具批了、bash 却还被 OS 拒"。
+本条把默认档整个移出 OS sandbox,所以**默认档下 grant 机制对 bash 不再需要**
+(路径本就可达);grant 仍是 opt-in `filesystem: workspace` 下的第二条 carve-out,
+两条实现都保留、不冲突。
+
+**旧不变量原文**(DESIGN §15 决策 #34,2026-07-09 标注"不变量升级";另见
+§18.5 收容棘轮与凭据红线两行):
+
+> bash/command verifier(INC-55 补:自定义 command tool 同族,execute-class
+> 一律强制)默认**强制** OS workspace sandbox(macOS Seatbelt / Linux
+> Bubblewrap),凭据路径与敏感 env 隔离;backend 缺失在 Activity 前 fail
+> closed。
+> bash 子进程**不继承**敏感 env。
+
+**为什么必须动**:用户报"bash 里的 auth 全丢了",实测四条全部成立,而且
+每一条都让功能不成立、不是让它更安全:
+
+1. `HOME` 被重定向到 `agentrunner-sandbox-*` 临时目录 →`~/.config/gh`、
+   `~/.gitconfig`、`~/.aws`、`~/.ssh` **不是被拒,是找不到**。`gh` 显示
+   未登录;`git commit` 报 Author identity unknown。
+2. 所有 `*_API_KEY/_TOKEN/_SECRET` 被主动扣掉,除非 root spec 逐个点名。
+   hooks 走同一套剥离,所以用户自己写的 deploy/notify hook 也拿不到凭据。
+3. Seatbelt profile 是 `(deny default)`,workspace 外只放行 `/System /usr
+   /bin /sbin /Library /opt /nix/store` 的读 → 读不了 `~/.zshrc`、读不了
+   兄弟 repo。
+4. workspace **内**的 `.env`/`.envrc`/`.npmrc`/`*.pem` 被显式
+   `deny file-read*`(credentialPaths → index.SkipFile)→ **项目自己的构建
+   脚本读不到自己的 `.env`**。
+
+用户裁定(原话):"we must inherit all env vars and auth. it should be like
+user opening a new shell terminal window... all features should not
+satisfice usability"。安全默认与"能干活"冲突时,原表述选了前者,而代价不
+是"少数场景不便",是 agent 在自己的 shell 里没有身份——这不是更安全的
+默认,是坏的默认。
+
+**新表述**:见 DESIGN 决策 #34 修订段。要点四条:
+- **默认终端等价**:bash/command tool/hooks 不包 wrapper、继承操作者完整
+  环境与真实 HOME,与用户手开一个 shell 窗口无差别。
+- OS workspace sandbox 降为 **spec opt-in**(`sandbox.filesystem:
+  workspace`),能力一条不删。
+- `sandbox.filesystem` 与 `sandbox.network` 是**彼此独立**的 tighten-only
+  棘轮:`network: none` 只去出口,不再牵连凭据/HOME 隔离(macOS 用
+  `(allow default)(deny network*)`,Linux 用 `--bind / /` + `--unshare-net`)。
+- fail closed 只守**被请求的**收容:opt-in 后 backend 缺失仍在 Activity
+  前 deny;默认档不依赖任何 backend(缺 sandbox-exec/bwrap 的机器照常跑)。
+- containment evidence 仍必填且**诚实**:默认档记 `host/all/none`,绝不
+  假称已收容(与 web_fetch"自我拒跑不是 netns"同性质的边界诚实条款)。
+
+**不动的**:落盘前凭据值 redaction、凭据路径硬排除表(快照/索引/搜索面)、
+egress 类统一 fail-closed(#33)、permission Floor、log 0600。**子进程可见
+性与落盘面从来不是一个问题**——放宽前者不放宽后者,这是"全继承"能不碰
+redaction 红线的原因。
+
+**代价(接受)**:默认档下 agent 的 bash 可读写 workspace 之外,包括
+`~/.ssh`;prompt 注入若骗过全管线裁决,后果面比原来大。买回来的是功能
+成立。需要原边界的场景写一行 `sandbox.filesystem: workspace` 即可,且
+opt-in 后的行为与修订前逐字一致(测试覆盖仍在)。
+
+**波及面**:`internal/tool/sandbox.go`(sandboxKey/sandboxPlan/hostBackend、
+hostEnvironment、sandboxedBash 分叉)、`sandbox_darwin.go`/`sandbox_linux.go`
+/`sandbox_other.go`(签名收成 sandboxPlan + HostFS 分支)、`exec.go`
+(fsNone 棘轮 + ContainFilesystem/FilesystemContained)、
+`internal/agent/spec.go`(`sandbox.filesystem` 字段/校验/未知字段提示)、
+`loop.go`(applySandbox)、`spawn.go`+`revive.go`(子执行器继承棘轮)、
+`internal/hook/hook.go`(删 scrubbedEnv/withheldNote/SealEnvPassthrough,
+cmd.Env 留 nil)、`internal/cli/doctor.go`(报告改口:能否满足收容请求,
+而非 bash 能否跑)、`initcmd.go`(scaffold 注释)。测试:
+`sandboxenv_test.go`(新增终端等价与 network-only 两例)、`exec_test.go`
+(新增"无 backend 仍跑")、`commandtool_test.go` ×2、`hookenv_test.go`(改测
+全继承与真 HOME)、`agent/sandbox_test.go`、`agent/commandtool_test.go`、
+`driver_test.go` ×2、`spec_errors/nested_sandbox_field.golden`。

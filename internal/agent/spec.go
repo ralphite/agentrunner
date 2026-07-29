@@ -152,10 +152,12 @@ type AgentSpec struct {
 	// unless the run already published the stream) and a missing Required
 	// one downgrades the finishing reason to contract_violation.
 	Outputs []OutputSpec `yaml:"outputs,omitempty"`
-	// Sandbox is the OS containment spec (S7 模块 5). Bash filesystem access is
-	// always workspace-bounded; network "none" removes egress — a RATCHET across the shared
-	// executor: any spec in the tree demanding none contains the whole
-	// tree and a child spec can never widen it back. Empty/"all" = open.
+	// Sandbox is the OS containment spec (S7 模块 5). Both dimensions are
+	// OPT-IN and both are RATCHETs across the shared executor: any spec in the
+	// tree demanding filesystem "workspace" or network "none" contains the
+	// whole tree and a child spec can never widen it back. Empty = terminal
+	// parity, i.e. bash behaves like a shell window the operator opened
+	// (决策 #34 修订).
 	Sandbox SandboxSpec `yaml:"sandbox,omitempty"`
 	// MCP declares out-of-band runtime connections. Secrets are referenced by
 	// environment-variable name in each server config, never embedded here.
@@ -165,10 +167,17 @@ type AgentSpec struct {
 // SandboxSpec declares OS-level containment for executions.
 type SandboxSpec struct {
 	Network string `yaml:"network,omitempty"` // "" | all | none
+	// Filesystem opts bash/command-tool subprocesses into the OS workspace
+	// boundary: isolated HOME/TMP, credential-path denial, no reads outside
+	// the workspace. Empty (the default) is terminal parity — full inherited
+	// environment and the operator's real HOME (决策 #34 修订), because an
+	// agent whose shell cannot see gh/git/cloud auth cannot do the work.
+	Filesystem string `yaml:"filesystem,omitempty"` // "" | host | workspace
 	// EnvPassthrough names credential env vars (exact match) the sandbox
-	// passes through to bash/command-tool/hook subprocesses instead of
-	// withholding (audit-0718 P0-2). Only the ROOT session spec's list
-	// applies — the executor seals it before any child runs, so a child or
+	// passes through to bash/command-tool subprocesses instead of withholding
+	// (audit-0718 P0-2). Only meaningful under filesystem "workspace" —
+	// terminal parity passes everything. Only the ROOT session spec's list
+	// applies: the executor seals it before any child runs, so a child or
 	// model-drafted spec can never widen it. Passed-through VALUES are still
 	// redacted on every journaled surface.
 	EnvPassthrough []string `yaml:"env_passthrough,omitempty"`
@@ -385,7 +394,7 @@ func decodeHint(err error) string {
 func specScope(goType string) (scope, fields string) {
 	switch {
 	case strings.Contains(goType, "SandboxSpec"):
-		return "sandbox", "network, env_passthrough"
+		return "sandbox", "network, filesystem, env_passthrough"
 	case strings.Contains(goType, "BudgetSpec"):
 		return "budget", "max_total_tokens"
 	case strings.Contains(goType, "OutputSpec"):
@@ -474,12 +483,17 @@ func (s *AgentSpec) validate(path string) error {
 	default:
 		return fail("sandbox.network", fmt.Sprintf("unknown value %q (known: all, none)", s.Sandbox.Network))
 	}
+	switch s.Sandbox.Filesystem {
+	case "", "host", "workspace":
+	default:
+		return fail("sandbox.filesystem", fmt.Sprintf("unknown value %q (known: host, workspace)", s.Sandbox.Filesystem))
+	}
 	for i, name := range s.Sandbox.EnvPassthrough {
 		if strings.TrimSpace(name) == "" {
 			return fail(fmt.Sprintf("sandbox.env_passthrough[%d]", i), "must be a non-empty env var name")
 		}
-		// Sandbox-critical vars are always replaced by the isolated HOME/TMP —
-		// passthrough must not pretend otherwise.
+		// Under filesystem=workspace these are always replaced by the isolated
+		// HOME/TMP — passthrough must not pretend otherwise.
 		if name == "HOME" || name == "TMPDIR" || name == "TMP" || name == "TEMP" ||
 			strings.HasPrefix(name, "XDG_") || name == tool.SessionEnvVar {
 			return fail(fmt.Sprintf("sandbox.env_passthrough[%d]", i),

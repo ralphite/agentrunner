@@ -35,11 +35,23 @@ func platformSandboxProbe(networkNone bool) (string, error) {
 	return "bwrap", nil
 }
 
-func platformSandboxCommand(root, command string, writable []string, denied []sandboxDeny, networkNone bool) (*exec.Cmd, error) {
+func platformSandboxCommand(plan sandboxPlan) (*exec.Cmd, error) {
 	bin, err := exec.LookPath("bwrap")
 	if err != nil {
 		return nil, fmt.Errorf("bubblewrap unavailable: %w", err)
 	}
+	// Network-only containment: bind the real root read-write so credentials,
+	// HOME and sibling checkouts behave as in a terminal — only egress is gone.
+	if plan.HostFS {
+		args := []string{"--die-with-parent", "--new-session", "--bind", "/", "/",
+			"--proc", "/proc", "--dev", "/dev", "--unshare-pid", "--unshare-ipc", "--unshare-uts"}
+		if plan.NetworkNone {
+			args = append(args, "--unshare-net")
+		}
+		args = append(args, "--chdir", plan.Root, "bash", "-c", plan.Command)
+		return exec.Command(bin, args...), nil
+	}
+	root, command, writable, denied, networkNone := plan.Root, plan.Command, plan.Writable, plan.Denied, plan.NetworkNone
 	args := []string{"--die-with-parent", "--new-session", "--tmpfs", "/", "--proc", "/proc", "--dev", "/dev", "--unshare-pid", "--unshare-ipc", "--unshare-uts"}
 	if networkNone {
 		args = append(args, "--unshare-net")

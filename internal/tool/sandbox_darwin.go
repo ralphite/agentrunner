@@ -27,11 +27,24 @@ func platformSandboxProbe(networkNone bool) (string, error) {
 	return "sandbox-exec", nil
 }
 
-func platformSandboxCommand(root, command string, writable []string, denied []sandboxDeny, networkNone bool) (*exec.Cmd, error) {
+func platformSandboxCommand(plan sandboxPlan) (*exec.Cmd, error) {
 	bin, err := exec.LookPath("sandbox-exec")
 	if err != nil {
 		return nil, fmt.Errorf("sandbox-exec unavailable: %w", err)
 	}
+	// Network-only containment: the filesystem stays the operator's own, so
+	// credentials, HOME and sibling checkouts behave as in a terminal — only
+	// egress is gone. Nothing else in the profile may narrow that.
+	if plan.HostFS {
+		profile := "(version 1)\n(allow default)\n"
+		if plan.NetworkNone {
+			profile += "(deny network*)\n"
+		}
+		cmd := exec.Command(bin, "-p", profile, "bash", "-c", plan.Command)
+		cmd.Dir = plan.Root
+		return cmd, nil
+	}
+	root, command, writable, denied, networkNone := plan.Root, plan.Command, plan.Writable, plan.Denied, plan.NetworkNone
 	var p strings.Builder
 	p.WriteString("(version 1)\n(deny default)\n(import \"system.sb\")\n")
 	p.WriteString("(allow process*)\n")
