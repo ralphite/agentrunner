@@ -557,9 +557,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           home). Codex's rail opens with a plain "ChatGPT Codex" wordmark and
           nothing else. Same here: text only, so the first thing the eye lands
           on is a session, not a logo. */}
-      <div className="flex h-11 shrink-0 items-center justify-between px-4">
-        <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
-          <span className="text-[16px] leading-6 font-semibold tracking-[-0.18px] text-[#222222] dark:text-ink">AgentRunner</span>
+      <div className="flex h-[46px] shrink-0 items-center justify-between px-4">
+        <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="Orca home">
+          <span className="text-[16px] leading-6 font-semibold tracking-[-0.18px] text-[#222222] dark:text-ink">Orca</span>
         </button>
         <div className="flex items-center gap-[2px]">
           <IconButton

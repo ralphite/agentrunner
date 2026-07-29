@@ -31,7 +31,7 @@ export function SettingsConfiguration({ query }: { query: string }) {
   return (
     <div className="rs-panel">
       <h2 className="rs-panel-title">Configuration</h2>
-      <p className="rs-panel-sub">Live daemon and runtime details reported by AgentRunner.</p>
+      <p className="rs-panel-sub">Live daemon and runtime details reported by Orca.</p>
 
       {rows.length === 0 && !showPolicy && <div className="rs-noresults">No configuration matches “{query}”.</div>}
 

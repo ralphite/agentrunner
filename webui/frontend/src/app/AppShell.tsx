@@ -109,7 +109,7 @@ export function AppShell() {
   }, [closeMobileSidebar, helpOpen, isMobile, mobileSidebarOpen]);
 
   useEffect(() => {
-    document.title = unread.length > 0 ? `(${unread.length}) AgentRunner` : "AgentRunner";
+    document.title = unread.length > 0 ? `(${unread.length}) Orca` : "Orca";
   }, [unread.length]);
 
   // Global keys: ⌘K/Ctrl-K toggles the command palette; "?" opens the

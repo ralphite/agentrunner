@@ -417,7 +417,10 @@ describe("mobile sidebar chrome touch targets", () => {
     }
 
     const brandRow = container.querySelector(".brand-main")!.parentElement!;
-    expect(brandRow.className).toContain("h-11");
+    // 46px, matching the session topbar across the seam — the two header bands
+    // meet at the rail's edge where that bar's rule is visible, so a mismatch
+    // reads as a step. Still >= the 44px this test guards.
+    expect(brandRow.className).toContain("h-[46px]");
     expect(brandRow.className).toContain("shrink-0");
     // px-4, not px-3: the wordmark's left edge is meant to sit on the same 16px
     // column as the nav glyphs below it (Codex puts its "Codex" wordmark there
@@ -962,7 +965,7 @@ describe("footer says the product name once (SB-12)", () => {
     const { container } = render(<Sidebar />);
 
     expect(container.querySelector(".account-badge")).toBeNull();
-    expect(container.querySelector(".brand-main")!.textContent).toBe("AgentRunner");
+    expect(container.querySelector(".brand-main")!.textContent).toBe("Orca");
   });
 
   it("keeps the offline line red-and-clickable after the trim", () => {

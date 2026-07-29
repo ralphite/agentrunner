@@ -36,7 +36,7 @@ export function DaemonAlert() {
         <span className="daemon-alert-ic" aria-hidden="true"><WarningCircle size={17} weight="fill" /></span>
         <div className="daemon-alert-text">
           <b>Daemon offline</b>
-          <span>AgentRunner can’t reach the daemon. Live updates and actions are paused.</span>
+          <span>Orca can’t reach the daemon. Live updates and actions are paused.</span>
         </div>
       </div>
       <Button

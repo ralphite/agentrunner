@@ -1427,7 +1427,7 @@ export function Composer(props: ComposerProps) {
         ref: taRef,
         value: text,
         placeholder,
-        "aria-label": "Message AgentRunner",
+        "aria-label": "Message Orca",
         "aria-autocomplete": "list",
         "aria-haspopup": "listbox",
         "aria-controls": typeaheadListboxId,

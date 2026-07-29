@@ -187,7 +187,7 @@ export function DiffStateView({ state }: { state: DiffState }) {
         <FolderDashed size={26} weight="light" />
         <b>Workspace unavailable</b>
         <span>
-          This session predates workspace metadata, so AgentRunner cannot
+          This session predates workspace metadata, so Orca cannot
           reconstruct its changes view.
         </span>
         <Button size="md" variant="outline" onClick={state.onRetry}>Try again</Button>

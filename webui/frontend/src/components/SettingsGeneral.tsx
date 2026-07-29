@@ -33,7 +33,7 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
   return (
     <div className="rs-panel min-w-0">
       <h2 className="rs-panel-title">General</h2>
-      <p className="rs-panel-sub leading-[1.5]">AgentRunner settings for this browser.</p>
+      <p className="rs-panel-sub leading-[1.5]">Orca settings for this browser.</p>
 
       {!any && <div className="rs-noresults">No general settings match “{query}”.</div>}
 
