@@ -1,18 +1,19 @@
-# AgentRunner — Agent Runtime 高层设计（3 页）
+# An Actor-Model, Event-Sourced Agent Runtime and Harness
+
+**AgentRunner — 高层设计（3 页）**
 
 > `docs/DESIGN.md`（架构 source of truth）的高层浓缩：只讲 runtime 内核
 > ——会话模型、输入通道、多 agent、turn 内机制、持久化、provider。扩展层
-> （workspace 快照 / fork / 索引 / 生态接入 / UI）刻意略去。以 DESIGN.md 为准。
+> （workspace 快照 / fork / 索引 / 生态接入 / surfaces）刻意略去。以 DESIGN.md 为准。
 
 ## 1. 本分
 
 > **在一个长期存在的会话里，可靠地协调三方——用户、模型、并发的工作（工具
 > 与子 agent）——任何一方随时可以说话，会话据此持续推进，直到用户离开。**
 
-全部设计从这句话推导；不服务于它的机制降级为扩展层。历史教训写在设计里：
-初版把本分默认成"把一次 run 跑完"，于是多轮交互、并发编排、随时插话这些
-**日常动作**成了要打补丁的边缘特性，补丁之间不自洽。现在"持续的多方协调"
-进内核，durability / 管线 / 安全是服务它的机制。
+全部设计从这句话推导；不服务于它的机制降级为扩展层。**多轮交互、并发编排、
+随时插话是日常动作，不是边缘特性**——它们必须是中心模型的直接推论，而不是
+补丁；durability、effect 管线、安全都是服务这个内核的机制。
 
 **四条原则**：一切可运行的是 actor；一切历史皆 event（state = journal 的纯
 fold）；一切副作用是 activity，流经同一条 effect pipeline；一切行为由数据
@@ -54,10 +55,10 @@ fold）；一切副作用是 activity，流经同一条 effect pipeline；一切
 
 ## 3. Inbox：一条通道，多种发送方
 
-前代的病根是**没有输入通道**，只有 run 启动时的 opening prompt。现在"任何一方
-对 session 说话"统一成"往 inbox 投一条 Input"。**Input 是弱类型的**：对话面上
-就是纯内容 + 来源前缀，来源（user / agent / machine / timer / control）只是
-journal 元数据，模型不该看到类型系统。
+"任何一方对 session 说话"统一成"往 inbox 投一条 Input"——用户、子 agent、
+timer、外部事件是同一个问题的四个发送方，不是四套机制。**Input 是弱类型的**：
+对话面上就是纯内容 + 来源前缀，来源（user / agent / machine / timer / control）
+只是 journal 元数据，模型不该看到类型系统。
 
 **三条铁律**：投递与消费解耦（发送方从不阻塞在"agent 忙不忙"上）；
 journal-inputs-first（先 fsync 进 CommandLog 再回执，崩溃不丢输入）；有序 +
@@ -162,17 +163,18 @@ turn 中途崩的走 in-doubt 自愈；在飞子走 settle-from-child-fold。**�
 ## 7. 分层与 Provider
 
 ```
-交互面    终端 / web / webhook —— 都只是 inbox 的投递方
 会话内核  Session actor · inbox · loop · turn · 子 session      ← 中心
 Turn 机制 context assembly · effect pipeline · 工具
 持久化    journal · fold · snapshot · CAS · in-doubt
 扩展层    时间旅行 · goal/loop/best-of-N 驱动 · 生态接入
 ```
 
-**core 是库**：CLI、headless、daemon、web 都是挂在 core 上的薄壳（也都是
-actor），不存在"特权 frontend"。kernel 基座只有三件东西：actor、bus（进程内、
-**ephemeral**，任何影响结果的输入必须先 journal 再消费）、envelope（`command_id`
-是外部幂等轴、`causation_id` 是 stream 内因果链，**两轴分立**才使 command 可重试）。
+**core 是库**：一切 surface（CLI、headless、daemon、外部事件入口）都只是 inbox
+的投递方 + 输出订阅方，是挂在 core 上的薄壳、也都是 actor，不存在"特权
+frontend"。kernel 基座只有三件东西：actor（id + mailbox + behavior）、bus（进程
+内、**ephemeral**，任何影响结果的输入必须先 journal 再消费）、envelope
+（`command_id` 是外部幂等轴、`causation_id` 是 stream 内因果链，**两轴分立**才
+使 command 可重试）。
 
 **Provider 是薄接口**（`complete(request) → stream`，streaming 原生）：能力通用
 且可选（caching / thinking / tools / structured output 以 provider 无关方式表达，
@@ -190,8 +192,8 @@ Anthropic——第二个实现的作用是**验证抽象不漏**。
 ## 8. 可证伪之处
 
 **单进程假设**（bus 是进程内的；跨进程部署要分 ephemeral topic 与 guaranteed
-send 两通道，frontend 重连从 event log 对账）；**不保证整树确定性重现**（保证的
-是 per-stream 可审计，不是跨 actor 消息交错的重现）；**软标记不计入安全预算**
-——untrusted 框定只降低模型服从注入的概率，真正的缓解是 egress 控制、OS sandbox、
-permission floor 这些与模型是否听话无关的硬防线；redaction 同理，是文档化的残余
-风险，不是闭合的保证。
+send 两通道，重连方从 event log 对账而非靠 bus 补投）；**不保证整树确定性重现**
+（保证的是 per-stream 可审计，不是跨 actor 消息交错的重现）；**软标记不计入安全
+预算**——untrusted 框定只降低模型服从注入的概率，真正的缓解是 egress 控制、OS
+sandbox、permission floor 这些与模型是否听话无关的硬防线；redaction 同理，是
+文档化的残余风险，不是闭合的保证。
