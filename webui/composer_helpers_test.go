@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // writeFakeAR drops an executable stub `ar` that appends its argv (one line per
@@ -178,4 +179,79 @@ func TestUnderDir(t *testing.T) {
 func jsonStr(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return `"` + r.Replace(s) + `"`
+}
+
+// TestHandleDictateForwardsWorkspace: a real directory is forwarded so `ar
+// dictate` can read its terms file; anything that isn't a real directory is
+// dropped silently rather than 400'd — a bad or stale workspace must never be
+// the reason a recording won't transcribe.
+func TestHandleDictateForwardsWorkspace(t *testing.T) {
+	rt := t.TempDir()
+	uploads := filepath.Join(rt, "uploads")
+	if err := os.MkdirAll(uploads, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	audio := filepath.Join(uploads, "note.wav")
+	if err := os.WriteFile(audio, []byte("RIFF"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	project := filepath.Join(rt, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(rt, "a-file")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		ws   string
+		want bool // is --workspace forwarded?
+	}{
+		{project, true},
+		{"", false},
+		{"relative/path", false},
+		{filepath.Join(rt, "gone"), false}, // stale workspace, since deleted
+		{file, false},                      // a file, not a directory
+	}
+	for _, tc := range cases {
+		argsFile := filepath.Join(rt, "args.txt")
+		os.Remove(argsFile)
+		s := &server{runtimeDir: rt, arPath: writeFakeAR(t, argsFile, "ok")}
+		rec := postJSON(t, s.handleDictate, "/api/dictate",
+			`{"path":`+jsonStr(audio)+`,"workspace":`+jsonStr(tc.ws)+`}`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("workspace %q: code = %d, body = %s", tc.ws, rec.Code, rec.Body.String())
+		}
+		got, _ := os.ReadFile(argsFile)
+		if forwarded := strings.Contains(string(got), "--workspace"); forwarded != tc.want {
+			t.Errorf("workspace %q: forwarded = %v, want %v (args %q)", tc.ws, forwarded, tc.want, got)
+		}
+	}
+}
+
+// TestClipContext: the context becomes one argv element, and a big enough one
+// fails the exec outright (E2BIG) — an error the user can do nothing with. The
+// backstop truncates instead, on a rune boundary so a multi-byte term can't
+// land in the prompt as mojibake.
+func TestClipContext(t *testing.T) {
+	if got := clipContext("  # Project\n/repo  "); got != "# Project\n/repo" {
+		t.Errorf("clipContext trimmed = %q", got)
+	}
+	if got := clipContext("   "); got != "" {
+		t.Errorf("blank context = %q, want empty", got)
+	}
+	long := strings.Repeat("a", maxHelperContext+500)
+	if got := clipContext(long); len(got) != maxHelperContext {
+		t.Errorf("clipped len = %d, want %d", len(got), maxHelperContext)
+	}
+	// "术" is 3 bytes; repeating it guarantees the cut lands mid-rune.
+	multi := strings.Repeat("术", maxHelperContext)
+	got := clipContext(multi)
+	if len(got) > maxHelperContext {
+		t.Errorf("clipped len = %d, over the cap", len(got))
+	}
+	if !utf8.ValidString(got) {
+		t.Errorf("clipped mid-rune: %q", got[len(got)-8:])
+	}
 }

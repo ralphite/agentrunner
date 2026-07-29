@@ -11,6 +11,7 @@ export function useDictation(
   onText: (text: string) => void,
   context: () => string,
   onError: (msg: string) => void,
+  workspace: () => string = () => "",
 ) {
   const { api } = useAppServices();
   const supported =
@@ -27,9 +28,11 @@ export function useDictation(
   const onTextRef = useRef(onText);
   const contextRef = useRef(context);
   const onErrorRef = useRef(onError);
+  const workspaceRef = useRef(workspace);
   onTextRef.current = onText;
   contextRef.current = context;
   onErrorRef.current = onError;
+  workspaceRef.current = workspace;
 
   const releaseMic = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -43,7 +46,7 @@ export function useDictation(
     try {
       const file = new File([blob], "dictation." + extForMime(mimeType), { type: blob.type || mimeType });
       const up = await api.upload(file);
-      const { text } = await api.dictate(up.path, contextRef.current());
+      const { text } = await api.dictate(up.path, contextRef.current(), workspaceRef.current());
       const t = (text || "").trim();
       if (t) onTextRef.current(t);
     } catch (e: any) {

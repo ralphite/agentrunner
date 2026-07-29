@@ -308,6 +308,21 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
 
   const folded = useMemo(() => foldEvents(events), [events]);
 
+  // The tail of the conversation, handed to the composer so `ar dictate` /
+  // `ar optimize` know what is being talked about — the terms just said out
+  // loud are exactly the ones a transcriber gets wrong. Free of extra fetches:
+  // the journal fold already has them. helperContext does the real budgeting;
+  // this only keeps the prop from carrying a whole session's history.
+  const recentMessages = useMemo(
+    () =>
+      folded.items
+        .filter((it): it is Extract<typeof it, { kind: "user" | "assistant" }> =>
+          it.kind === "user" || it.kind === "assistant")
+        .slice(-8)
+        .map((it) => ({ role: it.kind, text: it.text })),
+    [folded.items],
+  );
+
   // Goal banner (W6): derive the goal's lifecycle from the durable journal so a
   // settled goal keeps a terminal banner instead of vanishing (inspect drops
   // it once done). A live clock ticks the active elapsed; a terminal banner is
@@ -1013,6 +1028,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                   seed={forkDraft}
 				  seedReleasedAt={forkSeedReleasedAt}
                   focusOnMount={forkParked}
+                  recentMessages={recentMessages}
                   onSend={doSend}
                   onError={(message) => toast(message)}
                   actions={{

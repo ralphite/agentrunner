@@ -172,7 +172,9 @@ export const AR = {
   // never talks to a provider. optimize rewrites a draft prompt; dictate
   // transcribes an already-uploaded recording (pass an /api/upload path).
   optimize: (draft: string, context = "") => post<{ text: string }>("/optimize", { draft, context }),
-  dictate: (path: string, context = "") => post<{ text: string }>("/dictate", { path, context }),
+  // `workspace` lets the server fold in that project's own term list.
+  dictate: (path: string, context = "", workspace = "") =>
+    post<{ text: string }>("/dictate", { path, context, workspace }),
 
   events: (sid: string, after: number) =>
     api<Envelope[]>(`/sessions/${sid}/events?after=${after}`),

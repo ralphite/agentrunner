@@ -29,7 +29,7 @@ import {
 } from "./ComposerParts";
 import { useVoice } from "./useVoice";
 import { useDictation } from "./useDictation";
-import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
+import { helperContext, runOptimize, undoOptimize, type HelperMessage } from "./composerOptimize";
 import { dynamicSlash, parseSlash, SLASH, type SlashCatalog, type SlashCmd } from "./slash";
 import {
   recallAccess,
@@ -77,6 +77,9 @@ export type ComposerProps =
       seed?: ForkDraft | null;
       seedReleasedAt?: number;
       focusOnMount?: boolean;
+      // The session's recent turns, oldest first — context for the dictate /
+      // optimize helpers (proper-noun spelling, "it"/"that" resolution).
+      recentMessages?: HelperMessage[];
       onSend: (text: string, images: string[], files: string[], delivery?: "steer" | "queue",
         draft?: { draftId: string; sendRequestId: string;
           parts: Array<{ kind: "image" | "file"; ref?: string; path?: string; ordinal?: number }>;
@@ -390,9 +393,16 @@ export function Composer(props: ComposerProps) {
   // dictation (MediaRecorder + `ar dictate`) isn't available.
   const voice = useVoice(appendText);
   // Context that helps the helpers spell proper nouns / resolve references: the
-  // session's workspace label and whatever is already typed.
-  const helperCtx = () => helperContext([isSession ? (props as any).workspace : ws, text]);
-  const dictation = useDictation(appendText, helperCtx, (m) => props.onError(m));
+  // session's workspace, its recent turns, and whatever is already typed. Home
+  // has no conversation yet, so there it is workspace + draft alone.
+  const helperCtx = () =>
+    helperContext({
+      workspace: isSession ? (props as any).workspace : ws,
+      recent: isSession ? (props as any).recentMessages : null,
+      draft: text,
+    });
+  const helperWorkspace = () => (isSession ? (props as any).workspace : ws) || "";
+  const dictation = useDictation(appendText, helperCtx, (m) => props.onError(m), helperWorkspace);
   // Prefer the server path (better accuracy + context); fall back to the
   // browser's SpeechRecognition when the machine can't record+upload.
   const micActive = dictation.supported ? dictation.recording || dictation.busy : voice.listening;

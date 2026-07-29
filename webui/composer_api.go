@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // handleCompact folds the session's context into a summary (G7 · INC-6):
@@ -112,6 +113,28 @@ func (s *server) handleMode(w http.ResponseWriter, r *http.Request) {
 // real model round-trip that can be slower than a local daemon command.
 const helperTimeout = 120 * time.Second
 
+// maxHelperContext bounds the context a helper call may carry. The frontend
+// budgets its sections to a few KB already; this is the backstop for anything
+// hitting /api/dictate directly, because the string becomes a single argv
+// element and a big enough one fails the exec outright (E2BIG) — a failure mode
+// that surfaces as an inscrutable "ar dictate: ..." rather than anything the
+// user could act on. Truncating beats failing: a clipped hint still transcribes.
+const maxHelperContext = 8 << 10
+
+// clipContext trims a context hint to maxHelperContext bytes, cutting on a rune
+// boundary so a multi-byte term never lands in the prompt as mojibake.
+func clipContext(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= maxHelperContext {
+		return s
+	}
+	s = s[:maxHelperContext]
+	for len(s) > 0 && !utf8.ValidString(s) {
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
 // handleDictate transcribes an uploaded audio recording via `ar dictate`
 // (INC-56, HANDA-PARITY #18). The webui stays a thin shell: it uploads the
 // recording (existing /api/upload), then hands the path to the `ar` command,
@@ -120,8 +143,9 @@ const helperTimeout = 120 * time.Second
 // composer text convenience — it lands in the textarea as an ordinary prompt.
 func (s *server) handleDictate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Path    string `json:"path"`    // an /api/upload path
-		Context string `json:"context"` // optional disambiguation hint (session/draft text)
+		Path      string `json:"path"`      // an /api/upload path
+		Context   string `json:"context"`   // optional disambiguation hint (session/draft text)
+		Workspace string `json:"workspace"` // optional session workspace; its terms file joins the hint
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -140,8 +164,17 @@ func (s *server) handleDictate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	args := []string{"dictate"}
-	if c := strings.TrimSpace(req.Context); c != "" {
+	if c := clipContext(req.Context); c != "" {
 		args = append(args, "--context", c)
+	}
+	// The workspace only ever names a directory whose FIXED relative terms file
+	// dictate may read, so the check is just "a real directory". A bad value is
+	// dropped rather than rejected: a missing glossary must never be the reason
+	// a recording won't transcribe.
+	if ws := strings.TrimSpace(req.Workspace); ws != "" && filepath.IsAbs(ws) {
+		if st, err := os.Stat(ws); err == nil && st.IsDir() {
+			args = append(args, "--workspace", ws)
+		}
 	}
 	args = append(args, clean)
 	res := s.runAR(r.Context(), helperTimeout, args...)
@@ -171,7 +204,7 @@ func (s *server) handleOptimize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	args := []string{"optimize"}
-	if c := strings.TrimSpace(req.Context); c != "" {
+	if c := clipContext(req.Context); c != "" {
 		args = append(args, "--context", c)
 	}
 	args = append(args, "--", draft)
