@@ -18,6 +18,7 @@
       "read_file",
       "edit_file",
       "progress_update",
+      "skill",
       "artifacts_list",
       "artifacts_read"
     ],
@@ -94,6 +95,7 @@
       "read_file",
       "edit_file",
       "progress_update",
+      "skill",
       "artifacts_list",
       "artifacts_read"
     ],

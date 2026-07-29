@@ -1309,6 +1309,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if !structuredOnly {
 		extra = append(extra, "progress_update")
 	}
+	// The skill loader rides with the skills directory (progressive
+	// disclosure): the prefix always lists at least the shipped layer, so
+	// every non-structured run must be able to load what was disclosed —
+	// a directory entry with no loader is a dead pointer. Read-class, no
+	// side effects, same no-gate rule as progress_update; specs no longer
+	// need to list `skill` in tools.
+	if !structuredOnly {
+		extra = append(extra, "skill")
+	}
 	// The artifact consumption face (INC-40): reading back published
 	// artifacts needs the store publish_artifact writes to.
 	if !structuredOnly && l.Artifacts != nil {

@@ -46,7 +46,9 @@ tools: [<subset>]
 # agents_dynamic: true              # or let it draft roles at run time
 # output_schema: { ... }            # constrain replies to JSON
 # skills: [create-agent, /abs/path/to/skill-dir]  # bundle skills: shipped
-#                                  # names or dirs containing a SKILL.md
+#                                  # names or dirs containing a SKILL.md;
+#                                  # the skill loader tool is auto-attached,
+#                                  # never list `skill` in tools yourself
 ```
 
 Choosing `tools` (least privilege — grant what the job needs, no more):
