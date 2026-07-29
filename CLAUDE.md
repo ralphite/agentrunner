@@ -30,6 +30,26 @@
   会话时：先告知用户、征得同意，或在用户确认的时间窗内做——不擅自
   为"图省事"而隔离。
 
+## 默认端口属于用户（硬性）
+
+**`127.0.0.1:8809`（`scripts/deploy.sh` 的默认 `--addr`）是用户日常在用
+的那一份 webui，不是你的测试场。**
+
+- **任何代码改动落到 `origin/main` 后，立刻 `scripts/deploy.sh` 更新
+  8809。** 不是"改完攒着，等用户问起再部署"——用户随时会打开它，看到
+  的必须是最新代码。
+- **你自己跑、自己点、自己截图，一律用别的端口**（如 `--addr
+  127.0.0.1:8788`，或 vite dev server `:5188` 代理到自己的后端）。
+  不要把 8809 当调试实例来回重启。
+- deploy.sh 已内建两条保命规则：版本化安装路径（绝不覆盖运行中的二
+  进制）、有 turn 在跑时拒绝重启 daemon。别用 `--force` 绕过。
+- 在 worktree 里部署时记得 `--env-file /Users/yadong/dev2/agentrunner/.env`
+  （worktree 没有自己的 `.env`，缺了它 daemon 会丢 `GEMINI_API_KEY`）。
+
+**Why：** 不部署的代价是用户对着旧构建报 bug、你对着新代码复现不出来，
+两边都白花时间——已经发生过（inline code chip 的 baseline 修复已在 main
+上，用户仍在 8809 上看到旧的 `align-[-4px]` 版本并报了一次 position bug）。
+
 ## 文档体系（全部住在 `docs/`，流程与冲突裁决见 `docs/PROCESS.md`）
 
 三层产品定义 + 三份支撑件，共 7 份活文档：
