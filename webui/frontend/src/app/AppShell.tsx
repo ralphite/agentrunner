@@ -249,6 +249,12 @@ export function AppShell() {
         {...(isMobile && mobileSidebarOpen ? { inert: "" } : {})}
         aria-hidden={isMobile && mobileSidebarOpen ? "true" : undefined}
       >
+        {/* B3: this suppression is correct only while the Scheduled detail is
+            in its full-surface form (which carries its own Back control). That
+            form is container-driven (<=760); tw.css now also triggers it for the
+            whole <=900 viewport band, where the sidebar is a drawer and the
+            container equals the viewport — so the two conditions finally agree
+            and 761–900 no longer hides both affordances at once. */}
         {effectiveCollapsed && !(isMobile && currentPage === "scheduled" && scheduledDetailSid) && (
           <IconButton
             className="sidebar-show"

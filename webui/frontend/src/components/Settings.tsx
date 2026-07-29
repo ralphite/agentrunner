@@ -96,7 +96,7 @@ export function Settings({
       onEscape={onClose}
     >
       <aside className="shrink-0 grow-0 basis-[264px] flex flex-col gap-[10px] px-[12px] py-[16px] border-r border-line bg-sidebar overflow-y-auto max-[720px]:basis-auto max-[720px]:grid max-[720px]:grid-cols-1 max-[720px]:items-center max-[720px]:gap-[7px] max-[720px]:px-[12px] max-[720px]:py-[8px] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:overflow-hidden">
-        <Button variant="ghost" className="hidden self-start max-[720px]:inline-flex max-[720px]:self-auto" onClick={onClose}>
+        <Button variant="ghost" className="!hidden self-start max-[720px]:!inline-flex max-[720px]:self-auto" onClick={onClose}>
           <ArrowLeft size={15} weight="bold" /> Back to app
         </Button>
         <SearchField

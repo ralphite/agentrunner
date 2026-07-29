@@ -13,6 +13,12 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
+  /* R2: skipping preflight (see the note above) also means the UA's own margins
+     survive. They surfaced as real layout bugs — the Scheduled h2 carried
+     margin-block:.83em, which floated the Create button above the title it
+     belongs to, and blockquote kept margin:1em 40px, indenting every quote 40px
+     past its siblings. Reset only what bit us; the rest of preflight stays out. */
+  h1, h2, h3, h4, h5, h6, blockquote, figure, p, dl, dd { margin: 0; }
 }
 
 :root {
@@ -77,11 +83,11 @@
      行号槽与左侧 3px accent 条比行底更饱和(它们是"脊",要一眼扫出改动
      位置);统计数字(+N −N)又比 accent 条更纯。语义 --green/--red 继续服务
      status pill / 告警卡,不受影响。 */
-  --diff-add-num: #15932d;
+  --diff-add-num: #127a26;
   --diff-del-num: #e72c21;
   --diff-add-bar: #11aa3c;
   --diff-del-bar: #ef6251;
-  --stat-add: #08a12d;
+  --stat-add: #067d24;
   --stat-del: #e22b2f;
   --status-running: var(--green);
   --status-ready: var(--blue);
@@ -443,25 +449,39 @@
      a plain class, not a Tailwind utility, so surfaces join the layer by being
      named here (or by carrying the literal `ix` class from a component). */
   .ix, .menu-item, .pop-item, .cmdk-item, .cx-slash-item, .diff-fileitem,
-  .scheduled-row, .sched-suggest, .home-intent-suggestion {
+  .scheduled-row, .sched-suggest, .home-intent-suggestion, .fd-head {
     cursor: pointer;
     transition: box-shadow 90ms ease-out;
     --ix-rest-shadow: 0 0 #0000;
   }
   .ix:where(:hover):not(:disabled):not([aria-disabled="true"]),
   :is(.menu-item, .pop-item, .cmdk-item, .cx-slash-item, .diff-fileitem,
-      .scheduled-row, .sched-suggest, .home-intent-suggestion):where(:hover):not(:disabled) {
+      .scheduled-row, .sched-suggest, .home-intent-suggestion, .fd-head):where(:hover):not(:disabled) {
     box-shadow: inset 0 0 0 999px var(--ix-hover), var(--ix-rest-shadow);
   }
   /* Press must out-darken selected, else a chosen row gives no click feedback.
      No transition: the press must land on the same frame as the pointer. */
   .ix:where(:active):not(:disabled):not([aria-disabled="true"]),
   :is(.menu-item, .pop-item, .cmdk-item, .cx-slash-item, .diff-fileitem,
-      .scheduled-row, .sched-suggest, .home-intent-suggestion):where(:active):not(:disabled) {
+      .scheduled-row, .sched-suggest, .home-intent-suggestion, .fd-head):where(:active):not(:disabled) {
     box-shadow: inset 0 0 0 999px var(--ix-press), var(--ix-rest-shadow);
     transition: none;
   }
+  /* M5/A3-7: Codex's .38 disabled token assumes DARK ink on a light fill — it
+     fades the glyph toward the page. On a solid near-black button it fades the
+     WHITE label toward the fill instead, landing at 2.5:1. Solid variants keep
+     full opacity and mute via colour, which stays legible either way. */
   .ix:disabled, .ix[aria-disabled="true"] { cursor: default; opacity: 0.38; }
+  .ix[data-variant="solid"]:disabled, .ix[data-variant="solid"][aria-disabled="true"] {
+    opacity: 1;
+    /* !important is load-bearing here, not defensive: the variant ships
+       `bg-accent text-accent-ink` as utilities, and utilities out-rank this
+       layer. Without it the button keeps full opacity AND its enabled fill,
+       i.e. a disabled control that looks exactly like a live one. */
+    background: var(--panel-2) !important;
+    border-color: var(--line) !important;
+    color: var(--dim) !important;
+  }
   /* Row-shaped targets span their container edge-to-edge but paint an inset,
      rounded highlight. An inset shadow would follow the full-bleed box, so
      these get a ::before layer sized to the visible highlight instead. */
@@ -504,7 +524,7 @@
      nav-slot 尺寸/坐标不对齐,盖住会话标题首字符。对齐 slot(36px)并
      垂直居中 48px header(top 6px + safe-area);桌面(>900 无 slot)
      collapsed 时由下面的 :has 规则给 topbar 让位。 */
-  .sidebar-show { @apply fixed left-3 z-20 h-9 w-9 rounded-[var(--radius-control)] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; top: max(6px, env(safe-area-inset-top)); }
+  .sidebar-show { @apply fixed left-3 z-20 !h-9 !w-9 rounded-[var(--radius-control)] !bg-panel !shadow-lg transition-all duration-100 hover:!shadow-xl; top: max(6px, env(safe-area-inset-top)); }
   .main:has(> .sidebar-show) .session-topbar { @apply min-[901px]:pl-[60px]; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
@@ -557,7 +577,10 @@
     @apply flex h-[31px] items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-3 text-left text-[13px] font-medium text-ink [&>svg]:text-ink-2 transition-colors duration-100;
   }
   .primary-nav button:hover, .nav-row:hover { box-shadow: inset 0 0 0 999px var(--ix-hover); }
-  .primary-nav button.active { @apply bg-sel text-ink font-semibold; }
+  /* 2b: Codex's selected rail row does not change weight — the fill carries the
+     state on its own. A 500→600 jump also nudges the row's text width, so the
+     label shifts slightly the moment you select it. */
+  .primary-nav button.active { @apply bg-sel text-ink; }
   .menu-kbd { @apply ml-auto rounded-[var(--radius-affordance)] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
@@ -660,22 +683,32 @@
      readable without a tooltip. The walk is one-way and snaps back instantly on
      leave (Codex has no return animation). Under prefers-reduced-motion the
      mask still applies and only the movement is dropped. */
+  /* m1 (regression from T14): the fade was unconditional, so titles that fit
+     comfortably still had their last glyph eaten and looked mis-rendered. The
+     mask is now applied only by the row script, which measures overflow first.
+     M14 (regression from T23): the walk also needs a LEFT fade — without it the
+     text was sheared mid-glyph on the way out, and the tail it was walking to
+     stayed half-transparent under the right fade once it arrived. */
   .project-session-title {
     @apply min-w-0 flex-1 overflow-hidden whitespace-nowrap;
-    mask-image: linear-gradient(to right, #000 calc(100% - 25px), transparent calc(100% - 13px));
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 25px), transparent calc(100% - 13px));
+  }
+  .project-session-title[data-overflow] {
+    mask-image: linear-gradient(to right, transparent 0, #000 var(--title-lead, 0px), #000 calc(100% - 25px), transparent calc(100% - 13px));
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--title-lead, 0px), #000 calc(100% - 25px), transparent calc(100% - 13px));
   }
   /* --title-shift is written by the row on mouse-enter: how far the text
      overflows, which CSS has no way to measure. Absent it, the rule is inert. */
   @media (hover: hover) {
-    .project-session-wrap:hover .project-session-title {
+    .project-session-wrap:hover .project-session-title[data-overflow] {
       text-indent: calc(var(--title-shift, 0px) * -1);
       transition: text-indent 2s ease-in-out;
+      --title-lead: 12px;
     }
   }
   /* The selected row trades the fade for a real ellipsis: it also carries the
      worktree/branch glyph, and a faded title would bleed into that icon. */
-  .project-session-wrap.current .project-session-title {
+  .project-session-wrap.current .project-session-title,
+  .project-session-wrap.current .project-session-title[data-overflow] {
     @apply text-ellipsis;
     mask-image: none;
     -webkit-mask-image: none;
@@ -686,15 +719,23 @@
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
   .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
   .session-loading-icon { @apply shrink-0; }
-  .session-quick-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
+  /* m5: revealing the actions on hover stole 32px from the title, so every row's
+     text jumped sideways under the cursor. Reserve the slot; only reveal the ink. */
+  .session-quick-actions { @apply invisible inline-flex shrink-0 items-center gap-[2px] pr-1; }
   .project-session-wrap:hover .session-quick-actions,
   .project-session-wrap.pseudo-hover .session-quick-actions,
   .pseudo-hover .session-quick-actions,
-  .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
-  .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
-  .status-dot.run, .status-dot.running { @apply bg-status-running; }
-  .status-dot.appr, .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }
-  .status-dot.crash, .status-dot.failed, .status-dot.error { @apply bg-status-failed; }
+  .project-session-wrap:focus-within .session-quick-actions { @apply visible; }
+  /* R1+M11: LifecycleStatus ships `!h-auto !w-auto !rounded-none !bg-transparent`,
+     which erased this rule wherever the sidebar used it — the same class and the
+     same title rendered as a 13px amber warning glyph in the rail and a 7px dot
+     in the palette. Match the primitive's specificity so one class means one
+     thing again. */
+  .status-dot { @apply inline-block !h-[7px] !w-[7px] shrink-0 !rounded-full bg-status-terminal; }
+  .status-dot.run, .status-dot.running { @apply !bg-status-running; }
+  .status-dot.appr, .status-dot.stranded, .status-dot.attention { @apply !bg-status-attention; }
+  .status-dot.crash, .status-dot.failed, .status-dot.error { @apply !bg-status-failed; }
+  .status-dot > svg { @apply hidden; }
   .status-count {
     @apply inline-grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-status-attention px-1 text-[10px] font-semibold leading-none text-white;
   }
@@ -730,13 +771,16 @@
     left: calc(var(--sidebar-width, 240px) - 8px);
   }
   .session-preview > div { @apply flex min-w-0 items-center gap-2 py-[2px] text-ink-2; }
-  .session-preview-head { @apply justify-between text-ink; }
+  /* m2: `.session-preview > div` (0,1,1) out-ranked the single-class head rule,
+     so every line of the card came out the same grey and the card had no
+     hierarchy at all. */
+  .session-preview > .session-preview-head { @apply justify-between text-ink; }
   .project-preview {
     @apply fixed z-40 w-[320px] rounded-[var(--radius-menu)] border border-line bg-panel p-3 text-[13px] text-ink shadow-lg;
     left: calc(var(--sidebar-width, 240px) - 8px);
   }
   .project-preview > div { @apply flex min-w-0 items-center gap-2 py-[3px] text-ink-2; }
-  .project-preview-head { @apply text-[15px] text-ink; }
+  .project-preview > .project-preview-head { @apply text-[15px] text-ink; }
   .project-preview-head b { @apply min-w-0 flex-1 truncate font-semibold; }
   .project-preview-path { @apply mt-2 border-t border-line pt-3!; }
   .project-preview-path span { @apply min-w-0 truncate; }
@@ -773,6 +817,15 @@
     @apply flex min-h-9 w-full items-center gap-2 rounded-[var(--radius-control)] border-transparent bg-transparent px-3 py-2 text-left text-[13px] text-ink-2 shadow-none hover:border-transparent hover:text-ink hover:shadow-none focus-visible:text-ink;
   }
   .home-intent-icon { @apply grid h-4 w-4 shrink-0 place-items-center text-dim; }
+  /* M28: Home.tsx has always emitted a tone on these icons, and the starter
+     cards two rules up consume theirs — this set was simply never written, so
+     all four intents rendered the same grey while the identical icon on the card
+     above was blue. */
+  .home-intent-icon.teal { color: var(--teal); }
+  .home-intent-icon.violet { @apply text-violet; }
+  .home-intent-icon.green { @apply text-green; }
+  .home-intent-icon.orange { color: var(--orange); }
+  .home-intent-icon.blue { @apply text-blue; }
   .home-intent-icon svg { @apply h-[14px] w-[14px]; }
 
   .cx {
@@ -790,8 +843,14 @@
   /* Focus deepens the card's own edge. The app-wide focus ring is right for
      discrete controls but wrong here — the composer is a surface, and a ring
      around it read as an error state. */
+  /* M6 (regression from T15): the dark override was written as a raw
+     [data-theme="dark"] descendant selector, but the DEFAULT theme is "system",
+     which theme.ts implements by REMOVING that attribute — so on a dark OS the
+     rule never matched and focusing the composer made its border disappear
+     (1.03:1 against the page). The `dark:` variant covers both the attribute
+     and the prefers-color-scheme path; it is the only correct spelling here. */
   .cx-card:focus-within { border-color: rgb(0 0 0 / 20%); }
-  :root[data-theme="dark"] .cx-card:focus-within { border-color: rgb(255 255 255 / 24%); }
+  .cx-card:focus-within { @apply dark:border-white/25; }
   .cx-session .cx-card { @apply max-w-[660px]; }
   /* QA-0724-goal · the session composer sat flush against the viewport's bottom
      edge at desktop widths — only the ≤500px container query carried any
@@ -820,9 +879,13 @@
   .cx-env-project-wrap { @apply min-w-0 max-w-[240px]; }
   .cx-env-project-wrap .cx-env-control { @apply w-full; }
   .cx-env-control.environment { @apply shrink-0; }
+  /* M29: a disabled chip answered the pointer exactly like a live one. The .ix
+     family a few rules up already guards its hover with :not(:disabled); this
+     pair never did. */
   .cx-env-control, .cx-pill {
-    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border-0 bg-transparent px-[9px] py-[5px] text-[12px] text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border-0 bg-transparent px-[9px] py-[5px] text-[12px] text-ink-2 transition-colors duration-100;
   }
+  .cx-env-control:not(:disabled):hover, .cx-pill:not(:disabled):hover { @apply bg-panel-2 text-ink; }
   .cx-deliv {
     @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
@@ -885,10 +948,16 @@
   .cx-att-thumb { @apply h-5 w-5 rounded object-cover; }
   .cx-att-ico, .cx-att-x { @apply shrink-0 text-dim; }
   .cx-att-name { @apply min-w-0 truncate; }
+  /* 4a: bottom-54px was measured from the composer's bottom, which put the panel
+     squarely over the textarea — 30px of its 32px height — so you could not see
+     what you were typing while the menu filtered on it. Anchor it above the card
+     instead of inside it. */
   .cx-slash {
-    @apply absolute bottom-[54px] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[var(--radius-menu)] border border-line bg-panel p-1 shadow-lg;
+    @apply absolute bottom-[calc(100%+8px)] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[var(--radius-menu)] border border-line bg-panel p-1 shadow-lg;
   }
-  .cx-slash-hd { @apply px-2 py-[6px] text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
+  /* 4b: the last shouty section label in the app — R53/R77 quieted the sidebar,
+     menu and palette equivalents to title-case 12px and this one was missed. */
+  .cx-slash-hd { @apply px-2 py-[6px] text-[12px] font-medium normal-case tracking-normal text-dim; }
   /* R53 MENU-SECTION-LABEL-CASE: the composer "+" / env-chip menu section
      headers ("Add", "Advanced", "Start in" …) were the same shouty
      uppercase+tracking that R47/R48 already quieted for the sidebar section
@@ -900,7 +969,9 @@
   .cx-slash-item {
     @apply flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[13px];
   }
-  .cx-slash-item.on { @apply bg-blue-soft; }
+  /* 4c: R77 already ruled that the keyboard cursor is a neutral grey, not a blue
+     "active" accent — the palette follows it, this menu did not. */
+  .cx-slash-item.on { @apply bg-sel; }
   .cx-slash-text { @apply flex min-w-0 flex-col; }
   .cx-slash-name { @apply min-w-0 truncate text-ink; }
   .cx-slash-desc, .cx-slash-hint, .cx-at-empty, .pop-desc, .pop-empty, .cx-pop-note { @apply text-[12px] text-dim; }
@@ -927,7 +998,10 @@
   .cx-launcher { @apply mb-3 rounded-[var(--radius-card)] border border-line bg-panel p-3; }
   .cx-launcher-hd, .cx-launcher-row { @apply flex items-center gap-2; }
   .cx-launcher-prompt { @apply my-2 w-full resize-none; }
-  .cx-launcher-field { @apply flex min-w-0 flex-1 flex-col gap-1 text-[12px] text-dim; }
+  /* m29: the panel had two left edges — headings and items inset 17px, fields 9px.
+     m30: the rhythm was inverted, 0px BETWEEN fields and 4px inside one, so two
+     form rows fused into a single block. */
+  .cx-launcher-field { @apply flex min-w-0 flex-1 flex-col gap-1 px-2 py-[6px] text-[12px] text-dim; }
   .risk-dot.low { @apply bg-green; }
   .risk-dot.med { @apply bg-amber; }
   .risk-dot.high { @apply bg-red; }
@@ -970,14 +1044,25 @@
   .menu-item, .pop-item {
     @apply flex w-full min-w-0 items-center gap-2 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[13px] text-ink;
   }
+  /* m28: on a two-line row the leading icon drifted to the middle of the pair and
+     sat beside the DESCRIPTION rather than the title it labels. */
+  .pop-item:has(.pop-desc) { @apply items-start; }
+  .pop-item:has(.pop-desc) > .pop-ico { @apply mt-[1px]; }
   .menu-item.danger, .pop-item.danger { @apply text-red; }
   .menu-label, .pop-menu-title { @apply flex items-center gap-2 px-2 py-[6px] text-[12px] font-medium text-dim; }
   .pop-back { @apply h-10 w-10 rounded-[var(--radius-affordance)] border-0 bg-transparent p-0 text-[18px] transition-colors duration-100 hover:bg-panel-2; }
   .pop-body { @apply flex min-w-0 flex-1 flex-col; }
   .pop-title { @apply min-w-0 truncate; }
   .pop-ico { @apply inline-grid h-[18px] min-w-[18px] shrink-0 place-items-center; }
+  /* M26: the check only rendered on the selected row and took its width from the
+     text, so selecting a row narrowed its body by 26px, wrapped the description
+     and grew the row 19px — the menu jumped every time you changed your mind.
+     The slot is now always present; only its glyph toggles. */
   .pop-right, .pop-check { @apply ml-auto inline-grid h-[18px] min-w-[18px] shrink-0 place-items-center text-dim; }
-  .pop-item.active, .pop-item[aria-checked="true"] { @apply bg-blue-soft text-ink; }
+  .pop-item > .pop-check:empty { @apply invisible; }
+  /* m31: the blue selection fill LOWERED the description's contrast (3.59 → 3.15).
+     Neutral --sel matches the palette's cursor and keeps the text where it was. */
+  .pop-item.active, .pop-item[aria-checked="true"] { @apply bg-sel text-ink; }
   .pop-item:disabled { @apply opacity-45; }
 
   .backdrop { @apply fixed inset-0 z-50 grid place-items-start p-[8vh_16px]; background: var(--scrim); }
@@ -1008,11 +1093,20 @@
      cramped at 13px/py-8px (~37px). Bumped to 14px text + py-[10px] so the list
      breathes like Codex instead of feeling like a dense dropdown. */
   .cmdk-item { @apply flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[10px] text-left text-[14px]; }
+  /* m3: rows led with a 16px badge, a 7px dot, or nothing, giving one list three
+     different text origins. Reserve one slot so every label starts on the same x. */
+  .cmdk-item > .status-dot, .cmdk-item > .status-count { @apply mx-auto; }
+  .cmdk-item > :is(.status-dot, .status-count):first-child { @apply w-4 shrink-0; }
   /* CMDK-SEL-NEUTRAL (R77): keyboard-selected row uses the same neutral grey as
      hover, not a blue accent — Codex golden (codex-crop-command-palette.jpg) renders
      the ⌘1 cursor row on a plain light-grey fill (same hue as hover), a quiet cursor
      rather than a "primary/active" state. bg-blue-soft made every arrowed row flash blue. */
-  .cmdk-item.sel { @apply bg-panel-2; }
+  /* M2 (regression from T7): hover became a 3% translucent overlay while the
+     keyboard cursor stayed on --panel-2, leaving them 4/255 apart — with the
+     mouse anywhere over the list, two rows looked equally chosen and you could
+     not tell which one Enter would open. The cursor now takes the darker --sel,
+     one clear step below hover. */
+  .cmdk-item.sel { @apply bg-sel; }
   .cmdk-label { @apply min-w-0 flex-1 truncate; }
   .cmdk-hint { @apply ml-auto truncate text-[12px] text-dim; }
   /* CMDK-KBD-BADGE (R78): the ⌘N badges in the command palette are borderless
@@ -1030,11 +1124,13 @@
      selected/hovered; white/default rows keep the R78 soft-grey pill unchanged. */
   .cmdk-item.sel .cmdk-kbd,
   .cmdk-item:hover .cmdk-kbd { @apply bg-line; }
-  .kbd, .rs-kbd { @apply rounded-[var(--radius-affordance)] border border-line bg-panel-2 px-[5px] py-[1px] font-mono text-[11px] text-dim; }
+  /* m8: these glyphs ARE the content of the shortcuts screens; at --dim they were
+     3.24:1. --ink-2 keeps them quiet without making them guesswork. */
+  .kbd, .rs-kbd { @apply rounded-[var(--radius-affordance)] border border-line bg-panel-2 px-[5px] py-[1px] font-mono text-[11px] text-ink-2; }
   .shortcuts { @apply max-w-[720px]; }
   .sc-head { @apply flex items-center gap-3 border-b border-line p-3; }
   .sc-title { @apply font-medium; }
-  .sc-close { @apply hidden shrink-0; }
+  .sc-close { @apply !hidden shrink-0; }
   .sc-search { @apply ml-auto max-w-[260px] rounded-[var(--radius-control)] border border-line px-2 py-[6px]; }
   .sc-list { @apply p-3; }
   .sc-row, .rs-sc-row { @apply flex items-center justify-between gap-4 border-t border-line-2 py-2; }
@@ -1135,7 +1231,7 @@
   .bubble { @apply rounded-[var(--radius-card)] border-0 bg-panel px-[13px] py-[7px] text-[14px] leading-[22px] break-words overflow-hidden; }
   .msg.user .bubble { @apply bg-panel-2; }
   .msg.assistant .bubble { @apply border-transparent bg-transparent px-0; }
-  .msg-actions { @apply mt-1 flex items-center gap-[13px] text-[12px] text-dim transition-opacity; }
+  .msg-actions { @apply mt-1 flex items-center gap-[8px] text-[12px] text-dim transition-opacity; }
   .timeline .tl-inner .msg:not(.msg-last) .msg-actions { @apply pointer-events-none opacity-0; }
   .timeline .tl-inner .msg.msg-last .msg-actions,
   .timeline .tl-tail-row .msg-actions { @apply pointer-events-auto opacity-100; }
@@ -1150,7 +1246,10 @@
   /* Codex's message actions are bare 15px glyphs at full opacity — no chip, no
      resting fade. The 60% fade plus a hover fill made them read as disabled
      controls that lit up, rather than quiet always-available affordances. */
-  .msg-copy { @apply grid h-[15px] w-[15px] place-items-center border-0 bg-transparent p-0 text-dim hover:bg-transparent hover:text-ink; }
+  /* R1: IconButton forces w/h from --control-sm, so the 15px box never applied
+     and the row read airier than Codex's. Keep a 20px hit box (still reachable,
+     and coarse pointers get 44px from the primitive) with the 15px glyph. */
+  .msg-copy { @apply grid !h-5 !w-5 place-items-center border-0 !bg-transparent p-0 text-dim hover:!bg-transparent hover:text-ink; }
   .msg-actions-div { @apply h-4 w-px bg-line; }
   .msg-time, .who { @apply text-[12px] text-dim; }
   .msg-action-error { @apply max-w-[22rem] truncate text-[11px] text-red; }
@@ -1205,8 +1304,12 @@
   .worked-body, .act-body, .runtime-event-body { @apply min-w-0 flex-1; }
   .act-group > summary { @apply flex min-w-0 items-start gap-2; list-style: none; }
   .act-group > summary::-webkit-details-marker { display: none; }
-  .act-label { @apply min-w-0 flex-1; }
-  .act-count { @apply ml-auto shrink-0; }
+  /* m27: flex-1 on the label plus ml-auto on the count flung the ×30 chip to the
+     far right of a 707px column, ~320px of blank space away from the words it
+     counts. Codex does not render a count here at all; keeping it, it belongs
+     beside its label. */
+  .act-label { @apply min-w-0 shrink; }
+  .act-count { @apply ml-[6px] mr-auto shrink-0; }
   .act-ic, .step-ic, .cx-activity-ic { @apply mt-[2px] text-dim; }
   .act-count, .step-tag, .step-tok { @apply rounded-full bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
   /* R41 EMPTY-STACK: this used to be `text-center` only — no flex/grid — so its
@@ -1244,8 +1347,16 @@
     background: var(--fill-soft);
   }
   .cx-code-hd { @apply flex items-center justify-between border-0 bg-transparent px-3 pt-2 pb-1 text-[13px] text-dim; }
+  /* M22: the block clips at a fixed 240px with no fade and no expander, and
+     macOS overlay scrollbars are invisible at rest — the only cue that 1400px of
+     output was hidden was a row of half-cut glyphs at the bottom edge. Snap the
+     height to a whole number of lines and fade the last one so the cut reads as
+     "there is more", not as a rendering fault. */
   .shell-out, .cx-code-body {
     @apply overflow-x-auto p-3;
+    max-height: calc(12px * 2 + 22px * 10);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
     scrollbar-width: thin;
     scrollbar-color: var(--line) var(--panel-2);
   }
@@ -1265,7 +1376,9 @@
   .md, .cx-md { @apply max-w-none text-[14px] leading-[1.6] text-ink; }
   .md-p { @apply my-2; }
   .md-list { @apply my-2 pl-5; }
-  .md-quote { @apply my-2 border-l-2 border-line pl-3 text-ink-2; }
+  /* M24: --line is tuned for box edges on white; as the only mark identifying a
+     quote it was 1.19:1 and simply not visible. Codex uses a heavier 4px rail. */
+  .md-quote { @apply my-2 border-l-[4px] border-chip pl-3 text-ink-2; }
   .md-h { @apply mt-4 mb-2 font-semibold; }
   .md-h1 { @apply text-[20px]; }
   .md-h2 { @apply text-[17px]; }
@@ -1282,22 +1395,27 @@
   }
   .md-img-grid { @apply my-3 grid gap-2; }
   .md-img { @apply max-h-[200px] max-w-full cursor-zoom-in rounded-[var(--radius-menu)] border border-line object-contain; }
-  .md-img-fallback { @apply inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-line px-2 py-1 text-[12px]; }
+  /* m24: a grid item stretches by default, so this content-sized chip became a
+     707px-wide empty bar with 52px of content pinned to its left end. */
+  .md-img-fallback { @apply inline-flex w-fit justify-self-start items-center gap-1 rounded-[var(--radius-control)] border border-line px-2 py-1 text-[12px]; }
 
-  .approval-stack { @apply mx-auto w-full max-w-[660px] px-4; }
+  /* M23: the conversation column is 767 - 2*30 = 707px, but the footer-card
+     family sat at 660 + px-4 = 628 — a 39.5px step on both sides, with the one
+     thing you have to ACT on rendered narrower than the prose above it. */
+  .approval-stack { @apply mx-auto w-full max-w-[767px] px-[30px]; }
 
   /* Queued messages (INC-43 queue delivery) — same footer-card family as the
      approval/ask/terminal cards: bounded 660px column, one compact row per
      pending message, text clamped to a single line (full text in the title
      tooltip), never a full-screen raw dump (QA-0719 iPhone screenshot). */
-  .queued-list { @apply mx-auto mb-1 mt-2 flex w-full max-w-[660px] flex-col gap-1.5 px-4; }
+  .queued-list { @apply mx-auto mb-1 mt-2 flex w-full max-w-[767px] flex-col gap-1.5 px-[30px]; }
   .queued-row { @apply flex min-w-0 items-center gap-2.5 rounded-[var(--radius-menu)] border border-line bg-panel px-3 py-2 text-[13px] shadow-sm; }
   .queued-ic { @apply shrink-0 text-blue; }
   .queued-kicker { @apply shrink-0 text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
   .queued-text { @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-ink-2; }
   .queued-drop { @apply min-h-7 shrink-0 rounded-[var(--radius-control)] border border-line bg-transparent px-2.5 py-1 text-[12px] font-medium text-dim hover:text-ink; }
   .approval-card, .ask-form, .daemon-alert, .turn-error, .terminal-alert, .gbar {
-    @apply mx-auto my-3 w-full max-w-[660px] rounded-[var(--radius-card)] border border-line bg-panel p-3 text-[13px] shadow-sm;
+    @apply mx-auto my-3 w-full max-w-[707px] rounded-[var(--radius-card)] border border-line bg-panel p-3 text-[13px] shadow-sm;
   }
   .approval-heading, .ask-form-head, .daemon-alert, .turn-error, .terminal-alert, .gbar {
     @apply flex items-start gap-3;
@@ -1324,7 +1442,7 @@
   .gbar { @apply mb-0 max-w-none rounded-none border-x-0 border-t-0 shadow-none; }
   .gbar.gbar-live {
     @apply my-2 w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[var(--radius-card)] border bg-panel px-3 py-2 shadow-sm;
-    margin-left: max(12px, calc((100% - 660px) / 2));
+    margin-left: max(12px, calc((100% - 707px) / 2));
   }
   .gbar.gbar-live .gbar-label { @apply whitespace-nowrap normal-case tracking-normal text-[13px] text-ink; }
   .gbar.gbar-live .gbar-actions { @apply mt-0 flex-nowrap gap-1; }
@@ -1340,7 +1458,7 @@
   }
   .progress-summary {
     @apply my-2 flex w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[var(--radius-card)] border border-line bg-panel px-3 py-2 text-[13px] text-ink shadow-sm;
-    margin-left: max(12px, calc((100% - 660px) / 2));
+    margin-left: max(12px, calc((100% - 707px) / 2));
   }
   .progress-summary > svg { @apply shrink-0 text-blue; }
   .progress-summary.failed > svg { @apply text-red; }
@@ -1362,6 +1480,23 @@
   /* Codex keeps Environment as a viewport-bounded card at the upper right.
      This base rule intentionally serves desktop and mobile so the two modes
      cannot drift back into different layout contracts. */
+  /* B2: the card floats (INC-97 keeps it out of the layout grid), but floating
+     is not licence to sit on the text. The conversation column now reserves the
+     card's strip while it is open, so the column re-centres in what is left
+     instead of running underneath. Below `wide` the card is a full-surface
+     overlay anyway, so the reservation is scoped to the width where both are
+     on screen at once. */
+  @media (min-width: 1101px) {
+    /* The reservation must go on the element that CENTRES the column, not on the
+       column itself: .tl-inner is `mx-auto max-w-767`, so padding inside it just
+       squeezes the text and leaves the box exactly where it was. Padding the
+       scroll container shrinks the space the auto margins resolve against, which
+       is what actually moves the column clear of the card. */
+    .session-view:has(.supervision-panel.session-side) .timeline,
+    .session-view:has(.supervision-panel.session-side) .cx-session {
+      padding-right: 352px;
+    }
+  }
   .session-view .supervision-panel.session-side {
     @apply absolute right-3 top-[60px] z-[25] block min-w-0 overflow-y-auto rounded-[var(--radius-overlay)] border bg-panel;
     border-color: var(--card-line);
@@ -1547,6 +1682,11 @@
   /* RVW-MARKER: thin ~3px left accent bar, matching the inline view.
      R50 DIFF-MARKER-NOTCH: fill the rest of the cell with the row tint (not
      transparent) so the accent bar reads as embedded in a continuous field. */
+  /* R2: `empty` is emitted by DiffView for the blank half of an added/deleted
+     row, but no rule ever matched it — the half stayed transparent while the
+     marker beside it still painted its tint, leaving a lone accent bar with a
+     white gap between it and the tinted code. */
+  .fd-split .dls-half.empty { background-color: var(--panel-2); }
   .fd-split .dls-marker.add { background: linear-gradient(to right, var(--diff-add-bar) 3px, var(--diff-add-bg) 3px); }
   .fd-split .dls-marker.del { background: linear-gradient(to right, var(--diff-del-bar) 3px, var(--diff-del-bg) 3px); }
 
@@ -1556,7 +1696,9 @@
      设计意图(DF-5 注释)是两列:第一列 = 整个行号 gutter 宽
      (18px marker + 5ch 号 + 2×px-2),label 从代码列起。 */
   .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: calc(5ch + 18px) minmax(0, 1fr); }
-  .fd-gap:hover { @apply bg-panel-2; }
+  /* m18: the hover rule was byte-identical to the base rule, so a 647px-wide
+     button gave feedback only where its label happened to be. */
+  .fd-gap:hover { box-shadow: inset 0 0 0 999px var(--ix-hover); }
   /* DIFF-SPLIT-FOLD-BAND: in the split (side-by-side) grid the fold band is a
      direct grid child, so it must span all five column tracks (marker + two
      number/code pairs) to keep its own gutter+label geometry; without this it
@@ -1594,7 +1736,15 @@
      而 max-content 从不考虑软换行机会,行仍按完整行宽撑开、照旧横向
      溢出,Wrap 开关等于没接线。wrap 模式下行容器必须放弃 max-content
      最小宽,让 minmax(0,1fr) 的代码列真正收窄并换行。 */
-  .diff-wrap .dl-text, .diff-wrap .dls-half { @apply whitespace-normal; word-break: break-word; }
+  /* m19: the +/- glyph is an inline child of the code cell, so wrapped
+     continuation lines started at the cell edge instead of under the first line's
+     code — a 12.6px notch bitten out of the left margin of every wrapped row. */
+  .diff-wrap .dl-text, .diff-wrap .dls-half {
+    @apply whitespace-normal;
+    word-break: break-word;
+    text-indent: -12.6px;
+    padding-left: calc(0.5rem + 12.6px);
+  }
   .diff-wrap .dl, .diff-wrap .fd-gap { @apply min-w-0; }
   /* wrap 下 split 网格回到容器宽,半列在自己的轨里换行。 */
   .diff-wrap .fd-split { width: auto; }
@@ -1681,6 +1831,21 @@
     .schedule-detail-scroll { @apply px-4 pb-4; }
     .schedule-detail-actions { @apply px-4; }
   }
+  /* B3: the same full-surface form, keyed on the viewport instead of the
+     container, for the band where the sidebar is a drawer (<=900). There the
+     container equals the viewport, so master-detail was cramped anyway — and,
+     more importantly, AppShell hides the global nav button across this whole
+     band. Without this the 761–900 slice showed neither the nav button nor the
+     detail's own Back label, stranding the user with no route to navigation. */
+  @media (max-width: 900px) {
+    .scheduled-shell.has-detail > .scheduled-page { @apply hidden; }
+    .schedule-detail { @apply border-l-0; }
+    .schedule-detail-back-icon { display: none !important; }
+    .schedule-detail-back-label { display: inline-flex !important; }
+    .schedule-detail-close { display: none !important; }
+    .schedule-detail-scroll { @apply px-4 pb-4; }
+    .schedule-detail-actions { @apply px-4; }
+  }
   .page-heading { @apply mb-4 flex items-start justify-between gap-3; }
   /* R80 SCHED-TITLE-SIZE: the Scheduled page title is our own big-heading
      system — Home's `.home-empty-headline` is 28px/400/leading-tight and
@@ -1693,7 +1858,12 @@
   .page-heading h2 { @apply text-[28px] font-normal leading-tight max-[680px]:text-[24px]; }
   .page-heading p { @apply mt-1 text-[15px] font-normal text-dim; }
   /* Codex's page-level Create is the one solid affordance on these screens. */
-  .page-action { @apply inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border-accent bg-accent px-3 text-[14px] font-medium text-accent-ink hover:bg-accent; }
+  /* 3: .page-action is also a .menu-trigger, and that rule's `hover:text-ink`
+     applied here too — harmless while this button was white, fatal once T18 made
+     it solid near-black (#0d0d0d on #0b0b0b = 1.01:1, the label vanished under
+     the cursor). Pin the label colour across every state. */
+  .page-action { @apply inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border-accent bg-accent px-3 text-[14px] font-medium !text-accent-ink hover:bg-accent; }
+  .page-action:hover { @apply !text-accent-ink; }
   /* R40: a labeled Menu trigger (page-action) must not inherit the 32px
      icon-only width from .menu-trigger — .page-action overrides height/padding
      but never width, so `w-8` clamped the box and the "Create" label spilled
@@ -1728,7 +1898,13 @@
      ~15px placeholder — a calm search bar, not the boxy rounded-[var(--radius-menu)]/h-9/13px
      dense field we had. Match the pill radius + taller height + larger text so it
      reads as the calm-list search that sits above the row list. */
-  .sched-search { @apply flex w-full min-w-[220px] items-center gap-2 rounded-full border border-line bg-panel px-4 h-11 text-dim focus-within:border-ink-2; }
+  /* R1+M19: SearchField's own px/py and its blue focus ring both out-ranked this
+     rule — the pill lost its 16px inset and became the only control on the page
+     with a blue halo. */
+  .sched-search {
+    @apply flex w-full min-w-[220px] items-center gap-2 rounded-full border border-line bg-panel !px-4 !py-0 h-11 text-dim;
+  }
+  .sched-search:focus-within { @apply !border-ink-2 !shadow-none !ring-0; }
   .sched-search input { @apply flex-1 w-full border-0 bg-transparent p-0 text-[14px] text-ink outline-none placeholder:text-dim; }
   .sched-filters { @apply flex items-center justify-between gap-2; }
   .sched-tabs { @apply flex items-center gap-1; }
@@ -1766,7 +1942,11 @@
      utility (utilities layer) that would otherwise out-rank this components-layer
      override regardless of specificity; text-dim has no competing utility so it
      applies normally. */
-  .scheduled-row.is-quiet .scheduled-copy b { @apply text-dim; font-weight: 400 !important; }
+  /* M18: quiet is meant to de-emphasise the ROW against live ones, not to flatten
+     the row's own hierarchy — at --dim the title matched its own metadata (3.59:1,
+     below AA) and 11 of 15 rows read as one grey block. Codex keeps a settled
+     title near-black. Step it to --ink-2 and let weight carry the quieting. */
+  .scheduled-row.is-quiet .scheduled-copy b { @apply text-ink-2; font-weight: 400 !important; }
   .scheduled-row-wrap:hover .scheduled-row.is-quiet .scheduled-copy b,
   .scheduled-row-wrap:focus-within .scheduled-row.is-quiet .scheduled-copy b { @apply text-ink-2; }
   /* SCHED-MORE-HOVER (R64): restore hover-reveal lost in the Tailwind migration
@@ -1797,10 +1977,12 @@
   .mbody { @apply grid gap-3 p-4; }
   .field { @apply grid gap-1 text-[12px] text-dim; }
   .field input, .field textarea, .field select { @apply w-full; }
-  .pill { @apply inline-flex items-center rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
+  /* R1+M10: same LifecycleStatus overrides turned the Run-log status pill into a
+     square hollow box beside two rounded siblings. */
+  .pill { @apply inline-flex items-center !rounded-full border border-line !bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
   .seg { @apply flex rounded-[var(--radius-control)] border border-line bg-panel-2 p-[2px]; }
   .seg button { @apply transition-all duration-100; }
-  .seg button.on { @apply bg-panel text-ink shadow-sm; }
+  .seg button.on { @apply bg-panel text-ink shadow-sm dark:bg-line dark:shadow-none; }
   .rd-grid, .session-grid { @apply grid gap-3; }
   .rd-section, .session-card, .advanced-settings { @apply rounded-[var(--radius-menu)] border border-line bg-panel p-3; }
   /* Run details 的 hero/metrics/tools 在迁移中丢了样式(QA-0718 实测
@@ -1828,9 +2010,20 @@
   .rd-raw[open] .rd-raw-caret { @apply rotate-90; }
   .rd-raw > pre { @apply mt-2 block w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto rounded-[var(--radius-menu)] border border-line bg-bg p-2 text-[12px]; max-height: 300px; }
 
+  /* B1: FindBar registers its matches as CSS Custom Highlight ranges, but no
+     ::highlight() rule ever existed — the count and the scrolling worked while
+     nothing was ever painted, so "1 / 14" pointed at an invisible match.
+     ::highlight only accepts a short property list (color, background-color,
+     text-decoration, text-shadow), so the current match is distinguished by
+     colour, not by a border. */
+  ::highlight(arfind) { background-color: var(--amber-soft); color: var(--ink); }
+  ::highlight(arfind-current) { background-color: var(--amber); color: var(--bg); }
+
   .findbar {
     @apply absolute right-3 top-[56px] z-30 flex h-10 items-center gap-1 rounded-[var(--radius-menu)] border border-line bg-panel p-1 shadow-lg;
-    width: min(366px, calc(100vw - 24px));
+    /* m26: the 100vw budget ignored the rail, so at narrow content widths the
+       bar (plus its focus ring) rode 14px over the sidebar's edge. */
+    width: min(366px, calc(100% - 24px));
   }
   .fb-ico { @apply grid h-7 w-6 shrink-0 place-items-center text-dim; }
   .fb-input { @apply h-8 min-w-0 flex-1 border-0 bg-transparent px-1 py-1; }
@@ -1856,8 +2049,11 @@
     max-height: 8rem;
     overflow-wrap: anywhere;
   }
+  /* R1+M3: the toast surface is a fixed dark red in BOTH themes, so the close
+     glyph cannot inherit the theme's neutral ink — at #6e6e6e on #7f1d1d it was
+     2.0:1. Pin it to the same white the icon and body text already use. */
   .toast-close {
-    @apply -mr-1 grid h-8 w-8 shrink-0 place-items-center rounded border-0 bg-transparent p-0 opacity-80 transition-opacity duration-100 hover:opacity-100;
+    @apply -mr-1 grid h-8 w-8 shrink-0 place-items-center rounded border-0 bg-transparent p-0 !text-white opacity-80 transition-opacity duration-100 hover:opacity-100;
   }
 
   .lightbox { @apply fixed inset-0 z-[70] flex flex-col overflow-hidden bg-black/85 text-white; }
@@ -1888,7 +2084,10 @@
   .rs-input, .rs-textarea { @apply w-full; }
   .rs-seg { @apply inline-flex rounded-[var(--radius-control)] border border-line bg-panel-2 p-[2px]; }
   .rs-seg-btn { @apply rounded-[var(--radius-affordance)] border-0 bg-transparent px-3 py-[5px] text-[12px] text-ink-2; }
-  .rs-seg-btn.on { @apply bg-panel text-ink shadow-sm; }
+  /* m12: `bg-panel` reads as a raised white chip on a grey track in light, but in
+     dark --panel is DARKER than --panel-2, so the selected segment sank instead
+     of lifting (1.09:1) and the black shadow did nothing. */
+  .rs-seg-btn.on { @apply bg-panel text-ink shadow-sm dark:bg-line dark:shadow-none; }
   .rs-switch { @apply relative h-[20px] w-[33px] rounded-full border-0 p-[1.5px]; background: var(--chip); }
   .rs-switch.on { background: #2d67c7; }
   .rs-switch-knob {
@@ -1901,8 +2100,19 @@
   .rs-themecard { @apply rounded-[var(--radius-menu)] border border-line bg-panel p-3 text-left; }
   .rs-themecard.on { @apply border-blue bg-blue-soft; }
   .rs-fontpreview, .rs-kv { @apply rounded-[var(--radius-row)] border border-line bg-panel-2 p-3; }
-  .rs-kv-row { @apply flex justify-between gap-3 border-t border-line-2 py-2 text-[13px]; }
+  /* m7: --line-2 on a --panel-2 fill is 1.01:1 — the rules were there and
+     invisible. Use the border token that is meant to read on a filled surface,
+     and drop the leading rule that hung under the container's own padding. */
+  .rs-kv-row { @apply flex justify-between gap-3 border-t border-line py-2 text-[13px]; }
+  .rs-kv-row:first-child { @apply border-t-0; }
   .rs-archive-groups, .rs-wt-sessions { @apply grid gap-2; }
+  /* R2: `.rs-wt-session` was referenced by WorktreeCard but never defined, so
+     each row fell through to the base button chrome — a white box with the same
+     hairline as the card around it, reading as a disabled input rather than a
+     list row. */
+  .rs-wt-session {
+    @apply flex w-full min-w-0 items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent px-2 py-[5px] text-left text-[13px] text-ink;
+  }
   .rs-archive-status, .rs-wt-path, .rs-wt-count { @apply text-[12px] text-dim; }
   .rs-wt-current { @apply rounded-full bg-blue-soft px-1.5 py-0.5 text-[11px] font-medium text-blue; }
   .rs-tp, .rs-tp-body { @apply rounded-[var(--radius-row)] border border-line bg-panel p-2; }
@@ -1962,6 +2172,8 @@
      Applied at max-width 680px for mobile, but should apply to all coarse-pointer
      (e.g. tablets at 900px). See Problem 5 fix for unified breakpoint system. */
   @media (max-width: 680px) {
+    /* m6: every other row in this list is a 44px touch target; these two were 31. */
+    .show-more, .archive-toggle, .projects-show-more, .project-show-more { @apply min-h-11; }
     .menu-trigger { @apply h-11 w-11; }
     .topbar-tool { @apply !h-11 !w-11 !min-w-11; }
     .supervision-close { @apply !h-11 !w-11; }
@@ -2204,8 +2416,16 @@
   .changes-outcome-skel span + span { @apply w-2/3; }
 
   /* 滚底浮钮(Timeline 根为该按钮与滚动区的共同父级) */
+  /* M25 (regression from T19): the button is rendered INSIDE .timeline, the
+     scroll container — but .timeline is not positioned, so `absolute` resolved
+     all the way out to .session-view (composer included) and bottom-5 parked it
+     between the access chip and the model picker. Positioning .timeline instead
+     would not help: an absolutely positioned child of a scroll container scrolls
+     with the content. `sticky` is the construct that actually pins to the
+     scrollport; the negative top margin keeps it out of the flow so it adds no
+     scroll height, and auto side margins centre its fixed 32px box. */
   .tl-jump {
-    @apply absolute bottom-5 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border bg-panel p-0 text-ink;
+    @apply sticky bottom-5 z-10 mx-auto -mt-8 flex h-8 w-8 items-center justify-center rounded-full border bg-panel p-0 text-ink;
     border-color: var(--line);
     box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
   }

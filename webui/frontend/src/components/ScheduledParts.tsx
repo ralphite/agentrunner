@@ -439,7 +439,7 @@ export function ScheduledSuggestionCard({
       onClick={(event) => onSelect(suggestion, event.currentTarget)}
     >
       <span className="sched-suggest-icon">
-        <IconView size={22} color={suggestion.color} />
+        <IconView size={16} color={suggestion.color} />
       </span>
       <span
         className="sched-suggest-body flex min-w-0 flex-1 flex-col gap-1"

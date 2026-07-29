@@ -58,8 +58,11 @@ describe("Settings mobile shell", () => {
     expect(navigation.className).toContain("max-[720px]:overflow-visible");
     expect(navigation.className).not.toContain("max-[720px]:overflow-x-auto");
     expect(main.firstElementChild?.className).toContain("max-[720px]:hidden");
-    expect(back.className).toContain("hidden");
-    expect(back.className).toContain("max-[720px]:inline-flex");
+    // Both need `!`: this is a <Button>, and the primitive's own `inline-flex`
+    // utility out-ranks a plain `hidden` from the call site, so the desktop-hidden
+    // intent silently failed and "Back to app" sat permanently beside "Done".
+    expect(back.className).toContain("!hidden");
+    expect(back.className).toContain("max-[720px]:!inline-flex");
     expect(done.closest("header")?.className).toContain("max-[720px]:hidden");
     expect(main.className).toContain("min-h-0");
     expect(main.className).toContain("overflow-hidden");

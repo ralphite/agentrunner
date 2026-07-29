@@ -260,7 +260,7 @@ export function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSumm
       {hidden > 0 && (
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-[5px] py-[8px] border-t border-line text-[12px] text-dim hover:text-ink"
+          className="inline-flex items-center justify-center gap-[5px] rounded-none border-0 border-t border-line bg-transparent py-[8px] text-[12px] text-dim hover:bg-transparent hover:text-ink"
           onClick={() => setExpanded(true)}
         >
           Show {hidden} more<CaretDown size={13} />
@@ -269,7 +269,7 @@ export function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSumm
       {expanded && docs.length > ARTIFACT_CAP && (
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-[5px] py-[8px] border-t border-line text-[12px] text-dim hover:text-ink"
+          className="inline-flex items-center justify-center gap-[5px] rounded-none border-0 border-t border-line bg-transparent py-[8px] text-[12px] text-dim hover:bg-transparent hover:text-ink"
           onClick={() => setExpanded(false)}
         >
           Show less<CaretUp size={13} />
@@ -318,7 +318,7 @@ export function ChangesShell({ children }: { children: ReactNode }) {
   return (
     <section className="changes-outcome overflow-hidden" aria-label="Workspace changes">
       <header className="flex min-w-0 items-center gap-[11px]">
-        <span className="changes-outcome-icon grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] bg-panel-2 text-ink-2"><PlusMinusSquare /></span>
+        <span className="changes-outcome-icon shrink-0"><PlusMinusSquare /></span>
         {children}
       </header>
     </section>
@@ -526,14 +526,14 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       <ArtifactChips sid={sid} files={summary.files} />
       <section className="changes-outcome overflow-hidden" aria-label="Workspace changes">
         <header className="flex min-w-0 items-center gap-[11px]">
-          <span className="changes-outcome-icon grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] bg-panel-2 text-ink-2"><PlusMinusSquare /></span>
+          <span className="changes-outcome-icon shrink-0"><PlusMinusSquare /></span>
           <div className="changes-outcome-title grid min-w-0 flex-1 gap-[2px] text-[15px] leading-tight">
             <b className="overflow-hidden text-ellipsis whitespace-nowrap">{scope === "turn" ? `Edited ${summary.files.length} file${summary.files.length === 1 ? "" : "s"}` : "Changes in workspace"}</b>
             <span className="flex items-center gap-[7px] overflow-hidden whitespace-nowrap text-[13px]">
               {countedFiles > 0 && (
                 <>
-                  <em className="add not-italic text-green">+{summary.totalAdd}</em>
-                  <em className="del not-italic text-red">-{summary.totalDel}</em>
+                  <em className="add not-italic">+{summary.totalAdd}</em>
+                  <em className="del not-italic">-{summary.totalDel}</em>
                 </>
               )}
               {newFiles > 0 && (

@@ -95,8 +95,15 @@ export function SidebarSessionItem({
         );
         if (label) {
           const overflow = label.scrollWidth - label.clientWidth;
-          if (overflow > 1) label.style.setProperty("--title-shift", `${overflow}px`);
-          else label.style.removeProperty("--title-shift");
+          if (overflow > 1) {
+            // The fade mask and the walk are both gated on this attribute: an
+            // unconditional mask ate the last glyph of titles that fit fine.
+            label.dataset.overflow = "";
+            label.style.setProperty("--title-shift", `${overflow}px`);
+          } else {
+            delete label.dataset.overflow;
+            label.style.removeProperty("--title-shift");
+          }
         }
         onPreview(event.currentTarget.getBoundingClientRect().top);
       }}

@@ -344,7 +344,15 @@ describe("ChangesOutcome mobile layout parity (INC-48)", () => {
     // on a different, potentially newer source.
     expect(actions.querySelectorAll("button")).toHaveLength(1);
     expect(actions.querySelector("button")?.textContent).toContain("Review");
-    expect(container.querySelector(".changes-outcome-icon")!.className).toMatch(/h-\[38px\].*w-\[38px\].*shrink-0/);
+    // The glyph's box now comes from `.changes-outcome-icon` in tw.css, not from
+    // inline utilities. Those utilities out-ranked the stylesheet (utilities beat
+    // the components layer), so the rule was silently dead and the card kept a
+    // 38px green success badge where the design called for a 34px neutral one.
+    // Assert the contract that survives: it carries the class that owns its box,
+    // and it still refuses to shrink inside the horizontal header.
+    const icon = container.querySelector(".changes-outcome-icon")!;
+    expect(icon.className).toContain("changes-outcome-icon");
+    expect(icon.className).toContain("shrink-0");
   });
 
   it("gives a long path the shrinking column and keeps counts in a separate fixed column", async () => {
