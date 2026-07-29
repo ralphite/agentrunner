@@ -290,6 +290,27 @@ describe("approval presentation", () => {
   it("summarizes file and unknown actions", () => {
     expect(describeApproval("edit_file", { path: "src/App.tsx" }).subject).toBe("src/App.tsx");
     expect(describeApproval("spawn_agent", { prompt: "Review the auth boundary" }).subject).toBe("Review the auth boundary");
+    // A card must never say "in the current workspace" about a file that is
+    // outside it — that is the whole reason the approval exists.
+    const ws = "/Users/x/repo";
+    expect(describeApproval("edit_file", { path: "/tmp/elsewhere.txt" }, ws)).toMatchObject({
+      description: expect.stringContaining("OUTSIDE this session's workspace"),
+      scope: "Outside the workspace",
+    });
+    expect(describeApproval("edit_file", { path: "/Users/x/repo/src/a.ts" }, ws)).toMatchObject({
+      scope: "Current workspace",
+    });
+    // Relative paths are workspace-bound by construction.
+    expect(describeApproval("edit_file", { path: "src/a.ts" }, ws).scope).toBe("Current workspace");
+    // Credentials get their own warning, inside the workspace or not.
+    expect(describeApproval("read_file", { path: "/Users/x/repo/.env" }, ws)).toMatchObject({
+      description: expect.stringContaining("credential file"),
+      scope: "Credential file",
+    });
+    expect(describeApproval("read_file", { path: "/Users/x/.ssh/id_rsa" }, ws).scope).toBe("Credential file");
+    // With no workspace known, do not guess.
+    expect(describeApproval("edit_file", { path: "/tmp/x.txt" }).scope).toBe("Current workspace");
+
     expect(describeApproval("custom_tool", {})).toMatchObject({
       title: "Allow action",
       subject: "custom_tool",

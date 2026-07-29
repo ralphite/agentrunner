@@ -37,7 +37,10 @@ export function ApprovalCard({
   const [reason, setReason] = useState("");
   const [denying, setDenying] = useState(false);
   const [busy, setBusy] = useState<"approve" | "always" | "deny" | null>(null);
-  const presentation = useMemo(() => describeApproval(approval.tool, approval.args), [approval.tool, approval.args]);
+  const presentation = useMemo(
+    () => describeApproval(approval.tool, approval.args, workspace),
+    [approval.tool, approval.args, workspace],
+  );
   const workspaceName = useMemo(() => compactWorkspaceName(workspace), [workspace]);
   const isolatedChild = !!approval.agent && workspaceMode === "isolated";
   const description = isolatedChild
