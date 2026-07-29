@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { sessionImageURL, type ForkDraft } from "../../api";
 import { useAppServices } from "../../app/appServices";
 import { useAppStoreApi, useStore, type NewSessionProject } from "../../store";
@@ -370,7 +370,6 @@ export function Composer(props: ComposerProps) {
     })));
     requestAnimationFrame(() => {
       taRef.current?.focus();
-      if (taRef.current) grow(taRef.current);
     });
   }, [isSession, forkSeed, forkSeedReleasedAt, props]);
   useEffect(() => {
@@ -420,11 +419,7 @@ export function Composer(props: ComposerProps) {
           setText: (t) => {
             setText(t);
             requestAnimationFrame(() => {
-              const ta = taRef.current;
-              if (ta) {
-                ta.focus();
-                grow(ta);
-              }
+              taRef.current?.focus();
             });
           },
           setUndo: setUndoDraft,
@@ -1269,10 +1264,27 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  // The card grows with the draft, and CSS owns the ceiling
+  // (`.cx-input-wrap textarea` max-height, which is width-aware). This used to
+  // carry its own `Math.min(…, 320)`, a second ceiling that disagreed with the
+  // stylesheet's 180px below 901px — so the inline height claimed room the box
+  // was never given.
   const grow = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 320) + "px";
+    el.style.height = el.scrollHeight + "px";
   };
+
+  // Keyed on the draft itself, not hung off the handlers that happen to change
+  // it. Three call sites remembered to call `grow`; dictation — which appends
+  // through `appendText` — did not, so a dictated sentence overflowed a
+  // one-row box and got sliced through the middle of its second line. Slash
+  // insertion had the same hole. Height is a function of the value, so derive
+  // it from the value: every path that can set the draft is covered by
+  // construction, including ones not written yet. Layout effect, not effect,
+  // so the box is already the right height in the frame the text appears in.
+  useLayoutEffect(() => {
+    if (taRef.current) grow(taRef.current);
+  }, [text]);
 
   // On short phones the focused input can be visible while the action row is
   // just below the viewport. Keep Codex's single composer card intact and
@@ -1533,7 +1545,6 @@ export function Composer(props: ComposerProps) {
         "aria-activedescendant": typeaheadActiveOptionId,
         onChange: (event) => {
           setText(event.target.value);
-          grow(event.target);
         },
         onFocus: revealMobileActions,
         onKeyDown: onKey,

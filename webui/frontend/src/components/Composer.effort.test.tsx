@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 // @ts-ignore -- no @types/node in this project's tsconfig
 import { readFileSync } from "node:fs";
+import { rememberDraft } from "../features/composer/sessionSpecs";
 
 // @ts-ignore -- `process` is a vitest-only reference (vitest runs from webui/frontend)
 const styles: string = readFileSync(`${process.cwd()}/src/tw.css`, "utf8");
@@ -76,14 +77,41 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Composer model / effort menu mobile hierarchy", () => {
-  it("lets desktop drafts grow to the CSS-aligned 320px ceiling", () => {
+  it("sizes the draft to its content and leaves the ceiling to the stylesheet", () => {
     mount();
     const textarea = screen.getByPlaceholderText("Do anything") as HTMLTextAreaElement;
     Object.defineProperty(textarea, "scrollHeight", { configurable: true, value: 500 });
 
     fireEvent.change(textarea, { target: { value: "long draft" } });
 
-    expect(textarea.style.height).toBe("320px");
+    // This used to clamp to a hard-coded 320 in JS — a second ceiling that
+    // disagreed with `max-h-[180px]` below 901px, so the inline height claimed
+    // room the box was never given. The content height goes in; `max-height`
+    // (asserted below, and width-aware in a way JS here is not) caps it.
+    expect(textarea.style.height).toBe("500px");
+  });
+
+  it("sizes a draft that arrives without an onChange at all", () => {
+    // A recalled draft is text the box never saw typed — the same shape as
+    // dictation appending through `appendText`, slash insertion, and
+    // prompt-optimize, none of which used to re-measure. A dictated sentence
+    // therefore sat in a one-row box with its second line cut through the
+    // middle. Sizing follows the value now, so a draft that simply *is* there
+    // on mount gets a fitted box.
+    Object.defineProperty(HTMLTextAreaElement.prototype, "scrollHeight", {
+      configurable: true,
+      get: () => 500,
+    });
+    try {
+      rememberDraft("~home", "a draft from a previous visit");
+      mount();
+      const textarea = screen.getByPlaceholderText("Do anything") as HTMLTextAreaElement;
+      expect(textarea.value).toBe("a draft from a previous visit");
+      expect(textarea.style.height).toBe("500px");
+    } finally {
+      delete (HTMLTextAreaElement.prototype as any).scrollHeight;
+      rememberDraft("~home", "");
+    }
   });
 
   it("keeps the smaller mobile cap while giving desktop drafts more viewport-aware depth", () => {
