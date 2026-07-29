@@ -1,6 +1,6 @@
 {
   "name": "bash",
-  "description": "Run a shell command in the workspace root. Output is truncated if long; the command is killed on timeout.",
+  "description": "Run a shell command in the workspace root. Output is truncated if long; the command is killed on timeout. Use this for running commands (builds, tests, git); when a dedicated tool fits, prefer it over the bash equivalent — grep/glob/keyword_search to search, read_file to read — they stay inside the workspace boundary and give better results. There is no TTY: interactive commands (`git rebase -i`, editors, REPLs, prompts) hang until killed. Do not commit, push, or create branches unless the user asks.",
   "class": "execute",
   "input_schema": {
     "type": "object",

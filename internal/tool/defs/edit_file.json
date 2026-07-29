@@ -1,6 +1,6 @@
 {
   "name": "edit_file",
-  "description": "Edit a file by exact string replacement. The string `old` must appear exactly once in the file (unless replace_all is set); it is replaced with `new`. To create a new file, use an empty `old` on a non-existing path.",
+  "description": "Edit a file by exact string replacement. The string `old` must appear exactly once in the file (unless replace_all is set); it is replaced with `new`. Include enough surrounding lines in `old` to make the match unique — an ambiguous or missing match fails the edit. To create a new file, use an empty `old` on a non-existing path.",
   "class": "edit",
   "input_schema": {
     "type": "object",

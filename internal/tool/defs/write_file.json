@@ -1,6 +1,6 @@
 {
   "name": "write_file",
-  "description": "Write a file with the given content, creating it (and parent directories) or fully overwriting it. Use edit_file for partial in-place edits; use this to create new files or replace whole file contents.",
+  "description": "Write a file with the given content, creating it (and parent directories) or fully overwriting it. Prefer edit_file for modifying an existing file — it preserves everything you don't touch; use this to create new files or intentionally replace whole file contents.",
   "class": "edit",
   "input_schema": {
     "type": "object",
