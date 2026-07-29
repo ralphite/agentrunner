@@ -57,7 +57,7 @@ describe("Subagents mobile layout", () => {
       "worker",
     ]);
     expect(
-      [...container.querySelectorAll(".sa-task")].map((item) => item.textContent),
+      [...container.querySelectorAll(".sa-summary")].map((item) => item.textContent),
     ).toEqual([
       "Audit keyboard focus across the sidebar",
       "Review narrow-screen header layout",
@@ -69,13 +69,13 @@ describe("Subagents mobile layout", () => {
     expect(container.querySelector('[title*="child-a"]')).toBeNull();
   });
 
-  it("strips the workspace preamble from a child task identity", () => {
+  it("strips the workspace preamble from a child delegation identity", () => {
     render(
       <Subagents
         nodes={[{
           agent: "worker",
           session: "child-a",
-          task:
+          description:
             "[workspace note] Do not expose this path.\n\nInspect the responsive navigation.\nVerify focus restoration after closing it.",
           status: "running",
         }]}
@@ -105,9 +105,9 @@ describe("Subagents mobile layout", () => {
       />,
     );
 
-    const row = screen.getByRole("button", { name: /engineer.*Delegated task.*Running/i });
-    const summary = row.querySelector(".sa-task");
-    expect(summary?.textContent).toBe("Delegated task");
+    const row = screen.getByRole("button", { name: /engineer.*Delegation.*Running/i });
+    const summary = row.querySelector(".sa-summary");
+    expect(summary?.textContent).toBe("Delegation");
     expect(summary?.classList.contains("truncate")).toBe(true);
     expect(row.textContent).not.toContain("read_file");
     expect(row.textContent).not.toContain("child_session_abc123");

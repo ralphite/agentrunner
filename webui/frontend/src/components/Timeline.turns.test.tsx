@@ -96,7 +96,7 @@ describe("TR-1 — turn separator", () => {
 
 });
 
-describe("child session opening task", () => {
+describe("child session opening delegation", () => {
   it("keeps the raw delegated prompt behind one explicit disclosure", () => {
     const { container } = render(
       <TimelineView
@@ -108,10 +108,10 @@ describe("child session opening task", () => {
       />,
     );
 
-    const task = container.querySelector("details.delegated-task") as HTMLDetailsElement;
-    expect(task).not.toBeNull();
-    expect(task.open).toBe(false);
-    expect(task.querySelector("summary")?.textContent).toBe("Delegated task");
+    const disclosure = container.querySelector("details.delegation") as HTMLDetailsElement;
+    expect(disclosure).not.toBeNull();
+    expect(disclosure.open).toBe(false);
+    expect(disclosure.querySelector("summary")?.textContent).toBe("Delegation");
   });
 });
 

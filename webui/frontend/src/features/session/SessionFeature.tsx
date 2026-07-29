@@ -10,8 +10,8 @@ import { AskForm } from "../../components/AskForm";
 import { DiffView } from "../../components/DiffView";
 import {
   childAnswerRequests,
-  subagentTaskLabel,
-  subagentTaskSummaryText,
+  delegationLabel,
+  delegationSummaryText,
   type InspectDelegation,
   type InspectNode,
 } from "../../components/Subagents";
@@ -701,20 +701,20 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   }, [hasApprovals, hasChildAnswers, view, bp.compact, bp.tablet, bp.desktop, bp.wide]);
 
   const showSupervision = supervisionOpen && view === "chat";
-  // The child journal's opening prompt is the durable delegation task. Prefer
+  // The child journal's opening prompt is the durable delegation text. Prefer
   // it over the generic agent spec (`worker`, `reviewer`, …), and strip the
   // isolated-workspace preamble before it reaches visible chrome.
-  const subagentTaskTitle = useMemo(() => {
+  const delegationTitle = useMemo(() => {
     if (!isSub) return undefined;
     const started = events.find((event) => event.type === "session_started");
-    return subagentTaskLabel(started?.payload?.opening_prompt);
+    return delegationLabel(started?.payload?.opening_prompt);
   }, [events, isSub]);
-  const subagentTaskSummary = useMemo(
-    () => subagentTaskSummaryText(subagentTaskTitle),
-    [subagentTaskTitle],
+  const delegationSummary = useMemo(
+    () => delegationSummaryText(delegationTitle),
+    [delegationTitle],
   );
   const visibleTitle = isSub
-    ? [subAgentName, subagentTaskSummary || subagentTaskTitle || title]
+    ? [subAgentName, delegationSummary || delegationTitle || title]
         .filter(Boolean)
         .join(" · ")
     : title;

@@ -941,7 +941,7 @@ export function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-export function Item({ it, sentImages, last, deferActions, onContinue, delegatedTask = false }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void>; delegatedTask?: boolean }) {
+export function Item({ it, sentImages, last, deferActions, onContinue, delegation = false }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void>; delegation?: boolean }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -972,12 +972,12 @@ export function Item({ it, sentImages, last, deferActions, onContinue, delegated
           <div className="msg-col user">
             <div className="bubble">
               {hasText ? (
-                delegatedTask ? (
-                  <details className="delegated-task">
-                    <summary>Delegated task</summary>
+                delegation ? (
+                  <details className="delegation">
+                    <summary>Delegation</summary>
                     {/* The outer disclosure is the one intentional boundary for
                         a child hand-off. A second 220px clamp here makes a
-                        reader open two controls just to see one task. */}
+                        reader open two controls just to see one prompt. */}
                     <div className="utext">{it.text}</div>
                   </details>
                 ) : (
@@ -1479,7 +1479,7 @@ function TimelineContentView({
           // stall or a changes card, while the user message that opens the next
           // one is the single landmark every turn is guaranteed to have. The
           // first user message opens nothing, so it gets no rule.
-          const openingDelegatedTask = isSubagentSession && it.kind === "user" && !seenUser;
+          const openingDelegation = isSubagentSession && it.kind === "user" && !seenUser;
           const sep = it.kind === "user" && seenUser;
           if (it.kind === "user") seenUser = true;
           if (it.kind === "retried") {
@@ -1519,7 +1519,7 @@ function TimelineContentView({
                 last={it.kind === "assistant" && it.key === lastAssistantKey}
                 deferActions={it.kind === "assistant" && it.key === lastAssistantKey && deferLastActions}
                 onContinue={onContinue}
-                delegatedTask={openingDelegatedTask}
+                delegation={openingDelegation}
               />
             </Fragment>
           );

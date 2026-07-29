@@ -118,7 +118,7 @@ describe("TH-3 · resting Supervision panel", () => {
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
 
-  it("wires delegation tasks into repeated worker identities", () => {
+  it("wires delegations into repeated worker identities", () => {
     renderPanel({
       children: [
         { call_id: "call-a", session: "child-a", agent: "worker" },
@@ -130,8 +130,8 @@ describe("TH-3 · resting Supervision panel", () => {
       ],
     });
 
-    // The Environment rail keeps the concise task sentence for scanning; it
-    // deliberately omits terminal punctuation and never exposes raw prompts.
+    // The Environment rail keeps the concise delegation sentence for scanning;
+    // it deliberately omits terminal punctuation and never exposes raw prompts.
     expect(screen.getByText("Audit Environment focus")).toBeTruthy();
     expect(screen.getByText("Review compact layout")).toBeTruthy();
   });

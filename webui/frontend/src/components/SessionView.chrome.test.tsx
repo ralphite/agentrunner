@@ -806,7 +806,7 @@ describe("session failure chrome", () => {
 });
 
 describe("sub-agent session identity", () => {
-  it("uses the durable delegation task instead of the generic agent spec", async () => {
+  it("uses the durable delegation text instead of the generic agent spec", async () => {
     const childSid = `${SID}-sub-call_1_2-a1`;
     arMock.events = async (_sid: string, after: number) =>
       after

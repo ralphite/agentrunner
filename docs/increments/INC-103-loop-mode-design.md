@@ -1,6 +1,6 @@
 # INC-103 Loop mode 功能设计 v3(plan 驱动;设计先行,零实现)
 
-> 用户裁决史:v1 固定间隔=cron-lite ✗;v2 纯自步调=与单个大 task 无区别 ✗。
+> 用户裁决史:v1 固定间隔=cron-lite ✗;v2 纯自步调=与单次大 run 无区别 ✗。
 > v3 核心修正:**loop 的定义单位是一份 step-by-step plan(持久 todo 清单),
 > loop 的职责 = 把 plan 逐步推进到全部完成**。对标 Claude Code 的
 > plan mode + todo list + 循环续作三件套。
@@ -10,8 +10,8 @@
 `/loop <目标>` = **先把目标拆成一份带状态的分步计划,然后在同一对话里
 一步一轮地执行它,每步打勾、全绿收官**。
 
-**与"一个 task 直接干"的区别(本设计的存在理由)**:
-| 单 task | loop |
+**与"一个 run 直接干"的区别(本设计的存在理由)**:
+| 单 run | loop |
 |---|---|
 | 过程隐式,黑盒到结束 | **plan 是显式持久状态**,每步 pending→in_progress→completed 可见 |
 | 一口气吃完,context 无界膨胀 | **每轮只领一步**,轮边界收敛 context |

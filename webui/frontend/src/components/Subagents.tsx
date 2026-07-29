@@ -12,9 +12,6 @@ import {
 export interface InspectNode {
   call_id?: string;
   agent?: string;
-  // Newer inspect projections may surface a user-facing task identity on the
-  // child itself. Older journals keep it on the matching delegation instead.
-  task?: string;
   title?: string;
   name?: string;
   description?: string;
@@ -48,7 +45,6 @@ export interface InspectNode {
 export interface InspectDelegation {
   call_id?: string;
   description?: string;
-  task?: string;
   title?: string;
   name?: string;
   assigned_to?: string;
@@ -90,51 +86,49 @@ function tokens(n?: number): string {
 }
 
 // A child opening prompt may carry an implementation-only workspace preamble.
-// Keep stripping it wherever a task is used, but do not use the raw task as an
-// Environment row identity: a child prompt can be pages of tool instructions.
-export function subagentTaskLabel(value?: string): string | undefined {
+// Keep stripping it wherever a delegation is shown, but do not use the raw
+// prompt as an Environment row identity: it can be pages of tool instructions.
+export function delegationLabel(value?: string): string | undefined {
   let clean = value?.trim();
   if (!clean) return undefined;
   if (clean.startsWith("[workspace note]")) {
-    const taskStart = clean.indexOf("\n\n");
-    clean = taskStart >= 0 ? clean.slice(taskStart + 2).trim() : "";
+    const promptStart = clean.indexOf("\n\n");
+    clean = promptStart >= 0 ? clean.slice(promptStart + 2).trim() : "";
   }
-  // Preserve the entire delegated task. The visual label clamps to two lines,
+  // Preserve the entire delegation text. The visual label clamps to two lines,
   // while its title/accessible name retain later sentences that may be the
   // only part distinguishing several otherwise identical `worker` agents.
   return clean.replace(/\s+/g, " ") || undefined;
 }
 
-function delegatedTask(node: InspectNode, delegation?: InspectDelegation) {
+function delegationText(node: InspectNode, delegation?: InspectDelegation) {
   return (
-    subagentTaskLabel(delegation?.title) ||
-    subagentTaskLabel(delegation?.task) ||
-    subagentTaskLabel(delegation?.name) ||
-    subagentTaskLabel(delegation?.description) ||
-    subagentTaskLabel(node.title) ||
-    subagentTaskLabel(node.task) ||
-    subagentTaskLabel(node.name) ||
-    subagentTaskLabel(node.description)
+    delegationLabel(delegation?.title) ||
+    delegationLabel(delegation?.name) ||
+    delegationLabel(delegation?.description) ||
+    delegationLabel(node.title) ||
+    delegationLabel(node.name) ||
+    delegationLabel(node.description)
   );
 }
 
 // Environment is a scanning surface, not a second copy of the delegation
-// prompt. Keep one semantic sentence when it is already a concise task, and
-// otherwise use a neutral summary. Full instructions remain in the existing
-// child-session view opened by the row.
-export function subagentTaskSummary(
+// prompt. Keep one semantic sentence when the delegation is already concise,
+// and otherwise use a neutral summary. Full instructions remain in the
+// existing child-session view opened by the row.
+export function delegationSummary(
   node: InspectNode,
   delegation?: InspectDelegation,
 ): string | undefined {
-  return subagentTaskSummaryText(delegatedTask(node, delegation));
+  return delegationSummaryText(delegationText(node, delegation));
 }
 
-// The same short task label belongs in the child session's chrome. Keeping the
-// policy in one place prevents the sidebar from being scannable while the page
-// it opens repeats a page-long delegation prompt.
-export function subagentTaskSummaryText(task?: string): string | undefined {
-  if (!task) return undefined;
-  const withoutPersona = task
+// The same short delegation label belongs in the child session's chrome.
+// Keeping the policy in one place prevents the sidebar from being scannable
+// while the page it opens repeats a page-long delegation prompt.
+export function delegationSummaryText(text?: string): string | undefined {
+  if (!text) return undefined;
+  const withoutPersona = text
     .replace(/^(?:you are|you will|你(?:是|扮演)).*?[。！？.!?]\s*/i, "")
     .replace(/^(?:按要求执行(?:以下)?步骤|follow (?:these )?steps)[:：]?\s*/i, "")
     .replace(/^\d+[.、)]\s*/, "")
@@ -149,7 +143,7 @@ export function subagentTaskSummaryText(task?: string): string | undefined {
     .split(/(?:^|\s)\d+[.、)]\s*/)
     .map((part) => part.split(/(?:[。！？!?]+|\.(?=\s|$))/, 1)[0]?.trim() || "")
     .find((part) => part && !isInternal(part)) || "";
-  if (!candidate) return "Delegated task";
+  if (!candidate) return "Delegation";
   return candidate.length > 88 ? `${candidate.slice(0, 85).trimEnd()}…` : candidate;
 }
 
@@ -230,7 +224,7 @@ export function SubagentItem({
   const children = dedupeInspectNodes(report.children || []);
   const clickable = !!node.session;
   const identity = subagentPrimaryIdentity(node, delegation);
-  const taskSummary = subagentTaskSummary(node, delegation);
+  const summary = delegationSummary(node, delegation);
   const secondary = [
     status.text,
     report.gen_steps ? `${report.gen_steps} steps` : "",
@@ -254,9 +248,9 @@ export function SubagentItem({
           <span className="sa-name block !max-w-none truncate text-left font-medium leading-4">
             {identity}
           </span>
-          {taskSummary && (
-            <span className="sa-task block min-w-0 truncate text-left text-[12px] leading-4 text-dim" title={taskSummary}>
-              {taskSummary}
+          {summary && (
+            <span className="sa-summary block min-w-0 truncate text-left text-[12px] leading-4 text-dim" title={summary}>
+              {summary}
             </span>
           )}
           <span className="sa-status block min-w-0 truncate text-left text-[12px] leading-4 text-dim">

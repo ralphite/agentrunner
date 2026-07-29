@@ -142,7 +142,7 @@ function attentionNotices(
     rows.push({
       id: "bg-idle",
       message:
-        "Background work still running — this session is idle, but a child task is still spending tokens in the background",
+        "Background work still running — this session is idle, but a child is still spending tokens in the background",
     });
   }
   return rows;
