@@ -251,8 +251,8 @@ describe("CommandPalette keyboard scrolling (CP-5)", () => {
 describe("CommandPalette status dots (CP-6)", () => {
   const dotOf = (label: string) =>
     rows().find((r) => r.querySelector(".cmdk-label")!.textContent === label)!.querySelector(".status-dot")!;
-  const countOf = (label: string) =>
-    rows().find((r) => r.querySelector(".cmdk-label")!.textContent === label)!.querySelector(".status-count")!;
+  const countBadgeOf = (label: string) =>
+    rows().find((r) => r.querySelector(".cmdk-label")!.textContent === label)!.querySelector(".status-count");
 
   it("colours each dot by friendlyStatus, exactly like the sidebar rail", () => {
     open([
@@ -287,12 +287,15 @@ describe("CommandPalette status dots (CP-6)", () => {
     const combined = { ...session("combined", "waiting:input"), attention: { approvals: 1, answers: 1 } };
     const failed = { ...session("failed", "failed"), attention: { approvals: 1, answers: 1 } };
     open([approval, answer, combined, failed], { unread: ["approval"] });
-    expect(countOf("Session approval").textContent).toBe("2");
-    expect(countOf("Session approval").getAttribute("title")).toBe("2 actions needed");
+    // A dot, never a count: the row says *that* something needs you, and the
+    // exact number stays in the title/screen-reader text.
+    expect(countBadgeOf("Session approval")).toBeNull();
+    expect(dotOf("Session approval").className).toBe("status-dot appr");
+    expect(dotOf("Session approval").getAttribute("title")).toBe("2 actions needed");
     expect(dotOf("Session answer").className).toBe("status-dot appr");
     expect(dotOf("Session answer").getAttribute("title")).toBe("Needs answer");
-    expect(countOf("Session combined").textContent).toBe("2");
-    expect(countOf("Session combined").getAttribute("title")).toBe("2 actions needed");
+    expect(countBadgeOf("Session combined")).toBeNull();
+    expect(dotOf("Session combined").getAttribute("title")).toBe("2 actions needed");
     expect(dotOf("Session failed").className).toBe("status-dot crash");
     expect(dotOf("Session failed").getAttribute("title")).toBe("Failed");
   });

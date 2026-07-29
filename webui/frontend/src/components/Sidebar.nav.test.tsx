@@ -1090,19 +1090,50 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     const approval = container.querySelector<HTMLButtonElement>('button[aria-label^="Child approval"]')!;
     const answer = container.querySelector<HTMLButtonElement>('button[aria-label^="Structured ask"]')!;
     const failed = container.querySelector<HTMLButtonElement>('button[aria-label^="Failed with blockers"]')!;
+    // The status icon lives on the row, outside the title button, and after
+    // the quick actions — so revealing the ⋯ on hover narrows the title's clip
+    // point instead of shifting the icon.
+    const row = (button: HTMLButtonElement) => button.closest(".project-session-wrap")!;
+    expect(combined.querySelector(".status-dot")).toBeNull();
+    expect(row(combined).querySelector(".session-status-icon")).toBeTruthy();
+    const order = [...row(combined).children].map((child) => child.className.split(" ")[0]);
+    expect(order.indexOf("session-quick-actions")).toBeLessThan(order.indexOf("session-status-icon"));
+
+    // A dot, never a count: the row says *that* something needs you, and the
+    // number stays in aria-label and the tooltip.
     expect(combined.getAttribute("aria-label")).toContain("2 actions needed");
-    expect(combined.querySelector(".status-count")!.textContent).toBe("2");
-    expect(combined.querySelector(".status-count")!.getAttribute("title")).toBe("2 actions needed");
+    expect(row(combined).querySelector(".status-count")).toBeNull();
+    expect(row(combined).querySelector(".status-dot")!.getAttribute("title")).toBe("2 actions needed");
     expect(approval.getAttribute("aria-label")).toContain("2 actions needed");
-    expect(approval.querySelector(".status-count")!.textContent).toBe("2");
+    expect(row(approval).querySelector(".status-count")).toBeNull();
     expect(answer.getAttribute("aria-label")).toContain("Needs answer");
-    expect(answer.querySelector(".status-dot")!.getAttribute("title")).toBe("Needs answer");
+    expect(row(answer).querySelector(".status-dot")!.getAttribute("title")).toBe("Needs answer");
     expect(failed.getAttribute("aria-label")).toContain("Failed");
-    const failedStatus = failed.querySelector(".status-dot")!;
+    const failedStatus = row(failed).querySelector(".status-dot")!;
     expect(failedStatus.classList).toContain("crash");
     expect(failedStatus.getAttribute("data-display")).toBe("dot");
     expect(failedStatus.getAttribute("data-tone")).toBe("danger");
-    expect(failed.querySelector(".status-count")).toBeNull();
+    expect(row(failed).querySelector(".status-count")).toBeNull();
+  });
+
+  it("keeps the internal Ready/Stopped marks out of the hover card", () => {
+    // Every idle session is "Ready" and a stopped one continues on the next
+    // message just the same — neither tells the reader anything actionable.
+    const { container } = mount([
+      { id: "20260710-000001-idle", status: "idle", turns: 1, title: "Quiet session" },
+      { id: "20260710-000000-blocked", status: "waiting:input", turns: 1, title: "Blocked session", attention: { approvals: 1 } },
+    ]);
+    const rowFor = (title: string) =>
+      [...container.querySelectorAll(".project-session-wrap")].find((row) => row.textContent?.includes(title))!;
+
+    fireEvent.mouseEnter(rowFor("Quiet session"));
+    expect(container.querySelector(".session-preview")!.textContent).not.toContain("Ready");
+    expect(container.querySelector(".session-preview")!.querySelector(".status-dot")).toBeNull();
+
+    // A state that asks for something still says so.
+    fireEvent.mouseLeave(rowFor("Quiet session"));
+    fireEvent.mouseEnter(rowFor("Blocked session"));
+    expect(container.querySelector(".session-preview")!.textContent).toContain("Needs approval");
   });
 
   it("keeps a pinned workspace-less session in Pinned only — never twice", () => {
@@ -1135,12 +1166,12 @@ describe("workspace-less sessions live in a flat Sessions section (SB-13)", () =
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
 
     const showMore = sessions().querySelector(".show-more")!;
-    expect(showMore.textContent).toContain("Show more sessions");
+    expect(showMore.textContent).toContain("Show more");
     fireEvent.click(showMore);
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(9);
 
     const showLess = sessions().querySelector(".show-more")!;
-    expect(showLess.textContent).toContain("Show fewer sessions");
+    expect(showLess.textContent).toContain("Show less");
     fireEvent.click(showLess);
     expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
   });

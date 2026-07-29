@@ -760,6 +760,12 @@
      available from the row's native tooltip. */
   .project-session-title { @apply min-w-0 flex-1 truncate; }
 
+  /* Status badge/dot: outside the title button and after the quick actions, so
+     revealing the ⋯ on hover narrows the title's clip point and never shifts
+     this. `pr-2` only when it is the row's last element — the state icons
+     carry the same padding when they follow. */
+  .session-status-icon { @apply inline-flex shrink-0 items-center pr-2; }
+  .session-status-icon:not(:last-child) { @apply pr-[6px]; }
   .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
   .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
   .session-loading-icon { @apply shrink-0; }

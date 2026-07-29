@@ -62,9 +62,6 @@ export function SidebarSessionItem({
   const status = sessionFriendlyStatus(session);
   const isRunning = status.cls === "run";
   const isWorktree = isManagedWorktreeWorkspace(session.workspace);
-  const actionCount =
-    (session.attention?.approvals || 0) +
-    (session.attention?.answers || 0);
 
   const openContextFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
@@ -99,56 +96,7 @@ export function SidebarSessionItem({
         aria-current={active ? "page" : undefined}
       >
         <span className="project-session-title">{title}</span>
-        {(unread || ["appr", "stranded", "crash"].includes(status.cls)) && (
-          actionCount > 1 && status.cls === "appr"
-            ? <span className="status-count" title={status.text} aria-hidden="true">{actionCount}</span>
-            : unread && status.cls !== "appr"
-              ? (
-                <StatusIndicator
-                  className="status-dot unread"
-                  label="New activity"
-                  tone="info"
-                  title="New activity"
-                  aria-hidden="true"
-                />
-              )
-              : (
-                <LifecycleStatus
-                  accessibleLabel={status.text}
-                  className={`status-dot ${status.cls}`}
-                  data-display="dot"
-                  data-tone={
-                    status.cls === "crash"
-                      ? "danger"
-                      : status.cls === "appr" || status.cls === "stranded"
-                        ? "warning"
-                        : "neutral"
-                  }
-                  state={lifecycleStateFromStatusClass(status.cls)}
-                  title={status.text}
-                  aria-hidden="true"
-                />
-              )
-        )}
       </button>
-      {(isWorktree || isRunning) && (
-        <span className={`session-state-icons max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!${isRunning ? " running" : ""}`}>
-          {isWorktree && (
-            <span className="session-worktree-icon max-[900px]:inline-grid! [@media(any-pointer:coarse)]:inline-grid!" role="img" title="Worktree session" aria-label="Worktree session">
-              <ArrowsOutSimpleIcon size={17} weight="regular" />
-            </span>
-          )}
-          {isRunning && (
-            <LifecycleStatus
-              accessibleLabel="Session running"
-              className="session-loading-icon"
-              role="status"
-              size="md"
-              state="running"
-            />
-          )}
-        </span>
-      )}
       {/* Crossing the quick actions on the way to the preview card must not kill
           the card outright — the card sits to the right of the sidebar, so the
           pointer path to it always passes over this strip. Use the same grace
@@ -175,6 +123,63 @@ export function SidebarSessionItem({
           >
             {actions}
           </Menu>
+        </span>
+      )}
+      {/* Status and state icons live OUTSIDE the title button and to the RIGHT
+          of the quick actions. Both facts matter: inside the button, the badge
+          shifted left every time hover revealed the ⋯ (the button is the flex
+          child that gives up width); to the left of it, the ⋯ would push it.
+          Out here and last, the row spends hover width on the title's clip
+          point alone and the icons never move. */}
+      {(unread || ["appr", "stranded", "crash"].includes(status.cls)) && (
+        <span className="session-status-icon">
+          {/* A dot, never a count. "2" in a filled circle read as a numbered
+              badge competing with the title; the row only has to say *that*
+              something needs you. The exact number is one click away, and
+              `accessibleLabel` still carries it for screen readers. */}
+          {unread && status.cls !== "appr" ? (
+            <StatusIndicator
+              className="status-dot unread"
+              label="New activity"
+              tone="info"
+              title="New activity"
+              aria-hidden="true"
+            />
+          ) : (
+            <LifecycleStatus
+              accessibleLabel={status.text}
+              className={`status-dot ${status.cls}`}
+              data-display="dot"
+              data-tone={
+                status.cls === "crash"
+                  ? "danger"
+                  : status.cls === "appr" || status.cls === "stranded"
+                    ? "warning"
+                    : "neutral"
+              }
+              state={lifecycleStateFromStatusClass(status.cls)}
+              title={status.text}
+              aria-hidden="true"
+            />
+          )}
+        </span>
+      )}
+      {(isWorktree || isRunning) && (
+        <span className={`session-state-icons max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!${isRunning ? " running" : ""}`}>
+          {isWorktree && (
+            <span className="session-worktree-icon max-[900px]:inline-grid! [@media(any-pointer:coarse)]:inline-grid!" role="img" title="Worktree session" aria-label="Worktree session">
+              <ArrowsOutSimpleIcon size={17} weight="regular" />
+            </span>
+          )}
+          {isRunning && (
+            <LifecycleStatus
+              accessibleLabel="Session running"
+              className="session-loading-icon"
+              role="status"
+              size="md"
+              state="running"
+            />
+          )}
         </span>
       )}
     </div>
@@ -382,7 +387,7 @@ export function SidebarProjectItem({
       {children}
       {!folded && overflow && (
         <button className="show-more project-show-more" onClick={onToggleOverflow}>
-          {overflow === "more" ? "Show more sessions" : "Show fewer sessions"}
+          {overflow === "more" ? "Show more" : "Show less"}
         </button>
       )}
     </div>
@@ -413,6 +418,15 @@ export type SidebarPreviewCardProps =
       onHoverStart?: () => void;
       onHoverEnd?: () => void;
     };
+
+// Which status classes are worth a line of the reader's attention: something
+// is waiting on them ("appr"), something broke ("crash"), or the session needs
+// recovery ("stranded"); "run" says work is happening right now. The rest —
+// idle, closed — are the internal lifecycle marks behind "Ready" and
+// "Stopped", which tell a user nothing they can act on.
+export function statusWorthShowing(cls: string): boolean {
+  return ["appr", "crash", "stranded", "run"].includes(cls);
+}
 
 export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
   const style = props.inline
@@ -452,15 +466,22 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
       <div className="session-preview-head"><b>{props.title}</b></div>
       <div><Folder size={15} /><span>{props.project || "No project"}</span></div>
       {props.branch && <div><GitBranch size={15} /><span>{props.branch}</span></div>}
-      <div>
-        <LifecycleStatus
-          accessibleLabel={props.status.text}
-          className={`status-dot ${props.status.cls}`}
-          state={lifecycleStateFromStatusClass(props.status.cls)}
-          aria-hidden="true"
-        />
-        <span>{props.status.text}</span>
-      </div>
+      {/* Only states that mean something to the reader. "Ready" and "Stopped"
+          are internal lifecycle marks dressed up as news: every idle session is
+          "Ready", and a stopped one continues on the next message just the
+          same. Show the line when it asks for attention or reports a failure —
+          otherwise the card says the useful things and stops. */}
+      {statusWorthShowing(props.status.cls) && (
+        <div>
+          <LifecycleStatus
+            accessibleLabel={props.status.text}
+            className={`status-dot ${props.status.cls}`}
+            state={lifecycleStateFromStatusClass(props.status.cls)}
+            aria-hidden="true"
+          />
+          <span>{props.status.text}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -757,7 +757,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 onClick={() => setShowAllSessions(true)}
                 aria-label={`Show all ${model.workspaceLessSessions.length} sessions`}
               >
-                Show more sessions
+                Show more
               </button>
             )}
             {showAllSessions && model.workspaceLessSessions.length > 6 && (
@@ -766,7 +766,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 onClick={() => setShowAllSessions(false)}
                 aria-label="Show only the 6 most recent sessions"
               >
-                Show fewer sessions
+                Show less
               </button>
             )}
           </section>

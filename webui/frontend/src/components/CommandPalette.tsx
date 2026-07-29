@@ -23,14 +23,11 @@ import {
 // stuck on an approval or a crash was advertised in ⌘K as "new activity" while
 // the rail next to it showed amber/red. Same source, same colour now.
 const DOTTED = ["run", "appr", "stranded", "crash"];
-function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string; actionCount?: number } {
+// A dot, never a count — the same rule the sidebar rows follow. The row only
+// has to say *that* something needs you; `dotTitle` still carries the exact
+// number for screen readers and the tooltip.
+function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string } {
   const status = sessionFriendlyStatus(session);
-  const actionCount =
-    (session.attention?.approvals || 0) +
-    (session.attention?.answers || 0);
-  if (actionCount > 1 && status.cls === "appr") {
-    return { dot: "appr", dotTitle: status.text, actionCount };
-  }
   if (isUnread && status.cls !== "appr") return { dot: "unread", dotTitle: "New activity" };
   if (DOTTED.includes(status.cls)) return { dot: status.cls, dotTitle: status.text };
   return {};

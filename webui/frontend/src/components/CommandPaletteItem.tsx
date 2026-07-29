@@ -10,7 +10,6 @@ export interface CommandPaletteItemModel {
   session?: boolean;
   dot?: string;
   dotTitle?: string;
-  actionCount?: number;
   run: () => void;
 }
 
@@ -40,29 +39,17 @@ export function CommandPaletteItem({
       onMouseEnter={onHover}
       onClick={onSelect}
     >
-      {item.session &&
-        (item.actionCount ? (
-          <span
-            className="status-count"
-            title={item.dotTitle}
-            aria-hidden="true"
-          >
-            {item.actionCount}
-          </span>
-        ) : (
-          <span
-            className={`status-dot${item.dot ? ` ${item.dot}` : ""}`}
-            style={item.dot ? undefined : { visibility: "hidden" }}
-            title={item.dotTitle}
-            aria-hidden="true"
-          />
-        ))}
-      {item.session && (item.actionCount || item.dotTitle) && (
-        <span className="sr-only">
-          {item.actionCount
-            ? `${item.actionCount} actions required`
-            : `Status: ${item.dotTitle}`}
-        </span>
+      {/* A dot, never a count — see sessionDot in CommandPalette. */}
+      {item.session && (
+        <span
+          className={`status-dot${item.dot ? ` ${item.dot}` : ""}`}
+          style={item.dot ? undefined : { visibility: "hidden" }}
+          title={item.dotTitle}
+          aria-hidden="true"
+        />
+      )}
+      {item.session && item.dotTitle && (
+        <span className="sr-only">Status: {item.dotTitle}</span>
       )}
       <span className="cmdk-label">{item.label}</span>
       {item.hint && <span className="cmdk-hint">{item.hint}</span>}
