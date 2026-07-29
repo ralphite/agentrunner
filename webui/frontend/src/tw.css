@@ -1775,8 +1775,10 @@
   .fd-glyph-deleted { @apply text-red; }
   .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply text-ink-2; }
   .fd-dir { @apply text-[#858585] dark:text-dim; } /* S49: mock 目录段 #858585 */
-  /* S50: mock 工具条 "Last Turn" 是 13.8/medium。 */
-  .diff-scope-trigger { @apply !text-[13.8px] !font-medium; }
+  /* S50: mock 工具条 "Last Turn" 是 13.8/medium。
+     S66: 标签是墨色、chevron #333——ghost 钮默认的 ink-2 灰不对。 */
+  .diff-scope-trigger { @apply !text-[13.8px] !font-medium !text-ink; }
+  .diff-scope-trigger svg { @apply text-[#333333] dark:text-ink-2; }
   .fd-badge { @apply rounded-full border border-line bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
   .fd-badge.conflict { @apply border-red bg-red-soft text-red; }
   .fd-spacer { @apply flex-1; }
