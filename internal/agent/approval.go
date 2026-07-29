@@ -126,6 +126,7 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 		}); err != nil {
 			return false, "", err
 		}
+		l.grantApprovedPath(eff.Args)
 		return true, "", nil
 	}
 
@@ -263,6 +264,13 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			// approved this call); it just does not persist.
 			if out.d.Approve && out.d.Remember {
 				l.rememberApproval(req)
+			}
+			// The gate now ASKS for an out-of-workspace or credential path
+			// instead of refusing it (LOG 2026-07-29). The approval has to
+			// reach the executor, or the file tools and the bash sandbox would
+			// still turn the user's own "yes" down at the boundary.
+			if out.d.Approve {
+				l.grantApprovedPath(req.Args)
 			}
 			ok, err := l.resolveEffectAfterApproval(ds, responseAppend, req, out.d.Approve, out.d.Reason)
 			return ok, out.d.Reason, err

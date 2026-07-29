@@ -189,24 +189,35 @@ func (g *PermissionGate) matchOneCommand(eff Effect, relPath string, args toolAr
 	return Decision{}, false
 }
 
-// hardFloor returns the unconditional denials that precede rules AND mode
-// defaults: a workspace escape, and plan mode's edit/execute prohibition.
-// No permission rule and no mode (not even bypass, for the escape) may
-// override these. exit_plan_mode is exempt from the plan-mode floor — it
-// is the sanctioned way out.
+// hardFloor runs before rules AND mode defaults. Two of its three rulings are
+// now approvals rather than denials (LOG 2026-07-29, user ruling): reaching
+// outside the workspace, and touching a credential file. What made them
+// unconditional denials was the assumption that nothing outside the workspace
+// is ever legitimately the user's intent — but a person owns the machine this
+// runs on, and their work routinely spans directories. The gate exists to stop
+// an *agent* going where it pleases, so the ruling becomes "ask the human",
+// not "refuse the human".
+//
+// They stay in the floor rather than moving into the rules layer, because the
+// floor's real property is what still holds: no permission rule and no mode —
+// bypass included — can turn either of these into a silent allow. `bypass`
+// skips the ask for ordinary effects; it does not skip these. The only ruling
+// that remains an outright denial is plan mode's edit/execute prohibition,
+// which is the whole content of plan mode (exit_plan_mode is the sanctioned
+// way out and is exempt).
 func (g *PermissionGate) hardFloor(eff Effect) (Decision, bool) {
 	args := effArgs(eff)
 	relPath, escaped := g.resolveRel(args.Path)
 	if escaped {
-		return Deny(fmt.Sprintf("path escapes workspace: %s", args.Path)), true
+		return Ask(fmt.Sprintf("outside the workspace: %s", args.Path)), true
 	}
-	// Credential files never reach the model (C3): read_file on a hard-excluded
-	// credential path is denied at the floor, no rule or mode may override.
-	// The snapshot layer already refuses to checkpoint these same files; this
-	// closes the read side. Bash is independently bounded by the mandatory OS
-	// workspace sandbox, so `cat` cannot bypass this floor.
-	if eff.ToolName == "read_file" && args.Path != "" && isCredentialPath(relPath) {
-		return Deny(fmt.Sprintf("credential files are not readable (hard floor): %s", args.Path)), true
+	// Credential files are the likeliest prize for a prompt injection, so they
+	// never pass silently — but the person at the keyboard may legitimately
+	// want one read or edited, and can now say so. The snapshot layer still
+	// refuses to checkpoint them.
+	if args.Path != "" && isCredentialPath(relPath) &&
+		(eff.ToolName == "read_file" || eff.Class == "edit") {
+		return Ask(fmt.Sprintf("credential file: %s", args.Path)), true
 	}
 	if g.effectiveMode(eff) == ModePlan && eff.ToolName != "exit_plan_mode" &&
 		(eff.Class == "edit" || eff.Class == "execute") {

@@ -63,6 +63,15 @@ func (w *Workspace) Resolve(requested string) (string, error) {
 	return resolved, nil
 }
 
+// ResolveOutside resolves a path the same way Resolve does — symlinks on the
+// deepest existing ancestor — but without the workspace bound. It exists so
+// that an out-of-workspace path the user has APPROVED (see Executor.GrantPath)
+// is spelled identically when granted and when later looked up; comparing raw
+// strings would let `/tmp/x` and `/private/tmp/x` disagree on macOS.
+func ResolveOutside(path string) (string, error) {
+	return resolveWithMissingTail(path)
+}
+
 // resolveWithMissingTail resolves symlinks for the deepest existing ancestor
 // of path and re-appends the non-existing remainder.
 func resolveWithMissingTail(path string) (string, error) {

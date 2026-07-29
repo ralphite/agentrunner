@@ -7956,3 +7956,53 @@ break, decision #10)"),本次不新增违反,只是让它更常发生。advertis
 `api.ts`、`ComposerParts.tsx`(去 disabled 与"fixed once the session
 starts"文案)、`ComposerController.tsx`(新增 chooseSessionAccess:**先改
 spec permissions 再发 mode 命令**,补上上面那个漏洞)。
+
+---
+
+## 2026-07-29 · Floor 的路径两条从 deny 改判 ask(不变量修订,用户裁决)
+
+**旧不变量原文**(DESIGN §权限分层 [1]):"Floor:硬底线:**workspace 逃逸**、
+凭据路径、plan 模式的 edit/execute——纯判定、直接 deny。放在最前,使必拒的
+effect 绝不触发有副作用的 pre-hook,且**任何规则都赦免不了它拦下的东西**"。
+另有 §path 规则的边界诚实:"真正的路径边界由**强制 OS workspace sandbox**
+闭环:bash 只可读写 workspace…workspace 外用户数据与 workspace 内凭据形文件
+均不可读"。实现:`PermissionGate.hardFloor` 直接 Deny 越界路径与凭据路径;
+bash 另受 Seatbelt/Bubblewrap 收容,writable 只有 workspace + tmp + git
+metadata。
+
+**为什么必须动**:用户报"应该允许访问和编辑系统上任何文件,只要用户批准"。
+与 2026-07-29 早些时候的审批模式那条同源:闸是用来拦 **agent** 自作主张的,
+不是拦拥有这台机器的人。人的真实工作经常跨目录(改 `~/.zshrc`、读隔壁 repo)。
+凭据一条用户单独裁决"也走审批"——他要能让 agent 帮他改 `~/.aws/credentials`。
+
+**新表述**:Floor 的**三条判定拆成两类**。plan 模式的 edit/execute 仍是
+直接 deny(那是 plan 模式的全部内容,exit_plan_mode 是唯一出口)。workspace
+逃逸与凭据路径改判 **ask**。**floor 的不变性质原样保留**:任何规则、任何
+mode(含 bypass)都不能把这三者变成**静默 allow**——deny 的赦免不了,ask 的
+绕不过去。这正是它们留在 floor 而不是下沉到 rules 层的理由。
+
+**批准如何抵达执行**:ask 本身不够——文件工具用 `WS.Resolve` 兜边界、bash
+sandbox 只把 workspace 设为 writable,所以批了 `~/.zshrc` 仍会在执行期被拒。
+新增 `Executor.GrantPath`:批准后把**那一条**解析后的路径存进 executor 的
+会话级内存集合,`resolvePath`(文件工具)与 `sandboxedBash` 的 writable 共用
+它。grant **不落盘、不进 config、会话结束即失效**——它是对眼前这件事的决定,
+不是边界的长期放宽,下个 session 重新问。sandbox 的 writable 每条命令现构造,
+所以中途新增的 grant 下一条命令即生效。
+
+**波及面**:`internal/pipeline/permission.go`(hardFloor 两条改 Ask)、
+`internal/tool/exec.go`(grantedPaths + resolveUnbounded + resolvePath,三处
+文件工具改走它)、`internal/tool/sandbox.go`(writable 追加 GrantedPaths)、
+`internal/workspace/workspace.go`(导出 ResolveOutside 让 grant 与查询口径
+一致)、`internal/agent/approval.go` 两条批准路径(standing 自动批准 + 显式
+批准)接线、`internal/agent/approval_remember.go`(grantApprovedPath)。
+测试:`permission_test.go` 四个钉旧不变量的用例按两类重写(逃逸/凭据断言从
+deny 改 ask,并新增"bypass 下仍 ask"与"plan 仍 deny"),新增
+`internal/tool/grant_test.go` 覆盖未授权仍拒、授权后读写编辑、不外溢到兄弟
+文件、不同拼写同一 grant、grant 进 sandbox。**v1 acceptance s1-03 同步**:
+非交互 run 里没人可问,ask 走 fail closed 自动拒绝,断言从 "path escapes
+workspace" 改为 "needs approval",红线本身(不静默放行 + run 正常继续)不变。
+
+**已知边界**:bash 的越界**没有逐次审批点**——命令文本无法可靠映射成路径
+(§path 规则的边界诚实),所以 bash 只能用"文件工具批过的 grant"。想让 agent
+用 shell 碰某个外部文件,先经一次文件工具的批准。这是刻意的:给 bash 造一个
+路径级审批需要解析 shell,而那正是这条设计明说不做的事。

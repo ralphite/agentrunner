@@ -98,6 +98,12 @@ func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), []string, e
 	}
 	writable := []string{root, resolvedTmp}
 	writable = append(writable, gitMetadataPaths(root)...)
+	// Paths the user approved reaching outside the workspace (LOG 2026-07-29).
+	// Without this, an approved `edit_file` on ~/.zshrc would succeed while the
+	// very next `bash` line touching the same file failed at the OS boundary —
+	// the same intent, two different answers. The list is rebuilt per command,
+	// so a grant made mid-session applies from the next call with no restart.
+	writable = append(writable, e.GrantedPaths()...)
 	denied := credentialPaths(root)
 	cmd, err := platformSandboxCommand(root, command, writable, denied, info.Network == "none")
 	if err != nil {

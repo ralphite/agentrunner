@@ -99,6 +99,15 @@ type Executor struct {
 	// wins — the root spec's bundle stays authoritative for the tree.
 	skillMu    sync.Mutex
 	skillPaths map[string]string
+	// grantedPaths are absolute paths the USER approved reaching outside the
+	// workspace for (LOG 2026-07-29). The gate asks; an approval lands here;
+	// afterwards the file tools resolve that exact path and the bash sandbox
+	// makes it writable. Session-scoped and in-memory on purpose — a grant is
+	// a decision about the work in front of you, not a standing widening of
+	// the boundary, so it dies with the process and is re-asked next session.
+	// Guarded like skillPaths: the executor is shared down the agent tree.
+	grantMu      sync.Mutex
+	grantedPaths map[string]bool
 	// Network containment (S7 模块 5). The executor is shared down the agent
 	// tree, so containment is a RATCHET: any spec in the tree demanding
 	// network=none flips it for everyone, and nothing widens it back.
@@ -230,6 +239,79 @@ func (e *Executor) SkillPath(name string) (string, bool) {
 	defer e.skillMu.Unlock()
 	p, ok := e.skillPaths[name]
 	return p, ok
+}
+
+// GrantPath records that the user approved reaching this path outside the
+// workspace. The path is stored resolved, so a later request spelled
+// differently (relative, via a symlink) still matches.
+func (e *Executor) GrantPath(path string) {
+	if path == "" {
+		return
+	}
+	resolved, err := e.resolveUnbounded(path)
+	if err != nil {
+		return
+	}
+	e.grantMu.Lock()
+	defer e.grantMu.Unlock()
+	if e.grantedPaths == nil {
+		e.grantedPaths = map[string]bool{}
+	}
+	e.grantedPaths[resolved] = true
+}
+
+// GrantedPaths lists the approved out-of-workspace paths, for the sandbox to
+// make writable.
+func (e *Executor) GrantedPaths() []string {
+	e.grantMu.Lock()
+	defer e.grantMu.Unlock()
+	out := make([]string, 0, len(e.grantedPaths))
+	for p := range e.grantedPaths {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// resolvePath maps a tool path to an absolute one. Inside the workspace this
+// is WS.Resolve unchanged. Outside it, the path is allowed ONLY if the user
+// approved this exact path — the gate has already asked by the time execution
+// runs, so an un-granted escape here means the approval never happened.
+func (e *Executor) resolvePath(path string) (string, error) {
+	abs, err := e.WS.Resolve(path)
+	if err == nil {
+		return abs, nil
+	}
+	resolved, rerr := e.resolveUnbounded(path)
+	if rerr != nil {
+		return "", err
+	}
+	e.grantMu.Lock()
+	granted := e.grantedPaths[resolved]
+	e.grantMu.Unlock()
+	if granted {
+		return resolved, nil
+	}
+	return "", err
+}
+
+// resolveUnbounded resolves a tool-supplied path exactly as WS.Resolve does —
+// relative paths against the workspace root, then symlinks on the deepest
+// existing ancestor — but WITHOUT the boundary check. Grants and lookups both
+// go through it so they agree on spelling: `../../etc/hosts`, `/etc/hosts` and
+// a symlinked `/tmp/...` all land on the same string.
+func (e *Executor) resolveUnbounded(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("empty path")
+	}
+	p := path
+	if !filepath.IsAbs(p) {
+		if e.WS == nil {
+			return "", fmt.Errorf("no workspace to resolve %s against", path)
+		}
+		p = filepath.Join(e.WS.Root(), p)
+	}
+	return workspace.ResolveOutside(filepath.Clean(p))
 }
 
 func (e *Executor) skill(rawArgs json.RawMessage) Result {
@@ -743,7 +825,7 @@ func (e *Executor) readFile(rawArgs json.RawMessage) Result {
 	if args.Offset < 0 || args.Limit < 0 {
 		return errResult("read_file: offset and limit must be non-negative")
 	}
-	path, err := e.WS.Resolve(args.Path)
+	path, err := e.resolvePath(args.Path)
 	if err != nil {
 		return errResult("read_file: %v", err)
 	}
@@ -839,7 +921,7 @@ func (e *Executor) writeFile(rawArgs json.RawMessage) Result {
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Path == "" || args.Content == nil {
 		return errResult("write_file: invalid args: need {\"path\", \"content\"}")
 	}
-	path, err := e.WS.Resolve(args.Path)
+	path, err := e.resolvePath(args.Path)
 	if err != nil {
 		return errResult("write_file: %v", err)
 	}
@@ -889,7 +971,7 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 		args.New = args.NewString
 	}
 	replaceAll := args.ReplaceAll || args.All
-	path, err := e.WS.Resolve(args.Path)
+	path, err := e.resolvePath(args.Path)
 	if err != nil {
 		return errResult("edit_file: %v", err)
 	}

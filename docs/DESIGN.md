@@ -523,10 +523,15 @@ turn 里每个副作用（模型调用、工具调用、spawn、发布 artifact�
 effect
   │
   ▼
-[1] Floor            # 硬底线：workspace 逃逸、凭据路径、plan 模式的
-  │                  # edit/execute——纯判定、直接 deny。放在最前，
-  │                  # 使必拒的 effect 绝不触发有副作用的 pre-hook，
-  │                  # 且任何规则都赦免不了它拦下的东西
+[1] Floor            # 硬底线（2026-07-29 修订，见 LOG 同日条）：
+  │                  # plan 模式的 edit/execute——纯判定、直接 deny；
+  │                  # **workspace 逃逸与凭据路径改为 ask**（用户裁决）。
+  │                  # 放在最前，使必拒的 effect 绝不触发有副作用的
+  │                  # pre-hook。**floor 的不变性质仍在**：任何规则、任何
+  │                  # mode（含 bypass）都不能把这三者变成静默 allow——
+  │                  # deny 的赦免不了，ask 的绕不过去。批准后的路径落到
+  │                  # executor 的会话级 grant（内存、不落盘、下个 session
+  │                  # 重新问），文件工具与 bash sandbox 共用它。
   ▼
 [2] Spawn            # spawn/handoff 结构限制：树深度、扇出、handoff
   │                  # 唯一性——同为纯判定且廉价，故也先于 hooks
@@ -634,9 +639,12 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   无法可靠映射成路径（一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
   **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
   而真正的路径边界由**强制 OS workspace sandbox**闭环：bash/command verifier
-  只可读写 workspace（linked-worktree 的 git metadata 是成文 carve-out），
-  workspace 外用户数据与 workspace 内凭据形文件均不可读；敏感 env 不传给
-  子进程。Seatbelt（macOS）/Bubblewrap（Linux）缺席或不可用时在 containment
+  只可读写 workspace（linked-worktree 的 git metadata 是成文 carve-out，
+  **用户批准的 grant 路径是第二条**，2026-07-29），workspace 外用户数据与
+  workspace 内凭据形文件默认不可读；敏感 env 不传给子进程。sandbox 的
+  writable 列表**每条命令现构造**（`sandboxedBash`），所以会话中途新增的
+  grant 下一条命令即生效，无需重启——这也是"文件工具批了、bash 却还被
+  OS 拒"这种同一意图两个答案的修补点。Seatbelt（macOS）/Bubblewrap（Linux）缺席或不可用时在 containment
   gate **fail closed**，不得降级裸跑。这层关系明文写出，不假装 path 规则
   覆盖 shell。
 - **命令粒度匹配（INC-16，#53）**：一条 bash 命令的规则匹配是**逐子命令

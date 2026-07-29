@@ -1,5 +1,9 @@
 id: s1-03-workspace-escape
-title: 工具无法逃逸 workspace 边界(路径穿越被拒且 run 正常继续)
+title: 逃逸 workspace 需用户批准(非交互下 fail closed 自动拒绝且 run 正常继续)
+# 2026-07-29 不变量修订(LOG 同日条):越界路径由 floor 的直接 deny 改判 ask
+# ——闸拦的是 agent 自作主张,不是拿这台机器的人。本场景钉住的红线因此变成
+# 两条:①非交互 run 里没人可问,所以**仍然不放行**(fail closed,绝不静默通过);
+# ②被拒之后 run 照常继续,不崩不挂。
 files:
   spec.yaml: |
     name: sneaky
@@ -18,5 +22,5 @@ steps:
   - run: AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml $BIN run --workspace ws spec.yaml "try to escape"
 expect:
   - exit_code: 0
-  - output_contains: "path escapes workspace"
+  - output_contains: "needs approval"
   - output_contains: "escape was blocked as expected"

@@ -98,3 +98,28 @@ func standingCriterion(toolName string, args json.RawMessage) (event.StandingRul
 		return event.StandingRule{}, false
 	}
 }
+
+// grantApprovedPath hands an approved out-of-workspace path to the executor.
+//
+// The permission gate asks about such a path rather than denying it (LOG
+// 2026-07-29), but the ask alone is not enough: the file tools bound every
+// path with WS.Resolve and the bash sandbox makes only the workspace writable,
+// so an approved edit to ~/.zshrc would still fail at execution. The grant is
+// what carries the human's answer across to both.
+//
+// Deliberately narrow: the exact path that was approved, this session only,
+// held in the executor's memory rather than written anywhere. A grant is a
+// decision about the work in front of you, not a standing widening of the
+// boundary — the next session asks again.
+func (l *Loop) grantApprovedPath(args json.RawMessage) {
+	if l.Exec == nil || len(args) == 0 {
+		return
+	}
+	var a struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(args, &a); err != nil || a.Path == "" {
+		return
+	}
+	l.Exec.GrantPath(a.Path)
+}
