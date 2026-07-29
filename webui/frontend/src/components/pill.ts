@@ -77,6 +77,17 @@ export function sessionFriendlyStatus(
   return base;
 }
 
+// Which status classes are worth a line of the reader's attention: something is
+// waiting on them ("appr"), something broke ("crash"), the session needs
+// recovery ("stranded"), or work is happening right now ("run"). The rest —
+// idle, closed — are the internal lifecycle marks behind "Ready" and "Stopped",
+// which tell a user nothing they can act on. Surfaces that merely *list*
+// sessions use this to stay quiet; a surface that is about the status itself
+// (an inspect panel, a terminal notice) still shows the raw label.
+export function statusWorthShowing(cls: string): boolean {
+  return ["appr", "crash", "stranded", "run"].includes(cls);
+}
+
 export interface TerminalNotice {
   title: string;
   body: string;

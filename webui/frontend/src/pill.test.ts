@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { friendlyStatus, sessionFriendlyStatus, terminalNoticeFor } from "./components/pill";
+import {
+  friendlyStatus,
+  sessionFriendlyStatus,
+  statusWorthShowing,
+  terminalNoticeFor,
+} from "./components/pill";
 
 describe("abnormal terminal notices", () => {
   it("offers a checkpoint continuation for a normal session that exhausted its budget", () => {
@@ -85,5 +90,25 @@ describe("typed human attention", () => {
       status: "waiting:input",
       attention: { approvals: 3 },
     })).toEqual({ text: "3 actions needed", cls: "appr" });
+  });
+});
+
+// "Ready" and "Stopped" are internal lifecycle marks: every idle session is
+// Ready, and a stopped one continues on the next message just the same. Any
+// surface that merely LISTS sessions asks this before printing a status, so
+// the rule lives in one place instead of being re-decided per surface.
+describe("statusWorthShowing", () => {
+  it("stays quiet for the states a reader cannot act on", () => {
+    expect(statusWorthShowing(friendlyStatus("idle").cls)).toBe(false);
+    expect(statusWorthShowing(friendlyStatus("waiting:input").cls)).toBe(false);
+    expect(statusWorthShowing(friendlyStatus("interrupted").cls)).toBe(false);
+    expect(statusWorthShowing(friendlyStatus("completed").cls)).toBe(false);
+  });
+
+  it("speaks up when something is waiting, running, or broken", () => {
+    expect(statusWorthShowing(friendlyStatus("waiting_approval").cls)).toBe(true);
+    expect(statusWorthShowing(friendlyStatus("running").cls)).toBe(true);
+    expect(statusWorthShowing(friendlyStatus("crashed").cls)).toBe(true);
+    expect(statusWorthShowing(friendlyStatus("stranded").cls)).toBe(true);
   });
 });

@@ -17,7 +17,7 @@ import {
 import type { Session } from "../types";
 import { isManagedWorktreeWorkspace } from "../viewModels";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { sessionFriendlyStatus } from "./pill";
+import { sessionFriendlyStatus, statusWorthShowing } from "./pill";
 import { IconButton } from "../ui/IconButton";
 import { StatusIndicator } from "../ui/StatusIndicator";
 import {
@@ -418,15 +418,6 @@ export type SidebarPreviewCardProps =
       onHoverStart?: () => void;
       onHoverEnd?: () => void;
     };
-
-// Which status classes are worth a line of the reader's attention: something
-// is waiting on them ("appr"), something broke ("crash"), or the session needs
-// recovery ("stranded"); "run" says work is happening right now. The rest —
-// idle, closed — are the internal lifecycle marks behind "Ready" and
-// "Stopped", which tell a user nothing they can act on.
-export function statusWorthShowing(cls: string): boolean {
-  return ["appr", "crash", "stranded", "run"].includes(cls);
-}
 
 export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
   const style = props.inline

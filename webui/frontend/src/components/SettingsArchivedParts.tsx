@@ -1,7 +1,7 @@
 import { ArrowUpRight, Folder } from "@phosphor-icons/react";
 import type { Session } from "../types";
 import type { ProjectGroup } from "../viewModels";
-import { sessionFriendlyStatus } from "./pill";
+import { sessionFriendlyStatus, statusWorthShowing } from "./pill";
 import { Button } from "../ui/Button";
 
 interface ArchivedSessionItemProps {
@@ -33,11 +33,17 @@ export function ArchivedSessionItem({
         >
           {title}
         </span>
-        <span
-          className={`rs-archive-status ${status.cls} col-start-1 block min-w-0 truncate`}
-        >
-          {status.text}
-        </span>
+        {/* Same rule the rail follows: an archived session is almost always
+            idle or closed, and printing "Ready"/"Stopped" under every row said
+            nothing the reader could act on. Speak up only for a state that
+            does. */}
+        {statusWorthShowing(status.cls) && (
+          <span
+            className={`rs-archive-status ${status.cls} col-start-1 block min-w-0 truncate`}
+          >
+            {status.text}
+          </span>
+        )}
         <ArrowUpRight
           className="col-start-2 row-span-2 row-start-1 shrink-0 self-center text-dim"
           size={14}
