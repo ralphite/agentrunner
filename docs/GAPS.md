@@ -282,6 +282,40 @@ remember 同 durable command 族）+ `ValidTransition` 校验（bypass 仍拒）
 
 ### 工具与检索面
 
+**G59 检索面把所有点目录静默吞掉 — 🔧 纯实现缺口（影响：高）**
+`index.SkipDir` 的谓词是 `skipDirs[name] || strings.HasPrefix(name, ".")`，
+理由写的是"dotdirs harbor credential stores like .ssh/.aws"——但它作用在
+**grep / glob / keyword_search 三个工具**上，于是 `.github/`、`.claude/`、
+`.vscode/` 一并消失。本仓库实测（2026-07-29，真 Gemini turn，session
+`20260729-223107-do-these-four-things-in-order-7ecfa891a0ab76fd`）：
+
+- `glob {"pattern":".github/workflows/*.yml"}` → `{"paths":[],"truncated":false}`
+  ——12 个文件就在那里，而返回值**主动声称没有截断**。
+- `grep {"pattern":"qa-blackbox"}` → 扫了 1058 个文件，命中 CLAUDE.md /
+  docs / qa，**唯独没有那个就叫 `qa-blackbox.yml` 的文件**。
+- `keyword_search` 同样零命中。
+- 而 `read_file .github/workflows/qa-blackbox.yml` **读得到**（89 行）。
+
+即：**路径已知就能读，但任何检索都找不到它**，且失败是静默的。被问"CI 为什么
+挂"的 agent 会搜一圈、什么都没找到、然后回答"仓库里没有 workflow"。这与决策
+#34 修订前的 bash 凭据问题是同一种病：一个为凭据设计的排除被过度一般化，代价
+由功能承担，且不回报。`truncated` 字段只反映结果条数上限，从不反映排除。
+修法方向：把凭据排除收窄到真正的凭据目录（`.ssh`/`.aws`/`.gnupg`…）而非所有
+点目录；排除发生时在结果里回报条数（`excluded` 计数），静默是这条的核心危害。
+→ UJ-01, UJ-05
+
+**G60 redaction 只覆盖"进程已知的值"，workspace 凭据文件经 bash 可原文入 journal — ⚠️ 设计欠定（影响：中）**
+DESIGN 已把"只登记 `redact.Plausible` 的进程已知凭据值"写成文档化残余风险。
+决策 #34 修订（默认终端等价）**扩大了它的暴露面**：修订前默认档 bash 读不到
+workspace 内的 `.env`（`credentialPaths` deny read），那类"harness 不知道值"
+的凭据文件因此进不了 journal；现在 `cat .env` 会成功。实测（2026-07-29）：
+`ar run` 腿因为把 workspace `.env` 载进了自己进程环境，落 journal 是
+`PROBE_SECRET=[REDACTED:PROBE_SECRET]`；**daemon 腿不知道该值，落的是原文**
+（session `20260729-222937-run-this-single-bash-command-a-b451ec9e87dae51f`）。
+真终端语义下 `cat .env` 本就该成功，所以收口方向不是把读堵回去，而是 session
+start 时把 workspace 凭据形文件（`index.SkipFile` 那张表）的值登记进 redactor。
+→ UJ-20
+
 **G18 内置工具面完整性 — 🟡 部分关闭（write_file ✅；grep/glob ✅ INC-3；web_fetch ✅ INC-5；web search 仍开放）**
 DESIGN 列名"file read/**write**/edit、bash、**glob/grep**、**web
 fetch/search**"，其中：write_file ✅（v2 M4.3）；**grep/glob ✅（INC-3）**
