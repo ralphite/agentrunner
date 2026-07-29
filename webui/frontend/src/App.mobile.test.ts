@@ -35,10 +35,19 @@ describe("mobile navigation breakpoint", () => {
 
 describe("Changes split layout", () => {
   it("sizes the desktop review rail from the content track, not the whole viewport", () => {
+    // The rail's share is draggable (--changes-pct, remembered per user), but
+    // the clamp still guards both panes: 320px minimum for the diff, 390px
+    // reserved for the conversation. A stored split cannot squeeze either one.
     expect(css).toContain(
-      "grid-template-columns: minmax(0, 1fr) minmax(320px, clamp(320px, calc(100% - 390px), 54%));",
+      "minmax(320px, clamp(320px, var(--changes-pct, 54%), calc(100% - 390px)))",
     );
     expect(css).not.toContain("minmax(320px, 46vw)");
+  });
+
+  it("gives the Changes rail a drag handle track between the two panes", () => {
+    expect(css).toContain(".changes-resize-handle");
+    expect(css).toContain("cursor-col-resize");
+    expect(css).toContain("minmax(0, 1fr) auto");
   });
 
   it("compacts the conversation by its actual split-track width", () => {

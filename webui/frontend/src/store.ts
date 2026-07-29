@@ -124,6 +124,8 @@ export interface AppState {
   toggleSidebar: () => void;
   sidebarWidth: number; // desktop rail width in px (localStorage-backed)
   setSidebarWidth: (width: number) => void;
+  changesWidthPct: number; // Changes rail share of the session layout (localStorage-backed)
+  setChangesWidthPct: (pct: number) => void;
   unread: string[]; // sids with new activity you haven't opened (localStorage-backed)
   markUnread: (id: string) => void;
   markRead: (id: string) => void;
@@ -256,6 +258,30 @@ function loadSidebarWidth(storage: Storage): number {
     return raw ? clampSidebarWidth(raw) : SIDEBAR_DEFAULT_WIDTH;
   } catch {
     return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+// The Changes rail is the other half of a two-pane read: how much room the
+// diff deserves against the conversation is a judgement that changes with the
+// review, so it drags like the sidebar and remembers where it was left. As a
+// percentage of the layout, not pixels — the same split then survives a window
+// resize instead of eating the conversation on a narrow screen.
+export const CHANGES_MIN_PCT = 25;
+export const CHANGES_MAX_PCT = 70;
+export const CHANGES_DEFAULT_PCT = 54;
+const CHANGES_WIDTH_KEY = "arwebui.changesWidthPct";
+
+export function clampChangesPct(pct: number): number {
+  if (!Number.isFinite(pct)) return CHANGES_DEFAULT_PCT;
+  return Math.min(CHANGES_MAX_PCT, Math.max(CHANGES_MIN_PCT, Math.round(pct)));
+}
+
+function loadChangesPct(storage: Storage): number {
+  try {
+    const raw = Number(storage.getItem(CHANGES_WIDTH_KEY));
+    return raw ? clampChangesPct(raw) : CHANGES_DEFAULT_PCT;
+  } catch {
+    return CHANGES_DEFAULT_PCT;
   }
 }
 
@@ -427,6 +453,16 @@ export function createAppStore(
       /* private mode / quota */
     }
     set({ sidebarWidth: next });
+  },
+  changesWidthPct: loadChangesPct(localStorage),
+  setChangesWidthPct: (pct) => {
+    const next = clampChangesPct(pct);
+    try {
+      localStorage.setItem(CHANGES_WIDTH_KEY, String(next));
+    } catch {
+      /* private mode / quota */
+    }
+    set({ changesWidthPct: next });
   },
   unread: loadUnread(localStorage),
   markUnread: (id) => {

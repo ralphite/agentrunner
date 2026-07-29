@@ -1259,9 +1259,24 @@
      window. The rail keeps Codex's 54% wide-screen proportion, but yields first
      at compact desktop widths so the conversation retains 390px whenever the
      two 320px-minimum tracks can fit. */
+  /* CHANGES-RESIZE: the rail's share is now the user's, dragged on the handle
+     between the two panes and remembered. The clamp still holds both sides
+     honest — 320px minimum for the diff, 390px reserved for the conversation —
+     so a stored split can never squeeze either pane below readable. */
   .session-layout.changes {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, clamp(320px, calc(100% - 390px), 54%));
+    grid-template-columns:
+      minmax(0, 1fr) auto
+      minmax(320px, clamp(320px, var(--changes-pct, 54%), calc(100% - 390px)));
   }
+  .changes-resize-handle {
+    @apply relative w-[7px] shrink-0 cursor-col-resize bg-transparent;
+  }
+  .changes-resize-handle::after {
+    @apply absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line content-[''];
+  }
+  .changes-resize-handle:hover::after,
+  .changes-resize-handle:focus-visible::after { @apply w-[2px] bg-accent; }
+  .changes-resize-handle:focus-visible { @apply outline-none; }
   /* INC-97: Environment is an inspection overlay, not a review workspace.
      Keep the conversation on the same track while the card is open; Changes
      remains the only state that earns a second layout column. */

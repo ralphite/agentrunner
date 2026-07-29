@@ -1,7 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { type ForkDraft } from "../../api";
 import { useAppServices } from "../../app/appServices";
-import { useStore } from "../../store";
+import {
+  CHANGES_DEFAULT_PCT,
+  CHANGES_MAX_PCT,
+  CHANGES_MIN_PCT,
+  useStore,
+} from "../../store";
 import { deriveGoalState, foldEvents, formatElapsed, goalNoopReceipts, isGoalTerminal, suppressEchoedChips, type ApprovalRef } from "../../timeline";
 import { TimelineFeature } from "../timeline/TimelineFeature";
 import { ApprovalCard } from "../../components/ApprovalCard";
@@ -148,6 +160,42 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // event, so event-driven git surfaces went stale; the epoch rides along in
   // their refreshKey.
   const workspaceEpoch = useStore((s) => s.workspaceEpoch);
+  // CHANGES-RESIZE: the diff rail drags like the sidebar does. How much room a
+  // diff deserves against the conversation changes with what is being
+  // reviewed, and the fixed 54% split forced a scroll on every wide diff.
+  const changesWidthPct = useStore((s) => s.changesWidthPct);
+  const setChangesWidthPct = useStore((s) => s.setChangesWidthPct);
+  const startChangesResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const layout = event.currentTarget.parentElement;
+    if (!layout) return;
+    const bounds = layout.getBoundingClientRect();
+    document.body.classList.add("sidebar-resizing");
+    const move = (moveEvent: PointerEvent) => {
+      const fromRight = bounds.right - moveEvent.clientX;
+      setChangesWidthPct((fromRight / bounds.width) * 100);
+    };
+    const stop = () => {
+      document.body.classList.remove("sidebar-resizing");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+  const resizeChangesWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let next: number | null = null;
+    if (event.key === "ArrowLeft") next = changesWidthPct + 4;
+    else if (event.key === "ArrowRight") next = changesWidthPct - 4;
+    else if (event.key === "Home") next = CHANGES_MIN_PCT;
+    else if (event.key === "End") next = CHANGES_MAX_PCT;
+    if (next === null) return;
+    event.preventDefault();
+    setChangesWidthPct(next);
+  };
   const openDiff = (hint: "working-tree" | "last-turn" | null = null) => {
     const active = document.activeElement;
     diffOpenerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
@@ -745,6 +793,23 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     <SessionView
       daemonAlert={<DaemonAlert />}
       changesModal={changesModal}
+      layoutStyle={{ "--changes-pct": `${changesWidthPct}%` } as React.CSSProperties}
+      resizeHandle={(
+        <div
+          className="changes-resize-handle"
+          role="separator"
+          aria-label="Resize Changes"
+          aria-orientation="vertical"
+          aria-valuemin={CHANGES_MIN_PCT}
+          aria-valuemax={CHANGES_MAX_PCT}
+          aria-valuenow={changesWidthPct}
+          tabIndex={0}
+          title="Drag to resize Changes · double-click to reset"
+          onPointerDown={startChangesResize}
+          onKeyDown={resizeChangesWithKeyboard}
+          onDoubleClick={() => setChangesWidthPct(CHANGES_DEFAULT_PCT)}
+        />
+      )}
       topbar={(
         <SessionTopbar
           sid={sid}

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   CaretRight,
   CheckCircle,
@@ -29,6 +29,10 @@ export interface SessionViewProps {
   showSupervision?: boolean;
   conversation?: ReactNode;
   sidePanel?: ReactNode;
+  /** Drag handle between the conversation and the Changes rail (desktop only). */
+  resizeHandle?: ReactNode;
+  /** Carries the remembered Changes split as a custom property. */
+  layoutStyle?: CSSProperties;
 }
 
 /**
@@ -45,6 +49,8 @@ export function SessionView({
   showSupervision = false,
   conversation,
   sidePanel,
+  resizeHandle,
+  layoutStyle,
 }: SessionViewProps) {
   if (notFound) {
     return (
@@ -70,8 +76,10 @@ export function SessionView({
       {findBar && <div className="contents" {...(changesModal ? { inert: "" } : {})}>{findBar}</div>}
       <div
         className={`session-layout${view === "diff" ? " changes" : " single"}${showSupervision ? " environment" : ""}`}
+        style={layoutStyle}
       >
         <main className="session-primary" {...(changesModal ? { inert: "" } : {})}>{conversation}</main>
+        {view === "diff" && !changesModal && resizeHandle}
         {sidePanel}
       </div>
     </div>
