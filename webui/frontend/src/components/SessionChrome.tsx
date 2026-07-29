@@ -9,6 +9,7 @@ import {
   DotsThree,
   Files,
   Flag,
+  Folder,
   GitFork,
   PencilSimple,
   PushPin,
@@ -110,6 +111,14 @@ export function SessionTopbar({
           <ArrowLeft size={16} />
         </IconButton>
       )}
+      {/* S23: mock 会话标题前有一枚 16px 文件夹图标（#1d1d1d）。 */}
+      {!isSub && (
+        <Folder
+          size={16}
+          aria-hidden="true"
+          className="shrink-0 text-[#1d1d1d] dark:text-ink"
+        />
+      )}
       <div
         className={
           isSub
@@ -170,7 +179,7 @@ export function SessionTopbar({
         )}
       </Button>
       <Menu
-        label={<DotsThree size={18} weight="bold" />}
+        label={<DotsThree size={17} weight="bold" />}
         ariaLabel="More session actions"
       >
         <MenuItem

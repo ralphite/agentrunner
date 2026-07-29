@@ -527,9 +527,10 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       <section className="changes-outcome overflow-hidden" aria-label="Workspace changes">
         <header className="flex min-w-0 items-center gap-[11px]">
           <span className="changes-outcome-icon shrink-0"><PlusMinusSquare /></span>
-          <div className="changes-outcome-title grid min-w-0 flex-1 gap-[2px] text-[15px] leading-tight">
+          {/* S27: mock 卡头是 13.8/medium/19，不是 15/bold。 */}
+          <div className="changes-outcome-title grid min-w-0 flex-1 gap-[2px] text-[13.8px] leading-[19px]">
             <b className="overflow-hidden text-ellipsis whitespace-nowrap">{scope === "turn" ? `Edited ${summary.files.length} file${summary.files.length === 1 ? "" : "s"}` : "Changes in workspace"}</b>
-            <span className="flex items-center gap-[7px] overflow-hidden whitespace-nowrap text-[13px]">
+            <span className="flex items-center gap-[7px] overflow-hidden whitespace-nowrap font-normal">
               {countedFiles > 0 && (
                 <>
                   <em className="add not-italic">+{summary.totalAdd}</em>
@@ -564,7 +565,8 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                 Undo <ArrowCounterClockwise size={13} />
               </Button>
             )}
-            <Button size="md" variant="outline" type="button" className="shrink-0" onClick={() => onReview(scope)}>Review</Button>
+            {/* S31: mock Review 钮 31 高、13.8/regular。 */}
+            <Button size="md" variant="outline" type="button" className="shrink-0 !h-[31px] !text-[13.8px] !font-normal" onClick={() => onReview(scope)}>Review</Button>
           </div>
         </header>
         <div className="changes-outcome-files -mx-3 -mb-3 mt-3 grid gap-0 overflow-hidden border-t border-line-2">
@@ -588,7 +590,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                 key={file.path}
                 role="button"
                 tabIndex={0}
-                className="flex min-h-[38px] min-w-0 cursor-pointer items-center gap-2 px-[14px] py-[7px] text-[13px] text-ink-2 hover:bg-panel-2"
+                className="flex min-h-[37px] min-w-0 cursor-pointer items-center gap-2 px-[14px] py-[7px] text-[13.8px] text-ink-2 hover:bg-panel-2"
                 aria-label={`Review changes to ${base}`}
                 onClick={open}
                 onKeyDown={(e) => {
@@ -598,16 +600,17 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                   }
                 }}
               >
-                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-ink" title={file.path}>
+                {/* S30: mock 文件行路径是中灰 #4d4d4d（--path-ink），计数 13.8。 */}
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-(--path-ink)" title={file.path}>
                   {file.path}
                 </span>
                 {file.countsKnown && (
-                  <small className="flex shrink-0 items-center gap-[7px] text-[13px]">
+                  <small className="flex shrink-0 items-center gap-[7px] text-[13.8px]">
                     <em className="add not-italic">+{file.add}</em>
                     <em className="del not-italic">-{file.del}</em>
                   </small>
                 )}
-                {!file.countsKnown && <small className="dim shrink-0 text-[13px] text-dim">new</small>}
+                {!file.countsKnown && <small className="dim shrink-0 text-[13.8px] text-dim">new</small>}
               </div>
             );
           })}
@@ -618,7 +621,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             // counts: 4 files behind a cap of 3 used to read "Show 1 more files".
             <button
               type="button"
-              className="flex min-h-[38px] w-full items-center gap-[5px] rounded-none border-0 bg-transparent px-[14px] py-[7px] text-left text-[13px] text-dim hover:bg-panel-2 hover:text-ink-2"
+              className="flex min-h-[37px] w-full items-center gap-[5px] rounded-none border-0 bg-transparent px-[14px] py-[7px] text-left text-[13.8px] text-dim hover:bg-panel-2 hover:text-ink-2"
               onClick={() => setExpanded((e) => !e)}
             >
               {expanded ? "Show less" : `Show ${hidden} more file${hidden === 1 ? "" : "s"}`}

@@ -239,7 +239,9 @@ export function FileHead({
   // badge speaks alone.
   const unavailable = badges.some((badge) => badge === "binary" || badge === "large" || badge === "unavailable");
   return (
-    <summary className="fd-head mono">
+    // S49: mock 文件头是 13.8 的 sans（只有 diff 正文才是 mono），
+    // 文件名 medium #222、目录段 #858585。
+    <summary className="fd-head">
       <span className="fd-caret" aria-hidden="true">
         <CaretRight size={12} weight="bold" />
       </span>
@@ -248,7 +250,7 @@ export function FileHead({
       </span>
       <span className="fd-path" title={path}>
         {dir && <span className="fd-dir">{dir}</span>}
-        <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
+        <b className="font-medium text-[#222222] dark:text-ink">{base}</b>
       </span>
       {/* RD-4: counts sit right after the filename (Codex: `docs/DESIGN.md +8 -4`),
           both numbers always rendered — a pure deletion reads "+0 −176", not a

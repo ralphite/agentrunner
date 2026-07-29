@@ -376,7 +376,7 @@ function ScheduledView({ controller }: { controller: ScheduledController }) {
           <Menu
             ariaLabel="Create scheduled work"
             triggerClassName="page-action"
-            label={<>Create <CaretDown size={13} /></>}
+            label={<>Create <CaretDown size={16} className="text-[#bdbdbd] dark:text-inherit" /></>}
           >
             <MenuLabel>Create</MenuLabel>
             <MenuItem onClick={() => controller.create("one-time")}>

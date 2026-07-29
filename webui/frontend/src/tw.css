@@ -97,11 +97,13 @@
      行号槽与左侧 3px accent 条比行底更饱和(它们是"脊",要一眼扫出改动
      位置);统计数字(+N −N)又比 accent 条更纯。语义 --green/--red 继续服务
      status pill / 告警卡,不受影响。 */
-  --diff-add-num: #127a26;
+  --diff-add-num: #15932d; /* S48: mock .code-row.green .ln */
   --diff-del-num: #e72c21;
   --diff-add-bar: #11aa3c;
   --diff-del-bar: #ef6251;
-  --stat-add: #067d24;
+  /* S28/S50: mock 三处取样 #0a9e30/#08a02d/#08a12d 同色异噪(±3/255)——收敛为
+     一个 token;红侧 #e1262c/#e3242c/#e22b2f 同理。 */
+  --stat-add: #08a12d;
   --stat-del: #e22b2f;
   --status-running: var(--green);
   --status-ready: var(--blue);
@@ -901,7 +903,8 @@
      and the prefers-color-scheme path; it is the only correct spelling here. */
   .cx-card:focus-within { border-color: rgb(0 0 0 / 20%); }
   .cx-card:focus-within { @apply dark:border-white/25; }
-  .cx-session .cx-card { @apply max-w-[660px]; }
+  /* S32: mock 的输入框撑满内容列（767 − 2×30 = 707）；660 让它比正文窄一圈。 */
+  .cx-session .cx-card { @apply max-w-[707px]; }
   /* QA-0724-goal · the session composer sat flush against the viewport's bottom
      edge at desktop widths — only the ≤500px container query carried any
      bottom inset. Give the card its breathing room at every width (the
@@ -952,12 +955,15 @@
      ink + semibold; the effort suffix dims to a regular-weight grey. Scoped to
      the model-pill spans only; the shared .cx-pill base stays flat/regular so
      the access pill is unaffected. */
-  .cx-model-name { @apply font-semibold text-ink; }
+  /* S35: mock 模型档是 regular 双色（名 #262626 / 档位 #888），不加粗。 */
+  .cx-model-name { @apply font-normal text-[#262626] dark:text-ink; }
   .cx-pill-sub { @apply min-w-0 truncate text-dim; }
+  /* S35: mock 底排文字 13px（此前 12）。只动输入框底排，不动顶部 env shelf。 */
+  .cx-bar .cx-pill { @apply text-[13px]; }
   .cx-input-wrap { @apply px-[14px] pt-[12px]; }
   .cx-input-wrap textarea {
-    @apply max-h-[180px] min-h-[48px] w-full resize-none border-0 bg-transparent p-0 text-[15px] leading-[1.45] outline-none;
-  }
+    @apply max-h-[180px] min-h-[48px] w-full resize-none border-0 bg-transparent p-0 text-[14px] leading-[20px] outline-none;
+  } /* S33: mock 输入区 14/20 */
   /* Placeholder is its own tier, well below --dim: in Codex it reads as an
      empty field's ghost, not as secondary copy competing with real labels. */
   .cx-input-wrap textarea::placeholder { color: var(--placeholder); }
@@ -991,7 +997,15 @@
   .cx-delivery { @apply flex shrink-0 items-center gap-1; }
   .cx-deliv { @apply h-8 shrink-0 py-0; }
   .cx-deliv-label { @apply min-w-0; }
-  .cx-send { @apply shrink-0; }
+  /* S34: mock 发送钮 30 圆；空稿态是 #878787 实心底 + 白箭头（不是淡出的浅灰
+     底）。选择器与 .ix[data-variant=solid]:disabled 的兜底同特异度，靠后位压过。 */
+  .cx-send { @apply !h-[30px] !w-[30px] shrink-0; }
+  .cx-send[data-variant="solid"]:disabled {
+    background: #878787 !important;
+    border-color: #878787 !important;
+    color: #fff !important;
+    opacity: 1;
+  }
   .cx-status { @apply mx-auto mt-2 max-w-[660px] px-2 text-right text-[11px] text-dim; }
   .cx-atts { @apply flex flex-wrap gap-[6px] px-[14px] pt-[12px]; }
   .cx-att { @apply inline-flex max-w-[220px] cursor-pointer items-center gap-[6px] rounded-full border border-line bg-panel-2 px-[8px] py-[4px] text-[12px]; }
@@ -1201,9 +1215,11 @@
     border-bottom-color: var(--hairline);
   }
   .tt-left { @apply min-w-0; }
-  .tt-title { @apply truncate text-[13px] font-medium text-ink; }
+  .tt-title { @apply truncate text-[13.8px] font-medium tracking-[-0.07px] text-ink; } /* S22 */
   .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim font-medium; }
-  .topbar-tool { @apply relative; }
+  /* S24: mock 头部胶囊高 29（Button md 默认 32）；⋯ 触发钮走 mock 的 #777。 */
+  .topbar-tool { @apply relative !h-[29px]; }
+  .session-topbar .menu-trigger { @apply text-[#777777] dark:text-ink-2; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
   /* INC-98.4b/98.4w: size the review rail from the content area, not the whole
@@ -1273,7 +1289,8 @@
       @apply col-start-3 row-start-2;
     }
   }
-  .turn-sep { @apply my-[22px] h-px bg-line; }
+  /* S19: Codex 轮次间只有留白没有线——保留节拍占位，抹掉墨迹。 */
+  .turn-sep { @apply my-[22px] h-px bg-transparent; }
   .msg { @apply relative flex gap-3 py-2; }
   .msg.user { @apply flex-col items-end gap-1; }
   .avatar { @apply mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-panel-2 text-[12px] text-dim; }
@@ -1282,10 +1299,13 @@
   /* CX-BUBBLE (T11): only the user's turn is a bubble; it gets Codex's neutral
      fill and no border (the fill already bounds it — a border on top read as a
      boxed quote). Assistant prose keeps the page as its ground. */
-  .bubble { @apply rounded-[var(--radius-card)] border-0 bg-panel px-[13px] py-[7px] text-[13.8px] leading-[20.4px] tracking-[-0.08px] break-words overflow-hidden; }
-  .msg.user .bubble { @apply bg-panel-2; }
+  /* S16/S17: mock 段落显式 leading-22、用户气泡 leading-23（此前沿用内容包裹层
+     的 1.48≈20.4，整个对话区偏挤）。 */
+  .bubble { @apply rounded-[var(--radius-card)] border-0 bg-panel px-[13px] py-[7px] text-[13.8px] leading-[22px] tracking-[-0.08px] break-words overflow-hidden; }
+  .msg.user .bubble { @apply bg-panel-2 leading-[23px]; }
   .msg.assistant .bubble { @apply border-transparent bg-transparent px-0; }
-  .msg-actions { @apply mt-1 flex items-center gap-[8px] text-[12px] text-dim transition-opacity; }
+  /* S20: mock 动作行 gap 13、无竖分隔线。 */
+  .msg-actions { @apply mt-1 flex items-center gap-[13px] text-[12px] text-dim transition-opacity; }
   .timeline .tl-inner .msg:not(.msg-last) .msg-actions { @apply pointer-events-none opacity-0; }
   .timeline .tl-inner .msg.msg-last .msg-actions,
   .timeline .tl-tail-row .msg-actions { @apply pointer-events-auto opacity-100; }
@@ -1303,8 +1323,9 @@
   /* R1: IconButton forces w/h from --control-sm, so the 15px box never applied
      and the row read airier than Codex's. Keep a 20px hit box (still reachable,
      and coarse pointers get 44px from the primitive) with the 15px glyph. */
-  .msg-copy { @apply grid !h-5 !w-5 place-items-center border-0 !bg-transparent p-0 text-dim hover:!bg-transparent hover:text-ink; }
-  .msg-actions-div { @apply h-4 w-px bg-line; }
+  .msg-copy { @apply grid !h-5 !w-5 place-items-center border-0 !bg-transparent p-0 !text-[#8b8b8b] dark:!text-dim hover:!bg-transparent hover:!text-ink; }
+  /* S20: mock 动作行没有竖分隔线。 */
+  .msg-actions-div { @apply hidden; }
   .msg-time, .who { @apply text-[12px] text-dim; }
   .msg-action-error { @apply max-w-[22rem] truncate text-[11px] text-red; }
   .compact-divider { @apply my-5 flex items-center gap-2 text-[12px] text-dim; }
@@ -1317,8 +1338,10 @@
      read as a stack of cards that out-weighed the prose. The system notices
      below keep card chrome: they are alerts, and Codex boxes those too. */
   .step, .act-group {
-    @apply my-0 rounded-[var(--radius-affordance)] border-0 bg-transparent px-1 py-[1.5px] text-[13.5px] leading-[22px] text-ink-2;
+    @apply my-0 rounded-[var(--radius-affordance)] border-0 bg-transparent px-1 py-0 text-[13.5px] leading-[22px] text-ink-2;
   }
+  /* S26: mock 相邻条目节拍 25 = 22 行 + 3 间隙。 */
+  .step + .step, .step + .act-group, .act-group + .step, .act-group + .act-group { @apply mt-[3px]; }
   /* Hover darkens the TEXT only. A fill here would re-introduce the card the
      rule above just removed, and the trace sits on bare page background. */
   .step > summary:hover, .act-group > summary:hover { @apply text-ink; }
@@ -1336,13 +1359,15 @@
      quieter grey, not a floating label. The hairline under it is what tells the
      eye where the collapsed work ends and the answer begins. */
   .chip { @apply my-2 text-[13px] text-dim; }
+  /* S21: mock 是通栏 28px 条 + 底部发丝线；此前按钮 fit-content，底线只垫在
+     文字下面，读起来像枚胶囊。rounded-none 抵掉 base button 的圆角。 */
   .worked-row {
-    @apply my-2 flex h-[28px] items-center gap-[7px] border-0 border-b bg-transparent p-0 text-[13px] tracking-[-0.08px];
+    @apply my-2 flex h-[28px] w-full items-center gap-[7px] rounded-none border-0 border-b bg-transparent p-0 text-[13px] tracking-[-0.08px];
     color: var(--worked-ink);
     border-bottom-color: var(--hairline);
   }
   .worked-row.static { @apply cursor-default; }
-  .worked-caret { @apply shrink-0 text-dim transition-transform; }
+  .worked-caret { @apply h-3 w-3 shrink-0 text-dim transition-transform; } /* S21: mock chevron 12px */
   [aria-expanded="true"] > .worked-caret { @apply rotate-90; }
   /* Codex's expanded trace runs on a 25px pitch (22px row + 3px). */
   .worked-body, .act-body { @apply pt-[6px]; }
@@ -1398,20 +1423,23 @@
      no border — the fill alone separates it. A border plus a fill read as two
      nested boxes once the trace around it stopped being a card. */
   .shell, .cx-code, .cx-minidiff {
-    @apply overflow-hidden rounded-[var(--radius-row)] border-0 font-mono text-[12px];
+    @apply overflow-hidden rounded-[10px] border-0 font-mono text-[12px];
     background: var(--fill-soft);
   }
-  .cx-code-hd { @apply flex items-center justify-between border-0 bg-transparent px-3 pt-2 pb-1 text-[13px] text-dim; }
+  /* S25: mock 工具输出/代码卡正文是 14/21.5 的满墨色，不是 12px 淡灰。
+     --code-font-size(12) 只留给 diff；聊天里的块单独走 14。 */
+  .shell, .cx-code { @apply text-[14px]; }
+  .cx-code-hd { @apply flex items-center justify-between border-0 bg-transparent px-3 pt-2 pb-1 text-[13px] text-[#525252] dark:text-dim; }
   /* M22: the block clips at a fixed 240px with no fade and no expander, and
      macOS overlay scrollbars are invisible at rest — the only cue that 1400px of
      output was hidden was a row of half-cut glyphs at the bottom edge. Snap the
      height to a whole number of lines and fade the last one so the cut reads as
      "there is more", not as a rendering fault. */
   .shell-out, .cx-code-body {
-    @apply overflow-x-auto p-3;
-    max-height: calc(12px * 2 + 22px * 10);
-    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+    @apply overflow-x-auto p-3 leading-[21.5px] text-ink;
+    max-height: calc(12px * 2 + 21.5px * 10);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 21.5px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 21.5px), transparent);
     scrollbar-width: thin;
     scrollbar-color: var(--line) var(--panel-2);
   }
@@ -1428,9 +1456,9 @@
   .shell-out::-webkit-scrollbar-thumb:hover, .cx-code-body::-webkit-scrollbar-thumb:hover {
     background-color: var(--line-2);
   }
-  /* Codex's chat prose measures 13.8px / 20.424 (=1.48) / -0.08px. Ours ran a
-     fifth larger and a notch looser, which is why the same thread read taller. */
-  .md, .cx-md { @apply max-w-none text-[13.8px] leading-[1.48] tracking-[-0.08px] text-ink; }
+  /* S16: Codex 内容包裹层是 13.8/1.48/-0.08，但段落自身显式 leading-22——
+     可见行高以 22 为准（此前取了包裹层的 1.48，正文偏挤）。 */
+  .md, .cx-md { @apply max-w-none text-[13.8px] leading-[22px] tracking-[-0.08px] text-ink; }
   .md-p { @apply my-2; }
   .md-list { @apply my-2 pl-5; }
   /* M24: --line is tuned for box edges on white; as the only mark identifying a
@@ -1447,7 +1475,17 @@
     background: var(--chip);
     font-size: var(--code-font-size);
   }
-  .md-hljs, .runlog {
+  /* S18: Markdown 的行内 code 走默认 <code>，此前完全裸着。mock 是一枚
+     20 高的灰 chip：mono 13/20、#e8e8e8 底、r6、内距 7。 */
+  .md :not(pre) > code {
+    @apply inline-flex h-[20px] items-center rounded-[6px] px-[7px] align-[-4px] font-mono text-[13px] leading-[20px] text-[#2a2a2a] dark:text-ink;
+    background: var(--chip);
+  }
+  /* S25: 高亮层跟随聊天代码块的 14；runlog 保持 12。 */
+  .md-hljs {
+    font-size: 14px !important;
+  }
+  .runlog {
     font-size: var(--code-font-size) !important;
   }
   .md-img-grid { @apply my-3 grid gap-2; }
@@ -1620,7 +1658,7 @@
     border-bottom-color: var(--hairline);
   }
   .diffbar-state { @apply flex w-full shrink-0 items-center gap-2; }
-  .diff-summary, .fd-counts { @apply inline-flex items-center gap-[6px] text-[12px] font-medium; }
+  .diff-summary, .fd-counts { @apply inline-flex items-center gap-[6px] text-[13.8px] font-normal; } /* S49/S50: mock ± 计数 13.8/400 */
   /* T5: ± counts get their own brighter pair. --green/--red stay reserved for
      status pills and alert cards, whose darker values are tuned for contrast on
      a filled chip, not for a bare numeral beside a filename. */
@@ -1668,21 +1706,23 @@
   .fd-path { @apply min-w-0 truncate; }
 
   .filediff { @apply m-3 shrink-0 overflow-hidden rounded-[var(--radius-menu)] border bg-panel; border-color: var(--card-line); }
-  .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-2 text-[12px]; }
+  .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-[5px] text-[13.8px]; } /* S49: mock 文件头 13.8 / 高约 31 */
   .fd-caret { @apply transition-transform; }
   details[open] > .fd-head .fd-caret { @apply rotate-90; }
   /* DIFF-FD-GLYPH-BARE: 文件头首元素是安静的着色 mono 字母(M/A/D),不再是
      彩色方块 tile——+8 −4 计数已带增删色信号,tile 是重复着色。去掉盒(h/w/
      rounded/grid place-items)渲成内联 mono 文字,仅保留文字颜色 utility。 */
-  .fd-glyph { @apply inline-flex items-center shrink-0 text-[11px] font-bold; }
+  .fd-glyph { @apply inline-flex items-center shrink-0 font-mono text-[11px] font-bold; } /* S49: 头部转 sans 后字母位保持 mono */
   .fd-glyph-added { @apply text-green; }
   .fd-glyph-deleted { @apply text-red; }
   .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply text-ink-2; }
-  .fd-dir { @apply text-dim; }
+  .fd-dir { @apply text-[#858585] dark:text-dim; } /* S49: mock 目录段 #858585 */
+  /* S50: mock 工具条 "Last Turn" 是 13.8/medium。 */
+  .diff-scope-trigger { @apply !text-[13.8px] !font-medium; }
   .fd-badge { @apply rounded-full border border-line bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
   .fd-badge.conflict { @apply border-red bg-red-soft text-red; }
   .fd-spacer { @apply flex-1; }
-  .fd-body { @apply overflow-x-auto border-t border-line bg-panel font-mono; font-size: var(--code-font-size); }
+  .fd-body { @apply overflow-x-auto border-t border-line bg-panel font-mono; font-size: var(--code-font-size); line-height: 21.6px; } /* S47: mock 行高 21.6 */
 
   /* Core diff row grid: marker(18px) + line-number(5ch) + code(flex).
      RVW-MARKER: the 18px marker column keeps its width for alignment, but the
@@ -1701,7 +1741,7 @@
   /* QA-0718 用户实机:删除行 gutter 曾用红色斜纹 repeating-gradient,
      深色下极刺眼且非 Codex 形态——Codex 是极细纯色 accent 条。 */
   .dl.del .dl-marker { background: linear-gradient(to right, var(--diff-del-bar) 3px, var(--diff-del-bg) 3px); }
-  .dl-no { @apply select-none bg-transparent px-2 text-right text-dim text-[11px]; }
+  .dl-no { @apply select-none bg-transparent px-2 text-right text-[#626262] text-[12px] dark:text-dim; } /* S48: mock 行号 12/#626262 */
   .dl-text, .dls-half { @apply whitespace-pre px-2 text-ink; }
   .dl.add .dl-text, .dls-half.add { background-color: var(--diff-add-bg); }
   .dl.del .dl-text, .dls-half.del { background-color: var(--diff-del-bg); }
@@ -1814,8 +1854,13 @@
      green badge implied "succeeded"; the card only reports what changed. */
   .changes-outcome { @apply my-3 rounded-[var(--radius-card)] border bg-panel p-3 text-[13px]; border-color: var(--card-line); }
   .changes-outcome-title { @apply font-medium; }
+  /* S27: mock 标题只是 medium——压掉 <b> 的 UA bold。 */
+  .changes-outcome-title b { @apply font-medium; }
+  /* S28: mock 卡头 +N/−M 是绿/红、regular。 */
+  .changes-outcome-title .add { @apply font-normal; color: var(--stat-add); }
+  .changes-outcome-title .del { @apply font-normal; color: var(--stat-del); }
   .changes-outcome-icon {
-    @apply grid h-[34px] w-[34px] place-items-center rounded-[var(--radius-menu)] text-ink-2;
+    @apply grid h-[34px] w-[34px] place-items-center rounded-[10px] text-[#5d5d5d] dark:text-ink-2;
     background: var(--fill-soft);
   }
   .changes-outcome-files { @apply mt-2 grid gap-1 text-[13.8px] tracking-[-0.08px]; }
@@ -1913,14 +1958,16 @@
      Scheduled.tsx — no cross-page fallout). Unify to 28px/normal (24px on
      narrow) and lift the subtitle 13→15px so it stays calm under the larger
      title, matching Codex's ~15px description line. */
-  .page-heading h2 { @apply text-[28px] font-normal leading-tight max-[680px]:text-[24px]; }
-  .page-heading p { @apply mt-1 text-[15px] font-normal text-dim; }
+  /* S37/S38: mock 页标题 27/34/−0.35 #080808，副标题 16/23/−0.17 #616161。 */
+  .page-heading h2 { @apply text-[27px] font-normal leading-[34px] tracking-[-0.35px] text-[#080808] dark:text-ink max-[680px]:text-[24px]; }
+  .page-heading p { @apply mt-1 text-[16px] font-normal leading-[23px] tracking-[-0.17px] text-[#616161] dark:text-ink-2; }
   /* Codex's page-level Create is the one solid affordance on these screens. */
   /* 3: .page-action is also a .menu-trigger, and that rule's `hover:text-ink`
      applied here too — harmless while this button was white, fatal once T18 made
      it solid near-black (#0d0d0d on #0b0b0b = 1.01:1, the label vanished under
      the cursor). Pin the label colour across every state. */
-  .page-action { @apply inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border-accent bg-accent px-3 text-[14px] font-medium !text-accent-ink hover:bg-accent; }
+  /* S43: mock Create 底是 #0d0d0d（浅色下）；暗色仍走 accent token。 */
+  .page-action { @apply inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border-[#0d0d0d] bg-[#0d0d0d] px-3 text-[14px] font-medium !text-accent-ink hover:bg-[#0d0d0d] dark:border-accent dark:bg-accent dark:hover:bg-accent; }
   .page-action:hover { @apply !text-accent-ink; }
   /* R40: a labeled Menu trigger (page-action) must not inherit the 32px
      icon-only width from .menu-trigger — .page-action overrides height/padding
@@ -1942,8 +1989,9 @@
      title-case ~15px medium-weight dim heading, not a shouty uppercase micro-
      label. Mirror the R47 sidebar section-label quieting (was: text-[12px]
      font-semibold tracking-[0.04em] uppercase). */
-  .sched-suggestions-title { @apply mt-6 mb-2 text-[15px] font-medium normal-case tracking-normal text-dim; }
-  .sched-suggest-title { @apply text-[14px] font-semibold; }
+  .sched-suggestions-title { @apply mt-6 mb-2 text-[16px] font-normal normal-case tracking-normal text-[#5a5a5a] dark:text-dim; } /* S42: mock 16/400 #5a5a5a */
+  /* S41: mock 建议名 regular #151515——层级靠颜色不靠加粗。 */
+  .sched-suggest-title { @apply text-[14px] font-normal text-[#151515] dark:text-ink; }
   /* R41 SCHED-TABS: match Codex's Scheduled toolbar. Codex stacks the search on
      its own full-width row, then a filters row with the text tabs left and
      "Mark all as read" right (was: one flex-wrap row, search flex-1, tabs to
@@ -1960,8 +2008,9 @@
      rule — the pill lost its 16px inset and became the only control on the page
      with a blue halo. */
   .sched-search {
-    @apply flex w-full min-w-[220px] items-center gap-2 rounded-full border border-line bg-panel !px-4 !py-0 h-11 text-dim;
-  }
+    @apply flex w-full min-w-[220px] items-center gap-[9px] rounded-full border !border-[#e3e3e3] bg-panel !px-[11px] !py-0 h-[33px] text-dim dark:!border-line;
+  } /* S39: mock 高 33 / 边框 #e3e3e3（Field 容器自带 border-line utility，需 ! 压过）/ 图标缩进 11 */
+  .sched-search svg { @apply shrink-0 text-[#818181] dark:text-dim; }
   .sched-search:focus-within { @apply !border-ink-2 !shadow-none !ring-0; }
   .sched-search input { @apply flex-1 w-full border-0 bg-transparent p-0 text-[14px] text-ink outline-none placeholder:text-dim; }
   .sched-filters { @apply flex items-center justify-between gap-2; }
@@ -1979,14 +2028,20 @@
      rule" note was simply wrong, so the border-b is removed. Real rows carry a
      touch more vertical padding (py-3) so the un-ruled list reads airy, not
      cramped; .sched-suggest keeps its tighter py-2.5. */
+  /* S40/S41: mock 任务行节拍 68、建议行 73——内容不变，纵向内距补足。 */
   .scheduled-row, .sched-suggest {
-    @apply flex min-w-0 items-start gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-2.5 text-left;
+    @apply flex min-w-0 items-start gap-3 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[13px] text-left;
   }
-  .scheduled-row { @apply py-3; }
+  .scheduled-row { @apply py-[15px]; }
   .scheduled-row-wrap.is-selected .scheduled-row { @apply bg-sel; }
   .sched-glyph, .sched-suggest-icon { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full text-dim; }
+  /* S40: mock 行首图标 18（原 16）。CSS 尺寸压过 svg 的 size 属性。 */
+  .sched-glyph svg, .sched-suggest-icon svg { @apply h-[18px] w-[18px]; }
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
-  .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }
+  /* S40/S41: mock 任务 meta 13、建议日程 14 #8a8a8a、建议描述 13 #686868。 */
+  .sched-sub, .sched-trail, .sched-cadence, .sched-warn { @apply text-[13px] text-dim; }
+  .sched-suggest-cadence { @apply text-[14px] text-[#8a8a8a] dark:text-dim; }
+  .sched-suggest-desc { @apply text-[13px] text-[#686868] dark:text-ink-2; }
   .sched-unread { @apply bg-blue; }
   /* SCHED-QUIET-DIM (R87): restore the at-rest dimming for settled/stopped
      rows lost in the Tailwind migration (68a8a69b dropped styles.scheduled.css
@@ -2004,9 +2059,10 @@
      the row's own hierarchy — at --dim the title matched its own metadata (3.59:1,
      below AA) and 11 of 15 rows read as one grey block. Codex keeps a settled
      title near-black. Step it to --ink-2 and let weight carry the quieting. */
-  .scheduled-row.is-quiet .scheduled-copy b { @apply text-ink-2; font-weight: 400 !important; }
+  /* S40 之后标题的 #111 是 utilities 层的类，quiet 的降色也要 !important 才压得住。 */
+  .scheduled-row.is-quiet .scheduled-copy b { @apply !text-ink-2; font-weight: 400 !important; }
   .scheduled-row-wrap:hover .scheduled-row.is-quiet .scheduled-copy b,
-  .scheduled-row-wrap:focus-within .scheduled-row.is-quiet .scheduled-copy b { @apply text-ink-2; }
+  .scheduled-row-wrap:focus-within .scheduled-row.is-quiet .scheduled-copy b { @apply !text-ink-2; }
   /* SCHED-MORE-HOVER (R64): restore hover-reveal lost in the Tailwind migration
      (68a8a69b). Scheduled.tsx documents the row action as "invisible at rest,
      appears on hover/focus"; Codex keeps rows clean with only the unread dot at
@@ -2132,13 +2188,15 @@
   .lb-pct, .lb-count { @apply min-w-12 text-center text-[12px] text-white/80; }
 
   .rs-panel { @apply mx-auto max-w-[760px]; }
-  .rs-panel-title { @apply m-0 text-[22px] font-semibold; }
-  .rs-panel-sub, .rs-row-desc, .rs-noresults, .rs-todo { @apply text-[13px] text-dim; }
+  .rs-panel-title { @apply m-0 text-[23px] font-medium tracking-[-0.5px]; } /* S44: mock 23/500/−0.5 */
+  .rs-panel-sub, .rs-noresults, .rs-todo { @apply text-[13px] text-dim; }
+  /* S46: mock 行描述 #616161、regular（父级 .rs-row-head 的 font-medium 会漏下来）。 */
+  .rs-row-desc { @apply text-[13px] font-normal text-[#616161] dark:text-dim; }
   .rs-row, .rs-row-block, .rs-wt-card, .rs-archive-row, .rs-sc-group {
     @apply mt-3 rounded-[var(--radius-overlay)] border border-line bg-panel p-3;
   }
   .rs-row-head, .rs-wt-head, .rs-archive-title { @apply flex items-center justify-between gap-3 font-medium; }
-  .rs-row-label { @apply text-[13px] font-medium; }
+  .rs-row-label { @apply text-[14px] font-medium; } /* S45: mock 行标签 14 */
   .rs-input, .rs-textarea { @apply w-full; }
   .rs-seg { @apply inline-flex rounded-[var(--radius-control)] border border-line bg-panel-2 p-[2px]; }
   .rs-seg-btn { @apply rounded-[var(--radius-affordance)] border-0 bg-transparent px-3 py-[5px] text-[12px] text-ink-2; }
@@ -2584,7 +2642,7 @@
   .turn-error-action, .terminal-alert-action { @apply shrink-0 font-medium; }
 
   /* Worked 折叠 caret 旋转(此前永不旋转) */
-  .worked-caret { @apply shrink-0 text-dim transition-transform; }
+  .worked-caret { @apply h-3 w-3 shrink-0 text-dim transition-transform; } /* S21: mock chevron 12px */
   .worked.open .worked-caret { @apply rotate-90; }
 
   /* dev 视图 turn 分隔与 sys 行 */

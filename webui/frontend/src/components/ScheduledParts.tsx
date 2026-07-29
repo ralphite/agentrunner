@@ -204,7 +204,8 @@ export function ScheduledRunItem({
           {scheduledRunGlyph(row)}
         </span>
         <span className="scheduled-copy flex min-w-0 flex-col gap-0.5">
-          <b className="min-w-0 truncate leading-5 font-semibold">
+          {/* S40: mock 任务行标题 14/regular/#111——活跃/沉默的层级只靠颜色。 */}
+          <b className="min-w-0 truncate leading-5 font-normal text-[#111111] dark:text-ink">
             {row.title}
           </b>
           <span
@@ -382,7 +383,7 @@ export function ScheduledToolbar({
         type="text"
         containerClassName="sched-search !rounded-full"
         className="text-[14px]"
-        icon={<MagnifyingGlass size={15} />}
+        icon={<MagnifyingGlass size={17} />}
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder="Search scheduled runs"
@@ -455,7 +456,7 @@ export function ScheduledSuggestionCard({
             rowGap: 2,
           }}
         >
-          <b className="sched-suggest-title font-semibold">
+          <b className="sched-suggest-title">
             {suggestion.title}
           </b>
           <span className="sched-suggest-cadence">

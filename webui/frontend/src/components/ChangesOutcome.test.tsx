@@ -378,7 +378,7 @@ describe("ChangesOutcome mobile layout parity (INC-48)", () => {
     const pathColumn = row.children[0] as HTMLElement;
     const countColumn = row.children[1] as HTMLElement;
 
-    expect(row.className).toMatch(/flex min-h-\[38px\] min-w-0/);
+    expect(row.className).toMatch(/flex min-h-\[37px\] min-w-0/); // S30: mock 文件行 37 高
     expect(pathColumn.title).toBe(path);
     expect(pathColumn.className).toMatch(/min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap/);
     expect(countColumn.className).toMatch(/flex shrink-0/);

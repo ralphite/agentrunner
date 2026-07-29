@@ -631,7 +631,8 @@ export function AddMenu({
           aria-haspopup="menu"
           aria-expanded={open}
         >
-          <Plus size={16} />
+          {/* S35: mock 的 ＋ 是 18–20 的裸字形 */}
+          <Plus size={18} />
         </IconButton>
       )}
     >
@@ -1392,7 +1393,7 @@ export function SubmitButton({
           : "Send (Enter)"
       }
     >
-      <ArrowUp />
+      <ArrowUp size={18} />
     </IconButton>
   );
 }
