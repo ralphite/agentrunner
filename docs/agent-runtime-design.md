@@ -2,10 +2,11 @@
 
 **架构设计（3 页）**
 
-> 本文讲一个 coding agent runtime 的内核该长什么样：会话模型、输入通道、
+> 本文讲一个通用 agent runtime 的内核该长什么样：会话模型、输入通道、
 > 多 agent、turn 内机制、持久化与恢复、provider 抽象。目标是能长期驻留、
-> 挺过进程死亡、支持多方随时插话的 harness，而不是一次性的 LLM 调用循环。
-> 工具集、workspace 快照、索引、生态接入、各类 surface 属于扩展层，本文略去。
+> 挺过进程死亡、支持多方随时插话的 harness，而不是一次性的 LLM 调用循环；
+> 不预设领域——写码、研究、运维、数据工作共用同一个内核。具体工具集、领域
+> 状态的快照与回滚、索引、生态接入、各类 surface 属于扩展层，本文略去。
 
 ## 1. 本分
 
@@ -130,9 +131,10 @@ effect → [1] Floor      硬底线（越界 / 凭据 / 只读模式）：纯判
 - **每种关卡结果都定义"模型看到什么"**：deny / block / 拒批 / 执行失败一律渲染
   成 error 形态的 tool result，**loop 继续**；只有 session 级预算耗尽才让模型
   收尾后优雅停止。给模型的错误与给用户的错误是两个 surface，分开设计。
-- **边界诚实**：路径规则只约束文件类 tool——一条 `sed -i` 就能改写整棵源码树，
-  所以真正的路径边界必须由**强制 OS sandbox** 闭环，沙箱缺席时 fail closed、
-  不降级裸跑。不假装规则覆盖了 shell。
+- **边界诚实**：参数级规则只约束能被结构化解析的工具调用；执行类工具（shell、
+  解释器、浏览器）的实际行为无法从参数可靠推断——一条命令就能绕过一切参数
+  规则。真正的边界必须由执行环境的**强制隔离**（OS sandbox / 容器 / 网络出口
+  控制）闭环，隔离缺席时 fail closed、不降级裸跑。不假装规则覆盖了执行类工具。
 
 **执行纪律**：并行 tool call 是常态（ask 挂起不阻塞已放行的 call，下次调模型前
 按原 call 顺序收齐结果）；token delta 只走 bus（显式 ephemeral），持久化的是
@@ -158,7 +160,7 @@ replay 引擎**。
 
 **Activity**：`Started` 先落盘 → 执行 → `Completed/Failed`；结果落盘前过凭据
 redaction；取消以**进程组**为准（确认组内进程全部退出才落 `Cancelled`，否则被
-"取消"的构建进程会继续写盘、污染后续快照）；timeout 走 durable timer，绝不在
+"取消"的子进程会继续产生副作用、污染后续状态）；timeout 走 durable timer，绝不在
 关卡代码里读墙钟。**in-doubt（有 Started 无 Completed）按 tool 类别数据化处置**
 ——崩溃几乎必然砸中 in-flight activity，因为 agent 的墙钟全在模型调用和子进程里：
 模型调用自动重发；read-class 与显式 `idempotent: true` 重跑；execute / edit-class
