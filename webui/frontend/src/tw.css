@@ -200,14 +200,6 @@
     --ink-2: #d0d0db;
     --dim: #a0a0ad;
     --placeholder: #6a6a76;
-  --side-ink: #c8c8d2;
-  --side-nav-ink: #c8c8d2;
-  --side-proj-ink: #d0d0db;
-  --side-label: #7c7c88;
-  --worked-ink: #a0a0ad;
-  --side-quiet: #7c7c88;
-  --side-empty: #5c5c66;
-  --path-ink: #b4b4bf;
     --side-ink: #c8c8d2;
     --side-nav-ink: #c8c8d2;
     --side-proj-ink: #d0d0db;
@@ -216,6 +208,7 @@
     --side-quiet: #7c7c88;
     --side-empty: #5c5c66;
     --path-ink: #b4b4bf;
+    --composer-line: rgba(255, 255, 255, 0.13);
     --accent: #ececf1;
     --accent-ink: #17171a;
     --blue: #6f9bff;
@@ -280,6 +273,18 @@
   --ink-2: #d0d0db;
   --dim: #a0a0ad;
   --placeholder: #6a6a76;
+  /* DARK-TOKEN-PARITY: 显式 data-theme="dark" 与系统暗色两条路径必须同一份
+     token 表——S 系列的侧栏/路径/composer 角色曾只写进 @media 块，显式暗色下
+     整个侧栏回落到浅色墨值（用户实机截图：行字 #323232 压在近黑底上）。 */
+  --side-ink: #c8c8d2;
+  --side-nav-ink: #c8c8d2;
+  --side-proj-ink: #d0d0db;
+  --side-label: #7c7c88;
+  --worked-ink: #a0a0ad;
+  --side-quiet: #7c7c88;
+  --side-empty: #5c5c66;
+  --path-ink: #b4b4bf;
+  --composer-line: rgba(255, 255, 255, 0.13);
   --accent: #ececf1;
   --accent-ink: #17171a;
   --blue: #6f9bff;
@@ -638,7 +643,8 @@
      state on its own. A 500→600 jump also nudges the row's text width, so the
      label shifts slightly the moment you select it. */
   .primary-nav button.active { @apply bg-sel font-normal; color: var(--ink); }
-  .menu-kbd { @apply ml-auto rounded-[var(--radius-affordance)] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
+  /* S61: mock 菜单快捷键是与条目同号的裸灰字（#8a8a8a），不是带框小 chip。 */
+  .menu-kbd { @apply ml-auto border-0 bg-transparent p-0 text-[14px] text-[#8a8a8a] dark:text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
   }
@@ -1022,8 +1028,11 @@
      squarely over the textarea — 30px of its 32px height — so you could not see
      what you were typing while the menu filtered on it. Anchor it above the card
      instead of inside it. */
+  /* S60: slash 菜单入同一 panel 材质（此前 border-line + 泛用 shadow-lg 是族外）。 */
   .cx-slash {
-    @apply absolute bottom-[calc(100%+8px)] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[var(--radius-menu)] border border-line bg-panel p-1 shadow-lg;
+    @apply absolute bottom-[calc(100%+8px)] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[14px] border bg-panel p-1 dark:border-[color:var(--card-line)];
+    border-color: rgba(0, 0, 0, 0.12);
+    box-shadow: var(--shadow-float);
   }
   /* 4b: the last shouty section label in the app — R53/R77 quieted the sidebar,
      menu and palette equivalents to title-case 12px and this one was missed. */
@@ -1095,11 +1104,15 @@
      a hand-written -webkit- pair, a browser ignoring the alias) leaves the
      options being read against live content behind them. Do not reintroduce
      backdrop-filter here — buttonPress.test.js guards it. */
+  /* S60: mock 应用内浮层的 panel 材质是 r14 / 边框 12% 黑 / 浮影
+     0 10px 24px 14% + 0 1px 3px 4%（正是 --shadow-float 的浅色值）。
+     此前 r12 + 9% 边框 + 轻一档的 menu 影——那是 mock 里 macOS 原生
+     毛玻璃菜单的影，套错了对象。 */
   .pop-panel, .menu-pop, .ctx-menu {
-    @apply z-50 min-w-[220px] overflow-auto rounded-[var(--radius-menu)] border p-1 text-[14px];
-    border-color: var(--card-line);
+    @apply z-50 min-w-[220px] overflow-auto rounded-[14px] border p-1 text-[14px] dark:border-[color:var(--card-line)];
+    border-color: rgba(0, 0, 0, 0.12);
     background: var(--panel);
-    box-shadow: var(--shadow-menu);
+    box-shadow: var(--shadow-float);
   }
   .ctx-menu {
     @apply fixed max-h-[calc(100dvh-16px)] w-[220px] min-w-0 max-w-[calc(100vw-16px)];
@@ -1111,9 +1124,13 @@
   }
   .menu-pop { @apply absolute bottom-[calc(100%+8px)] right-0; }
   .menu-trigger { @apply grid h-8 w-8 place-items-center rounded-[var(--radius-control)] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
+  /* S61: mock TITLE_MENU 实测 rowH 28.5（14/20 + py4）、hover 底 r7——我们
+     此前每行 36.4、r11，整张菜单胖一圈。 */
   .menu-item, .pop-item {
-    @apply flex w-full min-w-0 items-center gap-2 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[14px] text-ink;
+    @apply flex w-full min-w-0 items-center gap-2 rounded-[7px] border-0 bg-transparent px-2 py-[4px] text-left text-[14px] leading-[20px] text-ink;
   }
+  /* S61: mock 菜单条目首图标 15 见方 #4c4c4c（我们 16 墨色）。 */
+  .menu-item > svg:first-child { @apply h-[15px] w-[15px] text-[#4c4c4c] dark:text-ink-2; }
   /* m28: on a two-line row the leading icon drifted to the middle of the pair and
      sat beside the DESCRIPTION rather than the title it labels. */
   .pop-item:has(.pop-desc) { @apply items-start; }
@@ -1137,10 +1154,13 @@
 
   .backdrop { @apply fixed inset-0 z-50 grid place-items-start p-[8vh_16px]; background: var(--scrim); }
   .command-palette-back { padding-top: 15vh; }
+  /* S63: mock 的 search 材质无边框、靠深影浮起（0 18px 40px 18% + 0 2px 10px 7%）。
+     暗色底上纯影分不出边缘，保留 1px line。 */
   .cmdk {
-    @apply mx-auto flex w-full max-w-[560px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-line bg-panel;
-    box-shadow: var(--shadow-modal);
+    @apply mx-auto flex w-full max-w-[560px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-transparent bg-panel dark:border-line;
+    box-shadow: 0 18px 40px rgb(0 0 0 / 18%), 0 2px 10px rgb(0 0 0 / 7%);
   }
+  .cmdk { @apply dark:shadow-[var(--shadow-modal)]; }
   .cmdk-search { @apply relative; }
   .cmdk-input { @apply w-full rounded-none border-0 border-b border-line bg-panel px-4 py-3 text-[15px] outline-none; }
   /* CMDK-CLOSE-DESKTOP-HIDE (R90): the X close is a mobile-only affordance (base
@@ -1698,7 +1718,11 @@
      a filled chip, not for a bare numeral beside a filename. */
   .diff-summary .add, .fd-counts .add, .changes-outcome-files .add { color: var(--stat-add); }
   .diff-summary .del, .fd-counts .del, .changes-outcome-files .del { color: var(--stat-del); }
-  .diff-empty { @apply m-auto grid max-w-[360px] place-items-center gap-2 p-8 text-center text-dim; }
+  /* S64: mock EmptyState 是三层级——图标 37 #333、标题 17/600 墨色、副行 15 灰；
+     我们此前整块 dim 无层级。 */
+  .diff-empty { @apply m-auto grid max-w-[360px] place-items-center gap-2 p-8 text-center text-[15px] text-dim; }
+  .diff-empty > svg { @apply h-[37px] w-[37px] text-[#333333] dark:text-ink; }
+  .diff-empty b { @apply text-[17px] font-semibold text-ink; }
 
   /* Diff toolbar controls. Every resident control occupies the semantic md
      control box; variants can still distinguish scope (quiet), icons (ghost),
@@ -2574,11 +2598,12 @@
      with the content. `sticky` is the construct that actually pins to the
      scrollport; the negative top margin keeps it out of the flow so it adds no
      scroll height, and auto side margins centre its fixed 32px box. */
+  /* S62: mock ScrollToBottom 实测 32 圆 / 边框 #e2e2e2 / 箭头 19。 */
   .tl-jump {
-    @apply sticky bottom-5 z-10 mx-auto -mt-8 flex h-8 w-8 items-center justify-center rounded-full border bg-panel p-0 text-ink;
-    border-color: var(--line);
+    @apply sticky bottom-5 z-10 mx-auto -mt-8 flex h-8 w-8 items-center justify-center rounded-full border border-[#e2e2e2] bg-panel p-0 text-ink dark:border-[color:var(--line)];
     box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
   }
+  .tl-jump > svg { @apply h-[19px] w-[19px]; }
   .tl-jump.has-updates { @apply w-auto min-w-9 gap-1.5 px-2.5; }
   .tl-jump-count { @apply text-[11px] font-semibold tabular-nums; }
 
