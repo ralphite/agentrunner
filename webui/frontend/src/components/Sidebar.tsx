@@ -57,7 +57,10 @@ type SidebarHover =
   | { kind: "session"; sid: string; top: number }
   | { kind: "project"; key: string; top: number };
 
-const HOVER_PREVIEW_CLOSE_DELAY_MS = 120;
+// Grace period before a hover preview closes. The card sits outside the
+// sidebar, so reaching it means crossing the row's quick actions and the
+// sidebar edge — 120ms was too tight and the card vanished mid-travel.
+const HOVER_PREVIEW_CLOSE_DELAY_MS = 220;
 
 // SB-4 · Collapsed project groups, mirrored into localStorage.
 //
@@ -685,7 +688,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               <SidebarProjectItem
                 key={project.key}
                 name={name}
-                workspace={project.workspace}
                 folded={folded}
                 removed={overlay?.removed}
                 actions={renderProjectActions(project.key, name, project.workspace, project.sessions.map((session) => session.id))}
@@ -704,7 +706,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                   setHoverPreview({
                     kind: "project",
                     key: project.key,
-                    top: Math.max(10, Math.min(top - 6, window.innerHeight - 132)),
+                    // The path wraps to at most four lines, so reserve enough
+                    // room for the tallest card when clamping near the bottom.
+                    top: Math.max(10, Math.min(top - 6, window.innerHeight - 200)),
                   });
                 }}
                 onPreviewEnd={scheduleHoverPreviewClose}

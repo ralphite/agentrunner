@@ -829,8 +829,11 @@
   .project-preview > div { @apply flex min-w-0 items-center gap-2 py-[3px] text-ink-2; }
   .project-preview > .project-preview-head { @apply text-[15px] text-ink; }
   .project-preview-head b { @apply min-w-0 flex-1 truncate font-semibold; }
-  .project-preview-path { @apply mt-2 border-t border-line pt-3!; }
-  .project-preview-path span { @apply min-w-0 truncate; }
+  /* The heading row no longer carries a native `title=`, so this card is the
+     only place the full workspace path shows — wrap it instead of truncating. */
+  .project-preview-path { @apply mt-2 items-start! border-t border-line pt-3!; }
+  .project-preview-path svg { @apply mt-[1px] shrink-0; }
+  .project-preview-path span { @apply line-clamp-4 min-w-0 break-all; }
 
   .home { @apply flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain; }
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 pb-4 pt-8; }

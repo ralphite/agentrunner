@@ -89,10 +89,12 @@ export function SidebarSessionItem({
       onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
       onMouseLeave={onPreviewEnd}
     >
+      {/* No native `title=` on the row: the hover preview card already carries
+          title/project/branch/status, and the OS tooltip both duplicated it and
+          rendered on top of the card. `aria-label` keeps the same text for AT. */}
       <button
         className="project-session max-[900px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
         onKeyDown={openContextFromKeyboard}
-        title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
         aria-label={`${title}${isWorktree ? " · Worktree" : ""} · ${unread && status.cls !== "appr" ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
         aria-current={active ? "page" : undefined}
       >
@@ -147,15 +149,23 @@ export function SidebarSessionItem({
           )}
         </span>
       )}
+      {/* Crossing the quick actions on the way to the preview card must not kill
+          the card outright — the card sits to the right of the sidebar, so the
+          pointer path to it always passes over this strip. Use the same grace
+          delay the row uses; the card cancels it on enter. */}
       {actions && (
         <span
           className="session-quick-actions max-[900px]:inline-flex! [@media(any-pointer:coarse)]:inline-flex!"
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDismissPreview();
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
           }}
-          onMouseEnter={onDismissPreview}
+          onMouseEnter={onPreviewEnd}
+          onFocusCapture={onDismissPreview}
         >
           <Menu
             label={<DotsThree size={16} />}
@@ -269,7 +279,6 @@ export type SidebarProjectOverflow = "more" | "less" | null;
 
 export interface SidebarProjectItemProps {
   name: string;
-  workspace?: string;
   folded?: boolean;
   removed?: boolean;
   children?: ReactNode;
@@ -286,7 +295,6 @@ export interface SidebarProjectItemProps {
 
 export function SidebarProjectItem({
   name,
-  workspace,
   folded = false,
   removed = false,
   children,
@@ -314,10 +322,11 @@ export function SidebarProjectItem({
         onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
         onMouseLeave={onPreviewEnd}
       >
+        {/* The workspace path lives in the hover preview card, not in a native
+            `title=` — the OS tooltip drew over the card and repeated it. */}
         <button
           className="project-heading min-w-0 flex-1"
           onClick={onToggle}
-          title={workspace || name}
           aria-expanded={!folded}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -342,10 +351,13 @@ export function SidebarProjectItem({
             <span className="proj-heading-name">{name}</span>
           </span>
         </button>
+        {/* Same as the session row: merely passing over the actions on the way
+            to the preview card must not dismiss it instantly, or the card is
+            unreachable. Clicks and keyboard focus still dismiss immediately. */}
         <span
           className="project-heading-actions"
           onClick={onDismissPreview}
-          onMouseEnter={onDismissPreview}
+          onMouseEnter={onPreviewEnd}
           onFocusCapture={onDismissPreview}
         >
           <Menu
@@ -423,7 +435,7 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
         <div><ChatCircle size={16} /><span>{props.chats} {props.chats === 1 ? "chat" : "chats"}</span></div>
         <div className="project-preview-path">
           <FolderOpen size={16} />
-          <span title={props.workspace || "No workspace"}>{props.workspace || "No workspace"}</span>
+          <span>{props.workspace || "No workspace"}</span>
         </div>
       </div>
     );

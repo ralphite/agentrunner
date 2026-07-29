@@ -713,6 +713,50 @@ describe("project hover and management controls (INC-87)", () => {
     expect(screen.getByRole("button", { name: "New chat in app" }).hasAttribute("data-ui-icon-button")).toBe(true);
   });
 
+  it("keeps the hover preview alive while the pointer travels onto the card", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = mount();
+      const app = [...container.querySelectorAll(".project-group")].find((group) => group.textContent?.includes("App chat"))!;
+      const headingRow = app.querySelector(".project-heading-row")!;
+      fireEvent.mouseEnter(headingRow);
+      expect(container.querySelector(".project-preview")).toBeTruthy();
+
+      // The card sits to the right of the sidebar, so the pointer crosses the
+      // heading's quick actions on its way there. That crossing used to dismiss
+      // the card outright, which made it impossible to reach.
+      fireEvent.mouseEnter(headingRow.querySelector(".project-heading-actions")!);
+      expect(container.querySelector(".project-preview")).toBeTruthy();
+
+      fireEvent.mouseLeave(headingRow);
+      fireEvent.mouseEnter(container.querySelector(".project-preview")!);
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(container.querySelector(".project-preview")).toBeTruthy();
+
+      fireEvent.mouseLeave(container.querySelector(".project-preview")!);
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(container.querySelector(".project-preview")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("dismisses the hover preview when the heading actions are clicked or focused", () => {
+    const { container } = mount();
+    const app = [...container.querySelectorAll(".project-group")].find((group) => group.textContent?.includes("App chat"))!;
+    const headingRow = app.querySelector(".project-heading-row")!;
+    const actions = headingRow.querySelector(".project-heading-actions")!;
+
+    fireEvent.mouseEnter(headingRow);
+    fireEvent.focus(screen.getByRole("button", { name: "New chat in app" }));
+    expect(container.querySelector(".project-preview")).toBeNull();
+
+    fireEvent.mouseEnter(headingRow);
+    expect(container.querySelector(".project-preview")).toBeTruthy();
+    fireEvent.click(actions);
+    expect(container.querySelector(".project-preview")).toBeNull();
+  });
+
   it("renders the six requested project actions from the visible menu trigger", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
@@ -795,9 +839,11 @@ describe("project hover and management controls (INC-87)", () => {
     expect(groups).toHaveLength(2);
     expect(groups.map((group) => group.querySelector(".proj-heading-name")?.textContent)).toEqual(["workspace", "workspace"]);
     expect(container.querySelector(".proj-heading-hint")).toBeNull();
+    // The path lives in the hover preview card only: a native `title=` here
+    // painted an OS tooltip on top of that card and repeated its contents.
     expect(groups.map((group) => group.querySelector(".project-heading")?.getAttribute("title"))).toEqual([
-      "/Users/a/workspace",
-      "/Users/b/workspace",
+      null,
+      null,
     ]);
 
     fireEvent.mouseEnter(groups[0].querySelector(".project-heading-row")!);

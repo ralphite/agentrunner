@@ -142,7 +142,7 @@ describe("Composer add and advanced menu", () => {
     expect(mocks.newSession).not.toHaveBeenCalled();
   });
 
-  it("supports drill-in menu hover and ArrowRight / ArrowLeft navigation for Automation and Agent", async () => {
+  it("supports drill-in menu ArrowRight / ArrowLeft navigation for Automation and Agent", async () => {
     const { onSubmit } = mount();
     openAddMenu();
 
@@ -150,11 +150,15 @@ describe("Composer add and advanced menu", () => {
     expect(automation.getAttribute("aria-haspopup")).toBe("menu");
     expect(automation.getAttribute("aria-expanded")).toBe("false");
 
+    // Hovering must never drill in: these pages replace the panel in place, so
+    // a pointer merely passing over Automation would look like a phantom click.
     fireEvent.mouseMove(automation);
-    await waitFor(() =>
-      expect(screen.getByRole("menuitem", { name: "Back to add menu" })).toBeTruthy(),
-    );
+    fireEvent.mouseEnter(automation);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(screen.queryByRole("menuitem", { name: "Back to add menu" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: /Automation/ })).toBeTruthy();
 
+    fireEvent.keyDown(automation, { key: "ArrowRight" });
     const backToRoot = screen.getByRole("menuitem", { name: "Back to add menu" });
     fireEvent.keyDown(backToRoot, { key: "ArrowLeft" });
     expect(screen.getByRole("menuitem", { name: /Automation/ })).toBeTruthy();

@@ -17,7 +17,6 @@ import {
 import { useEscapeLayer, useFocusScope } from "../ui/FocusScope";
 
 const PopoverMenuContext = createContext(true);
-const SUBMENU_HOVER_OPEN_DELAY_MS = 120;
 
 // Popover is the drop-up menu primitive the composer controls hang off of. It
 // anchors a panel to a trigger button, opens *upward* (the composer sits at the
@@ -512,9 +511,11 @@ export function PopSection({ label, children }: { label?: string; children: Reac
   );
 }
 
+// Note: menu items never act on hover. These pages drill in *in place* — a
+// hover-open would swap the whole panel out from under a pointer that was only
+// passing through, which reads as a phantom click. Click or ArrowRight only.
 export function PopItem({
   onClick,
-  onHoverOpen,
   onArrowRight,
   onArrowLeft,
   submenu,
@@ -529,7 +530,6 @@ export function PopItem({
   className = "",
 }: {
   onClick?: () => void;
-  onHoverOpen?: () => void;
   onArrowRight?: () => void;
   onArrowLeft?: () => void;
   submenu?: boolean;
@@ -544,13 +544,6 @@ export function PopItem({
   className?: string;
 }) {
   const inMenu = useContext(PopoverMenuContext);
-  const hoverOpenTimer = useRef<number | null>(null);
-  const clearHoverOpenTimer = () => {
-    if (hoverOpenTimer.current === null) return;
-    window.clearTimeout(hoverOpenTimer.current);
-    hoverOpenTimer.current = null;
-  };
-  useEffect(() => () => clearHoverOpenTimer(), []);
   return (
     <button
       type="button"
@@ -561,21 +554,8 @@ export function PopItem({
         (disabled ? " disabled" : "") +
         (className ? ` ${className}` : "")
       }
-      onClick={() => {
-        clearHoverOpenTimer();
-        onClick?.();
-      }}
-      onMouseMove={(event) => {
-        if (disabled) return;
-        if (!onHoverOpen || hoverOpenTimer.current !== null || event.buttons !== 0) return;
-        hoverOpenTimer.current = window.setTimeout(() => {
-          hoverOpenTimer.current = null;
-          onHoverOpen();
-        }, SUBMENU_HOVER_OPEN_DELAY_MS);
-      }}
-      onMouseLeave={clearHoverOpenTimer}
+      onClick={() => onClick?.()}
       onKeyDown={(event) => {
-        clearHoverOpenTimer();
         if (disabled) return;
         if (event.key === "ArrowRight" && onArrowRight) {
           event.preventDefault();

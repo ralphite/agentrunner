@@ -699,7 +699,6 @@ export function AddMenu({
                   }
                   right={<CaretRight className="cx-model-page-chev shrink-0" size={16} aria-hidden="true" />}
                   submenu
-                  onHoverOpen={() => onPageChange("advanced")}
                   onArrowRight={() => onPageChange("advanced")}
                   onClick={() => onPageChange("advanced")}
                 />
@@ -743,7 +742,6 @@ export function AddMenu({
                 }
                 right={<CaretRight className="cx-model-page-chev shrink-0" size={16} aria-hidden="true" />}
                 submenu
-                onHoverOpen={() => onPageChange("agent")}
                 onArrowRight={() => onPageChange("agent")}
                 onClick={() => onPageChange("agent")}
               />

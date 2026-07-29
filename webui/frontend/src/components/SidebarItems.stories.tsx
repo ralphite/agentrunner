@@ -551,7 +551,6 @@ function ProjectExample({
       <div className="project-list" style={{ paddingTop: 8 }}>
         <SidebarProjectItem
           name={label}
-          workspace={actualWorkspace}
           folded={folded}
           removed={removed}
           overflow={overflow}
