@@ -62,6 +62,7 @@
      ink as body copy — rows sit at #2f2f2f and only the selected one goes to
      #0d0d0d, which is how the rail stays quieter than the content beside it. */
   --side-ink: #2f2f2f;
+  --worked-ink: #707070;
   --side-quiet: #9f9e9e;
   --side-empty: #bcbcbc;
   --path-ink: #4d4d4d;
@@ -114,7 +115,8 @@
   --radius-card: 15px;       /* bubble, outcome card, neutral capsule */
   --radius-menu: 12px;       /* attached dropdown */
   --radius-overlay: 20px;    /* dialog, floating card, palette */
-  --radius-composer: 20px;
+  --radius-composer: 18px;      /* mock 实测,非 20 */
+  --composer-line: rgba(0, 0, 0, 0.11);
   --control-sm: 24px;
   --control-md: 32px;
   --control-lg: 40px;
@@ -191,10 +193,12 @@
     --dim: #a0a0ad;
     --placeholder: #6a6a76;
   --side-ink: #c8c8d2;
+  --worked-ink: #a0a0ad;
   --side-quiet: #7c7c88;
   --side-empty: #5c5c66;
   --path-ink: #b4b4bf;
     --side-ink: #c8c8d2;
+    --worked-ink: #a0a0ad;
     --side-quiet: #7c7c88;
     --side-empty: #5c5c66;
     --path-ink: #b4b4bf;
@@ -855,7 +859,7 @@
   }
   .cx-card {
     @apply relative mx-auto w-full max-w-[720px] overflow-visible border bg-panel;
-    border-color: var(--card-line);
+    border-color: var(--composer-line);
     border-radius: var(--radius-composer);
     box-shadow: var(--shadow-composer);
     transition: border-color 120ms ease-out;
@@ -1046,7 +1050,7 @@
      options being read against live content behind them. Do not reintroduce
      backdrop-filter here — buttonPress.test.js guards it. */
   .pop-panel, .menu-pop, .ctx-menu {
-    @apply z-50 min-w-[220px] overflow-auto rounded-[var(--radius-menu)] border p-1 text-[13px];
+    @apply z-50 min-w-[220px] overflow-auto rounded-[var(--radius-menu)] border p-1 text-[14px];
     border-color: var(--card-line);
     background: var(--panel);
     box-shadow: var(--shadow-menu);
@@ -1062,7 +1066,7 @@
   .menu-pop { @apply absolute bottom-[calc(100%+8px)] right-0; }
   .menu-trigger { @apply grid h-8 w-8 place-items-center rounded-[var(--radius-control)] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .menu-item, .pop-item {
-    @apply flex w-full min-w-0 items-center gap-2 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[13px] text-ink;
+    @apply flex w-full min-w-0 items-center gap-2 rounded-[var(--radius-control)] border-0 bg-transparent px-2 py-[7px] text-left text-[14px] text-ink;
   }
   /* m28: on a two-line row the leading icon drifted to the middle of the pair and
      sat beside the DESCRIPTION rather than the title it labels. */
@@ -1303,7 +1307,8 @@
      eye where the collapsed work ends and the answer begins. */
   .chip { @apply my-2 text-[13px] text-dim; }
   .worked-row {
-    @apply my-2 flex h-[28px] items-center gap-[7px] border-0 border-b bg-transparent p-0 text-[13px] text-ink-2;
+    @apply my-2 flex h-[28px] items-center gap-[7px] border-0 border-b bg-transparent p-0 text-[13px] tracking-[-0.08px];
+    color: var(--worked-ink);
     border-bottom-color: var(--hairline);
   }
   .worked-row.static { @apply cursor-default; }
@@ -1363,7 +1368,7 @@
      no border — the fill alone separates it. A border plus a fill read as two
      nested boxes once the trace around it stopped being a card. */
   .shell, .cx-code, .cx-minidiff {
-    @apply overflow-hidden rounded-[var(--radius-menu)] border-0 font-mono text-[12px];
+    @apply overflow-hidden rounded-[var(--radius-row)] border-0 font-mono text-[12px];
     background: var(--fill-soft);
   }
   .cx-code-hd { @apply flex items-center justify-between border-0 bg-transparent px-3 pt-2 pb-1 text-[13px] text-dim; }
