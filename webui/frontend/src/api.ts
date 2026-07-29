@@ -135,6 +135,10 @@ const blobKey = (sid: string, path: string) => sid + "\u0000" + path;
 export const AR = {
   health: () => api<Health>("/health"),
   agents: () => api<AgentCatalogEntry[]>("/agents"),
+  slash: (workspace?: string) =>
+    api<import("./features/composer/slash").SlashCatalog>(
+      "/slash" + (workspace ? `?workspace=${encodeURIComponent(workspace)}` : ""),
+    ),
   daemonStart: () => post("/daemon/start"),
   trust: (dir: string) => post("/trust", { dir }),
 

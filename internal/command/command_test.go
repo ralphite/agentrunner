@@ -3,6 +3,7 @@ package command
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -82,5 +83,71 @@ func TestExpandLeadingWhitespace(t *testing.T) {
 func TestExpandEmptyRoot(t *testing.T) {
 	if got, ok := Expand("", "/anything"); ok || got != "/anything" {
 		t.Fatalf("empty root should pass through: %q ok=%v", got, ok)
+	}
+}
+
+// /name with no command file falls back to the skill of that name; a command
+// file shadows a same-named skill; unknown names pass through untouched.
+func TestExpandSkillFallback(t *testing.T) {
+	root := t.TempDir()
+	skillDir := filepath.Join(root, ".claude", "skills", "release-ritual")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"),
+		[]byte("---\nname: release-ritual\ndescription: d\n---\nCut the release.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok := Expand(root, "/release-ritual for v2")
+	if !ok || got != "Cut the release.\n\nfor v2" {
+		t.Fatalf("workspace skill fallback = %q, %v", got, ok)
+	}
+
+	// Shipped layer: create-agent is embedded in the binary.
+	got, ok = Expand(root, "/create-agent a haiku bot")
+	if !ok || !strings.Contains(got, "save_agent") || !strings.Contains(got, "a haiku bot") {
+		t.Fatalf("shipped skill fallback = %.60q…, %v", got, ok)
+	}
+
+	// A command file shadows the skill.
+	cmdDir := filepath.Join(root, ".claude", "commands")
+	if err := os.MkdirAll(cmdDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cmdDir, "release-ritual.md"),
+		[]byte("Command wins: $ARGUMENTS"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, ok = Expand(root, "/release-ritual for v2")
+	if !ok || got != "Command wins: for v2" {
+		t.Fatalf("command should shadow skill = %q, %v", got, ok)
+	}
+
+	// Unknown name: untouched pass-through.
+	if got, ok := Expand(root, "/no-such-thing hi"); ok || got != "/no-such-thing hi" {
+		t.Fatalf("unknown name must pass through = %q, %v", got, ok)
+	}
+}
+
+func TestDiscoverCommands(t *testing.T) {
+	root := t.TempDir()
+	if got := Discover(root); got != nil {
+		t.Fatalf("no dir should be nil, got %v", got)
+	}
+	dir := filepath.Join(root, ".claude", "commands")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ship.md"),
+		[]byte("---\ndescription: Ship it\n---\nbody"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := Discover(root)
+	if len(got) != 1 || got[0].Name != "ship" || got[0].Description != "Ship it" {
+		t.Fatalf("Discover = %+v", got)
 	}
 }

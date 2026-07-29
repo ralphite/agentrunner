@@ -83,6 +83,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return newCmd(args[1:], stdout, stderr)
 	case "send":
 		return sendCmd(args[1:], stdout, stderr)
+	case "slash":
+		return slashCmd(args[1:], stdout, stderr)
 	case "retry":
 		return retryCmd(args[1:], stdout, stderr)
 	case "queue":

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type Ref } from "react";
+import { Fragment, useEffect, useRef, type Ref } from "react";
 import {
   ArrowUUpLeft,
   ArrowUp,
@@ -535,6 +535,13 @@ export interface SlashCommandMenuProps {
   onSelect: (command: SlashCmd) => void;
 }
 
+// Section headers for the "/" menu: the built-in table first, then the
+// workspace's dynamic surface (custom commands, then skills) — same shape as
+// Codex's picker. Rows keep one flat index so keyboard navigation is
+// untouched; headers are visual inserts before the first row of each group.
+const slashGroupHeader = (group?: SlashCmd["group"]): string =>
+  group === "command" ? "Workspace commands" : group === "skill" ? "Skills" : "Commands";
+
 export function SlashCommandMenu({
   id = "composer-slash-commands",
   commands,
@@ -543,6 +550,7 @@ export function SlashCommandMenu({
   onSelect,
 }: SlashCommandMenuProps) {
   if (commands.length === 0) return null;
+  let lastHeader = "";
   return (
     <div
       id={id}
@@ -550,27 +558,36 @@ export function SlashCommandMenu({
       role="listbox"
       aria-label="Slash commands"
     >
-      <div className="cx-slash-hd">Commands</div>
-      {commands.map((command, index) => (
-        <button
-          id={composerTypeaheadOptionId(id, index)}
-          key={command.name}
-          type="button"
-          role="option"
-          aria-selected={index === activeIndex}
-          className={"cx-slash-item" + (index === activeIndex ? " on" : "")}
-          onMouseEnter={() => onActiveIndexChange(index)}
-          onClick={() => onSelect(command)}
-        >
-          <span className="cx-slash-text">
-            <span className="cx-slash-name">/{command.name}</span>
-            <span className="cx-slash-desc">{command.desc}</span>
-          </span>
-          {command.arg && (
-            <span className="cx-slash-hint">{command.arg}</span>
-          )}
-        </button>
-      ))}
+      {commands.map((command, index) => {
+        const header = slashGroupHeader(command.group);
+        const showHeader = header !== lastHeader;
+        lastHeader = header;
+        return (
+          <Fragment key={command.name}>
+            {showHeader && <div className="cx-slash-hd">{header}</div>}
+            <button
+              id={composerTypeaheadOptionId(id, index)}
+              type="button"
+              role="option"
+              aria-selected={index === activeIndex}
+              className={"cx-slash-item" + (index === activeIndex ? " on" : "")}
+              onMouseEnter={() => onActiveIndexChange(index)}
+              onClick={() => onSelect(command)}
+            >
+              <span className="cx-slash-text">
+                <span className="cx-slash-name">/{command.name}</span>
+                <span className="cx-slash-desc">{command.desc}</span>
+              </span>
+              {command.arg && (
+                <span className="cx-slash-hint">{command.arg}</span>
+              )}
+              {command.group === "skill" && command.source && (
+                <span className="cx-slash-hint">{command.source}</span>
+              )}
+            </button>
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

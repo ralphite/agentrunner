@@ -30,7 +30,7 @@ import {
 import { useVoice } from "./useVoice";
 import { useDictation } from "./useDictation";
 import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
-import { parseSlash, SLASH, type SlashCmd } from "./slash";
+import { dynamicSlash, parseSlash, SLASH, type SlashCatalog, type SlashCmd } from "./slash";
 import {
   recallAccess,
   recallDraft,
@@ -565,12 +565,32 @@ export function Composer(props: ComposerProps) {
         : undefined))
     : undefined;
 
+  // The workspace's dynamic slash surface (custom commands + skills), fetched
+  // lazily the first time "/" opens the menu and cached per workspace. Both
+  // expand at ingest server-side, so the menu only completes "/name ".
+  const slashWorkspace = isSession ? ((props as any).workspace as string | undefined) : ws || undefined;
+  const [slashCatalog, setSlashCatalog] = useState<SlashCatalog | null>(null);
+  const slashCatalogFor = useRef<string | null>(null);
+  const typingSlash = /^\/\S*$/.test(text);
+  useEffect(() => {
+    if (!typingSlash) return;
+    const key = slashWorkspace || "";
+    if (slashCatalogFor.current === key) return;
+    slashCatalogFor.current = key;
+    api
+      .slash(slashWorkspace)
+      .then(setSlashCatalog)
+      .catch(() => setSlashCatalog(null)); // menu degrades to built-ins
+  }, [typingSlash, slashWorkspace]);
+
   const filteredSlash = useMemo(() => {
     const m = text.match(/^\/(\S*)$/);
     if (!m) return [];
     const q = m[1].toLowerCase();
-    return SLASH.filter((c) => c.variants.includes(props.variant) && c.name.startsWith(q));
-  }, [text, props.variant]);
+    return [...SLASH, ...dynamicSlash(slashCatalog)].filter(
+      (c) => c.variants.includes(props.variant) && c.name.startsWith(q),
+    );
+  }, [text, props.variant, slashCatalog]);
 
   useEffect(() => {
     const show = filteredSlash.length > 0 && /^\/\S*$/.test(text);

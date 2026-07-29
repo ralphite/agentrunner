@@ -3,12 +3,44 @@
 
 // A slash command: what the menu shows and what Enter/click does. `needsArgs`
 // commands complete to "/name " and wait; the rest run immediately.
+// `group` separates the built-in table from the workspace's dynamic surface
+// (custom commands and skills — both expand server-side at ingest, so
+// selecting one only completes "/name " and the plain send does the rest).
 export interface SlashCmd {
   name: string;
   arg?: string;
   desc: string;
   variants: ("home" | "session")[];
   needsArgs?: boolean;
+  group?: "builtin" | "command" | "skill";
+  source?: string;
+}
+
+// The /api/slash payload: the workspace's custom commands and skills.
+export interface SlashCatalog {
+  commands?: { name: string; description?: string }[] | null;
+  skills?: { name: string; description?: string; source?: string }[] | null;
+}
+
+// dynamicSlash turns a catalog into menu rows. Both kinds complete to
+// "/name " (args optional, ingest expands the body either way); a name
+// already taken by a built-in is dropped — the built-in runs client-side and
+// must stay reachable.
+export function dynamicSlash(catalog: SlashCatalog | null): SlashCmd[] {
+  if (!catalog) return [];
+  const taken = new Set(SLASH.map((c) => c.name));
+  const out: SlashCmd[] = [];
+  for (const c of catalog.commands || []) {
+    if (taken.has(c.name)) continue;
+    taken.add(c.name);
+    out.push({ name: c.name, desc: c.description || "Workspace command", variants: ["home", "session"], needsArgs: true, group: "command", source: "workspace" });
+  }
+  for (const s of catalog.skills || []) {
+    if (taken.has(s.name)) continue; // a same-named command shadows the skill, matching ingest
+    taken.add(s.name);
+    out.push({ name: s.name, desc: s.description || "Skill", variants: ["home", "session"], needsArgs: true, group: "skill", source: s.source });
+  }
+  return out;
 }
 
 export const SLASH: SlashCmd[] = [

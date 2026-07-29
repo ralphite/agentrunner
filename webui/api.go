@@ -36,6 +36,7 @@ func (s *server) routes() *http.ServeMux {
 	// ---- API ----
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/agents", s.handleAgents)
+	mux.HandleFunc("GET /api/slash", s.handleSlash)
 	mux.HandleFunc("POST /api/daemon/start", s.handleDaemonStart)
 	mux.HandleFunc("GET /api/sessions", s.handleSessions)
 	mux.HandleFunc("POST /api/sessions", s.handleNewSession)
@@ -354,6 +355,22 @@ func (s *server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	res := s.runAR(r.Context(), oneShotTimeout, "agents", "--json")
 	if res.Err != nil {
 		arFail(w, "ar agents", res)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, res.Stdout)
+}
+
+// handleSlash lists the workspace's slash surface (custom commands + skills)
+// for the composer's "/" menu — a thin forward of `ar slash --json`.
+func (s *server) handleSlash(w http.ResponseWriter, r *http.Request) {
+	args := []string{"slash", "--json"}
+	if ws := r.URL.Query().Get("workspace"); ws != "" {
+		args = append(args, "--workspace", ws)
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, args...)
+	if res.Err != nil {
+		arFail(w, "ar slash", res)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
