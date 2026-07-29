@@ -1524,9 +1524,13 @@
     font-size: var(--code-font-size);
   }
   /* S18: Markdown 的行内 code 走默认 <code>，此前完全裸着。mock 是一枚
-     20 高的灰 chip：mono 13/20、#e8e8e8 底、r6、内距 7。 */
+     20 高的灰 chip：mono 13/20、#e8e8e8 底、r6、内距 7。
+     INLINE-CODE-BASELINE: `inline-flex` + `align-[-4px]` 把 chip 整体压到
+     基线以下 4px——一个凭手感钉死的偏移，在任何一行里都读作「掉下去了」。
+     改用 `inline-block`：它的 baseline 就是自身文字的 baseline，和周围
+     正文天然对齐，20 高由 line-height 保证，不需要任何魔法偏移。 */
   .md :not(pre) > code {
-    @apply inline-flex h-[20px] items-center rounded-[6px] px-[7px] align-[-4px] font-mono text-[13px] leading-[20px] text-[#2a2a2a] dark:text-ink;
+    @apply inline-block h-[20px] rounded-[6px] px-[7px] font-mono text-[13px] leading-[20px] text-[#2a2a2a] dark:text-ink;
     background: var(--chip);
   }
   /* S25: 高亮层跟随聊天代码块的 14；runlog 保持 12。 */
