@@ -44,6 +44,11 @@ func (c *capturingProvider) Requests() []provider.CompleteRequest {
 }
 
 func TestLoopRequestAssemblyGolden(t *testing.T) {
+	// The golden pins the advertised tool face, and user-level command tools
+	// (~/.config/agentrunner/tools, 决策 #19 "always loaded") would leak the
+	// developer's real machine into it — a `git-stats` created by a QA run
+	// turned this red on one machine and green on another.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "greet.txt"), []byte("hello world"), 0o644); err != nil {
 		t.Fatal(err)

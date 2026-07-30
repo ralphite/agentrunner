@@ -109,6 +109,10 @@ func TestSpecLoadsYAMLOutputSchema(t *testing.T) {
 // native JSON mode can actually apply (INC-35). Without this, a daemon-hosted
 // run always advertises send_message and the native path is unreachable.
 func TestStructuredOnlySuppressesAutoTools(t *testing.T) {
+	// Isolate user-level command tools: they are auto-advertised by design
+	// (决策 #19), so a real manifest under the developer's ~/.config would
+	// break the "output_schema must be tool-less" assertion from outside.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: `{"ok":true}`}, {Finish: "end_turn"}}},
 	}}
