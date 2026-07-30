@@ -51,6 +51,32 @@ describe("device-wide last model choice", () => {
   });
 });
 
+describe("device-wide last Agent choice", () => {
+  it("survives a reload so the next new session opens on it", async () => {
+    const first = await import("./sessionSpecs");
+    first.rememberLastAgent("lead");
+
+    vi.resetModules();
+    const reloaded = await import("./sessionSpecs");
+
+    expect(reloaded.recallLastAgent()).toBe("lead");
+  });
+
+  it("ignores an empty name instead of erasing the stored choice", async () => {
+    const state = await import("./sessionSpecs");
+    state.rememberLastAgent("auditor");
+    state.rememberLastAgent("");
+
+    expect(state.recallLastAgent()).toBe("auditor");
+  });
+
+  it("reports nothing when no Agent was ever picked", async () => {
+    const state = await import("./sessionSpecs");
+
+    expect(state.recallLastAgent()).toBeUndefined();
+  });
+});
+
 describe("per-tab composer text drafts (INC-98.4l)", () => {
   it("restores a session draft after the module reloads", async () => {
     const first = await import("./sessionSpecs");

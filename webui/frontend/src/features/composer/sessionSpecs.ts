@@ -126,6 +126,29 @@ export const recallLastModel = (
   return undefined;
 };
 
+// The device-wide last Agent choice, the persona counterpart to
+// `arwebui.lastModel`. A new session opens on the Agent you last picked
+// instead of resetting to the bundled default; the per-session spec record
+// above still wins for a session that already has its own choice.
+const LAST_AGENT_KEY = "arwebui.lastAgent";
+
+export const rememberLastAgent = (name: string, storage = localDefault()) => {
+  if (!name) return;
+  try {
+    storage.setItem(LAST_AGENT_KEY, name);
+  } catch {
+    /* quota — stay best-effort */
+  }
+};
+
+export const recallLastAgent = (storage = localDefault()): string | undefined => {
+  try {
+    return storage.getItem(LAST_AGENT_KEY) || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 // Per-session composer text drafts: switching sessions and reloading this tab
 // keeps what you were typing (send/clear wipes it). sessionStorage is exactly
 // the intended lifetime: reload-safe but tab-local, so two tabs editing the same

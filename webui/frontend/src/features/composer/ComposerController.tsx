@@ -34,11 +34,13 @@ import { dynamicSlash, parseSlash, SLASH, type SlashCatalog, type SlashCmd } fro
 import {
   recallAccess,
   recallDraft,
+  recallLastAgent,
   recallLastModel,
   recallModel,
   recallSpec,
   rememberAccess,
   rememberDraft,
+  rememberLastAgent,
   rememberLastModel,
   rememberModel,
   rememberSpec,
@@ -271,7 +273,12 @@ export function Composer(props: ComposerProps) {
     setAccess(next);
     close();
   };
-  const [persona, setPersona] = useState(DEFAULT_PERSONA);
+  // Seed from the device-wide last choice, same as model/effort above. The
+  // catalog loads lazily, so a remembered Agent that no longer exists can't be
+  // validated here — loadAgentCatalog's fallback corrects it the moment the
+  // catalog lands, and a session's own remembered persona still overrides this
+  // in the seed effect below.
+  const [persona, setPersona] = useState(() => recallLastAgent(storage.local) || DEFAULT_PERSONA);
   const selectedAgent = agentById(agents, persona);
   const loadAgentCatalog = async (): Promise<AgentCatalogEntry[]> => {
     if (agents.length) return agents;
@@ -928,8 +935,11 @@ export function Composer(props: ComposerProps) {
   // ---- persona (agent template) switch ----
   // Mid-session this is a full spec swap via `ar agent` (decision #32): the
   // conversation carries over, the new shape takes effect on the next message.
+  // Every explicit pick — on Home or inside a session — becomes the device-wide
+  // default for the next new session, same as chooseModel.
   const choosePersona = async (id: string) => {
     setPersona(id);
+    rememberLastAgent(id, storage.local);
     if (!isSession) return;
     const sid = (props as any).sid as string;
     try {

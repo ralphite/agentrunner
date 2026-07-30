@@ -208,6 +208,22 @@ describe("Composer add and advanced menu", () => {
     });
   });
 
+  it("opens a new composer on the last Agent the user picked", async () => {
+    mount();
+    openAddMenu();
+    await waitFor(() => expect(mocks.agents).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("menuitem", { name: "Automation Dev" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Team Lead Drafts a team sharing one workspace/ }));
+    cleanup();
+
+    // A fresh composer — the next new session — reads the stored choice
+    // instead of snapping back to the bundled default Agent.
+    mount();
+    openAddMenu();
+    expect(screen.getByRole("menuitem", { name: "Automation Team Lead" })).toBeTruthy();
+  });
+
   it("reuses the single composer for Goal and keeps advanced checks behind the Goal chip", () => {
     mount();
     openAddMenu();
