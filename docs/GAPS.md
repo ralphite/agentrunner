@@ -304,7 +304,24 @@ remember 同 durable command 族）+ `ValidTransition` 校验（bypass 仍拒）
 点目录；排除发生时在结果里回报条数（`excluded` 计数），静默是这条的核心危害。
 → UJ-01, UJ-05
 
-**G61 `snapshot.Diff()` 每次都全树重哈希（read-tree 索引没有 stat cache）— 🔧 纯实现缺口（影响：高）**
+**G61 `snapshot.Diff()` 每次都全树重哈希（read-tree 索引没有 stat cache）— ✅ 已关闭（决策 #43，2026-07-29）**
+**关闭做法**：`seedReviewIndex` 改为**复制仓库的持久 index**（带 stat cache）来
+播种私有 index，而不是 `read-tree <ref>`。同一棵 300k 树上的 A/B：Diff 从
+**28.1 s → 847 ms（约 34×）**，且旧实现是**每次**都付（#1/#2/#3 分别
+28.07/28.39/28.70 s）。真机：300k 树上 turn **在飞中** `ar diff --scope last-turn`
+（正是 webui 每个 event 轮询、且只有 30 s 超时的那条路径）**0.747 s**。
+关键论证：seed 的**内容无关紧要**——三种 seed（read-tree / 持久 index / 干脆不
+seed）都产出正确 diff，因为 `add -A` 才是让 index 代表工作树的那一步；只有复制
+持久 index 会把 stat cache 带过来，所以只有它快。信任 stat cache 不是新增风险：
+`Snapshot()` 早就用同一份 cache 产出**durable 快照**，它若会漏改动，那先坏的是
+快照而不是 diff。并发性不变（仍是私有 index、不取锁；git 以 lock+rename 写
+index，复制永不会看到半成品）。没有持久 index 时（本仓库还没拍过快照）回退
+read-tree。测试：`TestReviewIndexSeedEquivalence`（编辑/删除/重命名/新增四种形
+状与旧 seed 逐字段等价）、`...CatchesDeletion`、`...FallsBackWithoutPersistentIndex`、
+`...CopiesPersistentIndexVerbatim`（**结构性**锁住性能属性——正确性测试全都拦不
+住"退回 read-tree"，因为三种 seed 都正确）。
+
+以下为原始登记（保留以备追溯）：
 `snapshot.go:241-246` 用 `GIT_INDEX_FILE` + `read-tree <ref>` 建临时索引，再
 `git add -A .`。**read-tree 建出来的索引不带 stat cache**，于是 git 无法走
 mtime/size 快捷路径，必须重读重哈希整棵树。实测（300k 文件合成树）：

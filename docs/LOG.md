@@ -8153,3 +8153,55 @@ run 路径）、`cli/snapshot.go` 闸、`agent/loop.go:gatedTools/scaleWithheldT
 `agent/assembly.go:renderEnvBlock`、`tool/exec.go:keywordSearch` 真话错误 +
 `credOnce` 缓存、`tool/sandbox.go:credentialDenies` 剪枝 + 512 条封顶
 （避免 `sandbox-exec -p` 撞 E2BIG）。
+
+---
+
+## 2026-07-29 `Diff()` 不再全树重哈希：seed 换成带 stat cache 的持久 index（决策 #43）
+
+**背景**：G61（同日登记）。`snapshot.go` 的 `Diff()` 用 `GIT_INDEX_FILE` +
+`read-tree <ref>` 建私有 index，再 `git add -A .`。**read-tree 建出来的 index
+不带 stat cache**，git 因此无法走 mtime/size 快捷路径，必须重读重哈希整棵树。
+
+**A/B（同一棵 300k 文件合成树，逐次测量）**：
+
+| | 修复前 | 修复后 |
+|---|---|---|
+| Diff #1 | 28.07 s | **847 ms** |
+| Diff #2 | 28.39 s | **801 ms** |
+| Diff #3 | 28.70 s | **750 ms** |
+| 改 1 个文件后 Diff | 28.48 s | **853 ms** |
+
+约 **34×**，而且旧实现是**每次都付**，不是只有第一次。
+
+**做法**：`seedReviewIndex` 复制 `<gitDir>/index`（持久 index，带 stat cache）
+来播种私有 index；没有它时回退 `read-tree`（即旧行为，正确只是慢）。
+
+**为什么安全（三条，缺一条都不该改）**：
+1. **seed 的内容无关紧要**。每个消费者都显式点名 `<ref>`
+   （`diff --cached <ref>`），所以 index 只需要**最终代表工作树**——而这是
+   `add -A` 保证的，删除也包含在内。实测三种 seed（read-tree / 持久 index /
+   干脆不 seed）产出**完全相同**的 diff。
+2. **信任 stat cache 不是新增风险**。`Snapshot()` 早就用同一份 cache 产出
+   **durable 快照**；这份 cache 若会漏改动，先坏的是快照而不是 diff。git 自己的
+   racily-clean 处理是两者共同的安全底座。
+3. **并发性不变**。仍然是私有 index、不取仓库锁，DESIGN 的"Diff 使用 private
+   index，仍可并发只读"照旧成立；git 以 lock+rename 写 index，复制永远看不到
+   半成品。
+
+**踩到的测试陷阱（值得记账）**：第一版阳性对照（把 seed 改成什么都不做）**通过
+了**——我一开始以为测试没牙。实际是那个变体**也正确**（空 index + `add -A` 同样
+让 index 代表工作树，只是没有 stat cache 所以一样慢）。真正的失败模式是
+**复制了持久 index 却不做 `add -A`**（index 停留在上次快照）——对着它做阳性对照，
+三个测试全红，说明等价性测试确实有牙。由此得出一个必须补的洞：**正确性测试全都
+拦不住"退回 read-tree"**，因为三种 seed 都正确。于是加了
+`TestReviewIndexSeedCopiesPersistentIndexVerbatim`，**结构性**断言 seed 出来的
+index 与持久 index 逐字节相同（read-tree 建的 index 不可能相同——"不带 stat
+cache"在磁盘上就是这个意思），把性能属性本身锁住。
+
+**闸门**：`check.sh` 全绿（gotest 71 s 真跑）+ 新增 5 个测试。真机：300k 树
+`mode:never`（快照开启）跑真 Gemini turn 改一个文件，**在飞中**
+`ar diff --scope last-turn` = **0.747 s**（这条正是 `snapshot.Diff`：
+`baseline.Completed` 为假时走它，也正是 webui 每个 event 轮询、超时只有 30 s 的
+那条）；已完成 turn 走 `DiffSnapshots`（未改动）= 0.306 s。
+
+**未动**：G62（harness 级 exclude 表只实现了凭据那一半）仍开放。
