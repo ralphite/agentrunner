@@ -1660,7 +1660,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					return nil
 				},
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
-					req := Assemble(ds.s, l.Spec, toolDefs, act.turn)
+					// Skill-gated tools resolve per STEP, not per run: a
+					// skill loaded mid-run unlocks its frontmatter tools for
+					// the very next generation (and the allowlist gate is
+					// widened in step). Derived from journaled skill calls,
+					// so resume rebuilds the same face.
+					req := Assemble(ds.s, l.Spec, l.effectiveToolDefs(ds.s, toolDefs), act.turn)
 					// Image/file parts fold as CAS refs; the wire needs
 					// bytes (v2 M4.1). Inflation copies — the fold and
 					// journal stay byte-free.

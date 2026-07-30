@@ -1,6 +1,7 @@
 ---
 name: create-tool
 description: Create, update, or remove a command tool (a local command packaged as a model-callable tool) in the user config (~/.config/agentrunner/tools) — validated manifest, immediately available to new sessions.
+tools: [tool_config]
 ---
 
 # Managing command tools

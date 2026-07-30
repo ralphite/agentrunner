@@ -1,6 +1,7 @@
 ---
 name: create-agent
 description: Create or update a custom agent in the user catalog (~/.config/agentrunner/agents) from a description of what it should do; the saved agent is immediately usable in the webui agent picker and via `agentrunner new <name>`.
+tools: [save_agent]
 ---
 
 # Creating a custom agent

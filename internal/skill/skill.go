@@ -74,6 +74,21 @@ type Skill struct {
 type frontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
+	// Tools are unlocked for the session once this skill is loaded
+	// (progressive disclosure applied to the tool face): they stay out of
+	// the advertised set until the model actually loads the skill that
+	// teaches them. Names must be registered built-in tools.
+	Tools []string `yaml:"tools"`
+}
+
+// UnlockedTools parses a SKILL.md and returns the tools its frontmatter
+// unlocks. Empty (and nil on malformed input) is the common case.
+func UnlockedTools(raw []byte) []string {
+	fm, err := parseFrontmatter(raw)
+	if err != nil {
+		return nil
+	}
+	return fm.Tools
 }
 
 // DiscoverWith walks <root>/.claude/skills for SKILL.md files and merges
