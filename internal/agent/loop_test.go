@@ -17,6 +17,13 @@ import (
 
 func testLoop(t *testing.T, fix scripted.Fixture, root string) *Loop {
 	t.Helper()
+	// Isolate the user config layer: command-tool discovery (and any other
+	// user-dir reader) must never ingest the developer's real
+	// ~/.config/agentrunner into a test's advertised face. A test that set
+	// its own XDG_CONFIG_HOME (e.g. to plant a manifest) keeps it.
+	if os.Getenv("XDG_CONFIG_HOME") == "" {
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	}
 	ws, err := workspace.New(root)
 	if err != nil {
 		t.Fatal(err)

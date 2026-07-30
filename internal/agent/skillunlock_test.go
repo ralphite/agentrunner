@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ralphite/agentrunner/internal/command"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
 )
@@ -70,5 +71,20 @@ func TestSkillGatedToolUnlock(t *testing.T) {
 		if d.Name == "tool_config" {
 			t.Fatal("failed load must not unlock")
 		}
+	}
+
+	// The slash-expansion path unlocks too: a user message carrying the
+	// "Loaded skill" header counts as a load (command.SkillLoadHeader).
+	sSlash := state.State{}
+	sSlash.Conversation.Messages = []provider.Message{{
+		Role:  provider.RoleUser,
+		Parts: []provider.Part{{Kind: provider.PartText, Text: command.SkillLoadHeader("create-tool") + "body\n\nargs"}},
+	}}
+	names = map[string]bool{}
+	for _, d := range l.effectiveToolDefs(sSlash, base) {
+		names[d.Name] = true
+	}
+	if !names["tool_config"] {
+		t.Fatal("slash-expanded load must unlock tool_config")
 	}
 }

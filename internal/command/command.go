@@ -66,7 +66,11 @@ func Expand(root, text string) (string, bool) {
 	body, err := os.ReadFile(filepath.Join(root, ".claude", "commands", name+".md"))
 	if err != nil {
 		// No command file → the skill of that name (workspace, then
-		// shipped). Unknown names still pass through untouched.
+		// shipped). Unknown names still pass through untouched. The
+		// expansion self-identifies with a "Loaded skill" header: the model
+		// learns it need not load the skill again, and the skill-gated tool
+		// unlock (agent side) reads the same journaled line — the durable
+		// mark that this skill's instructions entered the session.
 		body, err = os.ReadFile(filepath.Join(root, ".claude", "skills", name, "SKILL.md"))
 		if err != nil {
 			var ok bool
@@ -74,8 +78,28 @@ func Expand(root, text string) (string, bool) {
 				return text, false
 			}
 		}
+		return SkillLoadHeader(name) + expandTemplate(string(body), args), true
 	}
 	return expandTemplate(string(body), args), true
+}
+
+// SkillLoadHeader is the first line of a slash-expanded skill body. Keep in
+// sync with skillLoadHeaderRe below; the agent's unlock scan matches it.
+func SkillLoadHeader(name string) string {
+	return "Loaded skill \"" + name + "\".\n\n"
+}
+
+// skillLoadHeaderRe recognizes a slash-expanded skill's header line.
+var skillLoadHeaderRe = regexp.MustCompile(`^Loaded skill "([A-Za-z0-9_-]+)"\.`)
+
+// ExpandedSkillName reports which skill a user-message text was expanded
+// from, if any — the read side of SkillLoadHeader.
+func ExpandedSkillName(text string) (string, bool) {
+	m := skillLoadHeaderRe.FindStringSubmatch(text)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
 }
 
 // expandTemplate turns a command/skill body into the injected prompt:

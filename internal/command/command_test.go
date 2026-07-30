@@ -100,13 +100,17 @@ func TestExpandSkillFallback(t *testing.T) {
 	}
 
 	got, ok := Expand(root, "/release-ritual for v2")
-	if !ok || got != "Cut the release.\n\nfor v2" {
+	if !ok || got != "Loaded skill \"release-ritual\".\n\nCut the release.\n\nfor v2" {
 		t.Fatalf("workspace skill fallback = %q, %v", got, ok)
+	}
+	if name, ok := ExpandedSkillName(got); !ok || name != "release-ritual" {
+		t.Fatalf("header not readable back: %q %v", name, ok)
 	}
 
 	// Shipped layer: create-agent is embedded in the binary.
 	got, ok = Expand(root, "/create-agent a haiku bot")
-	if !ok || !strings.Contains(got, "save_agent") || !strings.Contains(got, "a haiku bot") {
+	if !ok || !strings.Contains(got, "save_agent") || !strings.Contains(got, "a haiku bot") ||
+		!strings.HasPrefix(got, SkillLoadHeader("create-agent")) {
 		t.Fatalf("shipped skill fallback = %.60q…, %v", got, ok)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ralphite/agentrunner/internal/command"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/skill"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -20,30 +21,45 @@ import (
 // summarizes). Unlock widens for the rest of the session: the model may act
 // on a loaded skill's instructions many turns later.
 
-// loadedSkillNames scans the conversation for successful skill loads.
+// loadedSkillNames scans the conversation for skill loads by either path:
+// a successful skill tool call, or a slash-expanded skill body (its
+// "Loaded skill" header line, command.SkillLoadHeader).
 func loadedSkillNames(s state.State) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, m := range s.Conversation.Messages {
-		if m.Role != provider.RoleAssistant {
-			continue
+	add := func(name string) {
+		if name != "" && !seen[name] {
+			seen[name] = true
+			out = append(out, name)
 		}
-		for _, c := range toolCallsOf(m) {
-			if c.Name != "skill" {
-				continue
+	}
+	for _, m := range s.Conversation.Messages {
+		switch m.Role {
+		case provider.RoleUser:
+			for _, p := range m.Parts {
+				if p.Kind != provider.PartText {
+					continue
+				}
+				if name, ok := command.ExpandedSkillName(p.Text); ok {
+					add(name)
+				}
 			}
-			res, ok := s.Conversation.ToolResults[c.CallID]
-			if !ok || res.IsError {
-				continue
+		case provider.RoleAssistant:
+			for _, c := range toolCallsOf(m) {
+				if c.Name != "skill" {
+					continue
+				}
+				res, ok := s.Conversation.ToolResults[c.CallID]
+				if !ok || res.IsError {
+					continue
+				}
+				var args struct {
+					Name string `json:"name"`
+				}
+				if err := json.Unmarshal(c.Args, &args); err == nil {
+					add(args.Name)
+				}
 			}
-			var args struct {
-				Name string `json:"name"`
-			}
-			if err := json.Unmarshal(c.Args, &args); err != nil || args.Name == "" || seen[args.Name] {
-				continue
-			}
-			seen[args.Name] = true
-			out = append(out, args.Name)
 		}
 	}
 	return out
