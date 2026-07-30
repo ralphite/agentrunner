@@ -22,13 +22,17 @@ set -eu
 #   AR_ASSET_URL  direct tarball URL (skips GitHub entirely; for tests/mirrors.
 #                 sha256 is fetched from $AR_ASSET_URL.sha256)
 #
-# After installing, the script restarts a running daemon onto the new binary
-# (refusing while a turn is in flight) and OFFERS to start the web UI. The web
-# UI is opt-in: starting a listening server is not an installer's call to make,
-# so with no terminal to ask (CI, `curl | sh` in a pipeline) the answer is no.
+# After installing, the script ALWAYS restarts a running daemon onto the new
+# binary, and OFFERS to start the web UI. The store is durable, so a restart
+# costs nothing but an in-flight turn's live output — which does die, loudly
+# warned about rather than hidden. The web UI is opt-in instead: starting a
+# listening server is not an installer's call to make, so with no terminal to
+# ask (CI, `curl | sh` in a pipeline) the answer is no.
 #   AR_NO_RESTART=1     leave a running daemon on its old binary
 #   AR_START_WEBUI=1/0  answer the web UI prompt without a terminal
-#   AR_WEBUI_ADDR       listen address for it (default: arwebui's own)
+#   AR_WEBUI_ADDR       listen address for it (default: 0.0.0.0:<arwebui's port>,
+#                       i.e. reachable on the LAN and UNAUTHENTICATED — set a
+#                       127.0.0.1:PORT value to keep it on loopback)
 #
 # OS sandbox dependency (INC-75): on Linux, ar's bash/command tools require
 # bubblewrap (fail-closed, 决策 #34). After installing the binaries this
@@ -253,7 +257,7 @@ echo "  binaries: $BIN_DIR/ar, $BIN_DIR/arwebui → $dest"
 # place and correct by this point. Every step degrades to a printed hint.
 #   AR_NO_RESTART=1     leave the running daemon alone
 #   AR_START_WEBUI=1/0  answer the web UI prompt non-interactively
-#   AR_WEBUI_ADDR       listen address for it (default: arwebui's own default)
+#   AR_WEBUI_ADDR       listen address (default: 0.0.0.0:<arwebui's port>)
 ar_bin="$dest/ar"
 webui_bin="$dest/arwebui"
 
@@ -336,6 +340,31 @@ start_daemon() {
   return 1
 }
 
+# Stop the old daemon. Preferred route is its exact pid via the socket; the
+# fallback is a pattern scoped to paths THIS installer owns ($AR_HOME/releases
+# and $BIN_DIR), which cannot match another store's or another user's daemon.
+# What is never acceptable is a bare `pkill -f 'ar.*daemon'`: that ignores HOME
+# and once SIGTERMed a live daemon belonging to a different store entirely.
+stop_old_daemon() {
+  if command -v lsof >/dev/null 2>&1; then
+    old_pid="$(lsof -t "$ar_sock" 2>/dev/null | head -1)"
+    if [ -n "$old_pid" ]; then
+      kill -TERM "$old_pid" 2>/dev/null || true
+      i=0
+      while [ "$i" -lt 20 ] && kill -0 "$old_pid" 2>/dev/null; do
+        i=$((i + 1)); sleep 0.5
+      done
+      return 0
+    fi
+  fi
+  # No lsof, or a socket nobody holds. Sweep only our own install tree.
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -f "$releases/.* daemon" 2>/dev/null || true
+    pkill -TERM -f "$BIN_DIR/ar daemon" 2>/dev/null || true
+    sleep 1
+  fi
+}
+
 daemon_ready=no
 if [ "${AR_NO_RESTART:-}" = 1 ]; then
   echo
@@ -343,41 +372,24 @@ if [ "${AR_NO_RESTART:-}" = 1 ]; then
   daemon_running && daemon_ready=stale
 elif daemon_running; then
   echo
+  # ALWAYS restart (operator's standing instruction). The store is durable, so a
+  # restart costs nothing except an IN-FLIGHT turn — which does die. That is a
+  # deliberate trade, so it is stated loudly rather than hidden; AR_NO_RESTART=1
+  # is the way to opt out.
   if turn_in_flight; then
-    # Refuse. Killing a live turn to save the user a manual step is never the
-    # right trade, and the stale daemon is visible rather than silent.
-    echo "  A session has a RUNNING turn — NOT restarting the daemon (it would kill the turn)." >&2
-    echo "  The daemon is still on its previous binary. Once the turn finishes, re-run" >&2
-    echo "  this installer: it repeats the same check and then restarts cleanly." >&2
-    daemon_ready=stale
-  elif ! command -v lsof >/dev/null 2>&1; then
-    # No way to name the socket's owner. Refuse to guess: a guessed pid is
-    # somebody else's process.
-    echo "  A daemon may be serving $ar_sock, but lsof is unavailable so its pid" >&2
-    echo "  cannot be identified — NOT restarting (guessing would risk an unrelated" >&2
-    echo "  process). Restart it yourself so it picks up $version:" >&2
-    echo "      kill \$(lsof -t '$ar_sock') && ar daemon --detach" >&2
-    daemon_ready=stale
+    echo "  WARNING: a session has a RUNNING turn. Restarting anyway, as configured —" >&2
+    echo "  that turn's in-flight model output is lost (the session and its journal are" >&2
+    echo "  durable and reopen fine). Use AR_NO_RESTART=1 to skip the restart instead." >&2
+  fi
+  printf '  Restarting the daemon on the new binary (the durable store survives)... '
+  stop_old_daemon
+  if start_daemon; then
+    echo "ok"
+    daemon_ready=yes
   else
-    old_pid="$(lsof -t "$ar_sock" 2>/dev/null | head -1)"
-    if [ -z "$old_pid" ]; then
-      printf '  Clearing a stale socket and starting the daemon... '
-    else
-      printf '  Restarting the daemon on the new binary (the durable store survives)... '
-      kill -TERM "$old_pid" 2>/dev/null || true
-      i=0
-      while [ "$i" -lt 20 ] && kill -0 "$old_pid" 2>/dev/null; do
-        i=$((i + 1)); sleep 0.5
-      done
-    fi
-    if start_daemon; then
-      echo "ok"
-      daemon_ready=yes
-    else
-      echo "failed"
-      echo "  The daemon did not come up." >&2
-      echo "  Start it and check the log: ar daemon --detach ; tail $ar_data/daemon.log" >&2
-    fi
+    echo "failed"
+    echo "  The daemon did not come up." >&2
+    echo "  Start it and check the log: ar daemon --detach ; tail $ar_data/daemon.log" >&2
   fi
 fi
 
@@ -415,14 +427,18 @@ if [ "$want_webui" = yes ]; then
     if start_daemon; then echo "ok"; daemon_ready=yes; else echo "failed"; fi
   fi
   webui_log="$AR_HOME/webui.log"
-  printf '  Starting the web UI... '
+  # Bind all interfaces so the UI is reachable from a phone or another machine
+  # on the LAN (operator's standing instruction). Be clear-eyed about it: the
+  # web UI has NO authentication, and the runtime behind it can run bash — so
+  # this exposes it to everyone on the network. Set AR_WEBUI_ADDR=127.0.0.1:PORT
+  # to keep it on loopback. arwebui's own default stays loopback; only the
+  # installer's launch opts into 0.0.0.0.
+  #
+  webui_addr="${AR_WEBUI_ADDR:-0.0.0.0:8788}"
+  printf '  Starting the web UI on %s... ' "$webui_addr"
   # Keep the log: it is where the listen address and any startup error live.
-  if [ -n "${AR_WEBUI_ADDR:-}" ]; then
-    nohup "$webui_bin" --no-daemon --ar "$ar_bin" --addr "$AR_WEBUI_ADDR" \
-      >"$webui_log" 2>&1 &
-  else
-    nohup "$webui_bin" --no-daemon --ar "$ar_bin" >"$webui_log" 2>&1 &
-  fi
+  nohup "$webui_bin" --no-daemon --ar "$ar_bin" --addr "$webui_addr" \
+    >"$webui_log" 2>&1 &
   webui_pid=$!
   sleep 2
   if kill -0 "$webui_pid" 2>/dev/null; then

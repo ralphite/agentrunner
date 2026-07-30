@@ -170,6 +170,15 @@ const preview: Preview = {
   parameters: {
     a11y: {
       test: "error",
+      // color-contrast is OFF by product decision (operator, 2026-07-30): the
+      // palette's dim text is deliberately low-contrast, so axe flagged it on
+      // ~387 stories and the browser gate had been RED continuously for days.
+      // A gate that is always red catches nothing — muting this one rule is
+      // what makes the remaining a11y checks (roles, labels, focus order,
+      // duplicate ids) meaningful again. Everything else stays at "error".
+      config: {
+        rules: [{ id: "color-contrast", enabled: false }],
+      },
     },
     backgrounds: {
       disable: true,
