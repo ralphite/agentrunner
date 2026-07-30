@@ -146,6 +146,12 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   // renders only at its source; the other side stays read-only.
   const [goalEditSrc, setGoalEditSrc] = useState<"banner" | "panel">("banner");
   const [goalPendingUpdate, setGoalPendingUpdate] = useState<string | null>(null);
+  // The goal control awaiting its journaled effect (S74), with the time it was
+  // requested so a control that never lands cannot wedge the bar forever.
+  const [goalPendingAction, setGoalPendingAction] = useState<
+    "pause" | "resume" | "cancel" | null
+  >(null);
+  const [goalPendingAt, setGoalPendingAt] = useState(0);
   const [view, setView] = useState<"chat" | "diff">("chat");
   // One-shot scope hint for the diff panel: set only by the changes card (whose
   // title names a scope), cleared by every entry that makes no scope claim, so
@@ -342,9 +348,30 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
   const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
   useEffect(() => {
     setGoalPendingUpdate(null);
+    setGoalPendingAction(null);
     setGoalDismissedAt(null);
     setFailureRawOpen(false);
   }, [sid]);
+  // The journaled outcome retires the optimistic state. `cancel` settles into
+  // any terminal phase; pause/resume settle into their own phase. A no_op
+  // receipt (the control raced the goal's settlement) also arrives as a phase
+  // that no longer matches, and the 20s ceiling covers a daemon that never
+  // reaches a boundary at all — the bar returns to stating plain fact rather
+  // than claiming an action is still in flight.
+  useEffect(() => {
+    if (!goalPendingAction) return;
+    const settled =
+      goalPendingAction === "cancel"
+        ? goalTerminal
+        : goalPendingAction === "pause"
+          ? goalState?.phase === "paused" || goalTerminal
+          : goalState?.phase === "active" || goalTerminal;
+    if (settled) {
+      setGoalPendingAction(null);
+      return;
+    }
+    if (now - goalPendingAt > 20_000) setGoalPendingAction(null);
+  }, [goalPendingAction, goalPendingAt, goalState?.phase, goalTerminal, now]);
   useEffect(() => {
     if (!goalPendingUpdate) return;
     if (goalState?.goal === goalPendingUpdate || goal?.goal === goalPendingUpdate || goalTerminal) {
@@ -357,8 +384,23 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     const t = clock.setInterval(() => setNow(clock.now()), 1000);
     return () => clock.clearInterval(t);
   }, [goalState?.phase, goalState?.attachedAt, goalTerminal]);
-  const goalAction = (action: "pause" | "resume" | "cancel") =>
-    commands.goal(action).then(() => pollInspect()).catch((e) => toast(e.message));
+  // S74 · A goal control takes effect at the NEXT generation-step boundary, so
+  // the journaled fact can be seconds away while a tool call or LLM turn
+  // finishes. Without an optimistic state the bar sat completely unchanged after
+  // a click and the pause looked ignored. Hold the requested action, render it
+  // as in-flight ("Pausing goal"), and let the real event clear it — the wording
+  // is also the truth: the pause is requested and lands at the boundary.
+  const goalAction = (action: "pause" | "resume" | "cancel") => {
+    setGoalPendingAction(action);
+    setGoalPendingAt(clock.now());
+    return commands
+      .goal(action)
+      .then(() => pollInspect())
+      .catch((e) => {
+        setGoalPendingAction(null);
+        toast(e.message);
+      });
+  };
   // G58① · a goal control that raced the goal's settlement journals a no_op
   // receipt; the daemon ack is a fixed "requested" line, so without this the
   // click silently does nothing while the stale banner it targeted is already
@@ -990,6 +1032,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                   elapsedMs={goalTerminal ? goalState.elapsedMs : goalElapsedMs}
                   editing={goalEditSrc === "banner" ? goalEdit : null}
                   updatePending={!!goalPendingUpdate}
+                  pendingAction={goalPendingAction}
                   onEditStart={() => { setGoalEditSrc("banner"); setGoalEdit(goalState.goal); }}
                   onEditChange={setGoalEdit}
                   onSave={saveGoalEdit}
@@ -1048,6 +1091,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                     elapsedMs={goalElapsedMs}
                     editing={goalEditSrc === "banner" ? goalEdit : null}
                     updatePending={!!goalPendingUpdate}
+                    pendingAction={goalPendingAction}
                     onEditStart={() => { setGoalEditSrc("banner"); setGoalEdit(goalState!.goal); }}
                     onEditChange={setGoalEdit}
                     onSave={saveGoalEdit}

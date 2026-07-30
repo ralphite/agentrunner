@@ -429,6 +429,32 @@ describe("TH-13/14 · compact live goal controls", () => {
     );
   });
 
+  // S74 · A goal control lands at the next generation-step boundary, which can
+  // be seconds away while a tool call or LLM turn finishes. The click must
+  // change the bar NOW or the pause reads as ignored — the user reported exactly
+  // that ("pause still has no ui feedback for a few secs").
+  it("states a requested pause immediately, before the journal confirms it", async () => {
+    let resolveGoal: () => void = () => {};
+    arMock.goal = vi.fn(
+      () => new Promise<void>((resolve) => { resolveGoal = resolve; }),
+    );
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".goal-row")).not.toBeNull());
+    const row = container.querySelector(".goal-row")!;
+    expect(row.textContent).toContain("Pursuing goal");
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
+    // No journal round-trip yet, no daemon ack yet — the bar already says so.
+    await waitFor(() => expect(row.textContent).toContain("Pausing goal"));
+    // …and it does not offer the same click twice while that one is in flight.
+    // Edit stays live on purpose: it only opens a local editor and does not
+    // race the control.
+    expect((screen.getByRole("button", { name: "Pause goal" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Clear goal" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Edit goal" }) as HTMLButtonElement).disabled).toBe(false);
+    resolveGoal();
+  });
+
   it("keeps the current progress step visible and opens the full checklist", async () => {
     render(<SessionView sid={SID} />);
     const summary = await screen.findByRole("button", { name: "Open progress details" });

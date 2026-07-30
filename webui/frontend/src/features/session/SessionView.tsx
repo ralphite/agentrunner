@@ -123,6 +123,7 @@ export function GoalStack({
   elapsedMs,
   editing,
   updatePending,
+  pendingAction,
   onEditStart,
   onEditChange,
   onSave,
@@ -138,6 +139,8 @@ export function GoalStack({
   elapsedMs?: number;
   editing: string | null;
   updatePending: boolean;
+  /** A goal control awaiting its journaled effect (S74). */
+  pendingAction?: "pause" | "resume" | "cancel" | null;
   onEditStart: () => void;
   onEditChange: (value: string) => void;
   onSave: () => void;
@@ -153,14 +156,23 @@ export function GoalStack({
   const elapsed = elapsedMs !== undefined ? formatElapsed(elapsedMs) : undefined;
   // Codex's three labels are one position with a different word — not three
   // layouts. `blocked` has no counterpart in our phases; paused/pursuing do.
-  const label = updatePending
-    ? "Updating goal"
-    : paused
-      ? "Paused goal"
-      : "Pursuing goal";
+  // A requested control outranks the current phase in the label: the click has
+  // to change something on screen immediately, and "Pausing goal" is exactly
+  // what is true until the boundary lands (a pause never interrupts the turn in
+  // flight, so it really is in progress rather than done).
+  const label = pendingAction
+    ? { pause: "Pausing goal", resume: "Resuming goal", cancel: "Clearing goal" }[pendingAction]
+    : updatePending
+      ? "Updating goal"
+      : paused
+        ? "Paused goal"
+        : "Pursuing goal";
   // The pill is a RUNNING indicator: it was absent on the paused goal in both
   // the mock and the real app, so a paused goal never shows one.
-  const pill = !paused && progress.length > 0 ? progressPillModel(progress) : null;
+  const pill =
+    !paused && pendingAction !== "pause" && pendingAction !== "cancel" && progress.length > 0
+      ? progressPillModel(progress)
+      : null;
 
   return (
     <div className="goal-stack-wrap">
@@ -265,19 +277,35 @@ export function GoalStack({
                   type="button"
                   className="goal-btn"
                   onClick={() => onAction(paused ? "resume" : "pause")}
-                  title={paused ? "Resume goal" : "Pause goal"}
+                  disabled={!!pendingAction}
+                  title={
+                    pendingAction === "pause"
+                      ? "Pausing after the current step"
+                      : pendingAction === "resume"
+                        ? "Resuming"
+                        : paused
+                          ? "Resume goal"
+                          : "Pause goal"
+                  }
                   aria-label={paused ? "Resume goal" : "Pause goal"}
                 >
-                  {paused ? <Play size={13} weight="fill" /> : <Pause size={13} weight="fill" />}
+                  {pendingAction === "pause" || pendingAction === "resume" ? (
+                    <Spinner size="sm" aria-hidden="true" />
+                  ) : paused ? (
+                    <Play size={13} weight="fill" />
+                  ) : (
+                    <Pause size={13} weight="fill" />
+                  )}
                 </button>
                 <button
                   type="button"
                   className="goal-btn goal-btn-destructive"
                   onClick={() => onAction("cancel")}
+                  disabled={!!pendingAction}
                   title="Clear goal"
                   aria-label="Clear goal"
                 >
-                  <Trash size={15} />
+                  {pendingAction === "cancel" ? <Spinner size="sm" aria-hidden="true" /> : <Trash size={15} />}
                 </button>
                 {/* Codex's fourth button expands the row to show the whole
                     goal. Ours opens the Environment rail, which shows that
@@ -378,6 +406,7 @@ export function GoalBanner({
   elapsedMs,
   editing,
   updatePending,
+  pendingAction,
   onEditStart,
   onEditChange,
   onSave,
@@ -390,6 +419,8 @@ export function GoalBanner({
   elapsedMs?: number;
   editing: string | null;
   updatePending: boolean;
+  /** A goal control awaiting its journaled effect (S74). */
+  pendingAction?: "pause" | "resume" | "cancel" | null;
   onEditStart: () => void;
   onEditChange: (value: string) => void;
   onSave: () => void;
@@ -450,11 +481,15 @@ export function GoalBanner({
         <Crosshair size={16} />
       </span>
       <span className="gbar-label">
-        {updatePending
-          ? "Updating goal"
-          : paused
-            ? "Goal paused"
-            : "Pursuing goal"}
+        {/* S74: a requested control shows immediately — the journaled effect
+            lands at the next generation-step boundary, seconds later. */}
+        {pendingAction
+          ? { pause: "Pausing goal", resume: "Resuming goal", cancel: "Clearing goal" }[pendingAction]
+          : updatePending
+            ? "Updating goal"
+            : paused
+              ? "Goal paused"
+              : "Pursuing goal"}
       </span>
       {editing === null ? (
         elapsed && <span className="gbar-meta">{elapsed}</span>
@@ -500,10 +535,19 @@ export function GoalBanner({
               size="sm"
               variant="ghost"
               onClick={() => onAction(paused ? "resume" : "pause")}
-              title={paused ? "Resume goal" : "Pause goal"}
+              disabled={!!pendingAction}
+              title={
+                pendingAction === "pause"
+                  ? "Pausing after the current step"
+                  : paused
+                    ? "Resume goal"
+                    : "Pause goal"
+              }
               aria-label={paused ? "Resume goal" : "Pause goal"}
             >
-              {paused ? (
+              {pendingAction === "pause" || pendingAction === "resume" ? (
+                <Spinner size="sm" aria-hidden="true" />
+              ) : paused ? (
                 <Play size={15} weight="fill" />
               ) : (
                 <Pause size={15} weight="fill" />
