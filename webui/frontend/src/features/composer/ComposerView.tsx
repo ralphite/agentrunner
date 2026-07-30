@@ -1,6 +1,7 @@
 import {
   type ComponentProps,
   type ComponentPropsWithRef,
+  type ReactNode,
 } from "react";
 import {
   AccessPicker,
@@ -32,6 +33,18 @@ interface HomeEnvironmentViewProps {
 export interface ComposerViewProps {
   isSession: boolean;
   launcher?: GoalLoopLauncherProps;
+  /**
+   * The goal/queued stack, rendered INSIDE the composer's own box (S72).
+   *
+   * It has to live here, not as a sibling above: Codex's stack derives its width
+   * from the composer — inset 14px on each side — and the composer's own
+   * horizontal padding changes across breakpoints. Anything computing that from
+   * the outside guesses, and the guess was wrong the moment the layout narrowed
+   * (measured 20px insets at 500px instead of 14). In here it inherits the same
+   * padding and the same max-width, so the two edges stay parallel at every
+   * width by construction.
+   */
+  goalStack?: ReactNode;
   dragging: boolean;
   cardEvents: Pick<
     ComponentProps<"div">,
@@ -63,6 +76,7 @@ export interface ComposerViewProps {
 export function ComposerView({
   isSession,
   launcher,
+  goalStack,
   dragging,
   cardEvents,
   environment,
@@ -84,6 +98,7 @@ export function ComposerView({
       {/* G58② · loop/best only — goal renders as the Goal chip below, and
           the controller already withholds the prop for it. */}
       {launcher && <GoalLoopLauncher {...launcher} />}
+      {goalStack}
 
       <div
         className={"cx-card" + (dragging ? " dropping" : "")}

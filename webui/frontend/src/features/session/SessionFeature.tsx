@@ -53,11 +53,12 @@ import { useSessionCommands } from "./useSessionCommands";
 import {
   GOAL_TERMINAL_META,
   GoalBanner,
+  GoalStack,
   ProgressSummary,
   SessionView,
 } from "./SessionView";
 
-export { GoalBanner, ProgressSummary } from "./SessionView";
+export { GoalBanner, GoalStack, ProgressSummary } from "./SessionView";
 
 export { isSessionNotFound, isValidSessionId };
 
@@ -713,6 +714,18 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     (!live &&
       durableTerminalNotice?.action === "message" &&
       progress.some((item) => item.status !== "done"));
+  // The Codex-shaped stack takes over only for a goal that is still in play —
+  // a terminal goal keeps the alert card, which carries facts (checks spent,
+  // why it stopped) that Codex's live-only bar has no place for.
+  const goalStackShown = goalBannerShown && !!goalState && !goalTerminal;
+  // A paused goal's clock is FROZEN (S72): the fold banks pursuing time into
+  // activeMs and only leaves runningSince set while the goal is actually
+  // pursuing, so the live tick applies to the open segment alone. Reading
+  // `now - attachedAt` counted paused time and the paused bar kept climbing.
+  const goalElapsedMs = goalState
+    ? (goalState.activeMs ?? 0) +
+      (goalState.runningSince !== undefined ? Math.max(0, now - goalState.runningSince) : 0)
+    : undefined;
   // The goal's label + elapsed, folded into the terminal alert's meta segment.
   // The goal *text* stays on the tooltip (and in the thread + Environment rail):
   // a banner that ellipsizes a sentence it has no room for said nothing anyway.
@@ -963,13 +976,18 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
               {!live && stepLimitContinuationPending && !isDriver && (
                 <SessionNotice>Follow-up queued — continuing in this conversation.</SessionNotice>
               )}
-              {showProgressSummary && (
+              {/* A live goal owns the whole surface above the composer: the
+                  progress pill, any queued rows and the goal row are ONE stack
+                  emerging from behind the composer (Codex's real structure).
+                  Without a live goal these stay the separate pieces they were —
+                  a stack of one row would just be a card with a flat bottom. */}
+              {showProgressSummary && !goalStackShown && (
                 <ProgressSummary progress={progress} onOpenDetails={openSupervision} />
               )}
-              {goalBannerShown && goalState && (
+              {goalBannerShown && goalState && !goalStackShown && (
                 <GoalBanner
                   state={goalPendingUpdate ? { ...goalState, goal: goalPendingUpdate } : goalState}
-                  elapsedMs={goalTerminal ? goalState.elapsedMs : goalState.attachedAt !== undefined ? now - goalState.attachedAt : undefined}
+                  elapsedMs={goalTerminal ? goalState.elapsedMs : goalElapsedMs}
                   editing={goalEditSrc === "banner" ? goalEdit : null}
                   updatePending={!!goalPendingUpdate}
                   onEditStart={() => { setGoalEditSrc("banner"); setGoalEdit(goalState.goal); }}
@@ -1012,7 +1030,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
               {askQuestions.length > 0 && (
                 <AskForm questions={askQuestions} onSubmit={answerAsk} onSkip={skipAsk} />
               )}
-              {!isSub && (
+              {!isSub && !goalStackShown && (
                 <QueuedMessageList
                   messages={queued}
                   onWithdraw={withdrawQueued}
@@ -1022,6 +1040,24 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                 <Composer
                   variant="session"
                   sid={sid}
+                  goalStack={goalStackShown ? (
+                    <GoalStack
+                    goal={goalPendingUpdate ? { ...goalState!, goal: goalPendingUpdate } : goalState!}
+                    progress={showProgressSummary ? progress : []}
+                    queued={isSub ? [] : queued}
+                    elapsedMs={goalElapsedMs}
+                    editing={goalEditSrc === "banner" ? goalEdit : null}
+                    updatePending={!!goalPendingUpdate}
+                    onEditStart={() => { setGoalEditSrc("banner"); setGoalEdit(goalState!.goal); }}
+                    onEditChange={setGoalEdit}
+                    onSave={saveGoalEdit}
+                    onDiscard={() => setGoalEdit(null)}
+                    onAction={goalAction}
+                    onWithdrawQueued={withdrawQueued}
+                    onOpenDetails={openSupervision}
+                    onOpenProgress={openSupervision}
+                  />
+                  ) : undefined}
                   workspace={sessions.find((session) => session.id === sid)?.workspace}
                   mode={liveMode}
                   running={running}

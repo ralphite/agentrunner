@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sessionImageURL, type ForkDraft } from "../../api";
 import { useAppServices } from "../../app/appServices";
 import { useAppStoreApi, useStore, type NewSessionProject } from "../../store";
@@ -86,6 +86,8 @@ export type ComposerProps =
           replayOriginal: boolean }) => Promise<void>;
       actions?: SessionActions;
       onError: (m: string) => void;
+      /** The goal/queued stack, rendered inside the composer box (S72). */
+      goalStack?: ReactNode;
     };
 
 function forkSendRequestID(
@@ -1387,6 +1389,7 @@ export function Composer(props: ComposerProps) {
   return (
     <ComposerView
       isSession={isSession}
+      goalStack={isSession ? (props as Extract<ComposerProps, { variant: "session" }>).goalStack : undefined}
       launcher={
         // G58② · goal mode renders as the composer's Goal chip (GoalOptions),
         // never as a launcher panel — the panel serves loop/best only.

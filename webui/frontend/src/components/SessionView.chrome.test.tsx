@@ -358,11 +358,14 @@ describe("TH-13/14 · compact live goal controls", () => {
 
   it("keeps objective and checks in Environment instead of repeating them across the composer", async () => {
     const { container } = render(<SessionView sid={SID} />);
-    await waitFor(() => expect(container.querySelector(".gbar-live")).not.toBeNull());
+    await waitFor(() => expect(container.querySelector(".goal-row")).not.toBeNull());
 
-    const bar = container.querySelector(".gbar-live")!;
+    const bar = container.querySelector(".goal-row")!;
     expect(bar.textContent).toContain("Pursuing goal");
-    expect(bar.textContent).not.toContain(GOAL);
+    // The objective rides the row truncated (real Codex behaviour at this
+    // column width); the checks tally stays in the rail so the row keeps to
+    // one line of chrome.
+    expect(bar.textContent).toContain(GOAL);
     expect(bar.textContent).not.toContain("2/5 checks");
 
     const details = screen.getByRole("button", { name: "Open goal details" });
@@ -383,7 +386,7 @@ describe("TH-13/14 · compact live goal controls", () => {
 
   it("keeps pause and edit as direct quick actions", async () => {
     const { container } = render(<SessionView sid={SID} />);
-    await waitFor(() => expect(container.querySelector(".gbar-live")).not.toBeNull());
+    await waitFor(() => expect(container.querySelector(".goal-row")).not.toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
     await waitFor(() => expect(arMock.goal).toHaveBeenCalledWith(SID, { action: "pause" }));
@@ -395,7 +398,7 @@ describe("TH-13/14 · compact live goal controls", () => {
       ).toBeTruthy(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
-    const editor = container.querySelector(".gbar-input") as HTMLTextAreaElement;
+    const editor = screen.getByRole("textbox", { name: "Goal" }) as HTMLTextAreaElement;
     expect(editor.value).toBe(GOAL);
     expect(editor.tagName).toBe("TEXTAREA");
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
@@ -407,13 +410,13 @@ describe("TH-13/14 · compact live goal controls", () => {
     expect(arMock.goal).not.toHaveBeenCalled();
     expect(editor.value).toContain("\nKeep context");
     fireEvent.keyDown(editor, { key: "Escape" });
-    expect(container.querySelector(".gbar-input")).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Goal" })).toBeNull();
     expect(
       screen.getByRole("complementary", { name: "Environment" }),
     ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
-    const savedEditor = container.querySelector(".gbar-input") as HTMLTextAreaElement;
+    const savedEditor = screen.getByRole("textbox", { name: "Goal" }) as HTMLTextAreaElement;
     fireEvent.change(savedEditor, {
       target: { value: `${GOAL}\nKeep context` },
     });

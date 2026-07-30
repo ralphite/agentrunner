@@ -2,6 +2,7 @@
 // Runtime orchestration and state ownership live in features/session.
 export {
   GoalBanner,
+  GoalStack,
   ProgressSummary,
   SessionFeature as SessionView,
   isSessionNotFound,

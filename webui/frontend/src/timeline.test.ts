@@ -600,6 +600,50 @@ describe("deriveGoalState (goal banner projection, W6)", () => {
     expect(g!.elapsedMs).toBe(78000);
   });
 
+  // S72 · A paused goal's clock STOPS. The bar used to read `now − attachedAt`,
+  // so a goal paused for an hour kept counting that hour and the user could not
+  // tell a pause had taken effect at all. Pausing does not interrupt the turn in
+  // flight (it only stops the next re-injection), so the frozen clock is the
+  // only signal the bar has — it has to be right.
+  it("freezes the clock while paused and resumes from where it stopped", () => {
+    const paused = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 4, type: "goal_paused", ts: "2026-07-10T06:00:30Z", payload: {} },
+    ]);
+    // 30s pursued, then the segment closes: no open segment for the view to tick.
+    expect(paused!.phase).toBe("paused");
+    expect(paused!.activeMs).toBe(30_000);
+    expect(paused!.runningSince).toBeUndefined();
+
+    const resumed = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 4, type: "goal_paused", ts: "2026-07-10T06:00:30Z", payload: {} },
+      // …paused for five minutes, which must NOT be counted…
+      { seq: 5, type: "goal_resumed", ts: "2026-07-10T06:05:30Z", payload: {} },
+    ]);
+    expect(resumed!.phase).toBe("active");
+    expect(resumed!.activeMs).toBe(30_000);
+    expect(resumed!.runningSince).toBe(Date.parse("2026-07-10T06:05:30Z"));
+
+    // Settling 30s into the second segment reports 60s pursued — not the
+    // 6m30s of wall time the goal existed for.
+    const settled = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 4, type: "goal_paused", ts: "2026-07-10T06:00:30Z", payload: {} },
+      { seq: 5, type: "goal_resumed", ts: "2026-07-10T06:05:30Z", payload: {} },
+      { seq: 6, type: "goal_achieved", ts: "2026-07-10T06:06:00Z", payload: { reason: "satisfied", checks: 1 } },
+    ]);
+    expect(settled!.elapsedMs).toBe(60_000);
+    expect(settled!.runningSince).toBeUndefined();
+  });
+
+  it("keeps a live goal's clock running from attach", () => {
+    const g = deriveGoalState([attach("2026-07-10T06:00:00Z")]);
+    expect(g!.activeMs).toBe(0);
+    expect(g!.runningSince).toBe(Date.parse("2026-07-10T06:00:00Z"));
+    expect(g!.elapsedMs).toBeUndefined();
+  });
+
   it("marks a budget-exhausted goal as stopped, not achieved", () => {
     const g = deriveGoalState([
       attach("2026-07-10T06:00:00Z"),

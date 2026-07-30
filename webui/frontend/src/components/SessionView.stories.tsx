@@ -28,6 +28,7 @@ import type { Envelope, Session } from "../types";
 import type { GoalDerived } from "../timeline";
 import {
   GoalBanner as GoalBannerView,
+  GoalStack as GoalStackView,
   ProgressSummary as ProgressSummaryView,
   SessionView,
 } from "./SessionView";
@@ -693,6 +694,86 @@ export const GoalBanner: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Pause goal" }));
     await expect(goalAction).toHaveBeenCalledWith("pause");
     await expect(canvas.getByText("Goal paused")).toBeVisible();
+  },
+};
+
+/**
+ * The goal stack in the shape Codex actually renders it: a progress pill
+ * floating above ONE container that holds the queued rows and the goal row,
+ * with the composer overlapping its bottom edge.
+ */
+function GoalStackFixture() {
+  const [state, setState] = useState<GoalDerived>({
+    phase: "active",
+    goal: "把这个待办清单网页做成生产可用：排序过滤、localStorage 持久化、完整键盘操作与无障碍、每项功能都有真实测试并全绿",
+    checks: 1,
+    maxChecks: 6,
+  });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [queued, setQueued] = useState([
+    { command_id: "q1", text: "顺手把 README 的键盘快捷键一节补齐" },
+  ]);
+  return (
+    <StoryAppFrame>
+      <div className="mx-auto flex max-w-[760px] flex-col justify-end p-6 pt-24">
+        <GoalStackView
+          goal={state}
+          progress={[
+            { id: "p1", title: "Sort + filter by priority", status: "done" },
+            { id: "p2", title: "Persist to localStorage", status: "running" },
+            { id: "p3", title: "Keyboard + a11y pass", status: "pending" },
+          ]}
+          queued={queued}
+          elapsedMs={136_000}
+          editing={editing}
+          updatePending={false}
+          onEditStart={() => setEditing(state.goal)}
+          onEditChange={setEditing}
+          onSave={() => {
+            if (editing) setState((current) => ({ ...current, goal: editing }));
+            setEditing(null);
+          }}
+          onDiscard={() => setEditing(null)}
+          onAction={(action) => {
+            if (action === "pause") setState((current) => ({ ...current, phase: "paused" }));
+            if (action === "resume") setState((current) => ({ ...current, phase: "active" }));
+          }}
+          onWithdrawQueued={(id) => setQueued((rows) => rows.filter((row) => row.command_id !== id))}
+          onOpenDetails={fn()}
+          onOpenProgress={fn()}
+        />
+        {/* Stand-in for the composer: the stack's bottom edge must vanish behind it. */}
+        <div className="cx cx-session">
+          <div className="cx-card">
+            <div className="cx-input-wrap">
+              <textarea rows={1} readOnly placeholder="Do anything" aria-label="Message Orca" />
+            </div>
+            <div className="cx-bar" />
+          </div>
+        </div>
+      </div>
+    </StoryAppFrame>
+  );
+}
+
+export const GoalStack: Story = {
+  render: () => <GoalStackFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // The pill states the running step; it is a real control (opens progress).
+    await expect(canvas.getByText("Step 2 / 3")).toBeVisible();
+    // Pausing drops the pill — it is a RUNNING indicator, not a goal badge.
+    await userEvent.click(canvas.getByRole("button", { name: "Pause goal" }));
+    await expect(canvas.getByText("Paused goal")).toBeVisible();
+    await expect(canvas.queryByText("Step 2 / 3")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Resume goal" }));
+    await expect(canvas.getByText("Step 2 / 3")).toBeVisible();
+    // The objective rides the row (truncated); the chevron opens the rail that
+    // holds its full text plus the checks tally.
+    await expect(canvas.getByRole("button", { name: "Open goal details" })).toBeVisible();
+    // A queued row lives in the same stack and can be withdrawn from it.
+    await userEvent.click(canvas.getByRole("button", { name: /Withdraw/ }));
+    await expect(canvas.queryByText(/README 的键盘快捷键/)).toBeNull();
   },
 };
 

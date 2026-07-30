@@ -922,6 +922,11 @@
      bottom inset. Give the card its breathing room at every width (the
      narrow query below still tightens it to pb-3). */
   .cx-session { @apply px-[14px] pb-4; }
+  /* GOAL-STACK (S71): the stack tucks its bottom edge 1.5px under the card, so
+     the card must paint over it — otherwise the stack's bottom border draws a
+     line across the composer's rounded top. They are siblings inside .cx now,
+     so the z-index goes on the card itself. */
+  .cx-card { @apply z-[1]; }
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
   /* HOME-CHIP-FLAT (R46): composer env/model/mode chips are borderless flat
      buttons (Codex reference home capture) — the top env strip drops its
@@ -1312,6 +1317,28 @@
     .cx-session .cx-deliv { @apply h-8 w-8 justify-center px-0; }
     .cx-session .cx-deliv-label { @apply hidden; }
   }
+  /* S73 · The access picker sheds its label well before the 500px squeeze.
+     Codex's equivalent chip says "Full access" — two words; ours says
+     "Access: set by agent spec", so it runs out of room far earlier, and a
+     running goal adds the Queue/Steer pair on the same line. Two thresholds:
+     · a turn in flight (`:has(.cx-delivery)`) → icon-only under 960px. Running
+       adds the Queue/Steer pair (~170px) to the same line, and of everything on
+       it the access label is both the longest and the most redundant — the
+       pill's colour, dot and tooltip all still state the mode.
+     · otherwise → icon-only under 620px, where the label genuinely stops
+       fitting beside the model pill.
+     The pill keeps its 32px box and its tooltip/aria label, so the mode is
+     still readable and reachable — only the inline words go. */
+  @container session-primary (max-width: 960px) {
+    .cx-session:has(.cx-delivery) .cx-mode {
+      @apply w-8 shrink-0 justify-center overflow-hidden px-0;
+    }
+    .cx-session:has(.cx-delivery) .cx-mode-label { @apply hidden; }
+  }
+  @container session-primary (max-width: 620px) {
+    .cx-session .cx-mode { @apply w-8 shrink-0 justify-center overflow-hidden px-0; }
+    .cx-session .cx-mode-label { @apply hidden; }
+  }
   /* Composer stories and embedded surfaces can be narrower than the viewport
      without living under `.session-primary`. Compact against the component's
      own inline size so the send action never escapes the card. */
@@ -1616,22 +1643,100 @@
   .deny-reason { @apply flex flex-1 gap-2; }
   .deny-reason input, .gbar-input, .goal-input { @apply min-w-0 flex-1; }
   .gbar { @apply mb-0 max-w-none rounded-none border-x-0 border-t-0 shadow-none; }
-  .gbar.gbar-live {
-    @apply my-2 w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[var(--radius-card)] border bg-panel px-3 py-2 shadow-sm;
-    margin-left: max(12px, calc((100% - 707px) / 2));
+
+  /* ---- GOAL-STACK (S71) · Codex 的 goal 条不是独立浮层 ------------------
+     实机（ChatGPT/Codex 桌面版 goal mode）与 mock GoalBar.jsx 的实测一致：
+     goal 行、排队行同住**一个从 composer 后面探出来的堆叠容器**里 ——
+       · 左右各比 composer 内缩 14，完全对称（不是贴边）
+       · 只有最上面一行有圆角顶边；行与行之间是通宽直线，不是各自成卡
+       · 底沿藏进 composer 后面 1.5（composer 的白底盖住它）
+       · 白底 + 1px #f1f1f1 描边（不是灰胶囊，也不是 alert 卡族）
+     所以容器向上长、底边钉死；进度胶囊再浮在容器上方居中。
+     ---------------------------------------------------------------------- */
+  /* The stack lives INSIDE .cx (see ComposerView's goalStack slot), so it
+     inherits the composer's padding and shares .cx-card's max-width — the inset
+     is then a plain 14px margin and holds at every breakpoint by construction.
+     Computing the width from the outside got it wrong the moment the composer's
+     own padding changed (measured 20px insets at a 500px viewport). */
+  .goal-stack-wrap {
+    @apply relative mx-auto w-full;
+    max-width: 707px;
+    /* 底沿压进 composer：负 1.5 + composer 卡的 z 序让它被盖住 */
+    margin-bottom: -1.5px;
   }
-  .gbar.gbar-live .gbar-label { @apply whitespace-nowrap normal-case tracking-normal text-[13px] text-ink; }
-  .gbar.gbar-live .gbar-actions { @apply mt-0 flex-nowrap gap-1; }
-  .gbar.gbar-live .gbar-input { @apply min-w-[180px] max-w-[360px]; }
-  .gbar.gbar-live.editing {
-    @apply grid w-[calc(100%_-_24px)] max-w-[660px] grid-cols-[auto_minmax(0,1fr)] items-center;
+  .goal-stack { margin-inline: 14px; }
+  .goal-stack {
+    @apply overflow-hidden rounded-t-[14px] border bg-panel;
+    border-color: #f1f1f1;
   }
-  .gbar.gbar-live.editing .gbar-input {
-    @apply col-span-2 min-w-0 max-w-none;
+  .goal-stack { @apply dark:border-[color:var(--line)]; }
+
+  /* 进度胶囊：mock 实测 h38 / r19（满圆）/ 边框 #f1f1f1 / 白底 /
+     下沿离条上沿 8.5 / 相对条严格居中。实机同形（Step 1/1 · 2 files changed）。
+     **暂停态不出现**（mock `fg` 实测 + 实机一致）——由 React 侧不渲染保证。 */
+  .goal-pill {
+    @apply absolute left-1/2 flex h-[38px] -translate-x-1/2 items-center whitespace-nowrap rounded-[19px] border bg-panel pl-[13px] pr-[13.5px] text-[13px] leading-none;
+    bottom: calc(100% + 8.5px);
+    border-color: #f1f1f1;
+    color: #616161;
   }
-  .gbar.gbar-live.editing .gbar-actions {
-    @apply col-span-2 justify-end;
+  .goal-pill { @apply dark:border-[color:var(--line)] dark:text-ink-2; }
+  /* 细环：12 见方 / 1.5px / 浅蓝 #dfe8f7（mock `f6` 取样） */
+  .goal-pill-ring { @apply mr-[6.5px] block h-3 w-3 shrink-0 rounded-full border-[1.5px] border-[#dfe8f7] dark:border-[color:var(--line-2)]; }
+  .goal-pill-sep { @apply px-[6px] text-[#a0a0a0] dark:text-dim; }
+  .goal-pill-add { @apply ml-[6px] text-[#4a9f4b] dark:text-[color:var(--stat-add)]; }
+  .goal-pill-del { @apply ml-[5px] text-[#cd4533] dark:text-[color:var(--stat-del)]; }
+  .goal-pill-count { @apply ml-[8px] shrink-0 tabular-nums text-[12px] text-[#a0a0a0] dark:text-dim; }
+
+  /* goal 行。折叠 34 高、展开自适应；右侧留出四枚钮的宽度。 */
+  .goal-row { @apply relative flex min-h-[34px] items-center pl-[12.5px] pr-[141.5px] text-[13px]; }
+  .goal-row + .goal-row, .goal-qrow + .goal-row, .goal-row.stacked { @apply border-t; border-top-color: #f1f1f1; }
+  .goal-row.stacked { @apply dark:border-t-[color:var(--line)]; }
+  .goal-row.expanded { @apply block pb-[8px] pl-[12.5px] pr-[13px] pt-[7px]; }
+  .goal-row-icon { @apply h-[13px] w-[13px] shrink-0 text-[#ababab] dark:text-dim; }
+  .goal-row-label { @apply ml-[9.5px] shrink-0 font-medium text-ink; }
+  .goal-row-text { @apply ml-[6px] min-w-0 flex-1 truncate text-[#868686] dark:text-dim; }
+  .goal-row.expanded .goal-row-text { @apply ml-0 mt-[7px] block overflow-visible whitespace-normal leading-[20px]; text-overflow: clip; }
+  .goal-row-timer { @apply ml-[13.5px] shrink-0 tabular-nums text-[#868686] dark:text-dim; }
+  .goal-row.expanded .goal-row-head { @apply flex h-[20px] items-center; }
+  .goal-row.expanded .goal-row-timer { @apply ml-[13px]; }
+
+  /* 四枚钮：右起 8，每枚 32×34，图标 13–15，色 #868686；
+     hover 时底下浮一枚直径 24 的 #f1f1f1 圆（圆心即钮心）。 */
+  .goal-row-actions { @apply absolute top-0 flex; right: 8px; }
+  .goal-btn {
+    @apply relative grid h-[34px] w-8 shrink-0 place-items-center rounded-none border-0 bg-transparent p-0 text-[#868686] dark:text-dim;
   }
+  .goal-btn::before {
+    @apply pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity duration-100;
+    /* background-color, not the `background` shorthand: the shorthand outranks
+       whatever the dark rules below set and the light disc leaked into dark. */
+    background-color: #f1f1f1;
+    content: "";
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .goal-btn::before { background-color: var(--panel-2); }
+  }
+  :root[data-theme="dark"] .goal-btn::before { background-color: var(--panel-2); }
+  .goal-btn:where(:hover, :focus-visible):not(:disabled)::before { @apply opacity-100; }
+  .goal-btn > * { @apply relative; }
+  /* `.danger` alone would inherit the global `button.danger` rule (red border
+     + red ink at rest); Codex draws all four buttons the same quiet grey and
+     only reddens the destructive one under the pointer. */
+  .goal-btn-destructive:where(:hover, :focus-visible):not(:disabled) { @apply text-red; }
+  .goal-btn:disabled { @apply opacity-45; }
+
+  /* 排队行：与 goal 行同宽同位，h38；左侧排队箭头 #acacac，文本墨色。 */
+  .goal-qrow { @apply relative flex min-h-[38px] items-center pl-[14px] pr-[130px] text-[13px]; }
+  .goal-qrow + .goal-qrow, .goal-qrow.stacked { @apply border-t; border-top-color: #f1f1f1; }
+  .goal-qrow.stacked { @apply dark:border-t-[color:var(--line)]; }
+  .goal-qrow-icon { @apply h-3 w-3 shrink-0 text-[#acacac] dark:text-dim; }
+  .goal-qrow-text { @apply ml-[6px] min-w-0 flex-1 truncate text-ink; }
+  .goal-qrow-actions { @apply absolute right-[8px] top-0 flex h-[38px] items-center gap-[2px]; }
+  .goal-qrow-drop {
+    @apply inline-flex items-center gap-[6px] rounded-[6px] border-0 bg-transparent px-[6px] py-[3px] text-[13px] leading-none text-[#878787] dark:text-dim;
+  }
+
   .progress-summary {
     @apply my-2 flex w-fit max-w-[calc(100%_-_24px)] items-center gap-2 rounded-[var(--radius-card)] border border-line bg-panel px-3 py-2 text-[13px] text-ink shadow-sm;
     margin-left: max(12px, calc((100% - 707px) / 2));

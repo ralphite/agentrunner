@@ -1435,9 +1435,19 @@ export interface GoalDerived {
   verifiers?: number; // 0 / null → self-certified
   attachedAt?: number; // ms epoch of goal_attached
   endedAt?: number; // ms epoch of the terminal event (terminal phases only)
-  // Total elapsed for a settled goal (endedAt − attachedAt). Undefined while
-  // active — the banner ticks a live clock from attachedAt instead.
+  // Total elapsed for a settled goal. Undefined while active — the view ticks a
+  // live clock instead (see activeMs/runningSince).
   elapsedMs?: number;
+  // Pause-aware elapsed (S72): a paused goal's clock must STOP, and resuming
+  // must continue from where it stopped rather than from attachedAt. So the
+  // fold accumulates only the time the goal actually spent pursuing:
+  //   activeMs      — pursuing time banked by every completed run segment
+  //   runningSince   — start of the segment in flight, or undefined if paused
+  // The view renders activeMs + (now − runningSince) while running, activeMs
+  // flat while paused. Codex's bar behaves exactly this way — a paused goal
+  // held its 22h12m38s reading for as long as it stayed paused.
+  activeMs?: number;
+  runningSince?: number;
 }
 
 const GOAL_TERMINAL: Record<string, true> = { achieved: true, stopped: true, cancelled: true };
@@ -1456,6 +1466,14 @@ const asMs = (ts?: string): number | undefined => {
 // deriveGoalState replays the goal_* events into a single current state. A
 // later goal_attached fully supersedes an earlier (settled) goal. Returns null
 // when the session never carried a goal.
+/** Pursuing time banked up to `at`, closing the segment in flight if any.
+ *  A timestamp-less event cannot close a segment, so it banks nothing. */
+function bankGoalSegment(state: GoalDerived, at: number | undefined): number {
+  const banked = state.activeMs ?? 0;
+  if (state.runningSince === undefined || at === undefined) return banked;
+  return Math.max(0, banked + Math.max(0, at - state.runningSince));
+}
+
 export function deriveGoalState(events: Envelope[]): GoalDerived | null {
   let state: GoalDerived | null = null;
   for (const env of events) {
@@ -1469,11 +1487,18 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
           maxChecks: p.budget?.max_checks ?? p.max_checks,
           verifiers: p.verifiers ?? undefined,
           attachedAt: asMs(env.ts),
+          activeMs: 0,
+          runningSince: asMs(env.ts),
         };
         break;
       case "goal_updated":
         if (state) {
           if (p.goal) state.goal = p.goal;
+          // An update revives a settled goal, so the clock has to start running
+          // again — otherwise the revived goal shows a frozen terminal reading.
+          if (isGoalTerminal(state.phase) || state.runningSince === undefined) {
+            state.runningSince = asMs(env.ts);
+          }
           state.phase = "active";
           state.endedAt = undefined;
           state.elapsedMs = undefined;
@@ -1481,10 +1506,17 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
         }
         break;
       case "goal_paused":
-        if (state && !isGoalTerminal(state.phase)) state.phase = "paused";
+        if (state && !isGoalTerminal(state.phase)) {
+          state.phase = "paused";
+          state.activeMs = bankGoalSegment(state, asMs(env.ts));
+          state.runningSince = undefined;
+        }
         break;
       case "goal_resumed":
-        if (state && !isGoalTerminal(state.phase)) state.phase = "active";
+        if (state && !isGoalTerminal(state.phase)) {
+          state.phase = "active";
+          if (state.runningSince === undefined) state.runningSince = asMs(env.ts);
+        }
         break;
       case "goal_checkpoint":
         // `check` is the running check ordinal; track the highest seen so an
@@ -1516,7 +1548,12 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
     }
   }
   if (state && isGoalTerminal(state.phase) && state.attachedAt !== undefined && state.endedAt !== undefined) {
-    state.elapsedMs = Math.max(0, state.endedAt - state.attachedAt);
+    // Settled reading excludes paused time for the same reason the live clock
+    // does: it reports how long the goal was PURSUED, not how long it existed.
+    const endedAt = state.endedAt;
+    state.elapsedMs = bankGoalSegment(state, endedAt);
+    state.runningSince = undefined;
+    state.activeMs = state.elapsedMs;
   }
   return state;
 }
