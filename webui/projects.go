@@ -158,6 +158,19 @@ func (s *projectStore) list() []projectDef {
 	return out
 }
 
+// folderSet returns every registered source folder, canonPath-normalized for
+// launcher membership checks (INC-104: a registered folder is as "known" as a
+// journal workspace — the user declared it in this UI).
+func (s *projectStore) folderSet() map[string]bool {
+	out := map[string]bool{}
+	for _, def := range s.list() {
+		for _, f := range def.Folders {
+			out[canonPath(f)] = true
+		}
+	}
+	return out
+}
+
 func newProjectID(now time.Time) string {
 	var b [2]byte
 	_, _ = rand.Read(b[:])

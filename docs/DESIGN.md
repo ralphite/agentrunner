@@ -1501,9 +1501,12 @@ resume 永不重读 live default。
   `ar`，也不被「webui 只通过 `ar` 读 session 真相」bold clause 约束。其安全
   红线：localhost 绑定 + 用户驱动 + `application/json` 门；`app` 白名单化只作
   选择键映射到固定 per-OS argv（`exec.Command` 直传、绝不拼 shell、目录永为
-  末位独立参数）；`workspace` 必须是实时 `sessions list` 派生的**已知
-  workspace**（EvalSymlinks 规范化后成员校验，fail-closed，拒任意/不存在
-  路径）。macOS `open -a`（VS Code/Terminal）/`open`（Finder），Linux `code`/
+  末位独立参数）；`workspace` 必须是**已知目录**——实时 `sessions list`
+  派生的 workspace 集 **∪ 用户在本 UI 显式注册的 project folders**
+  （INC-104 修订：新建 project 尚无 session，若拒其 folder 则 Reveal in
+  Finder 作为新项目的第一个动作必然 400；扩大的只有集合来源这一件事，
+  EvalSymlinks 双边规范化、stat-isdir 存在校验、fail-closed、拒任意/不存
+  在路径全部原样）。macOS `open -a`（VS Code/Terminal）/`open`（Finder），Linux `code`/
   `xdg-open`。
 - **project-scoped New chat（INC-89）**：project row 铅笔发出带 request id 的
   in-memory workspace seed 并切到 Home；Home composer 原地消费 seed、写回既有

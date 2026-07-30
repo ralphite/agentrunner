@@ -8242,6 +8242,23 @@ rename 替换,锁在旧 inode 上对打开新 inode 的第二个进程毫无约�
 只读"会把「删除最后一条」静默吞掉(空结果就是 nil),这个 bug 被
 `TestProjectCreateUpgradeMigratesOverlay` 当场抓获。
 
+**不变量 B(DESIGN §12 launcher 加粗安全红线,随 C4 落地)**
+- 旧原文:「`workspace` 必须是实时 `sessions list` 派生的**已知 workspace**
+  (EvalSymlinks 规范化后成员校验,fail-closed,拒任意/不存在路径)」。
+- 为什么必须动:刚建的 project 一条 session 都没有,它的 folder 不在
+  journal 派生集里,Reveal in Finder 必然 400——新项目的第一个动作注定
+  失败。
+- 新表述:已知集 = journal 派生 ∪ 已注册 project folders。其余红线一条
+  不松:目录必须 stat 为存在目录、双边 canonPath 归一、`app` 仍是白名单
+  选择键映射固定 per-OS argv、`exec.Command` 直传不过 shell、目录永为末
+  位独立参数、`application/json` 门仍强制 CORS preflight。扩大的只有集合
+  来源:从「journal 提到过」扩到「journal 提到过,或用户在本 UI 显式注册
+  过」。
+- 波及面:`webui/open.go` `knownSet`、`webui/projects.go` `folderSet`;
+  孪生 `TestOpenAllowsRegisteredProjectFolderWithoutSessions` /
+  `TestOpenStillRejectsUnregisteredDir` /
+  `TestOpenRejectsRegisteredFolderThatVanished`。
+
 **pinned/folded 不进实体**:留在既有 overlay(key `project:<id>`)。overlay
 那套乐观更新 + 回滚 + 双写已就绪且有测试;fold/pin 是高频呈现偏好,放进
 共享 registry 会让每次折叠变成跨进程加锁写盘。实体只是低频身份记录

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -205,5 +206,65 @@ func TestOpenLaunchesKnownWorkspace(t *testing.T) {
 	}
 	if got := s.meta.allProjects()[ws]; got.LastOpened == 0 {
 		t.Fatalf("last_opened not recorded for %s: %+v", ws, got)
+	}
+}
+
+// TestOpenAllowsRegisteredProjectFolderWithoutSessions pins the INC-104
+// widening: a folder the user registered as a project source is launchable
+// even before any session exists in it — with an EMPTY journal-derived set,
+// which is exactly the fresh-project moment.
+func TestOpenAllowsRegisteredProjectFolderWithoutSessions(t *testing.T) {
+	dir := t.TempDir()
+	s, calls := openTestServer(t) // journal set: empty
+	s.projects = newProjectStore(filepath.Join(t.TempDir(), "projects.json"))
+	if _, err := s.projects.create("Fresh", []string{dir}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	rec := postOpen(t, s, dir, "finder")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(*calls) != 1 || (*calls)[0][len((*calls)[0])-1] != dir {
+		t.Fatalf("launch argv wrong: %v", *calls)
+	}
+}
+
+// TestOpenStillRejectsUnregisteredDir: an existing directory that is neither a
+// journal workspace nor a registered folder stays refused — the widening added
+// one source, it did not open the host.
+func TestOpenStillRejectsUnregisteredDir(t *testing.T) {
+	s, calls := openTestServer(t, "/some/known")
+	s.projects = newProjectStore(filepath.Join(t.TempDir(), "projects.json"))
+	rec := postOpen(t, s, t.TempDir(), "finder")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("nothing may launch: %v", *calls)
+	}
+}
+
+// TestOpenRejectsRegisteredFolderThatVanished: Gate 1 (stat + IsDir) is not
+// relaxed — registration doesn't outlive the directory.
+func TestOpenRejectsRegisteredFolderThatVanished(t *testing.T) {
+	dir := t.TempDir()
+	doomed := filepath.Join(dir, "doomed")
+	if err := os.Mkdir(doomed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s, calls := openTestServer(t)
+	s.projects = newProjectStore(filepath.Join(t.TempDir(), "projects.json"))
+	if _, err := s.projects.create("Doomed", []string{doomed}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := os.RemoveAll(doomed); err != nil {
+		t.Fatal(err)
+	}
+	rec := postOpen(t, s, doomed, "finder")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("nothing may launch: %v", *calls)
 	}
 }

@@ -91,11 +91,33 @@ func (s *server) knownWorkspacesFromAR(ctx context.Context) map[string]bool {
 
 // knownSet returns the launcher's allowed-workspace set. The `workspaces` field
 // lets tests inject a fixed set without a real `ar` binary; nil = query ar.
+//
+// INC-104 widens the SOURCE of the set — and only the source: known =
+// journal-derived session workspaces ∪ folders the user explicitly registered
+// as project sources in this UI. A freshly created project has no sessions
+// yet, so refusing its folders would make Reveal in Finder fail as the very
+// first thing a new project ever does. Every other red line stands untouched:
+// Gate 1 still stats the directory (a registered-then-deleted folder is
+// refused), both sides stay canonPath-normalized, `app` remains a whitelist
+// selection key into fixed per-OS argv, exec.Command takes the directory as
+// the isolated trailing argument with no shell, and readBody's
+// application/json door still forces a CORS preflight.
 func (s *server) knownSet(ctx context.Context) map[string]bool {
+	base := s.knownWorkspacesFromAR
 	if s.workspaces != nil {
-		return s.workspaces(ctx)
+		base = s.workspaces
 	}
-	return s.knownWorkspacesFromAR(ctx)
+	// Copy: injected test maps (and any cached map) must not be mutated.
+	set := map[string]bool{}
+	for w := range base(ctx) {
+		set[w] = true
+	}
+	if s.projects != nil {
+		for f := range s.projects.folderSet() {
+			set[f] = true
+		}
+	}
+	return set
 }
 
 // handleOpen opens a session's workspace directory in a system application
