@@ -215,8 +215,12 @@ export function ProjectModal({ modal }: { modal: Extract<NonNullable<ModalKind>,
     setBusy(true);
     setError("");
     try {
-      if (isEdit) await saveProject(modal.id!, { name: name.trim(), folders });
-      else await createProject({ name: name.trim(), folders });
+      if (isEdit) {
+        await saveProject(modal.id!, { name: name.trim(), folders });
+      } else {
+        const created = await createProject({ name: name.trim(), folders });
+        modal.onCreated?.(created);
+      }
       close();
     } catch (e: any) {
       setError(e?.message || "Something went wrong — try again.");

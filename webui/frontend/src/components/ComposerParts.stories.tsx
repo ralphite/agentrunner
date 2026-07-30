@@ -126,6 +126,7 @@ function ProjectPickerHarness({
         onSelect={fn()}
         onShowNew={() => setPage("new")}
         onBack={() => setPage("projects")}
+        onCreateProject={fn()}
         onStartScratch={fn()}
         onUseExisting={fn()}
         onClear={fn()}

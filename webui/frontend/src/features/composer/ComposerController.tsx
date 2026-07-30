@@ -1454,6 +1454,14 @@ export function Composer(props: ComposerProps) {
                 onSelect: chooseProject,
                 onShowNew: () => setProjectMenuPage("new"),
                 onBack: () => setProjectMenuPage("projects"),
+                onCreateProject: () =>
+                  openModal({
+                    kind: "project",
+                    mode: "create",
+                    // A project born from the composer is a project the user
+                    // wants to work in right now: select its primary folder.
+                    onCreated: (created) => chooseProject(created.folders[0]),
+                  }),
                 onStartScratch: async () => {
                   try {
                     chooseProject((await api.makeWorkspace()).path);

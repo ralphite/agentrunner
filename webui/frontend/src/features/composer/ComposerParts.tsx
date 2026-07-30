@@ -11,6 +11,7 @@ import {
   Desktop,
   File,
   Folder,
+  FolderSimplePlus,
   GitBranch,
   GitFork,
   Lightning,
@@ -87,6 +88,10 @@ export interface ProjectPickerProps {
   onSelect: (workspace: string) => void;
   onShowNew: () => void;
   onBack: () => void;
+  // Opens the Create-project dialog (INC-104): a named project over one or
+  // more source folders. Siblings below stay for the lighter paths — a
+  // throwaway scratch dir, or a folder used without declaring anything.
+  onCreateProject: () => void;
   onStartScratch: () => void | Promise<void>;
   onUseExisting: () => void;
   onClear: () => void;
@@ -103,6 +108,7 @@ export function ProjectPicker({
   onSelect,
   onShowNew,
   onBack,
+  onCreateProject,
   onStartScratch,
   onUseExisting,
   onClear,
@@ -201,6 +207,15 @@ export function ProjectPicker({
                 ariaLabel="Back to projects"
                 className="max-[680px]:min-h-11 [@media(any-pointer:coarse)]:min-h-11"
                 onClick={onBack}
+              />
+              <PopItem
+                icon={<FolderSimplePlus size={15} />}
+                title="Create project…"
+                desc="Name it and pick its source folders"
+                onClick={() => {
+                  close();
+                  onCreateProject();
+                }}
               />
               <PopItem
                 icon={<Sparkle size={15} />}

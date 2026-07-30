@@ -57,8 +57,11 @@ export type ModalKind =
       overlayKey?: string; // create-from-derived: the derived group being upgraded
       initialName?: string;
       initialFolders?: string[];
-      // Ephemeral UI reference only; never persisted or sent to the daemon.
+      // Ephemeral UI references only; never persisted or sent to the daemon.
+      // onCreated lets the opener react to a successful create — the composer
+      // picker selects the new project's primary folder (INC-104).
       returnFocus?: HTMLElement;
+      onCreated?: (created: ProjectDef) => void;
     }
   | null;
 

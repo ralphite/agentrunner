@@ -271,3 +271,30 @@ describe("explicit projects in the picker (INC-104)", () => {
     expect(localStorage.getItem("arwebui.lastProject")).toBe("/brand/new");
   });
 });
+
+describe("New project opens the Create-project dialog (INC-104)", () => {
+  it("routes Create project… through the modal and selects the new project's primary folder", async () => {
+    useStore.setState({ projectDefs: [], modal: null } as any);
+    const { container } = mount();
+
+    fireEvent.click(chip(container));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    fireEvent.click(screen.getByRole("button", { name: /Create project…/ }));
+
+    const modal = useStore.getState().modal as any;
+    expect(modal).toMatchObject({ kind: "project", mode: "create" });
+
+    // The dialog reports success through onCreated; the composer answers by
+    // selecting the new project's primary folder.
+    modal.onCreated({ id: "p-9", name: "Brand new", folders: ["/brand/new"] });
+    useStore.setState({ projectDefs: [{ id: "p-9", name: "Brand new", folders: ["/brand/new"] }] } as any);
+    await vi.waitFor(() => expect(chip(container).textContent).toContain("Brand new"));
+    expect(localStorage.getItem("arwebui.lastProject")).toBe("/brand/new");
+
+    // The lighter paths survive alongside the dialog entrance.
+    fireEvent.click(chip(container));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    expect(screen.getByRole("button", { name: /Start from scratch/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Use an existing folder/ })).toBeTruthy();
+  });
+});
