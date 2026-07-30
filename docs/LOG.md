@@ -8261,3 +8261,52 @@ removed:true 会在日后删除 project 时让派生组一出生就是隐藏的,
 folders[0],folder 全列表在 hover 卡披露);worktree session 按 mainRepo 自动
 归入 project(仍各自成派生组,留待后续);manual order 排派生组(只排显式
 project)。
+## 2026-07-29 harness 级 exclude 表接上：两张表风险不对称，不合并（决策 #44）
+
+**背景**：G62。DESIGN §6 粗体条款要求"harness 级 exclude 列表
+（node_modules/venv/build 类 + 凭据文件硬排除表），被排除的路径文档化为 rewind
+范围外"，但 `hardExcludes` **只实现了凭据那一半**。完整的派生目录表其实早就写在
+同一个文件的 `reviewHiddenUntrackedPath` 里，review 投影在用，staging 没接上。
+后果：排除完全依赖工作区自己的 `.gitignore`，**没有 `.gitignore` 的工作区**
+（例如 `webui/api.go` 自动创建的 `runtime/ws-*`）会被整棵树 staging。
+
+**最重要的一个判断：两张表不能合并成一张。** 我本来打算直接共用
+`reviewHiddenUntrackedPath` 那张表，中途停下来了，因为两者风险根本不对称：
+
+- **显示过滤**（review 卡片）激进一点，代价最多是"diff 更干净"。
+- **快照排除**意味着 **rewind 不会把这些文件还回来**。
+
+所以 `vendor` **不进**快照排除表——Go 和 PHP 项目常把它作为源码提交，
+DESIGN 原文点的是"node_modules/venv/build 类"，从来没点 vendor；而 review 侧
+继续隐藏它（`reviewOnlyHiddenDirs`）。共用的是 `derivedDirs` 这个"机器可再生"
+的唯一事实来源，同时渲染进 `info/exclude` 与 Go 谓词，两边不可能再漂移
+（`TestDerivedExcludePatternsMatchPredicate` 钉住，并断言 review 集是快照集的
+**严格超集**）。
+
+**第二个必须做的动作：收敛存量 repo。** gitignore 语义**只管未跟踪文件**，所以
+G62 之前建的 shadow repo 里已经被跟踪的 `node_modules` 会继续被 stage——新地板
+对存量用户**永久失效**。`pruneDerivedFromIndex` 在 `init` 里把已跟踪的派生路径
+从 index 剔除（index-only 遍历、幂等、持锁）。**故意不用**
+`git ls-files -i --exclude-standard`：那会连用户 `.gitignore` 列的东西一起取消
+跟踪，而那不是这个函数该做的决定（`TestPruneDerivedLeavesUserIgnoredTrackedFilesAlone`
+钉住）。
+
+**接受的语义变化**：`HiddenUntracked` 对派生树不再计数——东西根本没进 index，
+无可隐藏。这**统一了**行为：`.gitignore` 里有 `node_modules` 的仓库本来就报 0
+（实测 `git status --porcelain -uall` 对它完全无输出），旧的"1"只出现在缺那行
+gitignore 的少数工作区。所以这不是丢信号，是把少数派对齐到多数派。披露改由
+本条款要求的"文档化为 rewind 范围外"承担。两处旧断言（`snapshot_test.go`、
+`cli/diff_test.go`）随之从 1 改 0，并各自写清了理由——**不是为了让测试变绿**：
+先用空 .gitignore 仓库实测确认了旧行为本就不一致，才接受这个改动。隐藏计数
+机制本身的覆盖移到新增的 `TestReviewHidesVendorButStillSnapshotsIt`，它同时是
+"隐藏但仍入快照"这条不对称性的活样本。
+
+**不改的**：`GIT_CONFIG_GLOBAL=/dev/null` 让用户**全局** `core.excludesFile`
+失效——这是 shadow 与用户 config 解耦的**故意**设计（DESIGN 要 harness 级列表
+正是为了不依赖用户配置）。有了地板之后危害已小，改它反而会重新引入耦合。
+
+**闸门**：`check.sh` 全绿 + webui Go 测试 + 前端 945 测试 + build。真机两组：
+①无 `.gitignore` 工作区带 8000 个 node_modules 文件（31 MB）跑真 Gemini turn
+→ 快照里**只有 `src/main.go`**、shadow.git **128 KB**；②用已部署的 pre-G62
+二进制建出跟踪了 **200** 个 node_modules 的 shadow，换带 G62 的二进制重开
+→ **降为 0**，`src/main.go` 完好，新快照干净。

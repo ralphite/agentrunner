@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -64,6 +65,71 @@ func (None) Materialize(context.Context, string, string) error {
 }
 func (None) Diff(context.Context, string) (DiffResult, error) {
 	return DiffResult{}, ErrUnavailable
+}
+
+// derivedDirs are directory names whose contents are MACHINE-REGENERABLE: a
+// package manager, build, or test run puts them there, and the same command
+// puts them back. They are excluded from snapshots (DESIGN §6: harness 级
+// exclude 列表（node_modules/venv/build 类 + 凭据文件硬排除表）) and are
+// therefore documented as OUTSIDE REWIND SCOPE — a rewind restores your source,
+// not your `node_modules`.
+//
+// Membership is deliberately conservative, because the two lists that consume
+// this set carry very different risk. Hiding a path from a REVIEW CARD costs a
+// tidier diff at worst. Excluding it from a SNAPSHOT means a rewind will not
+// bring it back — so anything a project might legitimately commit as source
+// must not be here. That is why `vendor` is NOT in this set (Go and PHP
+// projects commit it routinely, and DESIGN does not name it) even though the
+// review projection still hides it; see reviewOnlyHiddenDirs.
+var derivedDirs = map[string]bool{
+	".git":         true, // git refuses these paths anyway; listed for intent
+	"node_modules": true, "__pycache__": true, "site-packages": true,
+	".venv": true, "venv": true, ".tox": true, ".eggs": true,
+	".next": true, ".turbo": true, ".gradle": true, ".cache": true,
+	"dist": true, "build": true, "out": true, "target": true, "coverage": true,
+}
+
+// reviewOnlyHiddenDirs are hidden from review cards but STILL SNAPSHOTTED.
+// Splitting them out is the whole point: a display filter may be aggressive,
+// a durability filter may not.
+var reviewOnlyHiddenDirs = map[string]bool{"vendor": true}
+
+// derivedSuffixes are path components matched by suffix rather than by name.
+var derivedSuffixes = []string{".dist-info", ".egg-info"}
+
+// derivedPath reports whether any component of path is machine-regenerable.
+func derivedPath(path string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		if derivedDirs[part] {
+			return true
+		}
+		for _, suffix := range derivedSuffixes {
+			if strings.HasSuffix(part, suffix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// derivedExcludePatterns renders derivedDirs/derivedSuffixes as .gitignore
+// lines. A bare `name/` matches that directory at ANY depth, which is exactly
+// the component-wise semantics derivedPath implements — so the file written to
+// info/exclude and the Go predicate cannot drift.
+func derivedExcludePatterns() []string {
+	names := make([]string, 0, len(derivedDirs))
+	for name := range derivedDirs {
+		names = append(names, name)
+	}
+	sort.Strings(names) // deterministic info/exclude content
+	out := make([]string, 0, len(names)+len(derivedSuffixes))
+	for _, name := range names {
+		out = append(out, name+"/")
+	}
+	for _, suffix := range derivedSuffixes {
+		out = append(out, "*"+suffix+"/")
+	}
+	return out
 }
 
 // hardExcludes are paths NEVER snapshotted (DESIGN: 凭据路径显式排除出
@@ -124,7 +190,12 @@ func NewShadowRepo(gitDir, workspaceRoot string) (*ShadowRepo, error) {
 func (s *ShadowRepo) init() error {
 	return withRepoLock(context.Background(), s.gitDir, func() error {
 		if _, err := os.Stat(filepath.Join(s.gitDir, "HEAD")); err == nil {
-			return s.writeExcludes() // already initialized; refresh excludes
+			// Already initialized: refresh excludes, then converge an index
+			// that predates them (see pruneDerivedFromIndex).
+			if err := s.writeExcludes(); err != nil {
+				return err
+			}
+			return s.pruneDerivedFromIndex(context.Background())
 		}
 		// A bare init takes no --work-tree; run it raw.
 		cmd := exec.Command("git", "init", "--bare", "-q", s.gitDir)
@@ -170,8 +241,61 @@ func (s *ShadowRepo) writeExcludes() error {
 		return fmt.Errorf("snapshot: %w", err)
 	}
 	content := "# agentrunner hard excludes — credentials never enter snapshots\n" +
-		strings.Join(hardExcludes, "\n") + "\n"
+		strings.Join(hardExcludes, "\n") + "\n" +
+		"\n# machine-regenerable trees — DOCUMENTED AS OUTSIDE REWIND SCOPE.\n" +
+		"# The workspace's own .gitignore still does most of this work; these are\n" +
+		"# the floor, for the workspace that has no .gitignore at all.\n" +
+		strings.Join(derivedExcludePatterns(), "\n") + "\n"
 	return os.WriteFile(filepath.Join(info, "exclude"), []byte(content), 0o600)
+}
+
+// pruneDerivedFromIndex drops already-tracked derived paths from the index.
+//
+// .gitignore semantics only govern UNTRACKED files, so a shadow repo created
+// before these excludes existed would keep staging the `node_modules` it had
+// already picked up — the exclude would silently never take effect there. This
+// is the convergence step that makes the new floor apply to existing repos too.
+//
+// Deliberately filtered by derivedPath rather than by `git ls-files -i
+// --exclude-standard`: the latter would also untrack anything the USER's
+// .gitignore happens to list, which is a decision this function has no business
+// making. Index-only walk, so cost is proportional to tracked files, and it is
+// idempotent — after the first pass nothing matches. Callers hold the repo lock.
+func (s *ShadowRepo) pruneDerivedFromIndex(ctx context.Context) error {
+	if _, err := os.Stat(filepath.Join(s.gitDir, "index")); err != nil {
+		return nil // nothing tracked yet
+	}
+	raw, err := s.gitRawWithEnv(ctx, nil, "ls-files", "-z")
+	if err != nil {
+		return err
+	}
+	var stale []string
+	for _, item := range bytes.Split(raw, []byte{0}) {
+		if len(item) == 0 {
+			continue
+		}
+		if path := string(item); derivedPath(path) {
+			stale = append(stale, path)
+		}
+	}
+	if len(stale) == 0 {
+		return nil
+	}
+	// Batch through stdin: a monorepo that predates the excludes can have tens
+	// of thousands of these, which would blow argv as separate arguments.
+	cmd := exec.CommandContext(ctx, "git",
+		"--git-dir="+s.gitDir, "--work-tree="+s.work,
+		"update-index", "--force-remove", "-z", "--stdin")
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"HOME="+s.gitDir)
+	cmd.Stdin = strings.NewReader(strings.Join(stale, "\x00") + "\x00")
+	var errb bytes.Buffer
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("snapshot: prune derived paths: %v: %s", err, strings.TrimSpace(errb.String()))
+	}
+	return nil
 }
 
 // git runs one git command against the shadow GIT_DIR with a pinned
@@ -478,13 +602,16 @@ func (s *ShadowRepo) quietSnapshotReviewFiles(ctx context.Context, env []string,
 	return untracked, reasons, hidden, nil
 }
 
+// reviewHiddenUntrackedPath is the DISPLAY filter: everything machine-regenerable
+// plus the review-only extras. It shares derivedDirs with the snapshot excludes
+// so the two can never silently disagree about what "derived" means, while
+// keeping its own strictly-larger set for paths that must stay snapshotted.
 func reviewHiddenUntrackedPath(path string) bool {
+	if derivedPath(path) {
+		return true
+	}
 	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
-		switch part {
-		case ".git", ".venv", "venv", "site-packages", ".tox", ".eggs", ".cache", ".next", ".turbo", ".gradle", "node_modules", "vendor", "dist", "build", "out", "target", "coverage", "__pycache__":
-			return true
-		}
-		if strings.HasSuffix(part, ".dist-info") || strings.HasSuffix(part, ".egg-info") {
+		if reviewOnlyHiddenDirs[part] {
 			return true
 		}
 	}

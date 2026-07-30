@@ -197,13 +197,18 @@ func TestCLIDiffLastTurnJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
 		t.Fatalf("json: %v\n%s", err, stdout.String())
 	}
+	// HiddenUntracked is 0, not 1, since G62: node_modules is excluded from the
+	// snapshot itself rather than staged-then-hidden, so no addition remains to
+	// hide. That already WAS the behavior for any workspace whose .gitignore
+	// listed node_modules; the harness-level floor just makes it uniform. See
+	// snapshot.TestReviewHidesVendorButStillSnapshotsIt for the hidden-count path.
 	if !got.Available || got.Workspace != ws || got.BarrierID != "bar-t1" ||
 		!strings.Contains(got.Diff, "same.txt") || !strings.Contains(got.Diff, "new.txt") ||
 		!strings.Contains(got.Numstat, "new.txt") || strings.Contains(got.Diff, "node_modules") ||
 		strings.Contains(got.Diff, "large.txt") || strings.Contains(got.Diff, "binary.bin") ||
 		strings.Join(got.Untracked, ",") != "binary.bin,large.txt" ||
 		got.UntrackedReasons["binary.bin"] != "binary" || got.UntrackedReasons["large.txt"] != "large" ||
-		got.HiddenUntracked != 1 {
+		got.HiddenUntracked != 0 {
 		t.Fatalf("response = %+v", got)
 	}
 }

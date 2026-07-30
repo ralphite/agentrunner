@@ -257,8 +257,69 @@ func TestShadowRepoDiffQuietsNewGeneratedLargeAndBinaryFiles(t *testing.T) {
 	if got.UntrackedReasons["binary.bin"] != "binary" || got.UntrackedReasons["large.txt"] != "large" {
 		t.Fatalf("name-only reasons = %v, want binary/large", got.UntrackedReasons)
 	}
+	// node_modules is now excluded from the SNAPSHOT itself (G62), not merely
+	// hidden from the card, so there is no addition left to hide and the count
+	// is 0. This is a deliberate change and it makes the behavior UNIFORM:
+	// before, a workspace whose .gitignore listed node_modules already reported
+	// 0 here (git never staged it), so the old "1" only ever appeared for the
+	// minority of workspaces missing that .gitignore line. The harness-level
+	// floor makes every workspace behave like the .gitignore-having majority.
+	// Disclosure moved to where DESIGN puts it: excluded paths are documented as
+	// outside rewind scope. The hidden-count mechanism itself stays covered by
+	// TestReviewHidesVendorButStillSnapshotsIt below.
+	if got.HiddenUntracked != 0 {
+		t.Fatalf("hidden generated additions = %d, want 0 (node_modules is excluded from the snapshot, so nothing remains to hide)", got.HiddenUntracked)
+	}
+}
+
+// G62's central distinction, as a test: `vendor` is hidden from the review card
+// but STILL SNAPSHOTTED, because a display filter may be aggressive while a
+// durability filter may not — Go and PHP projects commit vendor as source, and
+// a rewind that failed to restore it would lose real work. This is also what
+// keeps HiddenUntracked exercised now that derived trees never reach the index.
+func TestReviewHidesVendorButStillSnapshotsIt(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "seed.txt", "seed\n")
+	s := newStore(t, ws)
+	ctx := context.Background()
+	ref, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	write(t, ws, "vendor/lib/dep.go", "package dep\n")
+	write(t, ws, "node_modules/pkg/index.js", "generated\n")
+
+	got, err := s.Diff(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both are kept out of the inline card...
+	for _, omitted := range []string{"vendor", "node_modules"} {
+		if strings.Contains(got.Diff, omitted) {
+			t.Errorf("%s must not appear inline:\n%s", omitted, got.Diff)
+		}
+	}
+	// ...but only vendor was ever staged, so only vendor is REPORTED as hidden.
 	if got.HiddenUntracked != 1 {
-		t.Fatalf("hidden generated additions = %d, want 1", got.HiddenUntracked)
+		t.Errorf("HiddenUntracked = %d, want 1 (vendor hidden; node_modules never staged)", got.HiddenUntracked)
+	}
+
+	// The durability difference is the point: a fresh snapshot must contain
+	// vendor and must not contain node_modules.
+	ref2, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := s.git(ctx, "ls-tree", "-r", "--name-only", ref2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "vendor/lib/dep.go") {
+		t.Errorf("vendor must be snapshotted (rewind has to restore it):\n%s", out)
+	}
+	if strings.Contains(out, "node_modules") {
+		t.Errorf("node_modules must never enter a snapshot:\n%s", out)
 	}
 }
 

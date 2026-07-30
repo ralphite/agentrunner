@@ -340,7 +340,28 @@ mtime/size 快捷路径，必须重读重哈希整棵树。实测（300k 文件�
 （`DiffSnapshots` 已经不碰工作树，可参照）。
 → UJ-05, UJ-11
 
-**G62 snapshot 的 harness 级 exclude 表只实现了凭据那一半 — 🔧 纯实现缺口（影响：中）**
+**G62 snapshot 的 harness 级 exclude 表只实现了凭据那一半 — ✅ 已关闭（决策 #44，2026-07-29）**
+**关闭做法**：`derivedDirs` 成为"机器可再生"的唯一事实来源，同时渲染进
+`info/exclude`（快照排除）与 review 投影（显示隐藏）。**关键判断：两张表不能
+合并成一张**——显示过滤激进一点最多让卡片干净，而快照排除意味着**rewind 不会
+把文件还回来**，所以 `vendor` 只在 review 侧隐藏、仍然入快照（Go/PHP 常把它
+当源码提交，DESIGN 原文也没点它）。另加 `pruneDerivedFromIndex`：gitignore 语义
+只管未跟踪文件，存量 shadow repo 里**已被跟踪**的 `node_modules` 否则永远不会
+被新地板影响；剔除只按本表判定，不用 `--exclude-standard`（那会替用户的
+`.gitignore` 做决定）。真机实测：无 `.gitignore` 的工作区带 8000 个
+node_modules 文件（31 MB），快照里**只有 `src/main.go`**、shadow.git **128 KB**；
+用已部署的 pre-G62 二进制建出跟踪了 200 个 node_modules 的 shadow，换新二进制
+重开后**降为 0** 且源码完好。
+**顺带的语义变化（已接受）**：`HiddenUntracked` 对派生树不再计数（东西根本没进
+index，无可隐藏）。这**统一了**行为——`.gitignore` 里有 `node_modules` 的仓库
+本来就是 0，旧的"1"只出现在缺那行 gitignore 的少数工作区。披露改由本条款要求的
+"文档化为 rewind 范围外"承担；隐藏计数本身的覆盖移到
+`TestReviewHidesVendorButStillSnapshotsIt`。
+**仍未接**：`GIT_CONFIG_GLOBAL=/dev/null` 使用户**全局** `core.excludesFile`
+失效——这是 shadow 与用户 config 解耦的**故意**设计（DESIGN 要 harness 级列表
+正是为了不依赖用户配置），有了地板之后危害已小，故不改。
+
+以下为原始登记（保留以备追溯）：
 `DESIGN.md`（§6 快照章）明确要求"harness 级 exclude 列表（**node_modules/
 venv/build 类** + 凭据文件硬排除表）"，但 `snapshot.go:71-88` 的
 `hardExcludes` **只有凭据模式**，派生/vendored 目录一条都没有。于是排除

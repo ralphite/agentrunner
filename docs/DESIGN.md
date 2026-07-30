@@ -898,6 +898,18 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   goroutine 和进程均成立；Diff 使用 private index，仍可并发只读。
 - **排除策略显式化**：harness 级 exclude 列表（node_modules/venv/build
   类 + 凭据文件硬排除表），被排除的路径文档化为 rewind 范围外。
+  实现细节（决策 #44）：`derivedDirs` 是唯一的"机器可再生"事实来源，
+  同时喂给 `info/exclude`（快照排除）与 review 投影（显示隐藏），两者
+  不可能再各自漂移。**两张表的风险不对称，因此不能合并成一张**：显示
+  过滤激进一点最多让 diff 卡片更干净，而**快照排除意味着 rewind 不会
+  把这些文件还回来**——所以 `vendor` **不在**快照排除表里（Go/PHP 常把
+  它作为源码提交，且本条款原文也没点它），只在 review 侧隐藏
+  （`reviewOnlyHiddenDirs`）。工作区自己的 `.gitignore` 仍承担主要工作，
+  harness 列表是**地板**，服务于"根本没有 `.gitignore`"的工作区（例如
+  自动创建的 `runtime/ws-*`）。因 gitignore 语义只管未跟踪文件，`init`
+  会把**已被跟踪**的派生路径从 index 里剔除（`pruneDerivedFromIndex`），
+  否则新地板对存量 shadow repo 永久失效；剔除只按本表判定，不按
+  `--exclude-standard`，以免替用户的 `.gitignore` 做决定。
 - **IndexStore（第四类状态）**：可从 workspace 随时重建的
   派生索引（`keyword_search` 的底座）。删除只损失重建时间——因此
   **不入 run 版本集、不入 journal、不入快照、fork 不携带**（与 driver/
