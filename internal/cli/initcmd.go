@@ -23,23 +23,28 @@ system_prompt: >
   when the prompt requires reading or changing files or running commands.
 # system_prompt_file: prompt.md   # or load the prompt from a file (not both)
 
-# Omitted defaults are capability-first: the full coding tool face, dynamic
-# recursive delegation, shared child workspace, and permission allow.
-# Add these fields only to NARROW the Agent:
-# tools: []                    # no tools (pure conversation)
-# agents_dynamic: false       # no inline sub-agents
-# permissions:
-#   - { tool: bash, action: ask }
-#   - { action: allow }
+# Tools the agent may use; omit for a chat-only agent.
+tools: [read_file, write_file, edit_file, bash, grep, glob, keyword_search]
+
+# Heads-up: with NO permissions block below, edits (write_file/edit_file)
+# and shell commands (bash) PAUSE for your approval every time — reads are
+# free, side effects ask. (Common read-only commands — ls, pwd, cat, git
+# status… — are pre-approved and never ask.) Answer a pending ask with:
+#   agentrunner approve <session> <id> approve|deny
+# Uncomment permissions to pre-authorize what you trust (first match wins):
+permissions:
+  - { tool: read_file, action: allow }   # reads never touch anything
+  # - { tool: bash, command: "git *", action: allow }  # trust git
+  # - { action: allow }                  # trust everything (single-user dev box)
 
 # --- optional ---------------------------------------------------------
 # mode: plan                # default | plan | acceptEdits
-# max_generation_steps: 200 # optional cap; omitted/0 = unlimited
+# max_generation_steps: 200 # cap on model calls per turn
 # budget:
 #   max_total_tokens: 200000
 # agents: [worker]              # sibling worker.yaml specs allowed to spawn
-# agents_dynamic: false         # opt out of inline role definitions
-# agent_workspace: isolated     # shared (default) | isolated
+# agents_dynamic: true          # also allow inline role definitions
+# agent_workspace: isolated     # isolated (default) | shared
 # sandbox:                      # default: terminal parity — bash inherits your
 #                               # full env and real HOME, so gh/git/cloud auth
 #                               # works as in a shell you opened yourself
@@ -77,7 +82,7 @@ name: my-driver
 prompt: Make the test suite pass          # the instruction EVERY iteration receives
 agent_spec: dev                         # shared Agent name, or a YAML path relative to this file
 
-max_iterations: 5     # optional series cap; omitted/0 = unlimited
+max_iterations: 5     # goal-mode cap (default 10)
 verifiers:            # ALL must pass for an iteration to satisfy the goal
   - kind: command     # command | llm_judge | human (a bare command: implies kind command)
     command: "test -f done.txt"         # exit 0 = pass

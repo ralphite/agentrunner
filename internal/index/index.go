@@ -5,7 +5,7 @@
 // is never journaled, never snapshotted, and never travels with a fork.
 //
 // The v0 backend is lexical (BM25 over line chunks with identifier-aware
-// tokenization): deterministic and offline. The Indexer is
+// tokenization): deterministic, offline, credential-free. The Indexer is
 // the resident-actor seam — refresh and query serialize through it — and
 // an embedding backend can replace the scoring without touching callers.
 package index
@@ -34,17 +34,39 @@ const (
 var skipDirs = map[string]bool{
 	".git": true, "node_modules": true, "vendor": true, ".venv": true,
 	"venv": true, "dist": true, "build": true, "target": true,
-	"__pycache__": true,
+	"__pycache__": true, ".ssh": true, ".aws": true,
 }
 
-// SkipFile is retained as the shared search-walk seam. Capability-first mode
-// excludes no ordinary project files; explicit permission/sandbox policy owns
-// credential restrictions.
-func SkipFile(string) bool { return false }
+// skipFiles are credential-shaped paths (kept in LOCKSTEP with the
+// snapshot hard excludes): their content must never surface in search
+// snippets, which land verbatim in the journal.
+var skipFileNames = map[string]bool{
+	".env": true, ".envrc": true, ".git-credentials": true, ".netrc": true,
+	".npmrc": true, ".pypirc": true, "credentials.json": true,
+}
 
-// SkipDir reports whether a derived/vendored directory should be excluded
-// from a content-surfacing walk. Ordinary project dotdirs remain searchable.
-func SkipDir(name string) bool { return skipDirs[name] }
+func skipFile(name string) bool {
+	if skipFileNames[name] || strings.HasPrefix(name, ".env.") {
+		return true
+	}
+	for _, pat := range []string{"*.pem", "*.key", "id_rsa*", "id_ed25519*"} {
+		if ok, _ := filepath.Match(pat, name); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// SkipFile reports whether a file name is credential-shaped and must never
+// have its content surface in a journaled tool result. Exported so the grep
+// tool stays in GENUINE lockstep with keyword_search (both land verbatim
+// content in the journal) rather than copy-pasting the exclusion set.
+func SkipFile(name string) bool { return skipFile(name) }
+
+// SkipDir reports whether a directory should be excluded from a
+// content-surfacing walk: derived/vendored trees and dotdirs (which harbor
+// credential stores like .ssh/.aws). Shared with the grep/glob tools.
+func SkipDir(name string) bool { return skipDirs[name] || strings.HasPrefix(name, ".") }
 
 // Hit is one search result. Line is the 1-based first line of the chunk.
 type Hit struct {

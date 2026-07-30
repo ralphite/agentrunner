@@ -1,6 +1,6 @@
 {
   "name": "grep",
-  "description": "Search file contents by regular expression across the workspace. Returns matching lines with path and 1-based line number, best for finding where a symbol/string is used. Skips machine-generated and vendored trees. Prefer this over `bash grep` for structured results.",
+  "description": "Search file contents by regular expression across the workspace. Returns matching lines with path and 1-based line number, best for finding where a symbol/string is used. Respects credential and vendored-tree exclusions. Prefer this over `bash grep` — it stays inside the workspace boundary, redacts credentials, and works even when network egress is contained.",
   "class": "read",
   "input_schema": {
     "type": "object",

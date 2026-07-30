@@ -46,7 +46,9 @@ func TestSnapshotExcludesDerivedTreesWithoutGitignore(t *testing.T) {
 	}
 }
 
-func TestSnapshotIncludesCredentialShapedProjectFiles(t *testing.T) {
+// Credentials must still be excluded — G62 added to hardExcludes and must not
+// have disturbed the half that was already there.
+func TestSnapshotStillExcludesCredentials(t *testing.T) {
 	ws := t.TempDir()
 	write(t, ws, "main.go", "package main\n")
 	write(t, ws, ".env", "SECRET=shh\n")
@@ -63,8 +65,8 @@ func TestSnapshotIncludesCredentialShapedProjectFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, secret := range []string{".env", "deploy.pem"} {
-		if !strings.Contains(out, secret) {
-			t.Errorf("%s missing from capability-first snapshot:\n%s", secret, out)
+		if strings.Contains(out, secret) {
+			t.Errorf("%s must never enter a snapshot:\n%s", secret, out)
 		}
 	}
 }
@@ -81,12 +83,13 @@ func TestPruneDerivedConvergesAPreExistingIndex(t *testing.T) {
 	gitDir := filepath.Join(t.TempDir(), "shadow.git")
 	ctx := context.Background()
 
-	// Simulate the pre-G62 world: a repo without derived-tree excludes.
+	// Simulate the pre-G62 world: a repo whose excludes carry credentials only,
+	// so node_modules gets tracked.
 	s, err := NewShadowRepo(gitDir, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy := "# legacy\n"
+	legacy := "# legacy\n" + strings.Join(hardExcludes, "\n") + "\n"
 	if err := os.WriteFile(filepath.Join(gitDir, "info", "exclude"), []byte(legacy), 0o600); err != nil {
 		t.Fatal(err)
 	}

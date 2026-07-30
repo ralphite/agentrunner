@@ -1,12 +1,6 @@
 id: s3-03-untrusted-hooks
 title: 不受信 repo 的 hooks 不执行;trust 之后才执行
 files:
-  config/agentrunner/settings.yaml: |
-    default_model:
-      provider: scripted
-      id: x
-      effort: medium
-    project_trust: explicit
   spec.yaml: |
     name: hooked
     system_prompt: help

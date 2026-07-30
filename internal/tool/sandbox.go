@@ -262,8 +262,8 @@ func credentialPaths(root string) []sandboxDeny {
 				denied = append(denied, sandboxDeny{Path: path, Subpath: true})
 				return fs.SkipDir
 			}
-			// Prune derived/vendored trees in lockstep with the index/grep/glob
-			// walks. Previously this walk pruned NOTHING but
+			// Prune derived/vendored trees and dotdirs, in lockstep with the
+			// index/grep/glob walks. Previously this walk pruned NOTHING but
 			// .ssh/.aws — it descended .git and node_modules in full, once per
 			// bash call. Nothing credential-shaped lives in a build output that
 			// isn't already covered by the patterns below.
@@ -272,7 +272,7 @@ func credentialPaths(root string) []sandboxDeny {
 			}
 			return nil
 		}
-		if sandboxCredentialFile(name) {
+		if index.SkipFile(name) {
 			if len(denied) >= maxCredentialDenies {
 				slog.Warn("sandbox credential deny list truncated; workspace-wide default still applies",
 					"cap", maxCredentialDenies, "root", root)
@@ -283,22 +283,6 @@ func credentialPaths(root string) []sandboxDeny {
 		return nil
 	})
 	return denied
-}
-
-func sandboxCredentialFile(name string) bool {
-	switch name {
-	case ".env", ".envrc", ".git-credentials", ".netrc", ".npmrc", ".pypirc", "credentials.json":
-		return true
-	}
-	if strings.HasPrefix(name, ".env.") {
-		return true
-	}
-	for _, pat := range []string{"*.pem", "*.key", "id_rsa*", "id_ed25519*"} {
-		if ok, _ := filepath.Match(pat, name); ok {
-			return true
-		}
-	}
-	return false
 }
 
 // gitMetadataPaths preserves normal git operation for linked worktrees while

@@ -8,7 +8,12 @@ import (
 	"testing"
 )
 
-func TestOutsidePathOpenByDefaultAndSandboxRequiresGrant(t *testing.T) {
+// The permission gate ASKS about an out-of-workspace path rather than refusing
+// it (LOG 2026-07-29). These tests cover the other half of that ruling: the
+// approval has to survive the trip to execution, or the file tools would still
+// turn the user's own "yes" down at the boundary.
+
+func TestOutsidePathRefusedUntilGranted(t *testing.T) {
 	e, _ := newExec(t)
 	outside := filepath.Join(t.TempDir(), "notes.txt")
 	if err := os.WriteFile(outside, []byte("hello"), 0o600); err != nil {
@@ -16,14 +21,12 @@ func TestOutsidePathOpenByDefaultAndSandboxRequiresGrant(t *testing.T) {
 	}
 	args := `{"path":` + quote(outside) + `}`
 
-	if out, isErr := run(t, e, "read_file", args); isErr {
-		t.Fatalf("terminal-parity outside read failed: %v", out)
+	// No grant: execution still refuses, so a missing/denied approval cannot be
+	// bypassed by simply calling the tool.
+	if out, isErr := run(t, e, "read_file", args); !isErr {
+		t.Fatalf("un-granted outside read must fail, got %v", out)
 	}
 
-	e.ContainFilesystem()
-	if out, isErr := run(t, e, "read_file", args); !isErr {
-		t.Fatalf("opt-in filesystem sandbox must require a grant, got %v", out)
-	}
 	e.GrantPath(outside)
 	out, isErr := run(t, e, "read_file", args)
 	if isErr {
@@ -36,7 +39,6 @@ func TestOutsidePathOpenByDefaultAndSandboxRequiresGrant(t *testing.T) {
 
 func TestGrantCoversWriteAndEdit(t *testing.T) {
 	e, _ := newExec(t)
-	e.ContainFilesystem()
 	outside := filepath.Join(t.TempDir(), "cfg.txt")
 	e.GrantPath(outside)
 
@@ -59,7 +61,6 @@ func TestGrantCoversWriteAndEdit(t *testing.T) {
 // parent directory.
 func TestGrantDoesNotWidenToSiblings(t *testing.T) {
 	e, _ := newExec(t)
-	e.ContainFilesystem()
 	dir := t.TempDir()
 	granted := filepath.Join(dir, "yes.txt")
 	sibling := filepath.Join(dir, "no.txt")
@@ -82,7 +83,6 @@ func TestGrantDoesNotWidenToSiblings(t *testing.T) {
 // relative traversal is the same grant.
 func TestGrantMatchesAcrossSpellings(t *testing.T) {
 	e, root := newExec(t)
-	e.ContainFilesystem()
 	outsideDir := t.TempDir()
 	outside := filepath.Join(outsideDir, "shared.txt")
 	if err := os.WriteFile(outside, []byte("x"), 0o600); err != nil {

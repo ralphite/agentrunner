@@ -60,8 +60,8 @@ func TestParseAndResolve(t *testing.T) {
 }
 
 // A parameterless manifest gets a valid default object schema, and an
-// explicitly requested timeout is preserved without a hidden clamp.
-func TestResolveDefaultsAndPreservesTimeout(t *testing.T) {
+// over-large timeout is clamped.
+func TestResolveDefaultsAndClamp(t *testing.T) {
 	m, err := parseManifest([]byte(`{"name":"ping","command":"echo pong","timeout_s":100000}`))
 	if err != nil {
 		t.Fatal(err)
@@ -70,8 +70,8 @@ func TestResolveDefaultsAndPreservesTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tool.TimeoutS != 100000 {
-		t.Errorf("timeout = %d, want explicit 100000", tool.TimeoutS)
+	if tool.TimeoutS != MaxTimeoutS {
+		t.Errorf("timeout not clamped: %d", tool.TimeoutS)
 	}
 	if !strings.Contains(string(tool.InputSchema), `"type":"object"`) {
 		t.Errorf("default schema missing: %s", tool.InputSchema)

@@ -2,6 +2,5 @@ name: chat
 description: Concise conversation without tools.
 system_prompt: You are a concise, helpful assistant.
 tools: []
-agents_dynamic: false
 permissions:
   - { action: allow }

@@ -71,10 +71,6 @@
    （snapshot + 事件补放）；不存在与之竞争的第二套恢复机制。
 7. **能表达成 inbox 投递的，不发明新机制。** 每加一个概念，先问：
    "它能不能是一条 Input 或一个 turn 内动作？"（§1 的自检。）
-8. **能力默认成立，治理显式收窄。** 自定义 agent 省略能力字段时得到完整
-   core coding tools、动态递归组队、共享 workspace 与直接执行能力；纯聊天、
-   工具/角色白名单、隔离 workspace、审批、预算和树上限由用户按需显式声明。
-   配置缺省不能把产品的核心能力静默关掉。
 
 ---
 
@@ -298,12 +294,12 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 从子 fold 结算并合成一条 child_result 投回父 inbox；子还在跑则重新
 挂接（settle-from-child-fold 纪律）。
 
-**树级治理**（2026-07-30 capability-first 修订）：
+**树级约束**（v1 验证正确，逐字保留）：
 
 - **审批路由**：child 的 `ask` 沿 correlation id 冒泡到 session 的
   frontend——审批的永远是人，不是 parent agent。
-- **显式权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
-  (1) **显式 rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
+- **权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
+  (1) **rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
   冻结成不可变数据传给 child；child 的管线只认这份，child spec 无法
   自行放宽，parent 事后的 mode 跃迁也不回溯影响 child。**唯一例外**：
   child/inline role 显式声明 `escalate: true` 与目标 permission rules，
@@ -314,12 +310,11 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
   ——child 的 mode 独立，但工具面先经冻结 rules 过滤，mode 跃迁只能在
   冻结 rules 内移动；child spec 声明 `bypass` 非法。
 - **提权例外的红线**：审批只替换 permission layers；hard floor、树预算、
-  工具收窄和 OS filesystem/network 收容棘轮均不在例外内。inline role
-  是不可信模型输出，不能凭 payload 新建父没有的 MCP/skills/model/budget
-  authority；父已有 capability 会继承，使动态子可以继续递归组队。
-- **树级预算与可选递归上限**：生产 `SpawnGate{}` 不设置深度与并发扇出
-  上限；embedding 可显式传入正数 cap，Spawn 关卡严格执行，超限渲染为
-  error 结果。child 的有效预算 = min(child spec 限额, parent
+  深度/扇出、工具子集和 OS filesystem/network 收容棘轮均不在例外内。
+  inline role 是不可信模型输出，不得声明 hooks/MCP/skills/model/budget。
+- **树级预算与递归上限**：spawn 深度与并发扇出有数据化上限（budget
+  关卡校验，超限渲染为 error 结果）——spec 白名单允许 A↔B 成环，
+  上限是唯一防线。child 的有效预算 = min(child spec 限额, parent
   剩余额度)，沿 correlation 树聚合，与权限冻结同构；parent 的 token
   上限约束的是整棵树，不是单个 stream。树预算 reserve-at-spawn /
   settle-at-child-idle。
@@ -396,9 +391,8 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 对话 snapshot、审批回灌、steering 消费、barrier 候选点全部锚在安全
 边界上，绝不打断一个 step 的中途。steering 的消费点精确为**最早可
 配对点**（当前 call 结束后、下一次模型调用前），不必等同一
-generation step 的其余 call。`max_generation_steps` 是可选的 per-turn
-generation step 上限（从最后一条输入起算）；省略或设为 `0` 表示 unlimited，
-只有显式正数才在该 turn 到点收尾。
+generation step 的其余 call。`max_generation_steps` 是 per-turn 的
+generation step 预算（从最后一条输入起算,防单 turn runaway）。
 
 **消息模型**：一条消息由 parts 组成，part 种类：
 `text` / `tool_call` / `tool_result` / **`image`** / **`file`**。
@@ -529,13 +523,18 @@ turn 里每个副作用（模型调用、工具调用、spawn、发布 artifact�
 effect
   │
   ▼
-[1] Floor            # 只保显式 plan 模式的 edit/execute deny。
-  │                  # host 路径与 credential-shaped 文件走普通 permission
-  │                  # rules；默认终端等价，不另加隐藏 ask。
+[1] Floor            # 硬底线（2026-07-29 修订，见 LOG 同日条）：
+  │                  # plan 模式的 edit/execute——纯判定、直接 deny；
+  │                  # **workspace 逃逸与凭据路径改为 ask**（用户裁决）。
+  │                  # 放在最前，使必拒的 effect 绝不触发有副作用的
+  │                  # pre-hook。**floor 的不变性质仍在**：任何规则、任何
+  │                  # mode（含 bypass）都不能把这三者变成静默 allow——
+  │                  # deny 的赦免不了，ask 的绕不过去。批准后的路径落到
+  │                  # executor 的会话级 grant（内存、不落盘、下个 session
+  │                  # 重新问），文件工具与 bash sandbox 共用它。
   ▼
-[2] Spawn            # spawn/handoff 结构限制：生产默认不设深度/扇出上限；
-  │                  # embedding 可显式给正数上限；handoff 唯一性始终保留。
-  │                  # 同为纯判定且廉价，故也先于 hooks
+[2] Spawn            # spawn/handoff 结构限制：树深度、扇出、handoff
+  │                  # 唯一性——同为纯判定且廉价，故也先于 hooks
   ▼
 [3] Hooks (pre)      # v0: observe + block（exit code），不做改写
   ▼
@@ -544,7 +543,7 @@ effect
   │                  #   WAITING_APPROVAL，应答以 event 到达后继续
   ▼
 [5] Budget           # turns/tokens/cost 从 event stream 统计；
-  │                  # 仅显式 timeout 才走 durable timer（见 §6）
+  │                  # timeout 走 durable timer（见 §6）
   ▼
 [6] Execute          # 以 activity 执行（retry/cancel 语义见 §6）
   ▼
@@ -596,13 +595,11 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   否决**仅该动作**——被否决的输入不落 journal、被否决的压缩保留原
   context；auto-compact 的调用方在否决后不得重试同一 due-check，防
   自旋）+ `stop`（静止时刻 observe）。配置在 settings `hooks.lifecycle`
-  （event → commands，事件名加载期校验）。user/project 层默认生效；
-  user settings 写 `project_trust: explicit` 时 project 层才走 registry 门。
-  **hooks 不重放**：事件在点位被 LIVE
+  （event → commands，事件名加载期校验），信任模型同 pre/post（user 层
+  恒生效、project 层需 trust）。**hooks 不重放**：事件在点位被 LIVE
   跨越时触发，resume 重读 journal 不触发（recovery 路径的 settle 不发
   hook）；durable command 重放会重问 hook 并得到一致裁决。handler 仍
-  command-only（sh -c + JSON stdin + **操作者环境全继承**；默认无
-  wall-clock timeout，Runner 显式正数才限时；决策 #34
+  command-only（sh -c + JSON stdin + **操作者环境全继承** + 超时；决策 #34
   修订前是凭据剥离），prompt/agent/http handler 与更多事件是后续增量。
 - **每种关卡结果都定义"模型看到什么"**。所有 provider 都要求 tool call
   与结果配对（Anthropic 按 call id、Gemini 按数量+位置且更严格），
@@ -612,8 +609,8 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   - 审批被拒 → 同上，附拒绝理由；
   - budget 超限（session 级 token/cost/turns）→ 让模型收尾的最后一条
     消息 + 优雅停止（`LimitExceeded` event），不是掐断；结构性限制
-    （embedding 显式配置的 spawn 深度/扇出 cap，由 Spawn 关卡在 hooks
-    之前校验）→ error 结果，loop 继续；
+    （spawn 深度/扇出，由 Spawn 关卡在 hooks 之前校验，2026-07-11 与
+    代码对齐）→ error 结果，loop 继续；
   - activity 失败（重试耗尽）→ error tool_result，loop 继续。
   "给模型的错误"和"给用户的错误"是两个 surface，分开设计。error 结果的
   线上形态由各 provider 定义（Anthropic 有 `is_error` 标志；Gemini 没有，
@@ -650,9 +647,8 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   降级裸跑。该模式下 sandbox 的 writable 列表**每条命令现构造**
   （`sandboxedBash`），所以会话中途新增的 grant 下一条命令即生效、无需重启
   ——这也是"文件工具批了、bash 却还被 OS 拒"这种同一意图两个答案的修补点。
-  **默认不开**：默认是终端等价——bash 与 read/write/edit 文件工具都可达
-  host filesystem，继承操作者的完整环境与真实 HOME；因为看不到
-  gh/git/云凭据及相邻 checkout 的 agent 干不了实际开发（那时无需 grant）。
+  **默认不开**：默认是终端等价——bash 继承操作者的完整环境与真实 HOME，
+  因为看不到 gh/git/云凭据的 shell 干不了活（那时也无需 grant，路径本就可达）。
   这层关系明文写出：path 规则不假装覆盖 shell，默认档也不假装有 OS 边界。
 - **命令粒度匹配（INC-16，#53）**：一条 bash 命令的规则匹配是**逐子命令
   聚合**，不是整条匹配——否则一条 `Bash(git *)` allow 会误放行
@@ -685,16 +681,17 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   Network "all"、containment 缺席（journal 不过度声明）。带网的
   in-process 工具（`web_fetch`，**execute-class** + def 带 `network:
   "all"` 数据位，INC-5;class 见下方 egress 决策）未收容时恒带 `all`
-  （network 规则可匹配；capability-first 默认 permission 会放行，显式规则可
-  ask/deny）；收容棘轮下
+  （network 规则可匹配、default mode 需审批——不静默出网）；收容棘轮下
   其 effect 不带出口、执行期 **fail closed**（拒跑而非静默出网），
   containment 同样缺席——自我拒跑不是 subprocess sandbox，journal 不过度声明。
-  默认档不对 link-local/云 metadata 另设永久 deny；需要该边界的部署必须
-  显式选择 `sandbox.network: none` 或 permission/network rules。
+  此外这类工具**无条件封禁 link-local/云 metadata 地址**
+  （169.254.0.0/16、fe80::/10），守卫作用于已解析 IP、覆盖初始请求与
+  每个重定向跳（堵 SSRF-via-redirect / DNS rebinding / IP 混淆),
+  这是 dev 与云形态都成立的零误报红线（INC-5 安全 review M2）。
 - **路径匹配基于 realpath**：所有文件类 tool 的路径在 permission 匹配与
-  执行前一律 resolve（symlink、`..` 归一化）。path rule 仍只匹配
-  workspace-relative 路径；默认 host 档允许 resolved path 落在 workspace 外，
-  显式 filesystem sandbox 才要求 workspace/grant。
+  边界检查前一律 resolve（symlink、`..` 归一化）；resolve 后落在
+  workspace 外 → deny。`src/../../etc/passwd` 匹配不上 `src/**`，
+  workspace 内指向外部的 symlink 也写不穿边界。
 - **prompt injection 威胁模型（G16 成文，2026-07-17；条款为既有行为的
   统一成文，无行为变更）**。进入模型 context 的内容按来源分级，
   **权限判定永远看 principal/trust，绝不看内容措辞**：
@@ -704,15 +701,15 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
      `trust:"untrusted"`（壳误标也被钳回，§2），模型可见隔离框定，
      不做宏展开，不越 close/kill 标记。
   3. **workspace 内容（repo 文件/memory/skills 正文/工具读出的文件）**
-     ——模型语义上视为不可信数据；其中可执行配置（project hooks、command
-     tools）默认加载。用户若选择 clone-boundary 模式，写
-     `project_trust: explicit` 后才由 `ar trust` registry 放行（决策 #19）。
+     ——视为不可信数据；其中**可执行配置**（project hooks、command
+     tools、`.claude` 设定）另设显式 trust 门（决策 #19，§9）：数据
+     可读，代码不 trust 不跑。
   4. **外部抓取内容（web_fetch 结果等）**——最低级，带
      `untrusted_content` 标记注入。
-  防线分两类，**不得混记**：**显式硬防线** = permission/network rules、
-  收容棘轮 fail-closed 与 opt-in OS sandbox（决策 #34 修订）；默认档只保
-  plan mode floor 与审计/redaction，不再偷偷加 host/credential/metadata
-  禁用——这些
+  防线分两类，**不得混记**：**硬防线** = egress 控制（execute-class
+  审批、link-local/metadata 无条件封禁、收容棘轮 fail-closed）、OS
+  sandbox 边界（**opt-in 时**，决策 #34 修订）、凭据 redaction + 硬排除表、
+  permission Floor——这些
   与模型是否"听话"无关，是 exfil/破坏的真正缓解；**软标记** =
   untrusted 框定/定界符措辞，只降低服从注入的概率，**不计入任何
   安全预算**。推论（红线）：不可信内容里的"指令"至多影响模型产出
@@ -732,18 +729,16 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   工具，execute = 进入 `WAITING_INPUT` 待命而非阻塞 activity，
   跨崩溃不被 in-doubt 误杀；类别同时供 `acceptEdits` 等 mode 与
   in-doubt 策略使用）、网络出口标签（`network`，见上）、per-tool 配置
-  （显式 command-tool timeout、输出截断上限）。bash/MCP/hook 与省略
-  timeout 的 command tool 默认不设 harness wall-clock cap；用户 interrupt/
-  context cancellation 照常成立。
+  （bash timeout、输出截断上限）。
   内置 tool 以数据文件形式随包分发，spec 里的 `tools:` 是对这些定义
   的引用 + 收窄。
 - 内置 tool 套件（file read/write/edit、bash、glob/grep、web
-  fetch/search）建立在 workspace 抽象上：工作目录、realpath 归一、bash 沙箱
+  fetch/search）建立在 workspace 抽象上：工作目录、路径边界、bash 沙箱
   等级。worktree 级隔离支持多 agent 并行改文件。（`grep`/`glob` 已一等化，
   INC-3；`web_fetch` 已一等化，INC-5；`web search` 尚未，见 GAPS
-  G18。）grep/glob 是 read-class 内容工具，与 `keyword_search` 共用
-  machine-generated/vendored-tree 排除谓词；普通 dotdir 与 credential-shaped
-  project files 默认可见，命中行过 redaction、按 per-tool 上限截断。
+  G18。）grep/glob 是 read-class
+  内容工具，与 `keyword_search` 共用凭据/vendored-tree 排除谓词
+  （`index.SkipDir/SkipFile`），命中行过 redaction、按 per-tool 上限截断。
 
 ---
 
@@ -840,8 +835,8 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   "取消"之后继续写 workspace，污染 barrier 和 rewind。MCP 的取消通知
   多数 server 不理会——按 best-effort 处理，journal 为
   cancelled-unconfirmed。
-- **显式 timeout 是 durable timer**，与 session 竞速的一条记录在案的
-  定时器，绝不在关卡代码里读墙钟。省略 timeout = unlimited，不创建 timer。
+- **timeout 是 durable timer**，与 session 竞速的一条记录在案的定时器，
+  绝不在关卡代码里读墙钟（重建时时间不同会得出不同结论）。
 
 ### 恢复（进程重启后的冷启动）
 
@@ -891,16 +886,18 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   `git reset` 也打不断快照链。备选 backend：archive copy；`none`
   （rewind/fork 优雅不可用，其余功能不受影响）。git 只是默认实现，
   不是设计依赖。
-- **大 workspace 默认不降级**：`large_workspace.mode` 默认 `never`，
-  不运行探针、不摘工具、不关闭 shadow store/fork/rewind。用户显式选择
-  `auto` 时，`internal/wsprobe` 才以默认 50k 可索引文件阈值判定并走
-  `none` 降级；显式 `always` 可强制复现。启用后的降级必须出声。
+- **大 workspace 自动选 `none`**：`internal/wsprobe` 的有界探针判定
+  workspace 超过 `large_workspace.threshold`（默认 50k 可索引文件）时，
+  run 路径不开 shadow store。走的就是上面那条既有降级——**不是新增
+  语义**：`Snapshots == nil` 让 `captureContinuationCheckpoint` 返回
+  nil，§15 决策 7 的"无 snapshot 则不落 barrier"因此自动成立，barrier
+  逻辑无需任何特判。降级必须**出声**（stderr + `<env>` 提示），静默
+  掉 rewind 等于谎称能力。`large_workspace.mode=never/always` 可覆盖。
 - **shadow writer 单写纪律**：同一 shadow `GIT_DIR` 的 init、index/HEAD
   snapshot mutation 与 ref push 受 repo-path advisory `flock` 串行，跨 session、
   goroutine 和进程均成立；Diff 使用 private index，仍可并发只读。
-- **排除策略显式化**：harness 级 exclude 只含 node_modules/venv/build
-  等机器可再生目录，被排除的路径文档化为 rewind 范围外。`.env`、key、
-  rc 与 credential stores 是普通 project state，默认进入 snapshot/rewind。
+- **排除策略显式化**：harness 级 exclude 列表（node_modules/venv/build
+  类 + 凭据文件硬排除表），被排除的路径文档化为 rewind 范围外。
   实现细节（决策 #44）：`derivedDirs` 是唯一的"机器可再生"事实来源，
   同时喂给 `info/exclude`（快照排除）与 review 投影（显示隐藏），两者
   不可能再各自漂移。**两张表的风险不对称，因此不能合并成一张**：显示
@@ -918,9 +915,8 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   **不入 run 版本集、不入 journal、不入快照、fork 不携带**（与 driver/
   notifier stream 同例）。常驻 indexer actor 按查询增量刷新（fingerprint
   比对）；v0 backend 为 identifier-aware 的词法排序（BM25），embedding
-  backend 可替换而不动上层。普通 dotdir 与 credential-shaped project
-  files 默认进入索引；进程已知的 plausible secret 值仍在 journal 前
-  redaction。**显式大 workspace 降级时不建索引**：BM25 索引实测
+  backend 可替换而不动上层。凭据路径沿用快照硬排除表——snippet 会进
+  journal，凭据内容不得入索引。**大 workspace 不建索引**：BM25 索引实测
   常驻 ≈ 被索引源码字节的 **9.8 倍**（100k 文件 1.6 GB、300k 文件
   4.9 GB，线性），超阈时 `keyword_search` 从**工具面摘除**而非静默降级
   ——模型看不到它，自然走 grep/glob（有界、流式、回答同类问题）；
@@ -1026,7 +1022,7 @@ description: Deep-dives a topic and reports findings.
 
 system_prompt_file: prompts/researcher.md   # 只是拼装的一层，见 §4
 
-# 省略 tools = 完整 core coding tools；tools: [] 才是纯对话
+tools: [read_file, edit_file, bash, web_search]   # 引用 tool 定义（数据）
 
 mcp:
   - name: github
@@ -1041,11 +1037,9 @@ mcp:
     oauth: { access_token_env: MCP_ACCESS_TOKEN }
 
 agents: [summarizer]           # 允许 spawn 的子 agent 白名单
-agents_dynamic: false          # 动态角色默认开启；这里显式关闭
 receipts: steer                # 回执投递模式:steer(默认)|turn_end(裁决 #15)
-agent_workspace: shared        # 默认共享；isolated 是显式隔离且不自动 sync-back
+agent_workspace: isolated      # 子默认独立 worktree；shared 必须显式选择
 
-# 省略 permissions = allow；以下是显式收窄示例
 permissions:
   - { tool: read_file, action: allow }
   - { tool: edit_file, path: "src/**", action: allow }
@@ -1054,17 +1048,9 @@ permissions:
 
 compact_at_tokens: 120000              # Agent 的 context 行为，不是模型字段
 microcompact_at_tokens: 90000
-max_generation_steps: 200               # optional; omitted/0 = unlimited
+max_generation_steps: 200
 budget: { max_total_tokens: 500000 }
 ```
-
-省略 `tools`、`permissions`、`agents_dynamic`、`agent_workspace` 分别表示：
-完整 core coding tools、catch-all allow、允许 inline dynamic role、共享父
-workspace。显式 `tools: []`、显式规则、`agents_dynamic: false` 与
-`agent_workspace: isolated` 保留原有收窄能力。动态子除冻结 role 与父的
-tools/permission/budget/sandbox 外，还继承父已有的 named agents、MCP、
-skills 与 allowed-tools 门，因此可以递归组队；模型不能借 role payload
-新建父 agent 没有的 MCP、skill 或其他 authority。
 
 模型不属于 Agent definition。新 session 的 model selection 是独立输入
 `{provider,id,effort}`；`max_tokens` 与 `thinking` 只由
@@ -1085,12 +1071,16 @@ resume 永不重读 live default。
   journal `PolicyChanged` event 再写盘（崩溃后幂等补做）；harness 配置
   路径显式排除出快照/rewind 范围——否则 rewind 会让已收紧的 deny
   静默复活。（审批现场写回的完整设计尚缺，见 GAPS G5。）
-- **信任模型**：原型是单用户自担模式，project permissions/hooks/command
-  tools 默认加载，与用户在该 workspace 直接运行项目脚本的能力一致。需要
-  clone-boundary 的用户在 user settings 写 `project_trust: explicit`，此时
-  project allow 收紧为 ask、hooks/tools 在 `ar trust <workspace>` 前不加载。
-  该 setting 只允许 user 层声明，repo 不能替自己选择信任模式。memory/文件
-  内容在模型语义上仍按不可信数据框定，但不以此取消执行能力。
+- **信任模型**：spec 与 settings 等同于"你选择执行的代码"。可执行配置
+  （hooks，**以及 command tools——见 §10，INC-55**）只从 spec 与 user 层
+  生效；**project 层（随 repo 走的文件）里的 hooks 被忽略**，除非用户对该
+  workspace 做过一次显式 trust 确认——否则 clone 一个不受信任的 repo 就
+  等于交出任意代码执行权，整个 permission 系统被绕过。**同理，project 层
+  的 command tool manifest（`<ws>/.claude/tools`）未 trust 不加载**（决策
+  #19 是范畴不变量，command tool 是"可执行配置"的同族新成员，非 hooks 专属
+  规则——见决策 #36/#38 对 #19 的同族复用）。memory 文件按不可信内容对待
+  （只进 prompt，不获得任何执行权）——这是执行侧/文本侧分界的另一端。
+  原型是单用户自担模式，但边界必须明文。
 
 ---
 
@@ -1198,12 +1188,11 @@ resume 永不重读 live default。
 - **manifest**：`{name, description, command, timeout_s, params(JSON schema)}`。
   `name` 限 `^[A-Za-z0-9_-]{1,64}$`（provider 函数名形，杜绝穿越/命名空间
   戏法，禁 `mcp__` 前缀）；`command` 是 shell 命令（`sh -c`）；`params` 成
-  工具的 input schema（缺省 `{"type":"object"}`）；`timeout_s` 显式正数
-  原样作为 durable timeout，省略/0 = unlimited，不做隐藏 1h clamp。
-- **发现两层**：user 层 `~/.config/agentrunner/tools/*.json` + project 层
-  `<ws>/.claude/tools/*.json` 默认都加载；user settings 选择
-  `project_trust: explicit` 时 project 层才在 trust 前不加载（决策 #19）。
-  撞内置名**拒载**（内置赢）、user
+  工具的 input schema（缺省 `{"type":"object"}`）；`timeout_s` 钳到 1h，
+  0=execute 默认。
+- **发现两层**：user 层 `~/.config/agentrunner/tools/*.json`（用户本机，
+  恒载）+ project 层 `<ws>/.claude/tools/*.json`（随 repo 走，**未 trust
+  不加载**——决策 #19，与 hooks 同门）。撞内置名**拒载**（内置赢）、user
   压 project（撞名优先级）、同层重名首个（文件名序）胜；malformed 跳过
   告警（不阻断 run，同 skills）。
 - **冻结/resume**：发现在 session 开始一次性做，**冻结进
@@ -1221,9 +1210,10 @@ resume 永不重读 live default。
   wrapper），spec opt-in `filesystem: workspace` 时才是 isolated HOME/TMP ＋
   凭据路径拒读 ＋ secret env 剥离；network ratchet 独立生效，**被请求的**
   收容缺 backend 时 fail closed。args JSON
-  从 **stdin** 传入；EffectResolved 载 containment evidence。加载后每次调用
-  与 bash 同管线同沙箱。只有 manifest 显式正数 timeout 才由 durable-timer
-  substrate 执行 wall-clock 截止。
+  从 **stdin** 传入；EffectResolved 载 containment evidence。**不新造放行
+  路径**：未 trust 的 project tool 不进 fold=不可 dispatch，加载后每次调用
+  与 bash 同管线同沙箱。timeout 用 manifest 值（durable-timer substrate 拥有
+  wall-clock，同 bash）。
 
 ---
 
@@ -1623,9 +1613,8 @@ resume 永不重读 live default。
 - **显式裁掉**：Windows 产物（daemon 走 unix socket，Windows 形态
   未验证，不发布"能装不能跑"的产物）；macOS 签名/公证（curl 下载
   不打 quarantine xattr，原型阶段接受）。
-- **OS 沙箱依赖交付（INC-75，决策 #34 修订）**：bwrap 只在 Linux 用户
-  显式请求 filesystem/network containment 时是运行时依赖；默认 host parity
-  不依赖它。opt-in 交付面三层补齐——(1) probe 报错自带
+- **OS 沙箱依赖交付（INC-75）**：bwrap 是 Linux 运行时硬依赖（决策
+  #34 fail-closed 原文不动），交付面三层补齐——(1) probe 报错自带
   修复指引（缺失→装包；probe 失败→Ubuntu 23.10+ AppArmor userns
   sysctl），报错即 runbook；(2) `ar doctor` 环境预检（两档 network
   probe，失败非零退出），把"第一条 bash 才炸"前移到环境准备期；
@@ -1657,10 +1646,9 @@ resume 永不重读 live default。
   判定的规则层 = user/project 合并规则在前、driver-trust 的兜底 allow
   在后（显式 deny 约束 verifier，未命中即放行——verifier 与 spec
   permissions 同信任级）；ask 收紧为 deny（配置声明的效果无人应答）。
-  command verifier 与普通 bash 一样默认跑 host；用户显式请求 filesystem /
-  network containment 时才经 OS sandbox，且被请求的能力缺失不启动 Activity。
-  containment evidence 与 gate verdict 同写 `EffectResolved`。花费计入迭代
-  usage、verdict journal 进 IterationCompleted。
+  command verifier 还必须经过强制 OS workspace sandbox，containment evidence
+  与 gate verdict 同写 `EffectResolved`；能力缺失不启动 Activity。花费计入
+  迭代 usage、verdict journal 进 IterationCompleted。
 - **统一事件族**：`IterationScheduled / Launched / AttemptStarted /
   AttemptCompleted / Completed`、
   `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
@@ -1674,8 +1662,6 @@ resume 永不重读 live default。
   与 usage，逻辑 iteration 仍只在 `IterationCompleted` 结算一次总 usage。
   重发幂等由**纯 fold 检查（st.at(n) 已在 journal 则不重发）+ 确定性
   child 目录（sub/iter-N，已静止则从其 fold 结算）**保证。
-  `max_iterations` 省略或设为 `0` 表示 unlimited；只有显式正数才产生
-  `max_iterations` 终态。`budget`、用户 stop、自然满足/停滞等独立终点不变。
 - **Goal 有两种形态（INC-D1，决策 #21 修订）**：
   - **driver-goal**（批式/headless）= `schedule: immediate` + verifiers
     必填，走上面的 fresh-child-run 教义。verifier 三态：`command`
@@ -1709,11 +1695,11 @@ resume 永不重读 live default。
     continuation 反馈（objective 重述 + 反缩水条款 + 完成路径 + 预算报告）
     作为 **`program` 源 `InputReceived` 回灌进同一 fold**
     （`hasInputAfterLastAssistant` → 下一 turn 同上下文续跑）；miss
-    （显式正数的 goal 级预算 `max_checks` 尽）→ `GoalExhausted{budget}`：明确表示
+    （goal 级预算 `max_checks` 尽）→ `GoalExhausted{budget}`：明确表示
     **未达成**，保留 goal 并停止自动 continuation；用户可 `goal update`
     提高预算或修改要求，清除 exhausted 后在同一 context 继续。只有 verifier
-    pass 才写 `GoalAchieved{satisfied}` 并摘 goal。`max_checks` 省略或设为
-    `0` 表示 unlimited；自证 goal 无声明时仍计 check，但不会因隐藏默认值停止。
+    pass 才写 `GoalAchieved{satisfied}` 并摘 goal；自证 goal 无声明时每边界
+    同样计 check，故仍有界（INC-66）。
     模型工具面只有 `goal_status`（读）与 `goal_complete`（声明），
     **不含任何生命周期或 verifier 设置路径**；这只缩小攻击面，不构成
     verifier 绕过治理的理由。command verifier 与普通 bash 共用
@@ -1884,12 +1870,12 @@ resume 永不重读 live default。
 | 14 | 运行形态 | core 是库；CLI/headless/server 是薄壳 | 一套 core 支撑所有 surface。 |
 | 15 | Provider | 薄接口 + 多 provider（Gemini 主、Anthropic 次），streaming 原生 | 两个实现验证抽象不漏；caching 是经济性前提。 |
 | 15b | 能力抽象 | caching/thinking 等为 provider 无关的可选 capability，各 provider 映射到自家 API，请求归一化 | 上层不写死某家语义；不支持的能力显式降级/报错而非静默。 |
-| 15c | 凭据 | `CredentialProvider` 接口（静态 env / 受管 token store 皆为实现）；harness 不主动把 provider 凭据写入 spec/event，已知 plausible 值落盘前 redaction，log 0600。用户 workspace 本身的 credential-shaped 文件是普通项目状态，可读写、索引并进入 shadow snapshot。 | OAuth refresh token 需持久化+回写，"只读 env"表达不了；redaction 防意外日志泄漏，但不应以隐藏/拒读用户文件来取消开发能力。 |
+| 15c | 凭据 | `CredentialProvider` 接口（静态 env / 受管 token store 皆为实现）；harness 自身绝不写入 spec/event/仓库；落盘前 redaction；log 0600 | OAuth refresh token 需持久化+回写，"只读 env"表达不了；密钥不进受控内容的意图不变。 |
 | 16 | Skill 格式 | 沿用 Claude Code 约定 | 生态兼容，不发明格式。 |
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化（INC-11.7 修订） | `SessionStarted`/snapshot 记录 namespaced sub-state 版本；additive-optional 字段与旧 namespace 子集由兼容 reader 接受，旧 snapshot 缺新投影则只丢缓存、从 journal 全量 fold；共享 namespace 真正版本冲突/未知 namespace 明确拒绝且不改原数据。破坏性升级只走 EventStore 单点显式 upcast/migration。 | 长期 session 可跨 additive 升级恢复，同时避免错误 tail replay 丢掉新投影的历史事实。 |
-| 19 | 信任模型（2026-07-30 capability-first 修订） | project hooks/command tools 默认与项目代码一起加载；用户若需要“clone 后先审再执行”的旧边界，可在 user settings 显式写 `project_trust: explicit`，此时才查 trust registry。memory 文件仍按不可信内容对待。 | 在部署环境与自有仓库里，要求额外执行 `ar trust` 会静默删掉项目构建/验证能力；未填设置不再被解释为拒绝项目能力。高风险环境仍可显式恢复旧门。 |
-| 20 | 树级约束（INC-12.5；2026-07-30 capability-first 修订） | 父显式声明的权限、工具、预算与 OS 收容收窄在 spawn 时冻结向下继承；child 显式 `escalate` 仍经 `ApprovalRequested` 由人批准。生产 `SpawnGate{}` 默认不设深度/扇出上限；embedding 若显式配置正数上限则严格执行。handoff 唯一性始终执行。 | 固定 depth=2/fanout=8 让动态团队在最基本的递归委派上失效，且与单用户原型“能力默认成立”冲突。保留显式治理、收容棘轮、预算与 handoff 正确性，不用隐藏的全局小常数替用户做产品决策。 |
+| 19 | 信任模型 | 可执行配置（hooks、command tools——见 §10，INC-55）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。command tool 是同族新成员（运行命令、吃模型控制 stdin），落在执行侧，与 hooks 同门；memory 只进 prompt 是文本侧对照。 |
+| 20 | 树级约束（INC-12.5 修订，2026-07-09） | 权限 rules 默认在 spawn 时冻结交集下传；唯一放宽路径是 child 显式 `escalate`，经 `ApprovalRequested` 由人批准后改用 child 声明 rules。拒绝/interrupt 降级为交集。预算 = min(child 限额, parent 剩余)、深度/扇出、工具子集与 OS 收容棘轮均无例外 | 用户明确批准可控的权限例外，同时保持树总成本与硬安全边界有界。 |
 | 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日；INC-48 llm_judge 兑现，2026-07-10） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：**有 command verifier 时 command 是唯一裁决者**（每边界跑，claim 仅注记）；**否则有 llm_judge verifier 时 judge 是唯一裁决者，但仅在 `goal_complete` 声明待决时调用**（claim-gated：无声明 = miss 续跑，不调 judge、零 LLM 花费）；**都没有时由模型 `goal_complete` 声明边界接受**（self-cert；mid-turn 记 journal、边界才裁决）。llm_judge 是 budget-gated 的 journaled `llm_call` 管线 effect（Activity-bracketed；crash 后复用 journaled verdict 不重判——同 command verifier 的幂等窗，但走独立 verdict 解析）。judge 二态 pass/fail（blocked 终态列余项，避免 judge 获得单方终结权这一更强授权）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）。llm_judge 兑现（INC-48，契约 review 2026-07-11 修订后放行）：写不成命令的长程目标原先只能落到 self-cert（无条件接受声明），补齐决策自己命名的第三态是**兑现**而非违反——"唯一裁决者"枚举从 command 扩为 command｜llm_judge；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
@@ -1902,14 +1888,14 @@ resume 永不重读 live default。
 | 30 | 标记+检查（2026-07-05;INC-83 重裁 2026-07-19） | `SessionClosed` 是**内部标记**（仅 agent kill 工具/托管 teardown/legacy journal 写入,含来源 user/parent），唯一有门的检查是 kill 纪律（用户 kill 的子仅用户可复活）;投影一律 "idle",不挡 send。无终止状态、无 session-completed 事件;**用户面无任何生命周期动词**（唯一手势 Stop=打断;自动源用各自领域动词终止） | "终止"无真实需求;生命周期概念族更无真实需求——每个"停"的需求都有域内归属（INC-83 工作纸对照表）。 |
 | 31 | 静止模型（2026-07-05） | 只有一种 durable session，不存在第二种会话实体。静止=形状（无在飞工作+无定时自触发+turn 已收尾）；静止时 outputs→barrier→parent 回执（既有子回执）；`ar run` = 开 session+发消息+等静止+读结果 | 双实体模型与 session/turn 大量重复且定义不清（开发者裁定）；driver/headless 的需求由"静止+回执"完全覆盖。 |
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
-| 33 | egress 类治理（INC-5；2026-07-30 capability-first 修订） | 带网 in-process 工具仍是 execute-class 且带 `def.network` 数据位；显式 `sandbox.network: none` 时所有 egress 类工具统一 fail-closed。默认 network=all，不额外封禁 link-local/metadata，也不加 `web_fetch` wall-clock timeout；显式 permission/network rules 继续治理。 | 旧的无条件 metadata deny 与 30s timeout 会让本地服务、云实例内服务和慢下载构造上不可用。真正声明了 containment 的会话仍保证全树无出口，默认档则与用户终端网络能力一致。 |
-| 34 | shell/filesystem/verifier 统一治理（INC-11.3；2026-07-29/30 capability-first 修订） | bash、command tool、hooks、command verifier 与 file tools 默认 host parity：完整 env、真实 HOME、workspace 外真实路径与 credential-shaped project files 都走普通 permission rules。OS workspace sandbox 与 network sandbox 都是 spec opt-in；声明后 backend 缺失 fail-closed，凭据路径/敏感 env 隔离仍生效。默认 permission floor 只保 plan-mode 的 edit/execute deny；不再暗中重判 host path/credential path。snapshot/index/search 只排机器可再生或 vendored trees，credential-shaped project files 进入正常读写/检索/rewind。 | 旧边界叠加后会让 `gh` 未登录、git identity 丢失、项目 `.env` 不可见、host 配置不可改，并让 agent 搜不到真实项目状态。默认必须先让用户授权的本机能力成立；所有收容与 deny 仍可显式声明，journal/containment evidence 不变。 |
+| 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
+| 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**；**2026-07-29 不变量修订**：强制 → opt-in） | bash/command verifier（INC-55 补：自定义 command tool 同族）**默认终端等价**：不包 wrapper，继承操作者的完整环境与真实 HOME，与用户手开一个 shell 窗口无差别；hooks 同。OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap，凭据路径与敏感 env 隔离）降为 **spec opt-in**（`sandbox.filesystem: workspace`），与 `sandbox.network` 同为**彼此独立**的 tighten-only 棘轮——`network: none` 不再牵连凭据/HOME 隔离。fail closed 只守**被请求的**收容：opt-in 后 backend 缺失仍在 Activity 前 deny，默认档不依赖任何 backend（缺 sandbox-exec/bwrap 的机器照常跑 bash）。containment evidence 照旧必填且**诚实**：默认档记 `host/all/none`，绝不假称已收容。in-session 与 driver command verifier 仍必须产生 EffectRequested/Resolved 与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | 原表述把"防越界"买在"能干活"之上，代价是 agent 的 shell 看不见 `~/.config/gh`、`~/.gitconfig`、`~/.aws`（HOME 指向沙箱临时目录，不是被拒而是找不到）、拿不到任何 `*_API_KEY/_TOKEN/_SECRET`，连 workspace 内自家 `.env` 也被 deny read——`gh` 显示未登录、`git commit` 报 Author identity unknown、项目自己的构建脚本读不到自己的配置。这不是"更安全的默认"，是让功能不成立的默认（用户 2026-07-29 裁定："all features should not satisfice usability"）。收容能力一条不删，只从"强制"改为"声明即生效"；redaction 红线、凭据路径硬排除表、egress fail-closed（#33）全部不动——子进程可见性与落盘面从来不是一个问题。 |
 | 35 | 树内消息与静止子唤醒（INC-12,2026-07-09） | agent 是 send 通道的一等发送方：`send_message` 向树内成员的 durable inbox 投递（AppendInbox 幂等,来源前缀+source=agent）;静止子由直接父 `ChildRevived` re-host(原 handle、同 journal context 延续、第二次回执、usage 按 baseline delta);daemon 子会话 send 经树根转投(单宿主单写者);user-kill 标记仅 user-class 邮件可越 | "回执可多次发生"与"send 对任何 session 成立"的机制兑现;树内协作(评审往复/进度汇报)不再全经父转发烧上下文。 |
-| 36 | 动态角色（INC-12；2026-07-30 capability-first 修订） | `agents_dynamic` 省略时默认开启 inline role 面，显式 false 才关闭。role 构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec；动态子继承父已有 named agents、MCP、skills、allowed-tools、权限/预算/收容，因此可以继续递归组队；role payload 仍不能创造父没有的 MCP/skill/model/budget authority。 | 动态组队是 coding agent 的基本能力，不应要求用户发现隐藏开关；继承现有 capability 使递归委派可用，同时“只能继承、不能凭模型输出新建 authority”保留可审计边界。 |
+| 36 | 动态角色（INC-12,2026-07-09） | `spec.agents_dynamic` 开 inline role 面：spawn_agent{role:{name,description,instructions,tools?,permissions?,escalate?}};role=不可信模型输出（无 hooks/MCP/skills/model/budget 面,tools 仅父子集,沙箱棘轮继承）;构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec（revive/审计真相） | 工程团队场景要求运行时组队;信任面由结构封死（决策 #19/#20 同族）,预定义 spec 白名单继续并存。 |
 | 37 | 记忆写回（INC-14,2026-07-09,取 A,G9） | `remember` control（durable command，与 compact/clear 同族）append 到 **workspace-root CLAUDE.md**（append-only、`## Remembered` 段、同 note 幂等去重）+ 追加一条 program-source `InputReceived`（本会话即遵循，触发确认续跑，同 goal 回灌）。文件供**下次** session start 冻结进 prefix。**取 A（不动 prefix→不触不变量）**；取 B（MemoryChanged 重冻本 run 立即换代）留待需求出现。 | 写侧闭合 read 侧注入（S5.2）；memory 是 workspace 内容、非 journaled fold，rewind 不 un-write（接受项，同 harness-config 排除）；写文件副作用靠 Append 幂等吸收 durable-command 崩溃重放。 |
 | 38 | 审批"允许且不再问"（INC-17,2026-07-09,取 A,G5；**2026-07-12 INC-62 扩展**,G35） | `approve --always`（`ApprovalDecision.Remember` 贯穿 CLI→protocol→daemon→agent）在 approve 时，从被审批 effect 提取**精确**判据（bash=确切命令、edit/write=确切路径、**spawn_agent=tool 级**（INC-62 补，PermissionRule 无 agent 维度且用户意图即"别再为起子 agent 问"），**不宽通配**）→ ① 判据作为 `ApprovalResponded.Standing` 随应答事实落 journal，fold 进 `Effects.Standing`——**本 session 内**后续同判据 ask 由常设应答自动作答 approve（standing approval，见 §5），不落 ApprovalRequested、不进 WAITING；② `config.AppendRule` 写 **user 配置**为一条 allow（幂等去重、保留既有、best-effort）供**下次** session 拼 PermissionLayers 读到。两侧共用**同一个**提取函数（`standingCriterion`），结构性防歧义。不动冻结 layers。**写 user 层**（非 project）：project allow 未 trust 时降级为 ask（决策 #19），写 project 会静默失效。 | 冻结于 SessionStarted 的 PermissionLayers 不可本 run 改（取 B 触不变量，仍推迟）；INC-62 走的是 D5 未摆出的第三条路——不动 permission 层，在**审批层**记住常设应答（"ApprovalResponded 一旦成事实即权威"教义的顺延），同 session 生效为用户裁定的硬性 UX 需求（G35）；常设应答住各 session 自己的 fold，父的应答不放行子的 ask（树约束无恙）；rewind 越过 barrier 自然失效。精确匹配把 user 层"全局"超范围降到最小；写文件副作用幂等吸收重放。 |
 | 39 | 机器发送方/webhook ingress（INC-50,2026-07-11,G14/UJ-12） | daemon 可选 `--http` 起单端点 ingress `POST /hooks/<id>`（默认关）→ 同一条 durable send 通道投递。per-hook capability（不可猜 id+token，落盘仅哈希、不进 journal）；未鉴权限流+body 上限；载荷 `source:"machine"`+`trust:"untrusted"`+`principal:"hook:<n>"`；**untrusted 驱动 loop 侧隔离框定**（模型可见前缀、trust 钳制、不做宏展开）；machine 非 user-class，不越 close/kill 标记（对 marked session 410）；`X-Command-Id` 幂等重投。 | 外部事件唤醒是"输入投递"的第三个发送方（§2 三类归一），不另起通道；注入防御必须落在模型可见面（仅元数据=纸面防御）；越标记特权是用户手势的专属（决策 #30），机器只享 parked-unmarked revive。窄切片：HTTP/WS 壳仍 backlog。 |
-| 40 | Goal 终态与恢复（INC-66；2026-07-30 capability-first 修订） | `GoalAchieved` **只**表示 verifier pass/satisfied 并摘 goal；只有显式正数 `max_checks` 用尽才写 `GoalExhausted{budget}`。省略/0 表示 unlimited，不因隐藏默认检查数停止。`GoalUpdated` 清 exhausted/recovery checkpoint。 | 终态语义不变；删除 CLI 默塞 10 次与 runtime fallback 10 次这两层隐形截断，让长期 goal 默认能持续到真正完成、用户 stop 或其他显式 budget。 |
+| 40 | Goal 终态与恢复（INC-66,2026-07-13，决策 #21 修订） | `GoalAchieved` **只**表示 verifier pass/satisfied 并摘 goal；check budget 用尽写 `GoalExhausted{budget}`，保留 unmet goal、停止自动 continuation。`GoalUpdated` 清 exhausted/recovery checkpoint，允许提高预算或修改要求后在同一 context 继续。当前 generation 的 `goal_satisfied|goal_budget_exhausted` 是明确静止收据。 | 旧 `GoalAchieved{budget}` 把 verifier fail 表示成成功并删除恢复目标，既语义矛盾又使 update 假成功；新事件仍由同一 journal+fold 恢复，不引入第二套机制，也不放宽 verifier。 |
 | 41 | driver 无 user-facing 面（INC-80，用户裁决 2026-07-19） | driver/series 是 loop-mode 与目标模式的**内部实现抽象**，不是产品概念：用户面只有「会话 + 挂在会话上的 goal / repeating(schedule) / best-of-N」。新建 drive 默认走 merged-stream series 会话形态（SessionStarted+SeriesStarted 头，唯 parallel×retry 组合留 legacy 流）；`ar drive` 降为 webui 薄壳的 transport 命令（help 不再宣传），Scheduled 面以 series SESSION 行为 canonical；旧 DriverStarted journal 永远只读可查。 | 双基座并存是概念面爆炸与双实现漂移的共同根源（2026-07-19 双盲评审交集 #1）；收敛进 session journal 后调度/目标/并击共享同一 fold、同一恢复、同一投影，webui 不再手工镜像。 |
 
 ---
@@ -2021,7 +2007,7 @@ mapping，代码与文档同名）。
 | **final generation** | 一个 turn 的**最后一个** generation step：模型给出面向用户的收尾回答，不再带 tool call。它标志 turn 结束。（旧词 yield 废除。） |
 | **待命** | final generation 之后 session 的状态：留在会话里等下一条输入，随时续聊；跨空闲期与进程重启保持。（实现状态名 WAITING_INPUT。） |
 | **安全边界** | 两个 generation step 之间的位置。一切外部影响只在安全边界生效：插话（steering）在此被消费、审批结果在此回灌、对话 snapshot 在此打点——绝不打断一个 step 的中途。（实现锚：策略函数 `decide()`；旧文"turn 边界"/"决策点"指此。） |
-| **max_generation_steps**（spec 字段） | 可选的 per-turn generation step 上限；省略或 `0` = unlimited，显式正数才截断。 |
+| **max_generation_steps**（spec 字段） | **per-turn 的 generation step 预算**（从最后一条用户输入起算，防单 turn runaway）。 |
 | **exchange / yield / park**（废） | exchange = turn 的旧称；yield → final generation；park → 待命。已从代码与文档清除（2026-07-05）。 |
 
 #### 18.1a step 与 event 的关系（event sourcing 对照）
@@ -2093,8 +2079,8 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **mode** | loop 行为的数据描述：工具面过滤 + prompt 注入 + 跃迁规则；**permitted 面**（随 mode 变）vs **advertised 面**（prefix 内稳定）两级。 |
 | **审批（ask）** | `ApprovalRequested`（可带 payload_ref 指 artifact）→ WAITING_APPROVAL → 应答/拒绝理由回灌模型。 |
 | **budget** | reserve-then-settle；树预算沿 correlation 聚合；超限 = 优雅收尾（LimitExceeded），不掐断。 |
-| **hooks** | 管线机件（observe+block），不是 effect；spec/user/project 层默认生效；`project_trust: explicit` 可把 project 层恢复为需 trust registry。 |
-| **redaction / 凭据红线** | 落盘前替换进程已知 plausible 凭据值；默认档不因此拒读/拒索引/拒快照 credential-shaped project files。**opt-in `filesystem: workspace` 下**bash 子进程不继承敏感 env 且凭据形路径被隔离；默认档与 hooks 全继承；log 0600。 |
+| **hooks** | 管线机件（observe+block），不是 effect；只认 spec/user 层（信任模型）。 |
+| **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取/opt-in OS sandbox 一体适用）；**opt-in `filesystem: workspace` 下**bash 子进程不继承敏感 env（默认档与 hooks 全继承，决策 #34 修订）；log 0600。 |
 | **收容棘轮** | bash 默认 `filesystem=host`（终端等价，无需 backend）；`sandbox.filesystem` 与 `sandbox.network` 是两条**独立**棘轮，任一由 spec 收紧后经 Seatbelt/Bubblewrap 落实、全树不放宽；**被请求的**收容 backend 缺席时 fail closed。in-process 带网工具(`web_fetch`,`def.network`)在收紧时自我拒跑（决策 #33/#34）。 |
 
 ### 18.6 多 agent
@@ -2105,16 +2091,16 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **spawn** | 工具 `spawn_agent`：**一律非阻塞**（零 legacy,2026-07-08 阻塞路径删除）——立即返回 handle,子并行跑,回执按 `receipts` 模式回流。`replaces:<旧 handle>`（INC-30）声明此次委派取代仍在跑的前任：启动前经既有 kill(parent) 路径回收,未知/已静止 handle 幂等 no-op;`SpawnRequested.Replaces` 留审计。 |
 | **handle** | spawn/后台工作的立即配对结果；kill/output 都凭它。 |
 | **delegation** | 每次委派折叠为稳定 `delegation_id`、assigned member、workspace、settlement 状态；`inspect` 可直接查看，不依赖内存队列。（DAG/lease 记账在 PLAN 5.3 消费方评估后砍除:无调度行为、零读者。） |
-| **child workspace** | `agent_workspace: shared`（生产默认）让协作者直接在父 workspace 工作，改动天然可见。显式 `isolated` 时才从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径（含原内容,成员半成品跨 revive 保持）。**isolated 子的文件改动不自动回流父 workspace**——产出经 report/消息/`publish_artifact`→`inputs` 或父转运落地（INC-30）；opening prompt 注入 `[workspace note]` 说明。 |
+| **child workspace** | `agent_workspace: isolated`（生产默认）从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径（含原内容,成员半成品跨 revive 保持）。**isolated 子的文件改动不自动回流父 workspace**——产出经 report/消息/`publish_artifact`→`inputs` 或父转运落地（INC-30 澄清:语义从未含 sync-back,快照语义此前对模型不可见曾致成员空转整份预算,G24）;isolated 子的 opening prompt 前注入 `[workspace note]` 机制说明。`shared` 仅在 spec 显式声明时使用父 workspace——协作型团队（Team Lead）用它。 |
 | **child_result** | 子静止/失败/被杀的回执（event `SubagentCompleted`,非新事件——静止回执复用它,决策 #31）,投父 inbox 触发新 turn;先回先处理,可多次发生。 |
 | **kill** | 模型工具 `kill{handle}`：agent 协作取消自己的后台工作，与后台 bash 共用原语；子会话标记记来源（user/parent），kill 纪律是唯一有门的标记（INC-83:无用户侧动词）。 |
-| **显式治理继承 / 提权例外** | 父显式配置的权限、工具、预算与收容收窄在 spawn 时冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。生产默认无树深度/扇出 cap；embedding 显式设的正数 cap 不随审批放宽。 |
+| **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |
 | **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止则结算真实回执；正等待审批的子在根宿主重挂接原 wait；其余在飞状态按 crash 取消，绝不静默重放未知 effect。子审批 CommandLog 由根启动扫描重放。 |
 | **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
 | **send_message / 树内消息** | 树内任一成员向另一成员 durable inbox 投递输入（决策 #35）：to=parent/全 id/handle,execute-class 过管线;来源前缀进正文,source=agent 进元数据。 |
 | **hook / webhook ingress** | 机器发送方的投递 capability（INC-50,决策 #39）：`ar hook create` 发 id+token（仅哈希落盘）,daemon `--http` 的 `POST /hooks/<id>` 把外部事件投进 session durable inbox,journal 为 source=machine/trust=untrusted 并强制模型可见隔离框定;不越 user close/kill 标记。 |
 | **revive（静止子唤醒）** | 静止成员收树内/用户邮件后由直接父 re-host（`ChildRevived`,原 handle,同 journal 续 context,第二次回执,usage=baseline delta）;user-kill 标记仅 user-class 邮件可越。 |
-| **动态角色（inline role）** | `agents_dynamic` 默认开启；显式 false 才关闭。spawn 时起草的成员（决策 #36）构造 spec 冻结入双侧 journal，继承父已有 capability 并可递归组队，但模型输出不能新建父没有的 authority。 |
+| **动态角色（inline role）** | `agents_dynamic` 下 spawn 时起草的成员（决策 #36）:构造 spec 冻结入双侧 journal;不可信模型输出的信任面结构封死。 |
 
 ### 18.7 等待、恢复与终止
 

@@ -101,7 +101,9 @@ func TestIncrementalRefresh(t *testing.T) {
 	}
 }
 
-func TestIncludesProjectFilesAndSkipsVendoredTrees(t *testing.T) {
+// Credential-shaped paths and derived trees never enter the index — their
+// content must not surface in journaled snippets.
+func TestExcludesCredentialsAndVendoredTrees(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, ".env", "GEMINI_API_KEY=supersecretvalue\n")
 	write(t, root, "server.pem", "supersecretvalue certificate\n")
@@ -113,26 +115,11 @@ func TestIncludesProjectFilesAndSkipsVendoredTrees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 2 {
-		t.Errorf("project credential-shaped files missing: %+v", hits)
+	if len(hits) != 0 {
+		t.Errorf("excluded content surfaced: %+v", hits)
 	}
-	if files != 3 {
-		t.Errorf("indexed_files = %d, want .env, server.pem and ok.txt", files)
-	}
-}
-
-func TestProjectDotDirsRemainSearchable(t *testing.T) {
-	root := t.TempDir()
-	write(t, root, ".github/workflows/ci.yml", "run: qa-blackbox\n")
-	write(t, root, ".claude/commands/review.md", "perform deep review\n")
-	ix := New(root)
-
-	hits, files, err := ix.Search("qa blackbox", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if files != 2 || len(hits) != 1 || hits[0].Path != ".github/workflows/ci.yml" {
-		t.Fatalf("project dotdir search: files=%d hits=%+v", files, hits)
+	if files != 1 {
+		t.Errorf("indexed_files = %d, want just ok.txt", files)
 	}
 }
 
@@ -166,7 +153,9 @@ func TestEmptyQueryAndNoMatches(t *testing.T) {
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
-func TestCredentialShapedProjectFilesAreIndexed(t *testing.T) {
+// S7 出口 review: index skip list stays in lockstep with the snapshot
+// hard excludes.
+func TestExcludesWidenedLockstep(t *testing.T) {
 	root := t.TempDir()
 	for _, f := range []string{".git-credentials", ".netrc", ".npmrc", ".pypirc",
 		"credentials.json", ".envrc"} {
@@ -178,7 +167,7 @@ func TestCredentialShapedProjectFilesAreIndexed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 6 || files != 7 {
-		t.Errorf("hits=%v files=%d — expected all project files", hits, files)
+	if len(hits) != 0 || files != 1 {
+		t.Errorf("hits=%v files=%d — credential store content indexed", hits, files)
 	}
 }

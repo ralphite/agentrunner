@@ -13,7 +13,6 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
-	"github.com/ralphite/agentrunner/internal/mcp"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -291,14 +290,9 @@ func (l *Loop) dynamicRoleSpec(role *InlineRole) (*AgentSpec, string) {
 		SystemPrompt: role.Instructions, Model: l.Spec.Model, Tools: tools,
 		MaxGenerationSteps: l.Spec.MaxGenerationSteps,
 		Permissions:        append([]pipeline.PermissionRule(nil), role.Permissions...),
-		Budget:             l.Spec.Budget,
-		Agents:             append([]string(nil), l.Spec.Agents...),
-		AgentsDynamic:      l.Spec.AgentsDynamic,
-		AgentWorkspace:     l.Spec.AgentWorkspace,
-		Escalate:           role.Escalate, Receipts: l.Spec.Receipts, Sandbox: l.Spec.Sandbox,
-		AllowedTools: append([]string(nil), l.Spec.AllowedTools...),
-		Skills:       append([]string(nil), l.Spec.Skills...),
-		MCP:          append([]mcp.ServerConfig(nil), l.Spec.MCP...),
+		Budget:             l.Spec.Budget, AgentsDynamic: l.Spec.AgentsDynamic,
+		AgentWorkspace: l.Spec.AgentWorkspace,
+		Escalate:       role.Escalate, Receipts: l.Spec.Receipts, Sandbox: l.Spec.Sandbox,
 	}, ""
 }
 

@@ -589,8 +589,8 @@ func TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata(t *testing.T) {
 }
 
 // v2 M4.3: write_file creates (with parents) and overwrites whole files;
-// terminal-parity mode can reach host paths; empty content is valid, missing
-// content is a model-visible arg error.
+// the workspace boundary holds; empty content is valid, missing content is
+// a model-visible arg error.
 func TestWriteFile(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
@@ -616,11 +616,10 @@ func TestWriteFile(t *testing.T) {
 	if string(raw) != "第二版" {
 		t.Fatalf("overwrite content = %q", raw)
 	}
-	outside := filepath.Join(t.TempDir(), "outside.txt")
-	outsideArgs, _ := json.Marshal(map[string]string{"path": outside, "content": "x"})
-	res = e.Execute(context.Background(), "write_file", outsideArgs)
-	if res.IsError {
-		t.Fatalf("terminal-parity host write failed: %s", res.Payload)
+	res = e.Execute(context.Background(), "write_file",
+		json.RawMessage(`{"path":"../escape.txt","content":"x"}`))
+	if !res.IsError {
+		t.Fatal("workspace escape allowed")
 	}
 	res = e.Execute(context.Background(), "write_file", json.RawMessage(`{"path":"a.txt"}`))
 	if !res.IsError {

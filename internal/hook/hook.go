@@ -19,6 +19,9 @@ import (
 	"github.com/ralphite/agentrunner/internal/pipeline"
 )
 
+// DefaultTimeout bounds each hook process.
+const DefaultTimeout = 10 * time.Second
+
 // BlockExitCode is the contract: a pre hook exiting 2 blocks the effect.
 const BlockExitCode = 2
 
@@ -30,7 +33,7 @@ type Runner struct {
 	// hook commands (INC-15, G19). Same command-only contract as pre/post.
 	Lifecycle map[string][]string
 	Dir       string        // working directory (workspace root)
-	Timeout   time.Duration // 0 = no harness wall-clock cap
+	Timeout   time.Duration // 0 = DefaultTimeout
 }
 
 // Lifecycle event names (INC-15, G19 first batch). Each fires at its journal
@@ -175,11 +178,11 @@ func (r *Runner) RunPost(ctx context.Context, in PostInput) []string {
 
 // runOne executes a single hook command with the JSON payload on stdin.
 func (r *Runner) runOne(ctx context.Context, command string, stdin []byte) (exit int, stdout, stderr string, err error) {
-	hctx := ctx
-	cancel := func() {}
-	if r.Timeout > 0 {
-		hctx, cancel = context.WithTimeout(ctx, r.Timeout)
+	timeout := r.Timeout
+	if timeout == 0 {
+		timeout = DefaultTimeout
 	}
+	hctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(hctx, "sh", "-c", command)
@@ -204,7 +207,7 @@ func (r *Runner) runOne(ctx context.Context, command string, stdin []byte) (exit
 	runErr := cmd.Wait()
 	if hctx.Err() == context.DeadlineExceeded {
 		_ = syscall.Kill(-pgid, syscall.SIGKILL) // reap the whole group
-		return -1, outBuf.String(), errBuf.String(), fmt.Errorf("timed out after %s", r.Timeout)
+		return -1, outBuf.String(), errBuf.String(), fmt.Errorf("timed out after %s", timeout)
 	}
 	if exitErr, ok := runErr.(*exec.ExitError); ok {
 		return exitErr.ExitCode(), outBuf.String(), errBuf.String(), nil

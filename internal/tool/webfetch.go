@@ -15,15 +15,19 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
+	"time"
 	"unicode"
 
 	"github.com/ralphite/agentrunner/internal/redact"
 )
 
 const (
+	webFetchTimeout      = 30 * time.Second // client-side backstop; read class has no durable timer
 	webFetchMaxRedirects = 5
 	webFetchReadBytes    = 512 * 1024 // wire-read cap, before extraction
 	webFetchOutputBytes  = 50 * 1024  // payload cap, after extraction (same order as read_file)
@@ -53,6 +57,7 @@ func (e *Executor) webFetch(ctx context.Context, rawArgs json.RawMessage) Result
 	}
 
 	client := &http.Client{
+		Timeout: webFetchTimeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= webFetchMaxRedirects {
 				return fmt.Errorf("stopped after %d redirects", webFetchMaxRedirects)
@@ -63,6 +68,16 @@ func (e *Executor) webFetch(ctx context.Context, rawArgs json.RawMessage) Result
 				return fmt.Errorf("redirect to non-http(s) URL %q refused", req.URL)
 			}
 			return nil
+		},
+		// Egress guard (INC-5 security review, M2). Control runs on the
+		// ALREADY-RESOLVED IP for the initial request AND every redirect hop,
+		// so it closes SSRF via redirect, DNS rebinding, and decimal/IPv6 IP
+		// obfuscation in one place: link-local (169.254.0.0/16, incl. the
+		// cloud metadata endpoints 169.254.169.254 / 169.254.170.2, and
+		// fe80::/10) is NEVER a legitimate fetch target — refusing it is
+		// zero-false-positive and blocks cloud-credential theft even in dev.
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{Control: refuseLinkLocal}).DialContext,
 		},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -125,6 +140,27 @@ func (e *Executor) webFetch(ctx context.Context, rawArgs json.RawMessage) Result
 	}
 	payload, _ := json.Marshal(out)
 	return Result{Payload: payload, IsError: resp.StatusCode >= 400}
+}
+
+// refuseLinkLocal is the net.Dialer.Control egress guard: it sees the final
+// resolved IP the socket will connect to (initial request and every redirect
+// hop), so a domain that resolves to link-local, a mid-flight DNS rebind, or
+// a decimal/IPv6-obfuscated literal all hit the same check. Link-local
+// (169.254.0.0/16, fe80::/10) covers the cloud metadata endpoints and is
+// never a valid fetch target.
+func refuseLinkLocal(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		host = address
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil // not a literal IP at dial time — nothing to judge here
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return fmt.Errorf("web_fetch: refusing link-local address %s (cloud metadata / SSRF guard)", host)
+	}
+	return nil
 }
 
 // htmlToText reduces an HTML page to readable text: comments and

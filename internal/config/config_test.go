@@ -54,35 +54,6 @@ func TestDefaultModelIsUserLevelOnly(t *testing.T) {
 	}
 }
 
-func TestProjectTrustDefaultsAllAndExplicitOptIn(t *testing.T) {
-	dataDir := t.TempDir()
-	ws := t.TempDir()
-
-	ok, err := ResolveProjectTrust(Settings{}, dataDir, ws)
-	if err != nil || !ok {
-		t.Fatalf("default trust = %v, %v; want true", ok, err)
-	}
-	ok, err = ResolveProjectTrust(Settings{ProjectTrust: ProjectTrustExplicit}, dataDir, ws)
-	if err != nil || ok {
-		t.Fatalf("explicit trust before registration = %v, %v; want false", ok, err)
-	}
-	if _, err := Trust(dataDir, ws); err != nil {
-		t.Fatal(err)
-	}
-	ok, err = ResolveProjectTrust(Settings{ProjectTrust: ProjectTrustExplicit}, dataDir, ws)
-	if err != nil || !ok {
-		t.Fatalf("explicit trust after registration = %v, %v; want true", ok, err)
-	}
-
-	path := writeSettings(t, t.TempDir(), "project_trust: explicit\n")
-	if _, err := LoadProjectFile(path); err == nil || !strings.Contains(err.Error(), "user-level only") {
-		t.Fatalf("project project_trust error = %v", err)
-	}
-	if _, err := LoadFile(writeSettings(t, t.TempDir(), "project_trust: maybe\n")); err == nil {
-		t.Fatal("invalid project_trust must fail")
-	}
-}
-
 // Merge precedence: user rules come first (win via first-match), project
 // second, spec last.
 func TestMergePrecedenceOrder(t *testing.T) {

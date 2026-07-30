@@ -42,23 +42,14 @@ func TestProbeSaturatesAtThreshold(t *testing.T) {
 func TestProbeSkipsWhatTheIndexSkips(t *testing.T) {
 	root := t.TempDir()
 	tree(t, root, 3)
-	for _, skipped := range []string{"node_modules", ".git", "dist", "vendor"} {
+	for _, skipped := range []string{"node_modules", ".git", "dist", ".hidden"} {
 		if !index.SkipDir(skipped) {
 			t.Fatalf("precondition: index.SkipDir(%q) must be true", skipped)
 		}
 		tree(t, filepath.Join(root, skipped, "deep"), 100)
 	}
 	if got := Probe(root, 1000); got != 3 {
-		t.Errorf("Probe counted %d, want 3 — vendored/derived trees must be pruned", got)
-	}
-}
-
-func TestProbeCountsOrdinaryProjectDotDirs(t *testing.T) {
-	root := t.TempDir()
-	tree(t, filepath.Join(root, ".github"), 2)
-	tree(t, filepath.Join(root, ".claude"), 3)
-	if got := Probe(root, 100); got != 5 {
-		t.Fatalf("Probe counted %d, want 5 project-dotdir files", got)
+		t.Errorf("Probe counted %d, want 3 — vendored/derived/dot trees must be pruned", got)
 	}
 }
 

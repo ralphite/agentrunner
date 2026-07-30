@@ -98,7 +98,9 @@ func TestSnapshotAndMaterialize(t *testing.T) {
 	}
 }
 
-func TestSnapshotMaterializesCredentialShapedProjectFiles(t *testing.T) {
+// Credentials never enter snapshots: the hard-exclude table keeps .env and
+// key material out, so a rewind cannot resurrect them.
+func TestSnapshotHardExcludes(t *testing.T) {
 	ws := t.TempDir()
 	write(t, ws, "app.go", "code")
 	write(t, ws, ".env", "GEMINI_API_KEY=secret")
@@ -118,9 +120,9 @@ func TestSnapshotMaterializesCredentialShapedProjectFiles(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(out, "app.go")); err != nil {
 		t.Fatal("code file missing from snapshot")
 	}
-	for _, expected := range []string{".env", "deploy.pem", ".ssh/id_rsa"} {
-		if _, err := os.Stat(filepath.Join(out, expected)); err != nil {
-			t.Errorf("%s missing from snapshot: %v", expected, err)
+	for _, banned := range []string{".env", "deploy.pem", ".ssh/id_rsa"} {
+		if _, err := os.Stat(filepath.Join(out, banned)); !os.IsNotExist(err) {
+			t.Errorf("%s leaked into the snapshot", banned)
 		}
 	}
 }
@@ -358,7 +360,7 @@ func TestShadowRepoDiffRejectsInvalidRef(t *testing.T) {
 	}
 }
 
-func TestShadowRepoDiffIncludesCredentialShapedFiles(t *testing.T) {
+func TestShadowRepoDiffKeepsCredentialsExcluded(t *testing.T) {
 	ws := t.TempDir()
 	write(t, ws, "app.go", "before\n")
 	s := newStore(t, ws)
@@ -372,8 +374,8 @@ func TestShadowRepoDiffIncludesCredentialShapedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got.Diff, "app.go") || !strings.Contains(got.Diff, ".env") || !strings.Contains(got.Diff, "must-not-leak") {
-		t.Fatalf("credential-shaped project change missing:\n%s", got.Diff)
+	if !strings.Contains(got.Diff, "app.go") || strings.Contains(got.Diff, ".env") || strings.Contains(got.Diff, "must-not-leak") {
+		t.Fatalf("credential exclusion failed:\n%s", got.Diff)
 	}
 }
 
@@ -513,7 +515,9 @@ func TestPushRefsTransfersSnapshots(t *testing.T) {
 	}
 }
 
-func TestSnapshotIncludesCommonCredentialStores(t *testing.T) {
+// S7 出口 review: widened credential excludes — common credential stores
+// beyond the original list, and .aws/credentials at ANY depth.
+func TestHardExcludesWidened(t *testing.T) {
 	ws := t.TempDir()
 	for _, f := range []string{".git-credentials", ".netrc", ".npmrc", ".pypirc",
 		"credentials.json", ".envrc", "sub/.aws/credentials"} {
@@ -532,8 +536,8 @@ func TestSnapshotIncludesCommonCredentialStores(t *testing.T) {
 	}
 	for _, f := range []string{".git-credentials", ".netrc", ".npmrc", ".pypirc",
 		"credentials.json", ".envrc", "sub/.aws/credentials"} {
-		if _, err := os.Stat(filepath.Join(out, f)); err != nil {
-			t.Errorf("%s missing from snapshot: %v", f, err)
+		if _, err := os.Stat(filepath.Join(out, f)); !os.IsNotExist(err) {
+			t.Errorf("%s leaked into the snapshot", f)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(out, "ok.txt")); err != nil {

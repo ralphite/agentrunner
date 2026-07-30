@@ -356,7 +356,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		if err := ctx.Err(); err != nil {
 			return d.cancelTerminal(ctx, appendE, st, n-1)
 		}
-		if maxIter > 0 && n > maxIter {
+		if n > maxIter {
 			slog.Debug("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
 			return d.finish(appendE, st, limitReason(st), maxIter)
 		}
@@ -1252,7 +1252,7 @@ func (d *Driver) adjudicateVerifier(ctx context.Context, appendE appendFunc,
 	var containment *event.Containment
 	if toolName == "bash" {
 		if exec == nil {
-			reason := "command verifier requires an executor"
+			reason := "command verifier requires an executor-backed OS sandbox"
 			gates := []event.GateResult{{Gate: "containment", Decision: event.VerdictDeny, Reason: reason}}
 			_, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 				EffectID: effID, Verdict: event.VerdictDeny, GateResults: gates,

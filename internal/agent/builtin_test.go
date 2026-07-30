@@ -46,11 +46,8 @@ func TestBuiltinSpecLoads(t *testing.T) {
 			if spec.Model.Provider != "" || spec.Model.ID != "" {
 				t.Errorf("built-in definition unexpectedly carries model %+v", spec.Model)
 			}
-			if spec.AgentWorkspace != "shared" {
-				t.Errorf("AgentWorkspace = %q, want shared", spec.AgentWorkspace)
-			}
-			if !spec.AgentsDynamic {
-				t.Error("built-in omitted agents_dynamic must default on")
+			if spec.AgentWorkspace != "isolated" {
+				t.Errorf("AgentWorkspace = %q, want isolated", spec.AgentWorkspace)
 			}
 			// A shipped spec must pass the same validation a workspace spec does.
 			if err := spec.validate("builtin/" + name + ".yaml"); err != nil {

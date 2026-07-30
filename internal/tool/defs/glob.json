@@ -1,6 +1,6 @@
 {
   "name": "glob",
-  "description": "List workspace files whose path matches a glob pattern (supports `*`, `?`, and `**` for any depth, e.g. `**/*.go`, `cmd/**`, `*.md`). Returns paths sorted, relative to the workspace root. Skips machine-generated and vendored trees. Prefer this over `bash find/ls` for locating files by name.",
+  "description": "List workspace files whose path matches a glob pattern (supports `*`, `?`, and `**` for any depth, e.g. `**/*.go`, `cmd/**`, `*.md`). Returns paths sorted, relative to the workspace root. Respects credential and vendored-tree exclusions. Prefer this over `bash find/ls` for locating files by name.",
   "class": "read",
   "input_schema": {
     "type": "object",

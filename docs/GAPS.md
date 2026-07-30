@@ -204,18 +204,19 @@ boundary 后消息，memory 永在——比对方强，记档）。
 web_fetch content 文本内（B2，TestWebFetch* 锚；软标记，不计安全
 预算）。host allowlist 非开放项——LOG 2026-07-09 INC-5 安全 review
 S1 已裁定 backlog（留待 G11 云形态需求），SPEC 措辞已对齐。
-显式硬防线（sandbox/permission）✅。2026-07-30 capability-first 修订后，
-`web_fetch` 默认可访问完整网络（含 link-local/metadata），只在用户显式
-`sandbox.network:none` 或 permission deny 时拒跑；`untrusted_content`
-与 BEGIN/END 定界符仍作为模型可见软标记。
+硬防线（沙箱/凭据/权限）✅。原登记：
+**web_fetch 面已落硬控(INC-5 安全 review)**:egress 需审批(execute-class,
+不静默出网)、link-local/metadata 封禁堵 exfil-to-metadata、重定向逐跳
+egress 守卫;`untrusted_content` 软标记降低服从注入概率(不计入 exfil
+缓解——真正的防御是 egress 控制)。**余项**:统一的"不可信来源信任分级"
+成文条款、BEGIN/END 定界符(现为 JSON 兄弟布尔)、host allowlist(S1)。
 → UJ-20
 
 **G19 hooks 生命周期事件族 — ✅ 第一批已关闭（INC-15，2026-07-09）**
 关闭位置（第一批 8 事件）：`hook.RunLifecycle`（复用 runOne：sh -c +
-JSON stdin；默认完整 env/真实 HOME/无 wall-clock timeout，显式 timeout
-才截断）+ settings `hooks.lifecycle`（event → commands，加载期校验事件名；
-project 默认生效，`project_trust: explicit` 可恢复 trust 门）+ loop 各
-journal 点位挂 `fireLifecycle`。observe-only =
+JSON stdin + 凭据剥离 + 超时）+ settings `hooks.lifecycle`（event →
+commands，加载期校验事件名，merge 同 pre/post：user 恒生效、project 需
+trust）+ loop 各 journal 点位挂 `fireLifecycle`。observe-only =
 session_start/session_end/subagent_start/subagent_stop/post_compact/stop
 （事实落 journal 后触发，坏 hook 只 warn）；blockable =
 user_prompt_submit（exit 2 → 输入不落 journal）/pre_compact（exit 2 →
@@ -281,48 +282,27 @@ remember 同 durable command 族）+ `ValidTransition` 校验（bypass 仍拒）
 
 ### 工具与检索面
 
-**G59 检索面把所有点目录静默吞掉 — ✅ 已关闭（2026-07-30）**
-删除 `strings.HasPrefix(name, ".")` 与 credential filename 的默认排除。
-`.github`、`.claude`、`.vscode`、`.env`、`.npmrc` 等普通 project state 现在
-统一可被 grep/glob/keyword_search 发现；仅 `.git`、机器可再生与 vendored
-trees 仍跳过。闸门：`TestProjectDotDirsRemainSearchable`、
-`TestCredentialShapedProjectFilesAreIndexed`、`TestCredentialShapedFilesVisibleToGrepAndGlob`。
+**G59 检索面把所有点目录静默吞掉 — 🔧 纯实现缺口（影响：高）**
+`index.SkipDir` 的谓词是 `skipDirs[name] || strings.HasPrefix(name, ".")`，
+理由写的是"dotdirs harbor credential stores like .ssh/.aws"——但它作用在
+**grep / glob / keyword_search 三个工具**上，于是 `.github/`、`.claude/`、
+`.vscode/` 一并消失。本仓库实测（2026-07-29，真 Gemini turn，session
+`20260729-223107-do-these-four-things-in-order-7ecfa891a0ab76fd`）：
+
+- `glob {"pattern":".github/workflows/*.yml"}` → `{"paths":[],"truncated":false}`
+  ——12 个文件就在那里，而返回值**主动声称没有截断**。
+- `grep {"pattern":"qa-blackbox"}` → 扫了 1058 个文件，命中 CLAUDE.md /
+  docs / qa，**唯独没有那个就叫 `qa-blackbox.yml` 的文件**。
+- `keyword_search` 同样零命中。
+- 而 `read_file .github/workflows/qa-blackbox.yml` **读得到**（89 行）。
+
+即：**路径已知就能读，但任何检索都找不到它**，且失败是静默的。被问"CI 为什么
+挂"的 agent 会搜一圈、什么都没找到、然后回答"仓库里没有 workflow"。这与决策
+#34 修订前的 bash 凭据问题是同一种病：一个为凭据设计的排除被过度一般化，代价
+由功能承担，且不回报。`truncated` 字段只反映结果条数上限，从不反映排除。
+修法方向：把凭据排除收窄到真正的凭据目录（`.ssh`/`.aws`/`.gnupg`…）而非所有
+点目录；排除发生时在结果里回报条数（`excluded` 计数），静默是这条的核心危害。
 → UJ-01, UJ-05
-
-**G63 capability-first 被五层缺省同时反转 — ✅ 已关闭（2026-07-30）**
-自定义 agent 省略字段时原来会叠加五道限制：`tools=nil` 等于无工具、
-`permissions=nil` 让 edit/execute 默认 ask、`agents_dynamic=false` 令
-`spawn_agent` 根本不进 advertised tools、`agent_workspace=isolated` 让子改动
-不回父工作区、生产 `SpawnGate` 又硬编码 depth=2/fanout=8。即使用户发现并打开
-第一道开关，动态子也没有 agents/MCP/skills 等父 capability，不能递归组队。
-这正是“设计上有子 agent、实际开发 agent 却不能创建子 agent”的直接根因，不是
-单点 bug，而是早期 least-privilege 假设在 loader、tool advertisement、role
-构造、workspace 与 pipeline 五层重复生效。
-
-关闭后：省略 `tools`=完整 core coding tools，省略 `permissions`=allow，省略
-`agents_dynamic`=true，省略 `agent_workspace`=shared；动态子继承父已有 named
-agents/MCP/skills/allowed-tools；生产 `SpawnGate{}` 无固定深度/扇出 cap。
-所有治理能力都保留为显式 opt-out/正数 cap。闸门：
-`TestLoadSpecCapabilityFirstDefaultsAndExplicitOptOut`、
-`TestDynamicRoleInheritsParentCapabilities`、
-`TestSpawnGateDefaultsUnlimitedAndHonorsExplicitCaps`。
-→ UJ-18, UJ-23, UJ-26
-
-**G64 安全默认与隐藏小常数系统性取消核心能力 — ✅ 已关闭（2026-07-30）**
-审计发现 G63 之外还有同一根因的限制散落在 config、pipeline、tool、driver、
-goal、hook、MCP、snapshot/index 九层：project hooks/command tools 默认不加载；
-large workspace 默认自动关索引/快照；host/credential path 被 hard floor 重判；
-file tools 只能碰 workspace；credential-shaped files 不进索引/快照；web_fetch
-无条件拒 link-local/metadata 且 30s 停；builtin/MCP/command/hook 强塞 120s/
-3600s timeout；agent turn、goal、driver 分别藏 200/10/10 的自动停止值。
-
-这些不是用户显式 policy，而是早期 defense-in-depth 把同一威胁在多层重复
-“代替用户拒绝”，结果任何一层都能静默取消正常开发。关闭后统一契约是：
-**省略 = 能力成立 / unlimited / host parity；显式 false、deny、positive cap、
-timeout、`project_trust: explicit`、sandbox 才收窄。** 保留 plan mode 禁止
-edit/execute、用户显式 permission/sandbox/budget、effect journal、known-value
-redaction、输出/协议资源上限与 handoff 正确性。
-→ UJ-01, UJ-14, UJ-15, UJ-20, UJ-22, UJ-26
 
 **G61 `snapshot.Diff()` 每次都全树重哈希（read-tree 索引没有 stat cache）— ✅ 已关闭（决策 #43，2026-07-29）**
 **关闭做法**：`seedReviewIndex` 改为**复制仓库的持久 index**（带 stat cache）来
@@ -360,7 +340,7 @@ mtime/size 快捷路径，必须重读重哈希整棵树。实测（300k 文件�
 （`DiffSnapshots` 已经不碰工作树，可参照）。
 → UJ-05, UJ-11
 
-**G62 snapshot 的 harness 级 derived exclude 缺失 — ✅ 已关闭（决策 #44；2026-07-30 修订）**
+**G62 snapshot 的 harness 级 exclude 表只实现了凭据那一半 — ✅ 已关闭（决策 #44，2026-07-29）**
 **关闭做法**：`derivedDirs` 成为"机器可再生"的唯一事实来源，同时渲染进
 `info/exclude`（快照排除）与 review 投影（显示隐藏）。**关键判断：两张表不能
 合并成一张**——显示过滤激进一点最多让卡片干净，而快照排除意味着**rewind 不会
@@ -377,9 +357,6 @@ index，无可隐藏）。这**统一了**行为——`.gitignore` 里有 `node_
 本来就是 0，旧的"1"只出现在缺那行 gitignore 的少数工作区。披露改由本条款要求的
 "文档化为 rewind 范围外"承担；隐藏计数本身的覆盖移到
 `TestReviewHidesVendorButStillSnapshotsIt`。
-2026-07-30 capability-first 修订撤销了当时同时保留的“凭据文件硬排除”：
-credential-shaped project files 现在也进入 snapshot/rewind；本 gap 关闭所需的
-机器可再生目录排除与存量 index prune 不变。
 **仍未接**：`GIT_CONFIG_GLOBAL=/dev/null` 使用户**全局** `core.excludesFile`
 失效——这是 shadow 与用户 config 解耦的**故意**设计（DESIGN 要 harness 级列表
 正是为了不依赖用户配置），有了地板之后危害已小，故不改。
@@ -397,27 +374,30 @@ venv/build 类** + 凭据文件硬排除表）"，但 `snapshot.go:71-88` 的
 `writeExcludes`，并按 DESIGN 要求把"被排除的路径文档化为 rewind 范围外"。
 → UJ-05, UJ-11
 
-**G60 redaction 与完整 project state 的取舍 — ✅ 已裁决（2026-07-30）**
-默认能力优先：workspace credential-shaped files 可读、可检索、可快照，不能为了
-补 redactor 的未知值盲区重新隐藏它们，也不默认扫描并把文件内容登记成 secret
-（那会误遮普通输出且再次按文件名猜 authority）。保留 known-process-value
-redaction 作为非阻塞落盘卫生；需要严格隔离的部署显式启用
-`sandbox.filesystem: workspace` 与 permission deny。残余事实明确接受：daemon
-不知道的值若被命令主动打印，journal 可含原文。
+**G60 redaction 只覆盖"进程已知的值"，workspace 凭据文件经 bash 可原文入 journal — ⚠️ 设计欠定（影响：中）**
+DESIGN 已把"只登记 `redact.Plausible` 的进程已知凭据值"写成文档化残余风险。
+决策 #34 修订（默认终端等价）**扩大了它的暴露面**：修订前默认档 bash 读不到
+workspace 内的 `.env`（`credentialPaths` deny read），那类"harness 不知道值"
+的凭据文件因此进不了 journal；现在 `cat .env` 会成功。实测（2026-07-29）：
+`ar run` 腿因为把 workspace `.env` 载进了自己进程环境，落 journal 是
+`PROBE_SECRET=[REDACTED:PROBE_SECRET]`；**daemon 腿不知道该值，落的是原文**
+（session `20260729-222937-run-this-single-bash-command-a-b451ec9e87dae51f`）。
+真终端语义下 `cat .env` 本就该成功，所以收口方向不是把读堵回去，而是 session
+start 时把 workspace 凭据形文件（`index.SkipFile` 那张表）的值登记进 redactor。
 → UJ-20
 
 **G18 内置工具面完整性 — 🟡 部分关闭（write_file ✅；grep/glob ✅ INC-3；web_fetch ✅ INC-5；web search 仍开放）**
 DESIGN 列名"file read/**write**/edit、bash、**glob/grep**、**web
 fetch/search**"，其中：write_file ✅（v2 M4.3）；**grep/glob ✅（INC-3）**
-——独立 read-class 工具，与 semantic_search 共用 derived/vendored 排除谓词，
-普通 dotdir 与 credential-shaped files 可见；命中过 redaction、per-tool 截断；闸门
+——独立 read-class 工具，与 semantic_search 共用凭据/vendored 排除谓词
+（`index.SkipDir/SkipFile`）、命中过 redaction、per-tool 截断；闸门
 TestGrep*/TestGlob* + QA-11 真实 API。**web_fetch ✅（INC-5,2026-07-09,
-G18b 关闭；2026-07-30 capability-first 修订）**——execute-class +
-`def.network` 数据位，显式 containment 下 fail-closed；默认 link-local/
-metadata 可达且无 wall-clock timeout；HTML→text + 输出上限 + redact +
-untrusted 标记。闸门 TestWebFetch* + QA-13 + QA-14(真实
+G18b 关闭）**——execute-class（default 需审批,不静默出网)+ `def.network`
+数据位 + 收容 fail-closed + **link-local/metadata 无条件封禁**(安全 review
+M1/M2)+ HTML→text + 截断 + redact + untrusted 标记;不变量升级走 §4
+(决策 #33);闸门 TestWebFetch*/TestRefuseLinkLocal* + QA-13 + QA-14(真实
 coding agent 端到端)。**余项**:**web search**(需外部搜索 API/凭据,或
-provider 服务端工具例外类别,单独成增量)。
+provider 服务端工具例外类别,单独成增量);host allowlist(S1)= backlog。
 → UJ-01, UJ-05
 
 **G10 子 agent/后台任务实时进度 — ✅ 子 agent 侧已关闭（INC-12.6，2026-07-09）**

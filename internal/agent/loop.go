@@ -597,11 +597,13 @@ func (l *Loop) prepareOpeningRecovery(prompt string) ([]provider.Part, error) {
 	return parts, nil
 }
 
-// discoverCommandTools loads the user-defined command tools
+// discoverCommandTools loads and trust-gates the user-defined command tools
 // (INC-55) for freezing into SessionStarted. USER manifests always load;
-// PROJECT manifests load by default; project_trust: explicit restores the
-// registry gate. Every malformed/rejected/shadowed manifest is logged and
-// skipped (like skills). Frozen at session start so
+// PROJECT manifests load only when the workspace is trusted (决策 #19) — the
+// same gate hooks pass, because a command tool is 可执行配置 running a command
+// with model-controlled stdin. Discovery never fails the run: a trust-lookup
+// error fails CLOSED (untrusted), and every malformed/rejected/shadowed
+// manifest is logged and skipped (like skills). Frozen at session start so
 // resume rebuilds the identical face and trust decision without re-reading
 // the filesystem (决策 #3).
 func (l *Loop) discoverCommandTools(wsRoot string) []event.CommandToolDef {
@@ -618,18 +620,10 @@ func (l *Loop) discoverCommandTools(wsRoot string) []event.CommandToolDef {
 		slog.Warn("command tool discovery: data dir unavailable; skipping", "err", err)
 		return nil
 	}
-	userPath, err := runtime.UserConfigPath()
+	trusted, err := config.IsTrusted(dataDir, wsRoot)
 	if err != nil {
-		slog.Warn("command tool discovery: user config path unavailable; skipping", "err", err)
-		return nil
-	}
-	user, err := config.LoadFile(userPath)
-	if err != nil {
-		slog.Warn("command tool discovery: user config unavailable; skipping", "err", err)
-		return nil
-	}
-	trusted, err := config.ResolveProjectTrust(user, dataDir, wsRoot)
-	if err != nil {
+		// Fail closed: a workspace we cannot verify is not trusted, so its
+		// project-layer command tools stay unloaded.
 		slog.Warn("command tool discovery: trust check failed; treating workspace as untrusted", "err", err)
 		trusted = false
 	}
@@ -2740,7 +2734,7 @@ func decide(s state.State, maxGenerationSteps int) action {
 		// Resolved results owe the model its next generation step, bounded
 		// by the per-turn budget (anti-runaway, counted from the last input
 		// — a cumulative cap would silently wedge a long-lived session).
-		if maxGenerationSteps > 0 && turn-s.Session.LastInputGenStep >= maxGenerationSteps {
+		if turn-s.Session.LastInputGenStep >= maxGenerationSteps {
 			return action{kind: doTruncate, turn: turn}
 		}
 		return action{kind: doTurn, turn: turn + 1}
@@ -2750,7 +2744,7 @@ func decide(s state.State, maxGenerationSteps int) action {
 	// a truly quiet session idles. The idle also wakes on background
 	// settlements, so live background work needs no extra branch.
 	if hasInputAfterLastAssistant(s) {
-		if maxGenerationSteps <= 0 || turn-s.Session.LastInputGenStep < maxGenerationSteps {
+		if turn-s.Session.LastInputGenStep < maxGenerationSteps {
 			return action{kind: doTurn, turn: turn + 1}
 		}
 		return action{kind: doTruncate, turn: turn}
@@ -3370,27 +3364,39 @@ func toolIdempotentIn(s state.State, name string) bool {
 // so a model-chosen call_id can never collide with an LLM effect's id.
 func toolEffectID(callID string) string { return "eff-tool-" + callID }
 
+// executeToolTimeout is the S1 default bash wall-clock limit, now owned by
+// the durable-timer substrate (2.11) instead of the tool implementation.
+const executeToolTimeout = 120 * time.Second
+
 // maxMalformedRetries bounds consecutive malformed_tool_call retries on one
 // turn before the run ends with a user-visible error (S4.6).
 const maxMalformedRetries = 2
 
 func toolTimeoutIn(s state.State, name string) time.Duration {
 	if isAgentLaunch(name) {
+		// A child run is bounded by its own max_generation_steps and budget, not a
+		// wall clock — 120s would kill legitimate children (S5.3/S5.4).
 		return 0
 	}
-	if _, ok := tool.Get(name); ok {
+	if def, ok := tool.Get(name); ok {
+		if def.Class == tool.ClassExecute {
+			return executeToolTimeout
+		}
 		return 0
 	}
 	if _, ok := mcpToolIn(s, name); ok {
-		return 0
+		// Every MCP call crosses a process/network boundary; even a
+		// read-class tool can hang on a stuck server, so all get the
+		// execute wall clock.
+		return executeToolTimeout
 	}
-	// Command tools honor an explicitly declared timeout. Omitted means no
-	// harness wall-clock cap; cancellation and user interrupt still work.
+	// Command tools (INC-55) honor their manifest's declared timeout (already
+	// clamped at discovery); 0 falls back to the execute default like bash.
 	if ct, ok := commandToolIn(s, name); ok {
 		if ct.TimeoutS > 0 {
 			return time.Duration(ct.TimeoutS) * time.Second
 		}
-		return 0
+		return executeToolTimeout
 	}
 	return 0
 }

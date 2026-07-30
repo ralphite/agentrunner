@@ -14,14 +14,14 @@ func scaleSettings(t *testing.T, body string) string {
 	return writeSettings(t, t.TempDir(), body)
 }
 
-// Absent config must preserve full capabilities; auto-degradation is opt-in.
+// Absent config must land on the measured default, not on "off".
 func TestLargeWorkspaceDefaults(t *testing.T) {
 	m := Merge(Settings{}, Settings{}, nil, false)
 	if m.LargeWorkspaceThreshold != wsprobe.DefaultThreshold {
 		t.Errorf("threshold = %d, want %d", m.LargeWorkspaceThreshold, wsprobe.DefaultThreshold)
 	}
-	if m.LargeWorkspaceMode != wsprobe.ModeNever {
-		t.Errorf("mode = %q, want %q", m.LargeWorkspaceMode, wsprobe.ModeNever)
+	if m.LargeWorkspaceMode != wsprobe.ModeAuto {
+		t.Errorf("mode = %q, want %q", m.LargeWorkspaceMode, wsprobe.ModeAuto)
 	}
 }
 
@@ -51,8 +51,8 @@ func TestLargeWorkspaceUserOnly(t *testing.T) {
 	if m.LargeWorkspaceThreshold != 77 {
 		t.Errorf("threshold = %d, want 77", m.LargeWorkspaceThreshold)
 	}
-	if m.LargeWorkspaceMode != wsprobe.ModeNever {
-		t.Errorf("mode = %q, want never when unset", m.LargeWorkspaceMode)
+	if m.LargeWorkspaceMode != wsprobe.ModeAuto {
+		t.Errorf("mode = %q, want auto when unset", m.LargeWorkspaceMode)
 	}
 }
 

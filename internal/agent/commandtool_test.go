@@ -110,17 +110,11 @@ func TestCommandToolEndToEnd(t *testing.T) {
 	}
 }
 
-// project_trust: explicit restores the opt-in trust gate. Without that user
-// setting, project tools are capability-first and load by default.
+// The trust gate (决策 #19): a PROJECT-layer command tool is frozen into the
+// session only when the workspace is trusted. Untrusted → absent from the
+// face; after `trust` → present.
 func TestCommandToolProjectTrustGate(t *testing.T) {
-	userToolsDir, dataDir := isolateToolDirs(t)
-	if err := os.MkdirAll(filepath.Dir(userToolsDir), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(userToolsDir), "settings.yaml"),
-		[]byte("project_trust: explicit\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	_, dataDir := isolateToolDirs(t)
 
 	root := t.TempDir()
 	projectToolsDir := filepath.Join(root, ".claude", "tools")
@@ -176,7 +170,7 @@ func TestCommandToolFoldHelpers(t *testing.T) {
 	s := state.State{}
 	s.Session.CommandTools = []event.CommandToolDef{
 		{Name: "deploy", Command: "./deploy.sh", TimeoutS: 30},
-		{Name: "quick", Command: "echo hi"}, // TimeoutS 0 → no wall-clock cap
+		{Name: "quick", Command: "echo hi"}, // TimeoutS 0 → execute default
 	}
 	if got := toolClassIn(s, "deploy"); got != "execute" {
 		t.Errorf("class = %q, want execute", got)
@@ -187,15 +181,8 @@ func TestCommandToolFoldHelpers(t *testing.T) {
 	if d := toolTimeoutIn(s, "deploy"); d.Seconds() != 30 {
 		t.Errorf("timeout = %s, want 30s", d)
 	}
-	if d := toolTimeoutIn(s, "quick"); d != 0 {
-		t.Errorf("zero-timeout tool = %s, want no cap", d)
-	}
-	if d := toolTimeoutIn(s, "bash"); d != 0 {
-		t.Errorf("bash timeout = %s, want no default cap", d)
-	}
-	s.Session.MCPTools = []event.MCPToolDef{{Name: "mcp__demo__slow", Server: "demo"}}
-	if d := toolTimeoutIn(s, "mcp__demo__slow"); d != 0 {
-		t.Errorf("MCP timeout = %s, want no default cap", d)
+	if d := toolTimeoutIn(s, "quick"); d != executeToolTimeout {
+		t.Errorf("zero-timeout tool = %s, want execute default", d)
 	}
 	if got := toolClassIn(s, "nope"); got != "" {
 		t.Errorf("unknown tool class = %q, want empty", got)

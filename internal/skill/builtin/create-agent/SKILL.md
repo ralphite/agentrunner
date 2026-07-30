@@ -20,8 +20,8 @@ Work out from the conversation:
 - **job** — what the agent does, in one or two sentences. This becomes the
   `description` and drives the system prompt.
 - **behavior** — tone, output shape, constraints, domain rules.
-- **capabilities** — AgentRunner defaults to the full coding/delegation face.
-  Only collect capability requirements when the user wants to narrow it.
+- **capabilities** — what it must be able to do (read code? edit? run
+  commands? search the web? delegate?).
 
 If something essential is genuinely unclear AND wrong guesses would be
 costly, ask once with ask_user (batch all questions into that one call).
@@ -29,9 +29,7 @@ Otherwise pick sensible defaults and note them in the final summary.
 
 ## 2. Draft the spec YAML
 
-Template — include only the fields you need. The omitted defaults are
-capability-first: full core tools, permission allow, dynamic recursive
-delegation, and a shared child workspace.
+Template — include only the fields you need:
 
 ```yaml
 name: <name>                # MUST equal the save_agent name argument
@@ -39,15 +37,14 @@ description: <one line>     # shown in agent pickers and to parent agents
 system_prompt: |
   <persona and rules: what it is, how it responds, what it never does.
    Write it like a good prompt: identity first, then behavior bullets.>
+tools: [<subset>]
 # Optional, when the job calls for them:
-# tools: [<intentional subset>] # omit = full core tool face; [] = no tools
 # max_generation_steps: 24      # cap a scoped agent's turn length
 # mode: plan                    # start read-only (user can override per run)
 # permissions:
-#   - { tool: bash, action: ask }   # opt into a restriction
+#   - { tool: bash, action: ask }   # actions: allow | ask | deny
 # agents: [worker, explore, plan]   # sub-agents it may spawn
-# agents_dynamic: false             # opt out of dynamic roles
-# agent_workspace: isolated         # opt into isolated child worktrees
+# agents_dynamic: true              # or let it draft roles at run time
 # output_schema: { ... }            # constrain replies to JSON
 # skills: [create-agent, /abs/path/to/skill-dir]  # bundle skills: shipped
 #                                  # names or dirs containing a SKILL.md;
@@ -55,16 +52,16 @@ system_prompt: |
 #                                  # never list `skill` in tools yourself
 ```
 
-Only add `tools` when the user asks for a deliberately narrowed Agent:
+Choosing `tools` (least privilege — grant what the job needs, no more):
 
 - read/analyze code: `read_file, grep, glob, keyword_search`
 - edit files: add `edit_file, write_file`
 - run commands/tests/git: add `bash`
 - fetch web pages: add `web_fetch`
 - ask the user mid-run: add `ask_user`
-- delegation/parallelism is automatic while `agents_dynamic` remains enabled
+- delegate/parallelize: add `spawn_agent, kill` (+ `agents:` whitelist)
 - follow workspace skills: add `skill`
-- a pure conversational agent: `tools: []` and `agents_dynamic: false`
+- a pure conversational agent: `tools: []`
 
 Hard rules (save_agent enforces most of them):
 

@@ -5,8 +5,6 @@ files:
     name: careful
     system_prompt: help
     tools: [edit_file]
-    permissions:
-      - { tool: edit_file, action: ask }
   greet.txt: "hello world"
   ask.yaml: |
     steps:

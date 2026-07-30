@@ -383,7 +383,7 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 			sr = ss.Series
 			return Result{Reason: "paused", Iterations: len(sr.Iterations), BestIter: sr.BestIter}, nil
 		}
-		if maxIter > 0 && n > maxIter {
+		if n > maxIter {
 			return d.finishSeries(appendE, sr, seriesLimitReason(sr), maxIter)
 		}
 		var tick time.Time
