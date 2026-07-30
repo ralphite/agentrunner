@@ -11,6 +11,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/mcp"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -528,8 +529,8 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 			{Respond: []scripted.Event{{Text: "ok"}, {Finish: "end_turn"}}},
 		}}
 		l, _ := spawnLoop(t, fix, t.TempDir())
-		l.Depth = pipeline.DefaultMaxSpawnDepth // already at the cap
-		l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{&pipeline.SpawnGate{}}}
+		l.Depth = 2 // already at the explicit cap
+		l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{&pipeline.SpawnGate{MaxDepth: 2}}}
 		if _, err := l.Run(context.Background(), "go"); err != nil {
 			t.Fatal(err)
 		}
@@ -618,6 +619,7 @@ func TestSpawnWhitelist(t *testing.T) {
 	}}
 	l2, cap2 := spawnLoop(t, fix2, t.TempDir())
 	l2.Spec.Agents = nil
+	l2.Spec.AgentsDynamic = false
 	if _, err := l2.Run(context.Background(), "hi"); err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +634,7 @@ func TestSpawnWhitelist(t *testing.T) {
 // INC-12.4: agents_dynamic opens spawn_agent without a static directory and
 // freezes a model-authored inline role into both the parent spawn fact and
 // the child's SessionStarted spec. The role may only narrow the parent's
-// explicit tool face and cannot smuggle MCP/hooks/skills capabilities.
+// explicit tool face; other capabilities are inherited under runtime control.
 func TestSpawnDynamicRole(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -699,6 +701,30 @@ func TestSpawnDynamicRole(t *testing.T) {
 	}
 	if childFold.Session.SpecName != "reviewer" || childFold.Session.Agents == "" {
 		t.Fatalf("child did not start from frozen dynamic spec: %+v", childFold.Session)
+	}
+}
+
+func TestDynamicRoleInheritsParentCapabilities(t *testing.T) {
+	parent := &AgentSpec{
+		Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+		Tools: []string{"read_file", "bash"}, Agents: []string{"worker"},
+		AgentsDynamic: true, AllowedTools: []string{"mcp__github__read"},
+		Skills:         []string{"create-agent"},
+		MCP:            []mcp.ServerConfig{{Name: "github", Command: []string{"github-mcp"}}},
+		AgentWorkspace: "shared",
+	}
+	l := &Loop{Spec: parent}
+	child, problem := l.dynamicRoleSpec(&InlineRole{
+		Name: "swe", Description: "implements", Instructions: "do the work",
+	})
+	if problem != "" {
+		t.Fatal(problem)
+	}
+	if len(child.Agents) != 1 || child.Agents[0] != "worker" ||
+		len(child.AllowedTools) != 1 || len(child.Skills) != 1 ||
+		len(child.MCP) != 1 || !child.AgentsDynamic ||
+		child.AgentWorkspace != "shared" {
+		t.Fatalf("inherited dynamic role = %+v", child)
 	}
 }
 

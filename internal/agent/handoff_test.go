@@ -227,6 +227,7 @@ func TestBlackboardAbsent(t *testing.T) {
 	}}
 	l, cap := spawnLoop(t, fix, t.TempDir())
 	l.Spec.Agents = nil // no collaboration
+	l.Spec.AgentsDynamic = false
 	if _, err := l.Run(context.Background(), "hi"); err != nil {
 		t.Fatal(err)
 	}

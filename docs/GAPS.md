@@ -304,6 +304,25 @@ remember 同 durable command 族）+ `ValidTransition` 校验（bypass 仍拒）
 点目录；排除发生时在结果里回报条数（`excluded` 计数），静默是这条的核心危害。
 → UJ-01, UJ-05
 
+**G63 capability-first 被五层缺省同时反转 — ✅ 已关闭（2026-07-30）**
+自定义 agent 省略字段时原来会叠加五道限制：`tools=nil` 等于无工具、
+`permissions=nil` 让 edit/execute 默认 ask、`agents_dynamic=false` 令
+`spawn_agent` 根本不进 advertised tools、`agent_workspace=isolated` 让子改动
+不回父工作区、生产 `SpawnGate` 又硬编码 depth=2/fanout=8。即使用户发现并打开
+第一道开关，动态子也没有 agents/MCP/skills 等父 capability，不能递归组队。
+这正是“设计上有子 agent、实际开发 agent 却不能创建子 agent”的直接根因，不是
+单点 bug，而是早期 least-privilege 假设在 loader、tool advertisement、role
+构造、workspace 与 pipeline 五层重复生效。
+
+关闭后：省略 `tools`=完整 core coding tools，省略 `permissions`=allow，省略
+`agents_dynamic`=true，省略 `agent_workspace`=shared；动态子继承父已有 named
+agents/MCP/skills/allowed-tools；生产 `SpawnGate{}` 无固定深度/扇出 cap。
+所有治理能力都保留为显式 opt-out/正数 cap。闸门：
+`TestLoadSpecCapabilityFirstDefaultsAndExplicitOptOut`、
+`TestDynamicRoleInheritsParentCapabilities`、
+`TestSpawnGateDefaultsUnlimitedAndHonorsExplicitCaps`。
+→ UJ-18, UJ-23, UJ-26
+
 **G61 `snapshot.Diff()` 每次都全树重哈希（read-tree 索引没有 stat cache）— ✅ 已关闭（决策 #43，2026-07-29）**
 **关闭做法**：`seedReviewIndex` 改为**复制仓库的持久 index**（带 stat cache）来
 播种私有 index，而不是 `read-tree <ref>`。同一棵 300k 树上的 A/B：Diff 从

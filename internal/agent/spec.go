@@ -67,8 +67,21 @@ func (s *SchemaJSON) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// DefaultMaxGenerationSteps applies when a spec omits max_generation_steps (S1 defaults pack).
+// DefaultMaxGenerationSteps applies when a spec omits max_generation_steps.
 const DefaultMaxGenerationSteps = 200
+
+// defaultTools is the capability-first tool face for an Agent definition that
+// omits `tools`. Contextual collaboration/goal/artifact tools are still added
+// by the loop when their runtime backing exists. An explicit `tools: []` keeps
+// a deliberately conversational Agent tool-less.
+var defaultTools = []string{
+	"read_file", "write_file", "edit_file", "bash", "grep", "glob",
+	"keyword_search", "web_fetch", "ask_user", "exit_plan_mode",
+	"publish_artifact", "save_agent", "tool_config",
+}
+
+// DefaultTools returns a copy of the capability-first default tool face.
+func DefaultTools() []string { return append([]string(nil), defaultTools...) }
 
 // ModelSpec and ThinkingSpec are runtime-effective aliases. Agent YAML never
 // decodes them; session input/default resolution binds Model after loading.
@@ -127,12 +140,13 @@ type AgentSpec struct {
 	Agents []string `yaml:"agents,omitempty"`
 	// AgentsDynamic opens the inline-role spawn face (INC-12): the model may
 	// draft team members at run time (spawn_agent{role:…}) instead of — or in
-	// addition to — the static whitelist. Off by default: the multi-agent
-	// face never widens silently.
+	// addition to — the static directory. Omitted defaults to true; an Agent
+	// that intentionally must not delegate writes agents_dynamic: false.
 	AgentsDynamic bool `yaml:"agents_dynamic,omitempty"`
 	// AgentWorkspace controls child filesystem isolation. Loaded production
-	// specs default to "isolated"; "shared" is an explicit collaboration
-	// choice. Empty is retained only for programmatic legacy/test specs.
+	// specs default to "shared", so a child's edits are immediately useful to
+	// the team. "isolated" is an explicit containment/experimentation choice.
+	// Empty is retained only for programmatic legacy/test specs.
 	AgentWorkspace string `yaml:"agent_workspace,omitempty"`
 	// Escalate is an explicit request for a human-approved permission
 	// exception when this spec is launched as a child. It never grants
@@ -287,11 +301,20 @@ func loadSpec(path string, allowLegacyModel bool) (*AgentSpec, error) {
 		spec.Skills[i] = dir
 	}
 
+	if spec.Tools == nil {
+		spec.Tools = DefaultTools()
+	}
+	if spec.Permissions == nil {
+		spec.Permissions = []pipeline.PermissionRule{{Action: "allow"}}
+	}
+	if !hasTopLevelYAMLKey(&top, "agents_dynamic") {
+		spec.AgentsDynamic = true
+	}
 	if spec.MaxGenerationSteps == 0 {
 		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
 	}
 	if spec.AgentWorkspace == "" {
-		spec.AgentWorkspace = "isolated"
+		spec.AgentWorkspace = "shared"
 	}
 	// Fail fast on a declared sub-agent whose spec file is missing, instead of
 	// letting the broken reference surface only at spawn time mid-session, after

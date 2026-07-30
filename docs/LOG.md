@@ -8327,3 +8327,42 @@ gitignore 的少数工作区。所以这不是丢信号，是把少数派对齐�
 → 快照里**只有 `src/main.go`**、shadow.git **128 KB**；②用已部署的 pre-G62
 二进制建出跟踪了 **200** 个 node_modules 的 shadow，换带 G62 的二进制重开
 → **降为 0**，`src/main.go` 完好，新快照干净。
+
+## 2026-07-30 capability-first Agent 默认（不变量修订，用户裁决）
+
+**旧不变量**：自定义 spec 省略 `tools` 时得到空工具面；省略 permission
+rules 时 edit/execute 默认 ask；`agents_dynamic` 默认 false；child workspace
+默认 isolated 且不自动 sync-back；生产 SpawnGate 固定 depth=2、fanout=8。
+动态 role 只继承工具/权限/预算/沙箱，不继承父的 named agents、MCP、skills
+与 allowed-tools。
+
+**为什么必须改**：这些限制不是边缘安全增强，而是叠加后直接取消 coding
+agent 的核心能力。典型症状是用户创建的开发 agent 根本看不到
+`spawn_agent`；即使手工发现并打开 `agents_dynamic`，第二层动态子不能继续
+组队，第三层固定深度/扇出很快拦截，第四层 isolated 改动又不会回到父工作区。
+早期“缺省最小权限、逐项解锁”的假设把未填写配置误当成用户明确拒绝能力，
+在单用户本地原型中使产品功能构造上不可用。
+
+**新不变量**：
+
+1. 省略 `tools` 得到完整 core coding tools；显式 `tools: []` 才表示无工具。
+2. 省略 `permissions` 得到 catch-all allow；显式 rules 保留精确收窄。
+3. 省略 `agents_dynamic` 即 true；显式 false 关闭。动态子继承父已有 named
+   agents、MCP、skills 与 allowed-tools，仍不能凭模型 role payload 创造父没有
+   的新 authority。
+4. 省略 `agent_workspace` 即 shared；isolated 保留为显式 opt-in，且不自动
+   sync-back 的语义不变。
+5. 生产 `SpawnGate{}` 不设深度/扇出 cap；embedding 显式配置的正数 cap
+   仍严格执行；handoff 唯一性不变。
+
+**影响面**：`internal/agent/spec.go`、`builtin.go`、`spawn.go`，
+`internal/pipeline/spawn.go`，`create-agent` skill 与 `ar init` 模板；产品
+三层同步更新 UJ-26、SPEC B、DESIGN 原则 #8/决策 #20/#36/§18.6，G63 关闭。
+旧 journal 中已冻结的 spec 不改写；新 session 与新加载 definition 使用新默认。
+
+**contract review**：保留所有显式 restriction、budget、sandbox 棘轮、
+permission escalation 人审、handoff 唯一性与 frozen journal；删除的是隐藏的
+缺省禁用和固定小常数，不是用户明确声明的治理。测试锚：
+`TestLoadSpecCapabilityFirstDefaultsAndExplicitOptOut`、
+`TestDynamicRoleInheritsParentCapabilities`、
+`TestSpawnGateDefaultsUnlimitedAndHonorsExplicitCaps`。

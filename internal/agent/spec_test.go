@@ -60,8 +60,48 @@ func TestLoadSpecValid(t *testing.T) {
 	if len(spec.Tools) != 3 {
 		t.Errorf("tools = %v", spec.Tools)
 	}
-	if spec.AgentWorkspace != "isolated" {
-		t.Errorf("agent_workspace default = %q, want isolated", spec.AgentWorkspace)
+	if spec.AgentWorkspace != "shared" {
+		t.Errorf("agent_workspace default = %q, want shared", spec.AgentWorkspace)
+	}
+	if !spec.AgentsDynamic {
+		t.Error("agents_dynamic omitted = false, want capability-first true")
+	}
+}
+
+func TestLoadSpecCapabilityFirstDefaultsAndExplicitOptOut(t *testing.T) {
+	write := func(body string) *AgentSpec {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "agent.yaml")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		spec, err := LoadSpec(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return spec
+	}
+
+	full := write("name: full\nsystem_prompt: work\n")
+	if len(full.Tools) != len(DefaultTools()) {
+		t.Fatalf("omitted tools = %v, want defaults %v", full.Tools, DefaultTools())
+	}
+	if len(full.Permissions) != 1 || full.Permissions[0].Action != "allow" {
+		t.Fatalf("omitted permissions = %+v, want catch-all allow", full.Permissions)
+	}
+	if !full.AgentsDynamic || full.AgentWorkspace != "shared" {
+		t.Fatalf("capability defaults = dynamic:%v workspace:%q", full.AgentsDynamic, full.AgentWorkspace)
+	}
+
+	narrow := write("name: narrow\nsystem_prompt: chat\ntools: []\npermissions: []\nagents_dynamic: false\nagent_workspace: isolated\n")
+	if narrow.Tools == nil || len(narrow.Tools) != 0 {
+		t.Fatalf("explicit tools opt-out lost: %#v", narrow.Tools)
+	}
+	if narrow.Permissions == nil || len(narrow.Permissions) != 0 {
+		t.Fatalf("explicit permission opt-out lost: %#v", narrow.Permissions)
+	}
+	if narrow.AgentsDynamic || narrow.AgentWorkspace != "isolated" {
+		t.Fatalf("explicit capability opt-out lost: dynamic:%v workspace:%q", narrow.AgentsDynamic, narrow.AgentWorkspace)
 	}
 }
 

@@ -458,9 +458,13 @@ agent"），agent 用 shipped 的 `create-agent` skill 收集需求、起草 spe
 用户 review；用户随后在 webui 的 New session agent picker（或
 `ar new <name>`）直接用它，后续在对话里迭代（overwrite 重存）。spec 可用
 `skills:` 字段捆绑 shipped skills（按名）或 path-based skills（含
-SKILL.md 的目录）。
+SKILL.md 的目录）。自定义 agent 的能力字段采用 capability-first 默认：
+省略 `tools` 即获得完整 core coding tools，省略 `agents_dynamic` 即可在运行时
+递归创建角色，子 agent 默认共享 workspace，省略 `permissions` 即直接执行。
+纯聊天、隔离 workspace、工具/角色白名单、审批和树上限都仍可显式声明为收窄项；
+“没写配置”不再等于“没有基本能力”。
 
-**覆盖功能**：`shipped skills 层(embed)` `create-agent skill` `save_agent 工具(校验先行落盘)` `user catalog 即时可用` `spec skills 字段(builtin 名+路径)`
+**覆盖功能**：`shipped skills 层(embed)` `create-agent skill` `save_agent 工具(校验先行落盘)` `user catalog 即时可用` `spec skills 字段(builtin 名+路径)` `自定义 agent capability-first 默认` `动态递归组队` `shared child workspace`
 
 ---
 

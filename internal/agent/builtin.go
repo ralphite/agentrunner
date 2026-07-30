@@ -4,6 +4,8 @@ import (
 	"embed"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/ralphite/agentrunner/internal/pipeline"
 )
 
 // Built-in read-only sub-agents (INC-25, #78): shipped with the binary so a
@@ -58,11 +60,21 @@ func BuiltinSpec(name string) (*AgentSpec, bool) {
 		return nil, false
 	}
 	// Apply the same defaults LoadSpec would (the embed skips that path).
+	if spec.Tools == nil {
+		spec.Tools = DefaultTools()
+	}
+	if spec.Permissions == nil {
+		spec.Permissions = []pipeline.PermissionRule{{Action: "allow"}}
+	}
+	var top yaml.Node
+	if yaml.Unmarshal(raw, &top) == nil && !hasTopLevelYAMLKey(&top, "agents_dynamic") {
+		spec.AgentsDynamic = true
+	}
 	if spec.MaxGenerationSteps == 0 {
 		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
 	}
 	if spec.AgentWorkspace == "" {
-		spec.AgentWorkspace = "isolated"
+		spec.AgentWorkspace = "shared"
 	}
 	return &spec, true
 }

@@ -71,6 +71,10 @@
    （snapshot + 事件补放）；不存在与之竞争的第二套恢复机制。
 7. **能表达成 inbox 投递的，不发明新机制。** 每加一个概念，先问：
    "它能不能是一条 Input 或一个 turn 内动作？"（§1 的自检。）
+8. **能力默认成立，治理显式收窄。** 自定义 agent 省略能力字段时得到完整
+   core coding tools、动态递归组队、共享 workspace 与直接执行能力；纯聊天、
+   工具/角色白名单、隔离 workspace、审批、预算和树上限由用户按需显式声明。
+   配置缺省不能把产品的核心能力静默关掉。
 
 ---
 
@@ -294,12 +298,12 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 从子 fold 结算并合成一条 child_result 投回父 inbox；子还在跑则重新
 挂接（settle-from-child-fold 纪律）。
 
-**树级约束**（v1 验证正确，逐字保留）：
+**树级治理**（2026-07-30 capability-first 修订）：
 
 - **审批路由**：child 的 `ask` 沿 correlation id 冒泡到 session 的
   frontend——审批的永远是人，不是 parent agent。
-- **权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
-  (1) **rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
+- **显式权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
+  (1) **显式 rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
   冻结成不可变数据传给 child；child 的管线只认这份，child spec 无法
   自行放宽，parent 事后的 mode 跃迁也不回溯影响 child。**唯一例外**：
   child/inline role 显式声明 `escalate: true` 与目标 permission rules，
@@ -310,11 +314,12 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
   ——child 的 mode 独立，但工具面先经冻结 rules 过滤，mode 跃迁只能在
   冻结 rules 内移动；child spec 声明 `bypass` 非法。
 - **提权例外的红线**：审批只替换 permission layers；hard floor、树预算、
-  深度/扇出、工具子集和 OS filesystem/network 收容棘轮均不在例外内。
-  inline role 是不可信模型输出，不得声明 hooks/MCP/skills/model/budget。
-- **树级预算与递归上限**：spawn 深度与并发扇出有数据化上限（budget
-  关卡校验，超限渲染为 error 结果）——spec 白名单允许 A↔B 成环，
-  上限是唯一防线。child 的有效预算 = min(child spec 限额, parent
+  工具收窄和 OS filesystem/network 收容棘轮均不在例外内。inline role
+  是不可信模型输出，不能凭 payload 新建父没有的 MCP/skills/model/budget
+  authority；父已有 capability 会继承，使动态子可以继续递归组队。
+- **树级预算与可选递归上限**：生产 `SpawnGate{}` 不设置深度与并发扇出
+  上限；embedding 可显式传入正数 cap，Spawn 关卡严格执行，超限渲染为
+  error 结果。child 的有效预算 = min(child spec 限额, parent
   剩余额度)，沿 correlation 树聚合，与权限冻结同构；parent 的 token
   上限约束的是整棵树，不是单个 stream。树预算 reserve-at-spawn /
   settle-at-child-idle。
@@ -533,8 +538,9 @@ effect
   │                  # executor 的会话级 grant（内存、不落盘、下个 session
   │                  # 重新问），文件工具与 bash sandbox 共用它。
   ▼
-[2] Spawn            # spawn/handoff 结构限制：树深度、扇出、handoff
-  │                  # 唯一性——同为纯判定且廉价，故也先于 hooks
+[2] Spawn            # spawn/handoff 结构限制：生产默认不设深度/扇出上限；
+  │                  # embedding 可显式给正数上限；handoff 唯一性始终保留。
+  │                  # 同为纯判定且廉价，故也先于 hooks
   ▼
 [3] Hooks (pre)      # v0: observe + block（exit code），不做改写
   ▼
@@ -609,8 +615,8 @@ budget）不符——Floor/Spawn 两道一直存在于实现与 §权限分层/�
   - 审批被拒 → 同上，附拒绝理由；
   - budget 超限（session 级 token/cost/turns）→ 让模型收尾的最后一条
     消息 + 优雅停止（`LimitExceeded` event），不是掐断；结构性限制
-    （spawn 深度/扇出，由 Spawn 关卡在 hooks 之前校验，2026-07-11 与
-    代码对齐）→ error 结果，loop 继续；
+    （embedding 显式配置的 spawn 深度/扇出 cap，由 Spawn 关卡在 hooks
+    之前校验）→ error 结果，loop 继续；
   - activity 失败（重试耗尽）→ error tool_result，loop 继续。
   "给模型的错误"和"给用户的错误"是两个 surface，分开设计。error 结果的
   线上形态由各 provider 定义（Anthropic 有 `is_error` 标志；Gemini 没有，
@@ -1022,7 +1028,7 @@ description: Deep-dives a topic and reports findings.
 
 system_prompt_file: prompts/researcher.md   # 只是拼装的一层，见 §4
 
-tools: [read_file, edit_file, bash, web_search]   # 引用 tool 定义（数据）
+# 省略 tools = 完整 core coding tools；tools: [] 才是纯对话
 
 mcp:
   - name: github
@@ -1037,9 +1043,11 @@ mcp:
     oauth: { access_token_env: MCP_ACCESS_TOKEN }
 
 agents: [summarizer]           # 允许 spawn 的子 agent 白名单
+agents_dynamic: false          # 动态角色默认开启；这里显式关闭
 receipts: steer                # 回执投递模式:steer(默认)|turn_end(裁决 #15)
-agent_workspace: isolated      # 子默认独立 worktree；shared 必须显式选择
+agent_workspace: shared        # 默认共享；isolated 是显式隔离且不自动 sync-back
 
+# 省略 permissions = allow；以下是显式收窄示例
 permissions:
   - { tool: read_file, action: allow }
   - { tool: edit_file, path: "src/**", action: allow }
@@ -1051,6 +1059,14 @@ microcompact_at_tokens: 90000
 max_generation_steps: 200
 budget: { max_total_tokens: 500000 }
 ```
+
+省略 `tools`、`permissions`、`agents_dynamic`、`agent_workspace` 分别表示：
+完整 core coding tools、catch-all allow、允许 inline dynamic role、共享父
+workspace。显式 `tools: []`、显式规则、`agents_dynamic: false` 与
+`agent_workspace: isolated` 保留原有收窄能力。动态子除冻结 role 与父的
+tools/permission/budget/sandbox 外，还继承父已有的 named agents、MCP、
+skills 与 allowed-tools 门，因此可以递归组队；模型不能借 role payload
+新建父 agent 没有的 MCP、skill 或其他 authority。
 
 模型不属于 Agent definition。新 session 的 model selection 是独立输入
 `{provider,id,effort}`；`max_tokens` 与 `thinking` 只由
@@ -1875,7 +1891,7 @@ resume 永不重读 live default。
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化（INC-11.7 修订） | `SessionStarted`/snapshot 记录 namespaced sub-state 版本；additive-optional 字段与旧 namespace 子集由兼容 reader 接受，旧 snapshot 缺新投影则只丢缓存、从 journal 全量 fold；共享 namespace 真正版本冲突/未知 namespace 明确拒绝且不改原数据。破坏性升级只走 EventStore 单点显式 upcast/migration。 | 长期 session 可跨 additive 升级恢复，同时避免错误 tail replay 丢掉新投影的历史事实。 |
 | 19 | 信任模型 | 可执行配置（hooks、command tools——见 §10，INC-55）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。command tool 是同族新成员（运行命令、吃模型控制 stdin），落在执行侧，与 hooks 同门；memory 只进 prompt 是文本侧对照。 |
-| 20 | 树级约束（INC-12.5 修订，2026-07-09） | 权限 rules 默认在 spawn 时冻结交集下传；唯一放宽路径是 child 显式 `escalate`，经 `ApprovalRequested` 由人批准后改用 child 声明 rules。拒绝/interrupt 降级为交集。预算 = min(child 限额, parent 剩余)、深度/扇出、工具子集与 OS 收容棘轮均无例外 | 用户明确批准可控的权限例外，同时保持树总成本与硬安全边界有界。 |
+| 20 | 树级约束（INC-12.5；2026-07-30 capability-first 修订） | 父显式声明的权限、工具、预算与 OS 收容收窄在 spawn 时冻结向下继承；child 显式 `escalate` 仍经 `ApprovalRequested` 由人批准。生产 `SpawnGate{}` 默认不设深度/扇出上限；embedding 若显式配置正数上限则严格执行。handoff 唯一性始终执行。 | 固定 depth=2/fanout=8 让动态团队在最基本的递归委派上失效，且与单用户原型“能力默认成立”冲突。保留显式治理、收容棘轮、预算与 handoff 正确性，不用隐藏的全局小常数替用户做产品决策。 |
 | 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日；INC-48 llm_judge 兑现，2026-07-10） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：**有 command verifier 时 command 是唯一裁决者**（每边界跑，claim 仅注记）；**否则有 llm_judge verifier 时 judge 是唯一裁决者，但仅在 `goal_complete` 声明待决时调用**（claim-gated：无声明 = miss 续跑，不调 judge、零 LLM 花费）；**都没有时由模型 `goal_complete` 声明边界接受**（self-cert；mid-turn 记 journal、边界才裁决）。llm_judge 是 budget-gated 的 journaled `llm_call` 管线 effect（Activity-bracketed；crash 后复用 journaled verdict 不重判——同 command verifier 的幂等窗，但走独立 verdict 解析）。judge 二态 pass/fail（blocked 终态列余项，避免 judge 获得单方终结权这一更强授权）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）。llm_judge 兑现（INC-48，契约 review 2026-07-11 修订后放行）：写不成命令的长程目标原先只能落到 self-cert（无条件接受声明），补齐决策自己命名的第三态是**兑现**而非违反——"唯一裁决者"枚举从 command 扩为 command｜llm_judge；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
@@ -1891,7 +1907,7 @@ resume 永不重读 live default。
 | 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
 | 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**；**2026-07-29 不变量修订**：强制 → opt-in） | bash/command verifier（INC-55 补：自定义 command tool 同族）**默认终端等价**：不包 wrapper，继承操作者的完整环境与真实 HOME，与用户手开一个 shell 窗口无差别；hooks 同。OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap，凭据路径与敏感 env 隔离）降为 **spec opt-in**（`sandbox.filesystem: workspace`），与 `sandbox.network` 同为**彼此独立**的 tighten-only 棘轮——`network: none` 不再牵连凭据/HOME 隔离。fail closed 只守**被请求的**收容：opt-in 后 backend 缺失仍在 Activity 前 deny，默认档不依赖任何 backend（缺 sandbox-exec/bwrap 的机器照常跑 bash）。containment evidence 照旧必填且**诚实**：默认档记 `host/all/none`，绝不假称已收容。in-session 与 driver command verifier 仍必须产生 EffectRequested/Resolved 与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | 原表述把"防越界"买在"能干活"之上，代价是 agent 的 shell 看不见 `~/.config/gh`、`~/.gitconfig`、`~/.aws`（HOME 指向沙箱临时目录，不是被拒而是找不到）、拿不到任何 `*_API_KEY/_TOKEN/_SECRET`，连 workspace 内自家 `.env` 也被 deny read——`gh` 显示未登录、`git commit` 报 Author identity unknown、项目自己的构建脚本读不到自己的配置。这不是"更安全的默认"，是让功能不成立的默认（用户 2026-07-29 裁定："all features should not satisfice usability"）。收容能力一条不删，只从"强制"改为"声明即生效"；redaction 红线、凭据路径硬排除表、egress fail-closed（#33）全部不动——子进程可见性与落盘面从来不是一个问题。 |
 | 35 | 树内消息与静止子唤醒（INC-12,2026-07-09） | agent 是 send 通道的一等发送方：`send_message` 向树内成员的 durable inbox 投递（AppendInbox 幂等,来源前缀+source=agent）;静止子由直接父 `ChildRevived` re-host(原 handle、同 journal context 延续、第二次回执、usage 按 baseline delta);daemon 子会话 send 经树根转投(单宿主单写者);user-kill 标记仅 user-class 邮件可越 | "回执可多次发生"与"send 对任何 session 成立"的机制兑现;树内协作(评审往复/进度汇报)不再全经父转发烧上下文。 |
-| 36 | 动态角色（INC-12,2026-07-09） | `spec.agents_dynamic` 开 inline role 面：spawn_agent{role:{name,description,instructions,tools?,permissions?,escalate?}};role=不可信模型输出（无 hooks/MCP/skills/model/budget 面,tools 仅父子集,沙箱棘轮继承）;构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec（revive/审计真相） | 工程团队场景要求运行时组队;信任面由结构封死（决策 #19/#20 同族）,预定义 spec 白名单继续并存。 |
+| 36 | 动态角色（INC-12；2026-07-30 capability-first 修订） | `agents_dynamic` 省略时默认开启 inline role 面，显式 false 才关闭。role 构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec；动态子继承父已有 named agents、MCP、skills、allowed-tools、权限/预算/收容，因此可以继续递归组队；role payload 仍不能创造父没有的 MCP/skill/model/budget authority。 | 动态组队是 coding agent 的基本能力，不应要求用户发现隐藏开关；继承现有 capability 使递归委派可用，同时“只能继承、不能凭模型输出新建 authority”保留可审计边界。 |
 | 37 | 记忆写回（INC-14,2026-07-09,取 A,G9） | `remember` control（durable command，与 compact/clear 同族）append 到 **workspace-root CLAUDE.md**（append-only、`## Remembered` 段、同 note 幂等去重）+ 追加一条 program-source `InputReceived`（本会话即遵循，触发确认续跑，同 goal 回灌）。文件供**下次** session start 冻结进 prefix。**取 A（不动 prefix→不触不变量）**；取 B（MemoryChanged 重冻本 run 立即换代）留待需求出现。 | 写侧闭合 read 侧注入（S5.2）；memory 是 workspace 内容、非 journaled fold，rewind 不 un-write（接受项，同 harness-config 排除）；写文件副作用靠 Append 幂等吸收 durable-command 崩溃重放。 |
 | 38 | 审批"允许且不再问"（INC-17,2026-07-09,取 A,G5；**2026-07-12 INC-62 扩展**,G35） | `approve --always`（`ApprovalDecision.Remember` 贯穿 CLI→protocol→daemon→agent）在 approve 时，从被审批 effect 提取**精确**判据（bash=确切命令、edit/write=确切路径、**spawn_agent=tool 级**（INC-62 补，PermissionRule 无 agent 维度且用户意图即"别再为起子 agent 问"），**不宽通配**）→ ① 判据作为 `ApprovalResponded.Standing` 随应答事实落 journal，fold 进 `Effects.Standing`——**本 session 内**后续同判据 ask 由常设应答自动作答 approve（standing approval，见 §5），不落 ApprovalRequested、不进 WAITING；② `config.AppendRule` 写 **user 配置**为一条 allow（幂等去重、保留既有、best-effort）供**下次** session 拼 PermissionLayers 读到。两侧共用**同一个**提取函数（`standingCriterion`），结构性防歧义。不动冻结 layers。**写 user 层**（非 project）：project allow 未 trust 时降级为 ask（决策 #19），写 project 会静默失效。 | 冻结于 SessionStarted 的 PermissionLayers 不可本 run 改（取 B 触不变量，仍推迟）；INC-62 走的是 D5 未摆出的第三条路——不动 permission 层，在**审批层**记住常设应答（"ApprovalResponded 一旦成事实即权威"教义的顺延），同 session 生效为用户裁定的硬性 UX 需求（G35）；常设应答住各 session 自己的 fold，父的应答不放行子的 ask（树约束无恙）；rewind 越过 barrier 自然失效。精确匹配把 user 层"全局"超范围降到最小；写文件副作用幂等吸收重放。 |
 | 39 | 机器发送方/webhook ingress（INC-50,2026-07-11,G14/UJ-12） | daemon 可选 `--http` 起单端点 ingress `POST /hooks/<id>`（默认关）→ 同一条 durable send 通道投递。per-hook capability（不可猜 id+token，落盘仅哈希、不进 journal）；未鉴权限流+body 上限；载荷 `source:"machine"`+`trust:"untrusted"`+`principal:"hook:<n>"`；**untrusted 驱动 loop 侧隔离框定**（模型可见前缀、trust 钳制、不做宏展开）；machine 非 user-class，不越 close/kill 标记（对 marked session 410）；`X-Command-Id` 幂等重投。 | 外部事件唤醒是"输入投递"的第三个发送方（§2 三类归一），不另起通道；注入防御必须落在模型可见面（仅元数据=纸面防御）；越标记特权是用户手势的专属（决策 #30），机器只享 parked-unmarked revive。窄切片：HTTP/WS 壳仍 backlog。 |
@@ -2091,16 +2107,16 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **spawn** | 工具 `spawn_agent`：**一律非阻塞**（零 legacy,2026-07-08 阻塞路径删除）——立即返回 handle,子并行跑,回执按 `receipts` 模式回流。`replaces:<旧 handle>`（INC-30）声明此次委派取代仍在跑的前任：启动前经既有 kill(parent) 路径回收,未知/已静止 handle 幂等 no-op;`SpawnRequested.Replaces` 留审计。 |
 | **handle** | spawn/后台工作的立即配对结果；kill/output 都凭它。 |
 | **delegation** | 每次委派折叠为稳定 `delegation_id`、assigned member、workspace、settlement 状态；`inspect` 可直接查看，不依赖内存队列。（DAG/lease 记账在 PLAN 5.3 消费方评估后砍除:无调度行为、零读者。） |
-| **child workspace** | `agent_workspace: isolated`（生产默认）从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径（含原内容,成员半成品跨 revive 保持）。**isolated 子的文件改动不自动回流父 workspace**——产出经 report/消息/`publish_artifact`→`inputs` 或父转运落地（INC-30 澄清:语义从未含 sync-back,快照语义此前对模型不可见曾致成员空转整份预算,G24）;isolated 子的 opening prompt 前注入 `[workspace note]` 机制说明。`shared` 仅在 spec 显式声明时使用父 workspace——协作型团队（Team Lead）用它。 |
+| **child workspace** | `agent_workspace: shared`（生产默认）让协作者直接在父 workspace 工作，改动天然可见。显式 `isolated` 时才从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径（含原内容,成员半成品跨 revive 保持）。**isolated 子的文件改动不自动回流父 workspace**——产出经 report/消息/`publish_artifact`→`inputs` 或父转运落地（INC-30）；opening prompt 注入 `[workspace note]` 说明。 |
 | **child_result** | 子静止/失败/被杀的回执（event `SubagentCompleted`,非新事件——静止回执复用它,决策 #31）,投父 inbox 触发新 turn;先回先处理,可多次发生。 |
 | **kill** | 模型工具 `kill{handle}`：agent 协作取消自己的后台工作，与后台 bash 共用原语；子会话标记记来源（user/parent），kill 纪律是唯一有门的标记（INC-83:无用户侧动词）。 |
-| **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |
+| **显式治理继承 / 提权例外** | 父显式配置的权限、工具、预算与收容收窄在 spawn 时冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。生产默认无树深度/扇出 cap；embedding 显式设的正数 cap 不随审批放宽。 |
 | **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止则结算真实回执；正等待审批的子在根宿主重挂接原 wait；其余在飞状态按 crash 取消，绝不静默重放未知 effect。子审批 CommandLog 由根启动扫描重放。 |
 | **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
 | **send_message / 树内消息** | 树内任一成员向另一成员 durable inbox 投递输入（决策 #35）：to=parent/全 id/handle,execute-class 过管线;来源前缀进正文,source=agent 进元数据。 |
 | **hook / webhook ingress** | 机器发送方的投递 capability（INC-50,决策 #39）：`ar hook create` 发 id+token（仅哈希落盘）,daemon `--http` 的 `POST /hooks/<id>` 把外部事件投进 session durable inbox,journal 为 source=machine/trust=untrusted 并强制模型可见隔离框定;不越 user close/kill 标记。 |
 | **revive（静止子唤醒）** | 静止成员收树内/用户邮件后由直接父 re-host（`ChildRevived`,原 handle,同 journal 续 context,第二次回执,usage=baseline delta）;user-kill 标记仅 user-class 邮件可越。 |
-| **动态角色（inline role）** | `agents_dynamic` 下 spawn 时起草的成员（决策 #36）:构造 spec 冻结入双侧 journal;不可信模型输出的信任面结构封死。 |
+| **动态角色（inline role）** | `agents_dynamic` 默认开启；显式 false 才关闭。spawn 时起草的成员（决策 #36）构造 spec 冻结入双侧 journal，继承父已有 capability 并可递归组队，但模型输出不能新建父没有的 authority。 |
 
 ### 18.7 等待、恢复与终止
 
