@@ -35,8 +35,17 @@ run_install() { # run_install <asset-url> [extra env...]
   local url="$1"; shift
   # AR_SKIP_SANDBOX_DEPS keeps the base scenarios offline and host-agnostic;
   # the sandbox-dep step has its own scenarios below with stubbed bwrap.
+  #
+  # XDG_DATA_HOME is pinned INSIDE the sandbox because the installer's runtime
+  # step resolves the daemon store exactly as runtime.DataDir() does — leaving
+  # the host's value set would point it at the developer's real daemon.
+  # AR_NO_RESTART/AR_START_WEBUI are belt-and-braces on top of that: no scenario
+  # here may touch a live daemon or spawn a server. Scenario 9 covers the
+  # runtime step's own behavior explicitly.
   env HOME="$work/home" AR_HOME="$work/home/share" AR_BIN_DIR="$work/home/bin" \
-    AR_ASSET_URL="$url" GITHUB_TOKEN= GH_TOKEN= AR_SKIP_SANDBOX_DEPS=1 "$@" sh "$REPO/install.sh"
+    XDG_DATA_HOME="$work/home/share-xdg" \
+    AR_ASSET_URL="$url" GITHUB_TOKEN= GH_TOKEN= AR_SKIP_SANDBOX_DEPS=1 \
+    AR_NO_RESTART=1 AR_START_WEBUI=0 "$@" sh "$REPO/install.sh"
 }
 
 make_asset v1.0.0
@@ -81,6 +90,52 @@ if PATH="$work/fakebin:$PATH" run_install "file://$work/assets/v1.0.0/agentrunne
 fi
 grep -q "Unsupported platform" "$work/out5" || fail "missing unsupported-platform diagnostic"
 
+# --- 9. runtime step must stay INSIDE the sandbox --------------------------
+# Regression test for a real incident: the runtime step originally found the
+# daemon with `pkill -f 'ar.*daemon'`, which ignores HOME entirely. Run from
+# this harness — temp HOME, stub binaries — it SIGTERMed the developer's live
+# daemon and could not restart it (the stub cannot). The step now identifies the
+# daemon only through the socket in the store it resolves, so a process that
+# merely LOOKS like a daemon must survive untouched.
+#
+# Deliberately runs without AR_NO_RESTART: the point is to exercise the restart
+# path and prove it finds nothing to restart here.
+scenario9() {
+  mkdir -p "$work/decoy"
+  printf '#!/bin/sh\nsleep 30\n' >"$work/decoy/ar"
+  chmod +x "$work/decoy/ar"
+  "$work/decoy/ar" daemon &
+  decoy=$!
+  # Give it a moment to appear in the process table.
+  sleep 1
+  kill -0 "$decoy" 2>/dev/null || fail "decoy daemon did not start"
+
+  env HOME="$work/home" AR_HOME="$work/home/share" AR_BIN_DIR="$work/home/bin" \
+    XDG_DATA_HOME="$work/home/share-xdg" \
+    AR_ASSET_URL="file://$work/assets/v1.1.0/agentrunner.tar.gz" \
+    GITHUB_TOKEN= GH_TOKEN= AR_SKIP_SANDBOX_DEPS=1 AR_START_WEBUI=0 \
+    sh "$REPO/install.sh" >"$work/out9" 2>&1 \
+    || { cat "$work/out9" >&2; fail "runtime-step install exited non-zero"; }
+
+  if ! kill -0 "$decoy" 2>/dev/null; then
+    cat "$work/out9" >&2
+    fail "installer killed a process that only LOOKED like our daemon (scope regression)"
+  fi
+  kill -TERM "$decoy" 2>/dev/null || true
+  wait "$decoy" 2>/dev/null || true
+
+  # No daemon in this store, so there was nothing to restart, and the web UI
+  # must not have been started either.
+  grep -q "Restarting the daemon" "$work/out9" &&
+    fail "nothing should have been restarted in an empty store"
+  grep -q "Starting the web UI" "$work/out9" &&
+    fail "AR_START_WEBUI=0 must not start the web UI"
+  # The install itself still has to have succeeded.
+  grep -q "AgentRunner .* installed" "$work/out9" || fail "missing install confirmation"
+  # And it should tell the user how to get a runtime, since it started none.
+  grep -q "ar daemon --detach" "$work/out9" || fail "missing runtime hint when no daemon was started"
+}
+
 # --- 6-8. OS sandbox dependency step (INC-75, Linux only) ------------------
 # Stubbed bwrap/sysctl keep these offline and side-effect free. The
 # missing-bwrap branch (no bwrap anywhere on PATH) is deliberately not
@@ -117,7 +172,9 @@ if [[ "$(uname -s)" == Linux ]]; then
   fi
   grep -q "AR_REQUIRE_SANDBOX=1" "$work/out8" || fail "missing require-sandbox diagnostic"
 
-  echo "test-install: OK (8 scenarios)"
+  scenario9
+  echo "test-install: OK (9 scenarios)"
 else
-  echo "test-install: OK (5 scenarios; sandbox-dep scenarios are Linux-only)"
+  scenario9
+  echo "test-install: OK (6 scenarios; sandbox-dep scenarios are Linux-only)"
 fi

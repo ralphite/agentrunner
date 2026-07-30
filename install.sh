@@ -22,6 +22,14 @@ set -eu
 #   AR_ASSET_URL  direct tarball URL (skips GitHub entirely; for tests/mirrors.
 #                 sha256 is fetched from $AR_ASSET_URL.sha256)
 #
+# After installing, the script restarts a running daemon onto the new binary
+# (refusing while a turn is in flight) and OFFERS to start the web UI. The web
+# UI is opt-in: starting a listening server is not an installer's call to make,
+# so with no terminal to ask (CI, `curl | sh` in a pipeline) the answer is no.
+#   AR_NO_RESTART=1     leave a running daemon on its old binary
+#   AR_START_WEBUI=1/0  answer the web UI prompt without a terminal
+#   AR_WEBUI_ADDR       listen address for it (default: arwebui's own)
+#
 # OS sandbox dependency (INC-75): on Linux, ar's bash/command tools require
 # bubblewrap (fail-closed, 决策 #34). After installing the binaries this
 # script probes for it and — when missing and running as root (or with
@@ -232,7 +240,213 @@ fi
 echo
 echo "AgentRunner $version installed."
 echo "  binaries: $BIN_DIR/ar, $BIN_DIR/arwebui → $dest"
+
+# --- runtime handoff: restart the daemon, offer to start the web UI ----------
+# An upgrade that leaves the OLD daemon running is the stale-binary class this
+# project has lost time to twice: the new `ar` talks to a daemon that predates
+# it, and a genuinely-fixed feature "fails" with a confusing error. The store
+# under $AR_HOME is durable and survives restart, so the only thing a restart
+# can destroy is an IN-FLIGHT model turn — which is exactly what we check for
+# first, and refuse to trample.
+#
+# Nothing in this section may fail the install: the binaries are already in
+# place and correct by this point. Every step degrades to a printed hint.
+#   AR_NO_RESTART=1     leave the running daemon alone
+#   AR_START_WEBUI=1/0  answer the web UI prompt non-interactively
+#   AR_WEBUI_ADDR       listen address for it (default: arwebui's own default)
+ar_bin="$dest/ar"
+webui_bin="$dest/arwebui"
+
+# Which daemon is "ours"? The one serving the store THIS binary resolves —
+# mirroring runtime.DataDir(): $XDG_DATA_HOME/agentrunner, else
+# ~/.local/share/agentrunner. Deliberately NOT $AR_HOME: that is where releases
+# get unpacked and a caller may point it somewhere else entirely.
+#
+# The socket is the identity. Pattern-matching the process table instead
+# (`pkill -f 'ar.*daemon'`) reaches straight out of whatever HOME we were given
+# and can SIGTERM an unrelated daemon — a live one belonging to another store,
+# another checkout, or another user. Learned the hard way: that exact pattern,
+# run from a sandboxed installer test with a temp HOME, killed the real daemon
+# on the developer's machine.
+if [ -n "${XDG_DATA_HOME:-}" ]; then
+  ar_data="$XDG_DATA_HOME/agentrunner"
+else
+  ar_data="$HOME/.local/share/agentrunner"
+fi
+
+# The socket is <datadir>/daemon.sock — EXCEPT when that path exceeds the unix
+# sockaddr_un limit, where ar falls back to a hashed name under the temp dir
+# (internal/cli/daemon.go socketPath). Replicating that length threshold here
+# would be a drift waiting to happen, so probe BOTH candidates and take whichever
+# actually exists. Found the hard way: a long XDG_DATA_HOME puts the socket in
+# TMPDIR, and an installer that only knew the natural path saw "no daemon".
+if command -v sha256sum >/dev/null 2>&1; then
+  data_hash="$(printf %s "$ar_data" | sha256sum | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+  data_hash="$(printf %s "$ar_data" | shasum -a 256 | awk '{print $1}')"
+else
+  data_hash=""
+fi
+sock_fallback=""
+if [ -n "$data_hash" ]; then
+  tmp_base="${TMPDIR:-/tmp}"
+  case "$tmp_base" in */) tmp_base="${tmp_base%/}" ;; esac
+  # hex.EncodeToString(h[:8]) — the first 8 bytes, i.e. 16 hex chars.
+  sock_fallback="$tmp_base/ar-$(printf %s "$data_hash" | cut -c1-16).sock"
+fi
+
+# Echoes the live socket path, or nothing. Re-probed rather than cached: a
+# freshly started daemon creates its socket after this script began.
+find_sock() {
+  if [ -S "$ar_data/daemon.sock" ]; then
+    echo "$ar_data/daemon.sock"
+  elif [ -n "$sock_fallback" ] && [ -S "$sock_fallback" ]; then
+    echo "$sock_fallback"
+  fi
+}
+
+ar_sock="$(find_sock)"
+
+# A socket file can outlive a hard-killed daemon, so its presence means "there
+# may be something here", not "a daemon is live". The pid lookup below settles it.
+daemon_running() { [ -n "$(find_sock)" ]; }
+
+# Likewise scoped: only a web UI serving OUR store's socket is ours to mention.
+webui_running() {
+  command -v pgrep >/dev/null 2>&1 || return 1
+  pgrep -f "$dest/arwebui|$BIN_DIR/arwebui" >/dev/null 2>&1
+}
+
+# A turn in flight is the one thing a restart would destroy. Match only the
+# structured status value: session ids and titles are free text and routinely
+# contain the word "running".
+turn_in_flight() {
+  "$ar_bin" sessions --json 2>/dev/null |
+    grep -qE '"status"[[:space:]]*:[[:space:]]*"running"'
+}
+
+start_daemon() {
+  "$ar_bin" daemon --detach >/dev/null 2>&1 || return 1
+  i=0
+  while [ "$i" -lt 20 ]; do
+    daemon_running && return 0
+    i=$((i + 1))
+    sleep 0.5
+  done
+  return 1
+}
+
+daemon_ready=no
+if [ "${AR_NO_RESTART:-}" = 1 ]; then
+  echo
+  echo "  AR_NO_RESTART=1 — leaving any running daemon on its old binary."
+  daemon_running && daemon_ready=stale
+elif daemon_running; then
+  echo
+  if turn_in_flight; then
+    # Refuse. Killing a live turn to save the user a manual step is never the
+    # right trade, and the stale daemon is visible rather than silent.
+    echo "  A session has a RUNNING turn — NOT restarting the daemon (it would kill the turn)." >&2
+    echo "  The daemon is still on its previous binary. Once the turn finishes, re-run" >&2
+    echo "  this installer: it repeats the same check and then restarts cleanly." >&2
+    daemon_ready=stale
+  elif ! command -v lsof >/dev/null 2>&1; then
+    # No way to name the socket's owner. Refuse to guess: a guessed pid is
+    # somebody else's process.
+    echo "  A daemon may be serving $ar_sock, but lsof is unavailable so its pid" >&2
+    echo "  cannot be identified — NOT restarting (guessing would risk an unrelated" >&2
+    echo "  process). Restart it yourself so it picks up $version:" >&2
+    echo "      kill \$(lsof -t '$ar_sock') && ar daemon --detach" >&2
+    daemon_ready=stale
+  else
+    old_pid="$(lsof -t "$ar_sock" 2>/dev/null | head -1)"
+    if [ -z "$old_pid" ]; then
+      printf '  Clearing a stale socket and starting the daemon... '
+    else
+      printf '  Restarting the daemon on the new binary (the durable store survives)... '
+      kill -TERM "$old_pid" 2>/dev/null || true
+      i=0
+      while [ "$i" -lt 20 ] && kill -0 "$old_pid" 2>/dev/null; do
+        i=$((i + 1)); sleep 0.5
+      done
+    fi
+    if start_daemon; then
+      echo "ok"
+      daemon_ready=yes
+    else
+      echo "failed"
+      echo "  The daemon did not come up." >&2
+      echo "  Start it and check the log: ar daemon --detach ; tail $ar_data/daemon.log" >&2
+    fi
+  fi
+fi
+
+# Web UI: opt-in, because starting a listening server is not something an
+# installer should decide on its own. `curl | sh` puts the SCRIPT on stdin, so
+# the prompt has to come from the terminal directly; with no terminal (CI,
+# piped, provisioning) the answer is no.
+want_webui="${AR_START_WEBUI:-}"
+case "$want_webui" in
+  1|y|Y|yes|YES) want_webui=yes ;;
+  0|n|N|no|NO)   want_webui=no ;;
+  "")
+    if webui_running; then
+      want_webui=no
+      echo
+      echo "  A web UI is already running — left alone (it may be on the previous build)."
+      echo "  To move it to $version, stop it and run: arwebui --no-daemon"
+    elif [ -r /dev/tty ] && [ -w /dev/tty ]; then
+      echo
+      printf 'Start the AgentRunner web UI now? [y/N] ' > /dev/tty
+      read -r reply < /dev/tty 2>/dev/null || reply=n
+      case "$reply" in y|Y|yes|YES) want_webui=yes ;; *) want_webui=no ;; esac
+    else
+      want_webui=no
+    fi
+    ;;
+  *) want_webui=no ;;
+esac
+
+if [ "$want_webui" = yes ]; then
+  # The web UI would otherwise spawn and manage a daemon of its own; when we
+  # have one on the shared socket, --no-daemon keeps a single owner.
+  if [ "$daemon_ready" = no ] && ! daemon_running; then
+    printf '  Starting the daemon first... '
+    if start_daemon; then echo "ok"; daemon_ready=yes; else echo "failed"; fi
+  fi
+  webui_log="$AR_HOME/webui.log"
+  printf '  Starting the web UI... '
+  # Keep the log: it is where the listen address and any startup error live.
+  if [ -n "${AR_WEBUI_ADDR:-}" ]; then
+    nohup "$webui_bin" --no-daemon --ar "$ar_bin" --addr "$AR_WEBUI_ADDR" \
+      >"$webui_log" 2>&1 &
+  else
+    nohup "$webui_bin" --no-daemon --ar "$ar_bin" >"$webui_log" 2>&1 &
+  fi
+  webui_pid=$!
+  sleep 2
+  if kill -0 "$webui_pid" 2>/dev/null; then
+    echo "ok (pid $webui_pid)"
+    # Report the address arwebui ITSELF logged, never a port hardcoded here —
+    # a default that drifts would otherwise send the user to a dead URL.
+    url="$(sed -n 's/.*listening on \(http:\/\/[^ ]*\).*/\1/p' "$webui_log" 2>/dev/null | tail -1)"
+    if [ -n "$url" ]; then
+      echo "  Open $url"
+    else
+      echo "  Listening — see $webui_log for the address"
+    fi
+    echo "  Log: $webui_log   Stop: kill $webui_pid"
+  else
+    echo "failed"
+    echo "  See why: tail $webui_log   (or run: arwebui --no-daemon)" >&2
+  fi
+fi
+
+echo
 case ":$PATH:" in
   *":$BIN_DIR:"*) echo "  Get started: ar init && ar help" ;;
   *) echo "  Add $BIN_DIR to your PATH, then: ar init && ar help" ;;
 esac
+if [ "$daemon_ready" = no ] && [ "$want_webui" != yes ]; then
+  echo "  Conversations need the runtime: ar daemon --detach"
+fi

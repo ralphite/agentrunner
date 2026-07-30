@@ -79,8 +79,12 @@ jobs:
           tarball="$(ls "$PWD"/dist/agentrunner-*-linux-x86_64.tar.gz)"
           # AR_REQUIRE_SANDBOX=1:装完即沙箱可用是发布断言（INC-75）——
           # install.sh 现场装 bubblewrap+userns 放开并真实 probe，失败即红。
+          # AR_NO_RESTART/AR_START_WEBUI：这一腿断言的是"真产物能装对"，不是
+          # runtime handoff（那条由 scripts/test-install.sh 场景 9 覆盖）。显式
+          # 关掉，免得未来某个 runner 恰好有 daemon 在跑时行为不确定。
           AR_ASSET_URL="file://$tarball" AR_HOME="$RUNNER_TEMP/ar-home" \
-            AR_BIN_DIR="$RUNNER_TEMP/ar-bin" AR_REQUIRE_SANDBOX=1 sh install.sh
+            AR_BIN_DIR="$RUNNER_TEMP/ar-bin" AR_REQUIRE_SANDBOX=1 \
+            AR_NO_RESTART=1 AR_START_WEBUI=0 sh install.sh
           "$RUNNER_TEMP/ar-bin/ar" --version
           "$RUNNER_TEMP/ar-bin/arwebui" -version
           "$RUNNER_TEMP/ar-bin/ar" doctor
