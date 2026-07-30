@@ -681,11 +681,24 @@
     outline: 1.5px solid var(--blue);
     outline-offset: -1px;
   }
-  /* INC-104 · Section heading row ("Projects"/"Chats"): the label keeps its
-     full-row hit area while the ⋯ organize menu and + create button surface on
-     hover/focus (always on touch, which has no hover to reveal them). */
-  .section-heading-row { @apply flex w-full min-w-0 items-center; }
+  /* INC-104 · Section heading row ("Pinned"/"Projects"/"Chats"): the label keeps
+     its full-row hit area while the ⋯ organize menu and + create button surface
+     on hover/focus (always on touch, which has no hover to reveal them). */
+  .section-heading-row { @apply flex w-full min-w-0 items-center rounded-[var(--radius-row)] transition-colors duration-100; }
   .section-heading-row .section-label { @apply min-w-0 flex-1; }
+  /* Third time for this bug class (after INC-92 sessions and INC-93 projects):
+     the fill belongs to the WRAPPER, never the inner button. The toggle is
+     `flex-1`, so the moment hover reveals the ⋯/+ strip the button shrinks —
+     a fill painted on it stopped ~58px short of the row and read as a chip
+     rather than the section it heads. Same painter, token, and radius as
+     .project-heading-row so the header and the rows below share one hover
+     language (the header used opaque --panel-2 against the rows' --ix-hover). */
+  .section-heading-row:hover,
+  .section-heading-row.pseudo-hover,
+  .pseudo-hover .section-heading-row,
+  .section-heading-row:focus-within {
+    box-shadow: inset 0 0 0 999px var(--ix-hover);
+  }
   .section-heading-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .section-heading-row:hover .section-heading-actions,
   .section-heading-row:focus-within .section-heading-actions { @apply flex; }
@@ -730,7 +743,11 @@
     @apply text-[14px] leading-[20px] font-normal normal-case tracking-normal;
     color: var(--side-label);
   }
-  .section-toggle { @apply flex w-full items-center gap-1 rounded-[var(--radius-row)] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
+  /* Unpainted on purpose — .section-heading-row above owns the row fill. `gap-2`
+     (not the old gap-1) is half of the icon-column contract: with the 16px
+     .section-icon-slot it puts the heading's text at the same x as the project
+     names and session titles below. */
+  .section-toggle { @apply flex w-full items-center gap-2 rounded-[var(--radius-row)] border-0 bg-transparent text-left; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
   /* Repo heading keeps a single quiet line: just the project name, no extra
@@ -2913,8 +2930,12 @@
   .pop-section { @apply flex flex-col py-0.5; }
   .proj-folder { @apply shrink-0 text-dim; }
   /* Project fold state stays readable at rest without shifting the text:
-     folded uses Folder, expanded uses FolderOpen in the same fixed slot. */
-  .proj-icon-slot { @apply inline-grid h-4 w-4 shrink-0 place-items-center; }
+     folded uses Folder, expanded uses FolderOpen in the same fixed slot.
+     .section-icon-slot shares the rule — one slot geometry means the section
+     header's caret and the folders beneath it stand in a single icon column
+     down the rail, instead of an 11px caret box beside a 16px folder box. */
+  .proj-icon-slot,
+  .section-icon-slot { @apply inline-grid h-4 w-4 shrink-0 place-items-center; }
 
   /* Subagents 行:成员名优先于 status/meta——共享组给的 flex-1 在窄
      rail 里会被按内容占位的邻居分到 0 剩余宽(QA-0719 实测 sa-name

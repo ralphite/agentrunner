@@ -778,14 +778,21 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       <div className="project-list">
         {model.pinned.length > 0 && (
           <section className="sidebar-section pinned-section">
-            <button
-              className="section-label section-toggle"
-              onClick={() => toggleSection("pinned")}
-              aria-expanded={!foldedSections.has("pinned")}
-            >
-              <CaretRight size={11} aria-hidden="true" className={`section-caret${foldedSections.has("pinned") ? "" : " open"}`} />
-              Pinned
-            </button>
+            {/* Wrapped even with no trailing actions: .section-heading-row is
+                what paints the hover fill, so a bare toggle would be the one
+                header in the rail that answers the pointer differently. */}
+            <div className="section-heading-row">
+              <button
+                className="section-label section-toggle"
+                onClick={() => toggleSection("pinned")}
+                aria-expanded={!foldedSections.has("pinned")}
+              >
+                <span className="section-icon-slot" aria-hidden="true">
+                  <CaretRight size={11} className={`section-caret${foldedSections.has("pinned") ? "" : " open"}`} />
+                </span>
+                Pinned
+              </button>
+            </div>
             {!foldedSections.has("pinned") && model.pinned.map((session) => renderSession(session))}
           </section>
         )}
@@ -819,7 +826,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => toggleSection("projects")}
               aria-expanded={!foldedSections.has("projects")}
             >
-              <CaretRight size={11} aria-hidden="true" className={`section-caret${foldedSections.has("projects") ? "" : " open"}`} />
+              <span className="section-icon-slot" aria-hidden="true">
+                <CaretRight size={11} className={`section-caret${foldedSections.has("projects") ? "" : " open"}`} />
+              </span>
               Projects
             </button>
             <span className="section-heading-actions">

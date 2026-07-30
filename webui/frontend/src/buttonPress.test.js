@@ -80,3 +80,52 @@ describe("sidebar project row highlight extent (INC-93)", () => {
     expect(outlined(".project-session-wrap")).toBe(true);
   });
 });
+
+// Same bug class as INC-92/93, one level up the rail: the "Pinned"/"Projects"
+// section header. Its fill used to live on the inner .section-toggle, which is
+// flex-1 — so revealing the ⋯/+ strip on hover shrank the button and the fill
+// stopped ~58px short of the 224px row, reading as a chip instead of the
+// section it heads. It also used opaque --panel-2 where every row below uses
+// the translucent --ix-hover.
+describe("sidebar section header highlight extent", () => {
+  it("paints the wrapper, not the inner toggle, with the same token as the rows", () => {
+    const highlightRule =
+      css.match(/\.section-heading-row:hover,[^{]+\{[^}]*\}/s)?.[0] || "";
+    expect(highlightRule).toContain(".pseudo-hover .section-heading-row");
+    expect(highlightRule).toContain(".section-heading-row:focus-within");
+    expect(highlightRule).toMatch(/box-shadow:[^;]*--ix-hover/);
+
+    const toggleRule = css.match(/\.section-toggle\s*\{([^}]*)\}/s)?.[1] || "";
+    expect(paints(toggleRule)).toBe(false);
+  });
+
+  it("keeps the header radius on the wrapper that paints it", () => {
+    const rowRule = css.match(/\.section-heading-row\s*\{([^}]*)\}/s)?.[1] || "";
+    expect(rowRule).toMatch(/rounded-\[var\(--radius-row\)\]/);
+  });
+});
+
+// The rail reads as one icon column: the section header's caret sits in the
+// same fixed 16px slot as the project folders, with the same gap to the label,
+// so heading text and project names share a left edge (both 40px in the live
+// 224px rail). A bare 11px caret with gap-1 put the heading text at 31px.
+describe("sidebar icon column", () => {
+  it("gives the section caret the same slot geometry as the project folder", () => {
+    const slotRule =
+      css.match(/\.proj-icon-slot,\s*\n?\s*\.section-icon-slot\s*\{([^}]*)\}/s)?.[1] || "";
+    expect(slotRule).toMatch(/h-4/);
+    expect(slotRule).toMatch(/w-4/);
+    expect(slotRule).toMatch(/place-items-center/);
+  });
+
+  it("uses one gap for the section toggle and the project heading", () => {
+    const gapOf = (selector) => {
+      const rule =
+        css.match(new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`, "s"))?.[1] || "";
+      return rule.match(/\bgap-(\S+?)\b/)?.[1] || null;
+    };
+    // .project-heading inherits gap-2 from the shared .section-label base rule.
+    expect(gapOf(".section-toggle")).toBe("2");
+    expect(gapOf(".section-label, .project-heading")).toBe("2");
+  });
+});
