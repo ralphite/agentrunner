@@ -2372,3 +2372,23 @@ ChangesOutcome.test no-skeleton/single-flight。
 | E transport | 六组均在 in-app browser 逐个通过 Play/Pause/Next/Reset/Replay/Autoplay/2×；Next 后 transport 与 checkpoint 同为 step 2/总数，Reset 回首 checkpoint；继续复用 `ScenarioRunner` / `ScenarioControls` |
 | F 视觉与窄屏 | 六组 step 2 截图 `14`–`19` 均无空白/crash；Scheduled 选中行 `Running`、详情 `Active`、动作 `Pause` 一致；Changes、Scheduled、Session 无横向页面溢出；320×640 Running Queued 的 model/assist 与 Queue/Steer/Send 稳定分两行，所有 44px target 留在 composer card 内 |
 | G 边界 | playlist 只简化真实 QA 的用户可见投影；API-only QA 不画假 UI。Demo 全用 fixture/MSW，不写 production store；retained session/workspace/journal 与全部有效截图保留 |
+
+## QA-95 项目注册表与多源文件夹(INC-104,UJ-24)
+
+**目标**:显式 project 注册表(name + 1..N source folders)全链路——Create/Edit 对话框、多目录会话并组、launcher 放行注册 folder、名字贯穿全表面、Organize/Sort、删除只删声明。
+
+**环境**:8788 私有 arwebui 连共享 daemon/store,真 Gemini turn;8809 用户实例只读对账;全程系统暗色驱动。证据:`qa/runs/2026-07-29-QA-95-project-registry/`。
+
+| # | 场景 | 硬断言 |
+|---|---|
+| 1 | 现有组 Edit → 改名 + 加第二真实目录 → Save | 两目录会话并入一组;原派生组消失;`<DataDir>/projects.json` 落条 |
+| 2 | 段头 `+` Create(全新无会话目录) | 组现身 + No chats;`ar sessions list` 计数不变 |
+| 3 | 对 #2 Reveal in Finder;未注册目录 curl | 200 且 Finder 真开;400 fail-closed |
+| 4 | 铅笔 New chat + 真 Gemini turn | Home chip/headline 显项目名;回复落组;workspace=folders[0] |
+| 5 | 同名贯穿 | sidebar / Home headline / ⌘K hint 三处一致 |
+| 6 | 死 folder(磁盘删除后 Edit) | missing 标注;死 folder 可移除、Save 成功;移除 folder 后其派生组回来 |
+| 7 | Organize 四档 + Manual | In one list 平铺且 reload 保持;manual 下行 draggable 且菜单有 Move up/down |
+| 8 | 暗色 | 对话框/菜单/空态无浅色泄漏,console 无错 |
+| 9 | 双实例 | 8788 建的项目 8809 立即可读(共享 projects.json) |
+| 10 | 重启 + journal 纯净 | webui 重启项目在;sessions 行仍只有 7 个既有字段 |
+| 11 | 删除项目 | 确认文案明说数据不动;派生组回来**非隐藏态** |
