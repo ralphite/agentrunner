@@ -149,11 +149,12 @@ func (s *server) handleOpen(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "opened"})
 }
 
-// handleProjectsList returns the workspace-keyed overlay (INC-53): custom
-// display names, folded/pinned/removed state, and last-opened times the sidebar
-// renders on top of the journal-derived project groups.
+// handleProjectsList returns the project surface in one response (INC-53 +
+// INC-104): the cosmetic overlay (custom display names, folded/pinned/removed
+// state, last-opened times) plus the explicit project registry the sidebar
+// merges into first-class groups.
 func (s *server) handleProjectsList(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.meta.allProjects())
+	writeJSON(w, http.StatusOK, s.buildProjectsPayload())
 }
 
 // handleProjectUpdate applies a partial overlay update for one project group
@@ -187,5 +188,5 @@ func (s *server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.meta.setProject(key, req.DisplayName, req.Folded, req.Pinned, req.Removed)
-	writeJSON(w, http.StatusOK, s.meta.allProjects())
+	writeJSON(w, http.StatusOK, s.buildProjectsPayload())
 }

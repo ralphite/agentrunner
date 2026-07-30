@@ -42,15 +42,19 @@ type server struct {
 	stopping       bool      // shutdown in progress: do not respawn
 	respawns       []time.Time
 
-	runs *runRegistry // background submit/drive runs
-	meta *metaStore   // sid → workspace/title we know from creating it
+	runs     *runRegistry  // background submit/drive runs
+	meta     *metaStore    // sid → workspace/title we know from creating it
+	projects *projectStore // explicit project registry (INC-104), shared via <DataDir>/projects.json
 
 	// launch runs the OS "open" argv for the INC-53 launcher; nil = real exec
 	// (runLaunch). workspaces resolves the launcher's allowed-workspace set;
-	// nil = derive from the live `ar sessions list`. Both are fields so tests
-	// can capture the argv and inject a known set without launching real apps.
+	// nil = derive from the live `ar sessions list`. spellings resolves the
+	// canonPath→journal-spelling map for INC-104 folder normalization; nil =
+	// derive from the live session list. All are fields so tests can capture
+	// argv / inject fixed sets without a real `ar` binary.
 	launch     func(ctx context.Context, argv []string) error
 	workspaces func(ctx context.Context) map[string]bool
+	spellings  func(ctx context.Context) map[string]string
 	// continueMessage is the in-process core seam for message-scoped forks;
 	// tests inject it to validate HTTP mapping without mutating real sessions.
 	continueMessage continueMessageFunc
@@ -131,7 +135,7 @@ func main() {
 		log.Fatalf("arwebui: worktree dir: %v", err)
 	}
 
-	s := &server{arPath: *arPath, version: version, runtimeDir: rt, worktreeDir: wtDir, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json"))}
+	s := &server{arPath: *arPath, version: version, runtimeDir: rt, worktreeDir: wtDir, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json")), projects: newProjectStore(filepath.Join(dataDir(), "projects.json"))}
 	s.warnOnARVersionSkew()
 	if s.daemonManage {
 		if err := s.spawnDaemon(); err != nil {

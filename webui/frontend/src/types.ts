@@ -148,11 +148,33 @@ export interface AgentCatalogEntry {
   yaml: string;
 }
 
-// ProjectMeta is the server-side, workspace-keyed overlay (INC-53, HANDA #24):
-// a user's cosmetic preferences layered on top of the journal-derived project
-// groups — a custom display name, a folded (collapsed) state, and when the
-// project was last opened in a system app via the launcher. Decorative only;
-// it never decides which group a session belongs to.
+// ProjectDef is one entry of the explicit project registry (INC-104): a
+// user-declared name plus one or more source folders the sidebar merges into a
+// single group. Membership stays derived — a session belongs to the project
+// iff its workspace exactly matches one of the folders; sessions never carry a
+// project id.
+export interface ProjectDef {
+  id: string;
+  name: string;
+  folders: string[]; // folders[0] is the primary (New chat target)
+  order?: number; // manual sort rank; absent/0 = unranked
+  createdAt?: number; // unix millis
+  missing?: string[]; // folders currently absent from disk (computed server-side)
+}
+
+// ProjectsPayload is the combined GET/POST /api/projects* response: the
+// cosmetic overlay map plus the explicit registry, refreshed by one poll.
+export interface ProjectsPayload {
+  overlays: Record<string, ProjectMeta>;
+  projects: ProjectDef[];
+}
+
+// ProjectMeta is the server-side cosmetic overlay (INC-53, HANDA #24). Keys
+// are derived-group workspace paths, or "project:<id>" for an explicit
+// project's presentation state (INC-104) — a custom display name, a folded
+// (collapsed) state, and when the project was last opened in a system app via
+// the launcher. Decorative only; it never decides which group a session
+// belongs to.
 export interface ProjectMeta {
   displayName?: string;
   folded?: boolean;

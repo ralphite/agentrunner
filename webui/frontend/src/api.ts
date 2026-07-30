@@ -1,4 +1,4 @@
-import type { AgentCatalogEntry, BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, ScheduleDetail, Session, SpecFile } from "./types";
+import type { AgentCatalogEntry, BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectDef, ProjectsPayload, Run, ScheduleDetail, Session, SpecFile } from "./types";
 
 // ApiError carries the HTTP status and the server's machine-readable `code`
 // (e.g. 404 / "session_not_found") next to the human message, so callers branch
@@ -298,12 +298,19 @@ export const AR = {
   gitCheckout: (dir: string, branch: string, create: boolean) =>
     post<{ status: string; branch: string }>(`/git/checkout`, { dir, branch, create }),
 
-  // Project overlay + system launcher (INC-53, HANDA #24). projects returns the
-  // workspace-keyed cosmetic overlay; updateProject patches presentation;
-  // openIn launches a whitelisted system app on a known workspace directory.
-  projects: () => api<Record<string, ProjectMeta>>("/projects"),
-  updateProject: (workspace: string, patch: { displayName?: string; folded?: boolean; pinned?: boolean; removed?: boolean }) =>
-    post<Record<string, ProjectMeta>>("/projects", { workspace, ...patch }),
+  // Projects: explicit registry + cosmetic overlay + system launcher (INC-53,
+  // HANDA #24, INC-104). projects returns both surfaces in one payload;
+  // updateProject patches overlay presentation (key = workspace path or
+  // "project:<id>"); create/save/deleteProject mutate the registry; openIn
+  // launches a whitelisted system app on a known workspace directory.
+  projects: () => api<ProjectsPayload>("/projects"),
+  updateProject: (key: string, patch: { displayName?: string; folded?: boolean; pinned?: boolean; removed?: boolean }) =>
+    post<ProjectsPayload>("/projects", { workspace: key, ...patch }),
+  createProject: (b: { name: string; folders: string[] }) =>
+    post<ProjectsPayload & { created: ProjectDef }>("/projects/create", b),
+  saveProject: (b: { id: string; name?: string; folders?: string[]; order?: number }) =>
+    post<ProjectsPayload>("/projects/update", b),
+  deleteProject: (id: string) => post<ProjectsPayload>("/projects/delete", { id }),
   openIn: (workspace: string, app: LauncherApp) =>
     post<{ status: string }>("/open", { workspace, app }),
 

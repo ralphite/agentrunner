@@ -55,7 +55,8 @@ describe("Storybook API handlers", () => {
 
     const response = await fetch(apiURL("/api/projects"));
     expect(await response.json()).toMatchObject({
-      [fixtureDefaults.workspace]: { displayName: "Second harness" },
+      overlays: { [fixtureDefaults.workspace]: { displayName: "Second harness" } },
+      projects: [],
     });
     expect(first.snapshot().projects[fixtureDefaults.workspace].displayName)
       .toBe("Changed in first harness");

@@ -1,7 +1,7 @@
 import { createContext, createElement, useContext, type ReactNode } from "react";
 import { useStore as useZustandStore, type UseBoundStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Health, LauncherApp, ProjectMeta, Run, Session } from "./types";
+import type { Health, LauncherApp, ProjectDef, ProjectMeta, ProjectsPayload, Run, Session } from "./types";
 import { nextTheme, type Theme } from "./theme";
 import type { CadenceSpec, RunPreset } from "./runPreset";
 import {
@@ -134,10 +134,14 @@ export interface AppState {
   setVisibleOrder: (ids: string[]) => void;
   selectAdjacent: (delta: number) => void;
 
-  // Project overlay (INC-53, HANDA #24): server-side, workspace-keyed cosmetic
-  // preferences (custom name / folded / last_opened) layered on the
-  // journal-derived project groups. Keyed by the project group's identity key.
+  // Project overlay (INC-53, HANDA #24): server-side cosmetic preferences
+  // (custom name / folded / last_opened) layered on the journal-derived project
+  // groups. Keyed by the group's identity key — a workspace path, or
+  // "project:<id>" for an explicit project (INC-104).
   projects: Record<string, ProjectMeta>;
+  // Explicit project registry (INC-104): user-declared name + source folders,
+  // shared across every webui instance via <DataDir>/projects.json.
+  projectDefs: ProjectDef[];
   refreshProjects: () => Promise<void>;
   setProjectName: (key: string, name: string) => Promise<void>;
   toggleProjectFolded: (key: string, folded: boolean) => Promise<void>;
@@ -330,6 +334,16 @@ export function createAppStore(
   const seenTurns: Record<string, number> = {};
   let sessionsRefreshInFlight: Promise<void> | null = null;
 
+  // applyProjectsPayload lands the combined /api/projects response: the
+  // overlay map and the registry update together, so the sidebar never renders
+  // one surface fresh and the other stale.
+  const applyProjectsPayload = (
+    set: (partial: Partial<AppState>) => void,
+    payload: ProjectsPayload,
+  ) => {
+    set({ projects: payload.overlays ?? {}, projectDefs: payload.projects ?? [] });
+  };
+
   const store = createStore<AppState>()((set, get) => ({
   health: null,
   sessions: [],
@@ -482,16 +496,17 @@ export function createAppStore(
   },
 
   projects: {},
+  projectDefs: [],
   refreshProjects: async () => {
     try {
-      set({ projects: await services.api.projects() });
+      applyProjectsPayload(set, await services.api.projects());
     } catch {
       /* overlay is cosmetic; a failed fetch leaves the last-known map */
     }
   },
   setProjectName: async (key, name) => {
     try {
-      set({ projects: await services.api.updateProject(key, { displayName: name }) });
+      applyProjectsPayload(set, await services.api.updateProject(key, { displayName: name }));
     } catch (error: any) {
       get().toast(error.message, "error", error.details);
     }
@@ -502,7 +517,7 @@ export function createAppStore(
     const prev = get().projects;
     set({ projects: { ...prev, [key]: { ...prev[key], folded } } });
     try {
-      set({ projects: await services.api.updateProject(key, { folded }) });
+      applyProjectsPayload(set, await services.api.updateProject(key, { folded }));
     } catch {
       get().refreshProjects();
     }
@@ -511,7 +526,7 @@ export function createAppStore(
     const prev = get().projects;
     set({ projects: { ...prev, [key]: { ...prev[key], pinned } } });
     try {
-      set({ projects: await services.api.updateProject(key, { pinned }) });
+      applyProjectsPayload(set, await services.api.updateProject(key, { pinned }));
     } catch (error: any) {
       set({ projects: prev });
       get().toast(error.message, "error", error.details);
@@ -521,7 +536,7 @@ export function createAppStore(
     const prev = get().projects;
     set({ projects: { ...prev, [key]: { ...prev[key], removed } } });
     try {
-      set({ projects: await services.api.updateProject(key, { removed }) });
+      applyProjectsPayload(set, await services.api.updateProject(key, { removed }));
     } catch (error: any) {
       set({ projects: prev });
       get().toast(error.message, "error", error.details);

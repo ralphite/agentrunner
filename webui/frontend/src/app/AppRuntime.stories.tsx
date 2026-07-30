@@ -35,7 +35,7 @@ function RuntimeFixture() {
         health: async () => health,
         sessions: async () => sessions,
         runs: async () => [],
-        projects: async () => ({}),
+        projects: async () => ({ overlays: {}, projects: [] }),
       },
     });
     return {

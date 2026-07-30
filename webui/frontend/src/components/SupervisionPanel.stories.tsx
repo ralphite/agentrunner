@@ -161,7 +161,7 @@ function useStoryApi({
         mainRepo: "/projects/agentrunner",
       })),
       openIn: fn(async () => ({ status: "ok" })),
-      projects: fn(async () => ({})),
+      projects: fn(async () => ({ overlays: {}, projects: [] })),
     }),
   );
   return api;

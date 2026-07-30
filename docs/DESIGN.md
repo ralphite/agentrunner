@@ -1422,11 +1422,23 @@ resume 永不重读 live default。
 - approval 仍通过 durable `approve` command；卡片默认只投影动作、对象与
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。
-- project grouping 以 workspace 为键；未知 workspace 进 `Other sessions`，
+- project grouping 的**默认**键仍是 workspace；未知 workspace 进 `Other sessions`，
   自动生成的 `ws<timestamp>` / `wt<timestamp>` workspace 各自成组，默认名
   投影为 `Scratch · MM-DD HH:MM`（不泄漏实现 id、不隐藏 session、不互相
   合并——INC-78 撤销了早期"单一 Scratch 聚合"，它把无关工程混进一个假
-  文件夹）；组名经 project overlay（INC-53，workspace 为键）可改。不同 workspace
+  文件夹）；组名经 project overlay（INC-53，workspace 为键）可改。**显式
+  project 注册表（INC-104，修订 2026-07-11「不建服务端注册表」决策，见
+  LOG）**：用户可声明一个 project = 名字 + 1..N 个 source folders
+  （`<DataDir>/projects.json`，跨 webui 实例共享，独立 lock 文件 flock +
+  temp+rename 原子写、每次读写过盘不设进程内缓存）。成员判定仍从 journal
+  派生——session.workspace 与某 folder **精确匹配**（服务端写入时把 folder
+  归一到 journal 拼法）即归入该 project 组；注册表不改写 journal、不给
+  session 发 project id、session 侧无任何新字段。未被认领的 workspace 行为
+  一字不变；删除 project = 删除声明，session/journal/workspace 分毫不动，
+  派生组原样回来（升格时服务端清掉被认领 folder 的派生 overlay 并把
+  pin/fold 迁至 `project:<id>` key，防止残留 removed:true 让派生组"复活成
+  隐藏态"）。一个 folder 只能属于一个 project（canonical 比较）；folder 在
+  磁盘上消失不锁死编辑——update 只对新增 folder 做存在校验。不同 workspace
   的 display label 允许重名，sidebar 不追加常驻 path subtitle；完整 workspace 只在
   原生 tooltip / hover preview 披露（INC-92）。project heading 的 hover/focus
   background 由包含 menu / New chat icons 的 outer row wrapper 统一承担，不让 actions
@@ -1464,9 +1476,11 @@ resume 永不重读 live default。
   折叠态 / pinned / removed / last_opened），是**装饰性偏好**——project pin 仅
   改变 Projects 内排序，removed 仅隐藏 sidebar projection 且有显式 Restore；
   两者都不删除或改写 session/journal/workspace，command palette 与 durable
-  session 仍完整可达。project grouping 仍以 workspace
-  为键从 journal 派生，overlay 缺省回落派生 label，绝不成为分组归属来源
-  （守上「grouping 以 workspace 为键 / metadata 非唯一来源」不变量）。overlay
+  session 仍完整可达。overlay 本身仍不承载归属：派生组的归属来自 journal
+  workspace，显式 project 的归属来自注册表 folders 的精确匹配（INC-104）；
+  overlay key 扩为「workspace 路径或 `project:<id>`」，只放呈现偏好
+  （displayName/folded/pinned/removed/last_opened），缺省回落派生 label 或
+  注册表 name。overlay
   读写原子（temp+rename）、容忍文件不存在、向后兼容旧 flat 格式（顶层探测
   `sessions`/`projects` key，旧文件整体读作 session cache 再升级为 wrapper），
   仍是非权威 cache。launcher `POST /api/open {workspace,app}` 是 webui 的

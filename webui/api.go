@@ -51,9 +51,15 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/dictate", s.handleDictate)
 	mux.HandleFunc("POST /api/optimize", s.handleOptimize)
 
-	// ---- project overlay + system launcher (INC-53, HANDA #24) ----
+	// ---- projects: explicit registry + workspace overlay + system launcher
+	// (INC-53, HANDA #24, INC-104). Registry ids travel in the body, matching
+	// the /api/trust idiom — all-literal paths, no pattern precedence to think
+	// about.
 	mux.HandleFunc("GET /api/projects", s.handleProjectsList)
 	mux.HandleFunc("POST /api/projects", s.handleProjectUpdate)
+	mux.HandleFunc("POST /api/projects/create", s.handleProjectCreate)
+	mux.HandleFunc("POST /api/projects/update", s.handleProjectSave)
+	mux.HandleFunc("POST /api/projects/delete", s.handleProjectDelete)
 	mux.HandleFunc("POST /api/open", s.handleOpen)
 
 	mux.HandleFunc("GET /api/sessions/{sid}/events", s.handleEvents)

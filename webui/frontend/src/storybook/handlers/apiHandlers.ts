@@ -5,6 +5,7 @@ import type {
   DiffResp,
   Envelope,
   Health,
+  ProjectDef,
   ProjectMeta,
   Run,
   ScheduleDetail,
@@ -45,6 +46,7 @@ export interface StoryApiSeed {
   sessions?: Session[];
   runs?: Run[];
   projects?: Record<string, ProjectMeta>;
+  projectDefs?: ProjectDef[];
   events?: Record<string, Envelope[]>;
   inspect?: Record<string, StoryInspectFixture>;
   backgroundWork?: Record<string, BackgroundWork[]>;
@@ -61,6 +63,7 @@ export interface StoryApiState {
   sessions: Session[];
   runs: Run[];
   projects: Record<string, ProjectMeta>;
+  projectDefs: ProjectDef[];
   events: Record<string, Envelope[]>;
   inspect: Record<string, StoryInspectFixture>;
   backgroundWork: Record<string, BackgroundWork[]>;
@@ -119,6 +122,7 @@ function initialState(seed: StoryApiSeed): StoryApiState {
     sessions: cloneFixture(seed.sessions ?? [defaultSession]),
     runs: cloneFixture(seed.runs ?? [defaultRun]),
     projects: cloneFixture(seed.projects ?? buildProjects()),
+    projectDefs: cloneFixture(seed.projectDefs ?? []),
     events: cloneFixture(seed.events ?? {
       [defaultSession.id]: buildTimeline(),
     }),
@@ -546,8 +550,15 @@ export function createStoryApiHandlers(
     }),
   ];
 
+  // The combined overlay+registry payload every /api/projects* route returns
+  // (INC-104) — mirrors webui/projects.go buildProjectsPayload.
+  const projectsPayload = () => ({
+    overlays: cloneFixture(state.projects),
+    projects: cloneFixture(state.projectDefs),
+  });
+
   const projects: RequestHandler[] = [
-    http.get("/api/projects", () => HttpResponse.json(cloneFixture(state.projects))),
+    http.get("/api/projects", () => HttpResponse.json(projectsPayload())),
     http.post("/api/projects", async ({ request }) => {
       const body = await request.json() as UpdateProjectBody;
       const workspace = body.workspace?.trim();
@@ -561,7 +572,37 @@ export function createStoryApiHandlers(
         ...(pinned !== undefined ? { pinned } : {}),
         ...(removed !== undefined ? { removed } : {}),
       };
-      return HttpResponse.json(cloneFixture(state.projects));
+      return HttpResponse.json(projectsPayload());
+    }),
+    http.post("/api/projects/create", async ({ request }) => {
+      const body = await request.json() as { name?: string; folders?: string[] };
+      const name = body.name?.trim();
+      if (!name) return jsonError("Give the project a name.", 400);
+      if (!body.folders?.length) return jsonError("Add at least one source folder.", 400);
+      const created: ProjectDef = {
+        id: `p-story-${state.projectDefs.length + 1}`,
+        name,
+        folders: [...body.folders],
+        createdAt: Date.parse(fixtureDefaults.time),
+      };
+      state.projectDefs.push(created);
+      return HttpResponse.json({ ...projectsPayload(), created: cloneFixture(created) });
+    }),
+    http.post("/api/projects/update", async ({ request }) => {
+      const body = await request.json() as { id?: string; name?: string; folders?: string[]; order?: number };
+      const def = state.projectDefs.find((p) => p.id === body.id);
+      if (!def) return jsonError("That project doesn't exist anymore.", 400);
+      if (body.name !== undefined) def.name = body.name;
+      if (body.folders !== undefined) def.folders = [...body.folders];
+      if (body.order !== undefined) def.order = body.order;
+      return HttpResponse.json(projectsPayload());
+    }),
+    http.post("/api/projects/delete", async ({ request }) => {
+      const body = await request.json() as { id?: string };
+      const idx = state.projectDefs.findIndex((p) => p.id === body.id);
+      if (idx < 0) return jsonError("That project doesn't exist anymore.", 400);
+      state.projectDefs.splice(idx, 1);
+      return HttpResponse.json(projectsPayload());
     }),
     http.post("/api/open", async ({ request }) => {
       const body = await request.json() as { workspace?: string };

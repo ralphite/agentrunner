@@ -8205,3 +8205,59 @@ cache"在磁盘上就是这个意思），把性能属性本身锁住。
 那条）；已完成 turn 走 `DiffSnapshots`（未改动）= 0.306 s。
 
 **未动**：G62（harness 级 exclude 表只实现了凭据那一半）仍开放。
+
+---
+
+## 2026-07-29 · INC-104 项目注册表:一个 project 可以有多个 source folders(不变量修订,用户裁决)
+
+**推翻 2026-07-11「不建服务端注册表」。** 当时的判断建立在一个前提上:
+project 只是 workspace 的投影,注册表是重复真相源。这个前提对**单目录**
+项目成立,对用户真实的工作形态不成立——一个项目常常横跨若干目录(主仓 +
+文档仓 + 脚本目录),派生模型在语义上无法表达它,只能把同一个项目摊成几
+个互不相干的组。用户 2026-07-29 明确要求 name + 多 source folders(参照
+Codex 的 Create/Edit project 对话框),这不是装饰偏好,是**用户声明的事
+实**,派生不出来。经 AskUserQuestion 裁决:批准修订。
+
+**不变量 A(DESIGN §12 分组段)**
+- 旧原文:「project grouping 以 workspace 为键 …… overlay 缺省回落派生
+  label,绝不成为分组归属来源」。
+- 为什么必须动:多 source folders 在"以单个 workspace 为键"下无法表达。
+- 新表述:分组的**默认**键仍是 workspace;显式 project 注册表可以把一组
+  folder 声明为同一个 project。成员判定仍然是 journal `workspace` 的**精确
+  匹配**——注册表不改写 journal、不给 session 分配 project id、不参与
+  session 的归属计算,只声明"这几个目录属于同一个项目"。未被任何项目
+  认领的 workspace 行为一字不变。删除一个 project = 删除这条声明,session /
+  journal / workspace 分毫不动,派生组原样回来。
+- 波及面:`webui/projects.go`(新)、`webui/open.go`、`webui/main.go`、
+  `webui/api.go`;前端 `types.ts`/`api.ts`/`store.ts`(payload 适配),后续
+  C2+ 落 `viewModels.ts`/`Sidebar.tsx`/`Modals.tsx`;测试
+  `webui/projects_test.go`、`apiHandlers.test.ts`;文档 DESIGN §12 / SPEC /
+  JOURNEYS UJ-24 / QA-95。
+
+**存储与并发**:`projects.json` 落 `<DataDir>`(与 daemon store 同根),被
+同机所有 arwebui 共享——用户的 8809 与 QA 端口必须看到同一份项目。锁加在
+**独立的 `projects.json.lock`** 上,不是数据文件本身:数据文件每次写都被
+rename 替换,锁在旧 inode 上对打开新 inode 的第二个进程毫无约束。不做进程
+内缓存,每次读写都在锁下过盘。`withLock` 的写意图是显式布尔——"nil 切片 =
+只读"会把「删除最后一条」静默吞掉(空结果就是 nil),这个 bug 被
+`TestProjectCreateUpgradeMigratesOverlay` 当场抓获。
+
+**pinned/folded 不进实体**:留在既有 overlay(key `project:<id>`)。overlay
+那套乐观更新 + 回滚 + 双写已就绪且有测试;fold/pin 是高频呈现偏好,放进
+共享 registry 会让每次折叠变成跨进程加锁写盘。实体只是低频身份记录
+`{id,name,folders,order,createdAt}`。代价:显式 project 的 pin/fold 在
+8809 与 QA 端口间不共享——与派生组今天的行为一致,不是新的不一致。
+
+**拼法归一(防静默不匹配)**:create/update 时,folder 的 canonPath 若命中
+live session list 中某 workspace 的 canonPath,就存 **journal 的拼法**
+(`/tmp` vs `/private/tmp` 这类);`ar` 不可达时 fail-soft 存用户输入。
+
+**升格清 overlay(防复活成隐藏态)**:create 认领 folder 时清掉其派生组
+overlay(保留 lastOpened),pin/fold 迁到 `project:<id>`;否则残留的
+removed:true 会在日后删除 project 时让派生组一出生就是隐藏的,用户会当成
+数据丢失。
+
+**裁掉(记账,不做)**:多 folder project 的 Reveal/worktree 子菜单(v1 用
+folders[0],folder 全列表在 hover 卡披露);worktree session 按 mainRepo 自动
+归入 project(仍各自成派生组,留待后续);manual order 排派生组(只排显式
+project)。
