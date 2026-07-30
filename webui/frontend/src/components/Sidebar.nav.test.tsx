@@ -1273,3 +1273,86 @@ describe("brand row is a wordmark, not a logo tile (SB-13)", () => {
     expect(brand.innerHTML).not.toContain("bg-accent");
   });
 });
+
+describe("sidebar organize menu (INC-104)", () => {
+  const organizeSessions = [
+    { id: "20260721-120000-app", status: "idle", turns: 1, title: "App chat", workspace: "/repo/app", updatedAt: "2026-07-22T12:00:00Z" },
+    { id: "20260720-120000-lib", status: "idle", turns: 1, title: "Lib chat", workspace: "/repo/lib", updatedAt: "2026-07-21T12:00:00Z" },
+  ];
+
+  const mountRail = (over: Record<string, any> = {}) => {
+    useStore.setState({
+      sessions: organizeSessions as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      projectDefs: [],
+      modal: null,
+      prompt: null,
+      openModal: (modal: any) => useStore.setState({ modal }),
+      ...over,
+    });
+    return render(<Sidebar />);
+  };
+
+  afterEach(() => localStorage.clear());
+
+  it("keeps the Projects heading with ⋯ and + even before any project exists", () => {
+    useStore.setState({ sessions: [], sessionsReady: true });
+    mountRail({ sessions: [] });
+    expect(screen.getByRole("button", { name: "Organize sidebar" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    expect(useStore.getState().modal).toMatchObject({ kind: "project", mode: "create" });
+  });
+
+  it("announces the layout and sort choices as radio items and persists them", () => {
+    mountRail();
+    fireEvent.click(screen.getByRole("button", { name: "Organize sidebar" }));
+    const radios = screen.getAllByRole("menuitemradio");
+    expect(radios.map((item) => item.textContent?.trim())).toEqual([
+      "By project",
+      "In one list",
+      "Priority",
+      "Last updated",
+      "Manual order",
+    ]);
+    expect(radios[0].getAttribute("aria-checked")).toBe("true");
+    expect(radios[2].getAttribute("aria-checked")).toBe("true");
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Last updated" }));
+    expect(localStorage.getItem("ar.sidebar.sort")).toBe("updated");
+  });
+
+  it("flattens the rail into one Chats list and back", () => {
+    const { container } = mountRail();
+    expect(container.querySelectorAll(".project-group").length).toBe(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Organize sidebar" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "In one list" }));
+
+    expect(container.querySelectorAll(".project-group").length).toBe(0);
+    expect(screen.getByText("Chats")).toBeTruthy();
+    expect(screen.getByText("App chat")).toBeTruthy();
+    expect(screen.getByText("Lib chat")).toBeTruthy();
+    expect(localStorage.getItem("ar.sidebar.organize")).toBe("one-list");
+
+    // The organize menu stays reachable in one-list mode — it is the way back.
+    fireEvent.click(screen.getByRole("button", { name: "Organize sidebar" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "By project" }));
+    expect(container.querySelectorAll(".project-group").length).toBe(2);
+  });
+
+  it("stops floating pinned projects when sorting by last updated", () => {
+    const { container } = mountRail({ projects: { "/repo/lib": { pinned: true } } });
+    const names = () => [...container.querySelectorAll(".proj-heading-name")].map((n) => n.textContent);
+    expect(names()).toEqual(["lib", "app"]); // priority: pin floats
+
+    fireEvent.click(screen.getByRole("button", { name: "Organize sidebar" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Last updated" }));
+    expect(names()).toEqual(["app", "lib"]); // pure recency
+  });
+});

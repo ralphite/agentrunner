@@ -681,6 +681,18 @@
     outline: 1.5px solid var(--blue);
     outline-offset: -1px;
   }
+  /* INC-104 · Section heading row ("Projects"/"Chats"): the label keeps its
+     full-row hit area while the ⋯ organize menu and + create button surface on
+     hover/focus (always on touch, which has no hover to reveal them). */
+  .section-heading-row { @apply flex w-full min-w-0 items-center; }
+  .section-heading-row .section-label { @apply min-w-0 flex-1; }
+  .section-heading-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
+  .section-heading-row:hover .section-heading-actions,
+  .section-heading-row:focus-within .section-heading-actions { @apply flex; }
+  @media (max-width: 900px), (any-pointer: coarse) {
+    .section-heading-actions { @apply flex; }
+  }
+  .projects-none { @apply px-2 py-[5px] text-[13px] leading-5 text-ink-2 opacity-70; }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
   .project-heading-row.pseudo-hover .project-heading-actions,
@@ -714,7 +726,7 @@
     @apply text-[14px] leading-[20px] font-normal normal-case tracking-normal;
     color: var(--side-label);
   }
-  .section-toggle { @apply w-full rounded-[var(--radius-row)] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
+  .section-toggle { @apply flex w-full items-center gap-1 rounded-[var(--radius-row)] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
   /* Repo heading keeps a single quiet line: just the project name, no extra

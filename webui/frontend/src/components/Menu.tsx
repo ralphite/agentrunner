@@ -1,3 +1,4 @@
+import { Check } from "@phosphor-icons/react";
 import { Popover } from "./Popover";
 import { IconButton } from "../ui/IconButton";
 
@@ -57,12 +58,18 @@ export function MenuItem({
   danger,
   title,
   disabled,
+  checked,
 }: {
   onClick: () => void;
   children: React.ReactNode;
   danger?: boolean;
   title?: string;
   disabled?: boolean;
+  // When set (true OR false) the item is one of a radio group — it announces
+  // as menuitemradio with aria-checked, and renders a leading check glyph
+  // that stays as an invisible spacer when unchecked so labels align
+  // (INC-104 organize menu).
+  checked?: boolean;
 }) {
   return (
     <button
@@ -71,12 +78,16 @@ export function MenuItem({
         (danger ? " danger" : "") +
         (disabled ? " opacity-45" : "")
       }
-      role="menuitem"
+      role={checked === undefined ? "menuitem" : "menuitemradio"}
+      aria-checked={checked}
       tabIndex={-1}
       onClick={onClick}
       title={title}
       disabled={disabled}
     >
+      {checked !== undefined && (
+        <Check size={14} aria-hidden="true" className={checked ? "" : "invisible"} />
+      )}
       {children}
     </button>
   );

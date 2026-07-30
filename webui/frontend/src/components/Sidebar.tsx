@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
+  CaretRight,
   Clock,
   DotsThree,
   GearSix,
@@ -9,6 +10,7 @@ import {
   Monitor,
   Moon,
   NotePencil,
+  Plus,
   Question,
   Sun,
   Tray,
@@ -26,7 +28,7 @@ import { useAppServices } from "../app/appServices";
 import { sessionFriendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
-import { Menu, MenuItem } from "./Menu";
+import { Menu, MenuItem, MenuLabel } from "./Menu";
 import {
   buildSidebarModel,
   isManagedWorktreeWorkspace,
@@ -37,6 +39,8 @@ import {
   sessionUpdatedDate,
   visibleProjectSessions,
   type ProjectGroup,
+  type SidebarOrganize,
+  type SidebarSort,
 } from "../viewModels";
 import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
@@ -77,7 +81,21 @@ const HOVER_PREVIEW_CLOSE_DELAY_MS = 220;
 // whenever it actually carries a fold for that key.
 const COLLAPSED_KEY = "ar.sidebar.collapsedProjects";
 const SECTION_FOLDS_KEY = "ar.sidebar.foldedSections";
+// INC-104 organize menu. Per-browser presentation preferences, same family as
+// the section folds above — NOT the shared registry, so two open ports can
+// disagree about layout without fighting over a file.
+const ORGANIZE_KEY = "ar.sidebar.organize";
+const SORT_KEY = "ar.sidebar.sort";
 type FoldableSection = "pinned" | "projects";
+
+function loadChoice<T extends string>(storage: Storage, key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const raw = storage.getItem(key);
+    return allowed.includes(raw as T) ? (raw as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 function loadCollapsedProjects(storage: Storage): Set<string> {
   try {
@@ -167,6 +185,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const [foldedSections, setFoldedSections] = useState<Set<FoldableSection>>(
     () => loadFoldedSections(storage.local),
   );
+  const [organize, setOrganizeState] = useState<SidebarOrganize>(
+    () => loadChoice(storage.local, ORGANIZE_KEY, ["by-project", "one-list"], "by-project"),
+  );
+  const [sort, setSortState] = useState<SidebarSort>(
+    () => loadChoice(storage.local, SORT_KEY, ["priority", "updated", "manual"], "priority"),
+  );
+  const setOrganize = (next: SidebarOrganize) => {
+    setOrganizeState(next);
+    try { storage.local.setItem(ORGANIZE_KEY, next); } catch { /* private mode / quota */ }
+  };
+  const setSort = (next: SidebarSort) => {
+    setSortState(next);
+    try { storage.local.setItem(SORT_KEY, next); } catch { /* private mode / quota */ }
+  };
   // The flat Sessions section has its own show-all toggle.
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
@@ -250,8 +282,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       query: "",
       titleOf: (session) => displayTitle(renames, session.id, session.title),
       projectDefs,
+      organize,
     }),
-    [sessions, pinned, archived, showArchived, renames, projectDefs],
+    [sessions, pinned, archived, showArchived, renames, projectDefs, organize],
   );
   const archivedCount = sessions.filter((session) => archived.includes(session.id)).length;
   const runningRuns = runs.filter((run) => run.status === "running").length;
@@ -262,8 +295,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   // orderProjectGroups (INC-94 behaviour preserved as sort "priority").
   const orderedProjects = useMemo(() => {
     const visible = model.projects.filter((project) => showRemovedProjects || !projects[project.key]?.removed);
-    return orderProjectGroups(visible, { overlays: projects, sort: "priority" });
-  }, [model.projects, projects, showRemovedProjects]);
+    return orderProjectGroups(visible, { overlays: projects, sort });
+  }, [model.projects, projects, showRemovedProjects, sort]);
   const removedProjectCount = model.projects.filter((project) => projects[project.key]?.removed).length;
   const orderedIds = useMemo(
     () => [
@@ -299,12 +332,14 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
   // Workspace-less sessions use a plain heading with no folder, caret or indent.
   // Capping reuses visibleProjectSessions so the current session remains visible.
+  // In one-list mode this flat list IS the whole rail, so it breathes to 20.
+  const flatCap = organize === "one-list" ? 20 : 6;
   const shownSessions = useMemo(
     () => visibleProjectSessions(
       { key: "__sessions__", label: "Sessions", sessions: model.workspaceLessSessions },
-      { expanded: showAllSessions, current: currentSid || undefined },
+      { expanded: showAllSessions, cap: flatCap, current: currentSid || undefined },
     ),
-    [model.workspaceLessSessions, showAllSessions, currentSid],
+    [model.workspaceLessSessions, showAllSessions, currentSid, flatCap],
   );
 
   // Fold a group both locally (instant, survives refresh) and in the server
@@ -433,6 +468,61 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       }}
     />
   );
+
+  // The Projects section header's controls (INC-104): the ⋯ organize menu and
+  // the + create button. Rendered in both by-project and one-list headings so
+  // each mode can always reach the other.
+  const renderOrganizeMenu = () => (
+    <Menu label={<DotsThree size={16} />} ariaLabel="Organize sidebar" iconTrigger>
+      <MenuLabel>Organize sidebar</MenuLabel>
+      <MenuItem checked={organize === "by-project"} onClick={() => setOrganize("by-project")}>By project</MenuItem>
+      <MenuItem checked={organize === "one-list"} onClick={() => setOrganize("one-list")}>In one list</MenuItem>
+      <MenuLabel>Sort by</MenuLabel>
+      <MenuItem checked={sort === "priority"} onClick={() => setSort("priority")}>Priority</MenuItem>
+      <MenuItem checked={sort === "updated"} onClick={() => setSort("updated")}>Last updated</MenuItem>
+      <MenuItem checked={sort === "manual"} onClick={() => setSort("manual")}>Manual order</MenuItem>
+    </Menu>
+  );
+  const renderCreateProjectButton = () => (
+    <IconButton
+      size="sm"
+      variant="ghost"
+      className="project-quick-action"
+      aria-label="Create project"
+      title="Create project"
+      onClick={() => openModal({ kind: "project", mode: "create" })}
+    >
+      <Plus size={16} />
+    </IconButton>
+  );
+  // Show more/less for the flat session list — shared by the by-project
+  // "Sessions" section and the one-list "Chats" section.
+  const renderFlatOverflowToggle = () => {
+    if (model.workspaceLessSessions.length === 0) return null;
+    if (!showAllSessions && model.workspaceLessSessions.length > shownSessions.length) {
+      return (
+        <button
+          className="show-more"
+          onClick={() => setShowAllSessions(true)}
+          aria-label={`Show all ${model.workspaceLessSessions.length} sessions`}
+        >
+          Show more
+        </button>
+      );
+    }
+    if (showAllSessions && model.workspaceLessSessions.length > flatCap) {
+      return (
+        <button
+          className="show-more"
+          onClick={() => setShowAllSessions(false)}
+          aria-label={`Show only the ${flatCap} most recent sessions`}
+        >
+          Show less
+        </button>
+      );
+    }
+    return null;
+  };
 
   // One source for the project group's actions: the desktop right-click
   // ContextMenu and the touch ⋯ Menu on the heading row (INC-87.2) render the
@@ -651,6 +741,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               onClick={() => toggleSection("pinned")}
               aria-expanded={!foldedSections.has("pinned")}
             >
+              <CaretRight size={11} aria-hidden="true" className={`section-caret${foldedSections.has("pinned") ? "" : " open"}`} />
               Pinned
             </button>
             {!foldedSections.has("pinned") && model.pinned.map((session) => renderSession(session))}
@@ -667,7 +758,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             <span />
             <span />
           </div>
-        ) : model.projects.length === 0 && model.workspaceLessSessions.length === 0 && model.pinned.length === 0 ? (
+        ) : model.projects.length === 0 && model.workspaceLessSessions.length === 0 && model.pinned.length === 0 && projectDefs.length === 0 ? (
           <div className="sidebar-empty">
             <Tray size={22} />
             <b>No sessions yet</b>
@@ -675,15 +766,30 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           </div>
         ) : null}
 
-        {model.projects.length > 0 && (
+        {/* The heading renders even with zero groups — the + button is the
+            only way to create the FIRST project, and the ⋯ menu is the only
+            way back out of one-list mode (INC-104). */}
+        {organize === "by-project" && sessionsReady && (
         <section className="sidebar-section projects-section">
-          <button
-            className="section-label section-toggle"
-            onClick={() => toggleSection("projects")}
-            aria-expanded={!foldedSections.has("projects")}
-          >
-            Projects
-          </button>
+          <div className="section-heading-row">
+            <button
+              className="section-label section-toggle"
+              onClick={() => toggleSection("projects")}
+              aria-expanded={!foldedSections.has("projects")}
+            >
+              <CaretRight size={11} aria-hidden="true" className={`section-caret${foldedSections.has("projects") ? "" : " open"}`} />
+              Projects
+            </button>
+            <span className="section-heading-actions">
+              {renderOrganizeMenu()}
+              {renderCreateProjectButton()}
+            </span>
+          </div>
+          {!foldedSections.has("projects") && shownProjects.length === 0 && (
+            model.workspaceLessSessions.length > 0 || model.pinned.length > 0 ? (
+              <div className="projects-none">No projects yet</div>
+            ) : null
+          )}
           {!foldedSections.has("projects") && (<>
           {shownProjects.map((project) => {
             const overlay = projects[project.key];
@@ -778,32 +884,32 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           </button>
         )}
 
+        {/* One-list mode (INC-104): the flat list IS the rail. The heading
+            keeps the ⋯/+ controls so the organize menu stays reachable. */}
+        {organize === "one-list" && sessionsReady && (
+          <section className="sidebar-section sessions-section">
+            <div className="section-heading-row">
+              <div className="section-label">Chats</div>
+              <span className="section-heading-actions">
+                {renderOrganizeMenu()}
+                {renderCreateProjectButton()}
+              </span>
+            </div>
+            {shownSessions.map((session) => renderSession(session))}
+            {renderFlatOverflowToggle()}
+          </section>
+        )}
+
         {/* SB-13 · Sessions — the ones that belong to no project. Flat rows at the
             Pinned indent: no folder, no caret, nothing claiming a directory
             these sessions do not have. Renders only when it has something to say;
-            an empty heading is worse than no heading. */}
-        {model.workspaceLessSessions.length > 0 && (
+            an empty heading is worse than no heading. In one-list mode the
+            block above already renders these rows under "Chats". */}
+        {organize === "by-project" && model.workspaceLessSessions.length > 0 && (
           <section className="sidebar-section sessions-section">
             <div className="section-label">Sessions</div>
             {shownSessions.map((session) => renderSession(session))}
-            {!showAllSessions && model.workspaceLessSessions.length > shownSessions.length && (
-              <button
-                className="show-more"
-                onClick={() => setShowAllSessions(true)}
-                aria-label={`Show all ${model.workspaceLessSessions.length} sessions`}
-              >
-                Show more
-              </button>
-            )}
-            {showAllSessions && model.workspaceLessSessions.length > 6 && (
-              <button
-                className="show-more"
-                onClick={() => setShowAllSessions(false)}
-                aria-label="Show only the 6 most recent sessions"
-              >
-                Show less
-              </button>
-            )}
+            {renderFlatOverflowToggle()}
           </section>
         )}
 
