@@ -1,0 +1,28 @@
+{
+  "name": "tool_config",
+  "description": "Manage the user's command-tool manifests (~/.config/agentrunner/tools/<name>.json) — the ONLY way to write there; file tools cannot leave the workspace. A command tool wraps a local command as a model-callable tool: JSON manifest {name, description, command, timeout_s, params} where params is a JSON Schema object and the model's arguments arrive as JSON on the command's stdin. action 'save' validates the manifest exactly like discovery does (strict JSON, name rules, built-in collisions refused) BEFORE anything lands, and refuses to replace an existing manifest unless overwrite is set; 'remove' deletes a manifest; 'list' returns the user layer's manifests. Changes apply to NEW sessions — the current session's tool set was frozen at start.",
+  "class": "edit",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["save", "remove", "list"],
+        "description": "save = validate and write a manifest; remove = delete one; list = read the user layer."
+      },
+      "name": {
+        "type": "string",
+        "description": "Tool name (bare identifier, becomes <name>.json). Required for save and remove; must equal the manifest's name field on save."
+      },
+      "manifest": {
+        "type": "string",
+        "description": "For save: the complete manifest JSON ({name, description, command, timeout_s?, params?})."
+      },
+      "overwrite": {
+        "type": "boolean",
+        "description": "For save: replace an existing <name>.json. Without this, saving over an existing manifest fails."
+      }
+    },
+    "required": ["action"]
+  }
+}

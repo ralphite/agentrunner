@@ -243,7 +243,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 （注：`dictate`/`optimize` 是前台一次性 CLI 不经 daemon；`hook` 走
 HTTP ingress（INC-50），均非 wire 命令。）
 
-**内置 tool 定义**（`internal/tool/defs/*.json`，27 个）：
+**内置 tool 定义**（`internal/tool/defs/*.json`，28 个）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`
 `spawn_agent` `handoff_agent` `publish_artifact` `publish_note`
 `read_notes` `keyword_search` `grep`（INC-3）`glob`（INC-3）`skill`（INC-20）
@@ -252,5 +252,8 @@ HTTP ingress（INC-50），均非 wire 命令。）
 `send_message`（INC-12）`artifacts_list` `artifacts_read`（INC-40）
 `goal_complete` `goal_status`（INC-10）`save_agent`（对话内创建 agent,
 loop 侧执行:LoadSpec 校验后落盘 user catalog,定点豁免 workspace 界——
-publish_artifact 同例）
+publish_artifact 同例）`tool_config`（对话内管理 command-tool manifest:
+save/remove/list,commandtool.Validate 与发现同一规则先校验后落盘
+`~/.config/agentrunner/tools/`,save_agent 同款定点豁免;shipped skill
+`create-tool` 引导;改动对新 session 生效——本会话工具面已冻结）
 （注：`escalate` 无独立 def，提权走 spawn 路径强制人审。）

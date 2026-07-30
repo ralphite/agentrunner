@@ -2210,6 +2210,16 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				return res.Payload, nil, res.IsError, nil
 			}
 		}
+		if p.call.Name == "tool_config" {
+			// Command-tool manifest authoring, the save_agent pattern:
+			// loop-side because validation consults the built-in registry.
+			call := p.call
+			res := p.res
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				*res = runToolConfigTool(call.Args)
+				return res.Payload, nil, res.IsError, nil
+			}
+		}
 		if p.call.Name == "artifacts_list" || p.call.Name == "artifacts_read" {
 			// The artifact consumption face (INC-40): the Published snapshot
 			// is taken NOW on the drive goroutine (fold truth — orphan blobs

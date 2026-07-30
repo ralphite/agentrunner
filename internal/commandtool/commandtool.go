@@ -126,6 +126,25 @@ func resolve(m Manifest, source string) (Tool, error) {
 	}, nil
 }
 
+// Validate parses and resolves ONE manifest the way Discover would — strict
+// JSON, name/command/timeout/params rules, reserved-name refusal — without
+// touching the filesystem. The write path (the tool_config tool) uses it to
+// keep "what lands in the config dir" and "what discovery accepts" one rule.
+func Validate(raw []byte, reserved map[string]bool) (Tool, error) {
+	m, err := parseManifest(raw)
+	if err != nil {
+		return Tool{}, err
+	}
+	t, err := resolve(m, "user")
+	if err != nil {
+		return Tool{}, err
+	}
+	if reserved[t.Name] {
+		return Tool{}, fmt.Errorf("name %q collides with a built-in tool", t.Name)
+	}
+	return t, nil
+}
+
 // Discover loads the user and (only when trusted) project manifest
 // directories, applying the trust gate and collision rules. It never fails:
 // unreadable dirs are "no tools", and every malformed/rejected manifest
