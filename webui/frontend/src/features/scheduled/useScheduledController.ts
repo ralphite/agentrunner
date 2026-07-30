@@ -12,7 +12,7 @@ import { scheduledTitle } from "../../scheduledTitle";
 import { useStore } from "../../store";
 import { relTimeAgo, sessionDate } from "../../time";
 import type { Cadence, ScheduleDetail } from "../../types";
-import { projectLabel, scheduleLabel } from "../../viewModels";
+import { projectNameForWorkspace, scheduleLabel } from "../../viewModels";
 import { friendlyStatus } from "../../components/pill";
 import type {
   ScheduledFilter,
@@ -145,6 +145,8 @@ export function useScheduledController(): ScheduledController {
     toast,
     scheduledDetailSid,
     showScheduledDetail,
+    projects,
+    projectDefs,
   } = useStore();
   const [filter, setFilter] = useState<ScheduledFilter>("all");
   const [query, setQuery] = useState("");
@@ -292,7 +294,7 @@ export function useScheduledController(): ScheduledController {
             kind: "run",
             full: run.label || run.id,
             cadence: run.cadence || scheduleLabel(run.schedule),
-            project: projectLabel(run.workspace),
+            project: projectNameForWorkspace(run.workspace, projectDefs, projects),
             workspace: run.workspace || "",
             raw: run.status || "",
             status: friendlyStatus(run.status),
@@ -319,7 +321,7 @@ export function useScheduledController(): ScheduledController {
             kind: "session",
             full: session.title || session.id,
             cadence: session.cadence || scheduleLabel(session.schedule),
-            project: projectLabel(session.workspace),
+            project: projectNameForWorkspace(session.workspace, projectDefs, projects),
             workspace: session.workspace || "",
             raw: session.status || "",
             status: friendlyStatus(session.status),
@@ -348,6 +350,8 @@ export function useScheduledController(): ScheduledController {
   }, [
     clock,
     markRead,
+    projects,
+    projectDefs,
     renames,
     runs,
     select,

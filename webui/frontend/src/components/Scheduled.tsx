@@ -1,7 +1,8 @@
 import { ArrowLeft, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, X } from "@phosphor-icons/react";
 import { useEffect, useRef } from "react";
 import { friendlyStatus } from "./pill";
-import { projectLabel, scheduleLabel } from "../viewModels";
+import { useStore } from "../store";
+import { projectLabel, projectNameForWorkspace, scheduleLabel } from "../viewModels";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import type { ScheduleDetail } from "../types";
 import { Modal } from "./Modals";
@@ -91,6 +92,8 @@ function reasoningText(detail: ScheduleDetail): string {
 }
 
 export interface ScheduleDetailPanelProps {
+  // Resolved by the container (INC-104): explicit project name > overlay > derived.
+  projectName?: string;
   title: string;
   detail: ScheduleDetail | null;
   loading: boolean;
@@ -104,6 +107,7 @@ export interface ScheduleDetailPanelProps {
 }
 
 export function ScheduleDetailPanel({
+  projectName,
   title,
   detail,
   loading,
@@ -119,7 +123,7 @@ export function ScheduleDetailPanel({
     ? { text: "Active", cls: "run" }
     : friendlyStatus(detail?.status || "");
   const paused = (detail?.status || "").toLowerCase() === "paused";
-  const project = detail?.workspace ? projectLabel(detail.workspace) : "No project";
+  const project = projectName ?? (detail?.workspace ? projectLabel(detail.workspace) : "No project");
   const model = detail?.model
     ? [detail.provider, detail.model].filter(Boolean).join(" · ")
     : "Not recorded";
@@ -360,6 +364,7 @@ export function Scheduled() {
 }
 
 function ScheduledView({ controller }: { controller: ScheduledController }) {
+  const { projects, projectDefs } = useStore();
   return (
     <div
       className={
@@ -497,6 +502,9 @@ function ScheduledView({ controller }: { controller: ScheduledController }) {
       {controller.detail.sid && (
         <ScheduleDetailPanel
           title={controller.detail.title}
+          projectName={controller.detail.value?.workspace
+            ? projectNameForWorkspace(controller.detail.value.workspace, projectDefs, projects)
+            : undefined}
           detail={controller.detail.value}
           loading={controller.detail.loading}
           error={controller.detail.error}

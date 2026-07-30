@@ -3,7 +3,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
-import { projectLabel } from "../viewModels";
+import { projectNameForWorkspace } from "../viewModels";
 import { paletteSessionGroups } from "../viewModels.nav";
 import { sessionFriendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
@@ -54,7 +54,7 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
   onOpenSettings?: () => void;
   shouldRestoreFocus?: () => boolean;
 }) {
-  const { sessions, runs, archived, unread, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
+  const { sessions, runs, archived, unread, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames, projects, projectDefs } =
     useStore();
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
@@ -110,7 +110,7 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
       const row = (s: Session, quickNum?: number): CommandPaletteItemModel => ({
         id: "s" + s.id,
         label: displayTitle(renames, s.id, s.title),
-        hint: projectLabel(s.workspace),
+        hint: projectNameForWorkspace(s.workspace, projectDefs, projects),
         group: quickNum ? "Sessions" : "Needs attention",
         quickNum,
         session: true,
@@ -136,7 +136,7 @@ export function CommandPalette({ onClose, onOpenSettings, shouldRestoreFocus }: 
           return {
             id: "s" + s.id,
             label: displayTitle(renames, s.id, s.title),
-            hint: projectLabel(s.workspace),
+            hint: projectNameForWorkspace(s.workspace, projectDefs, projects),
             group: isArchived ? "Archived" : "Sessions",
             session: true,
             ...sessionDot(s, !isArchived && unreadSet.has(s.id)),

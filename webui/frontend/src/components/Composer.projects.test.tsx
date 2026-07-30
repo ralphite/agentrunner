@@ -244,3 +244,30 @@ describe("project picker searches every project (HM-9)", () => {
     expect(list().querySelector(".pop-item .pop-check")).toBeTruthy();
   });
 });
+
+describe("explicit projects in the picker (INC-104)", () => {
+  it("lists a session-less registered project under its declared name and targets its primary folder", async () => {
+    useStore.setState({
+      projectDefs: [
+        { id: "p-1", name: "Orca", folders: ["/repos/proj9", "/repos/orca-docs"] },
+        { id: "p-2", name: "Fresh", folders: ["/brand/new"] }, // no session history at all
+      ],
+    } as any);
+    localStorage.setItem("arwebui.lastProject", "/repos/proj10");
+    const { container } = mount();
+
+    fireEvent.click(chip(container));
+    // The registered folders lead the idle view; the explicit name replaces
+    // the basename, and a multi-folder project says how wide it is.
+    expect(rows()[0]).toBe("Orca");
+    expect(rows()).toContain("Fresh");
+    const orcaRow = within(list()).getByRole("button", { name: /Orca/ });
+    expect(orcaRow.textContent).toContain("2 folders");
+
+    type("Fresh");
+    fireEvent.click(within(list()).getByRole("button", { name: /Fresh/ }));
+    await vi.waitFor(() => expect(chip(container).textContent).toContain("Fresh"));
+    // The chip resolves through the registry; the stored value stays a workspace path.
+    expect(localStorage.getItem("arwebui.lastProject")).toBe("/brand/new");
+  });
+});

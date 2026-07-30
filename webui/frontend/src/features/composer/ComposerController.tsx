@@ -45,7 +45,7 @@ import {
   rememberModel,
   rememberSpec,
 } from "./sessionSpecs";
-import { isScratchWorkspace, projectLabel } from "../../viewModels";
+import { isScratchWorkspace, projectNameForWorkspace } from "../../viewModels";
 import { ComposerView } from "./ComposerView";
 import type { AgentCatalogEntry } from "../../types";
 
@@ -147,7 +147,7 @@ export function Composer(props: ComposerProps) {
   const fileMentionListboxId = `${typeaheadId}-file-mentions`;
   const slashCommandListboxId = `${typeaheadId}-slash-commands`;
   const store = useAppStoreApi();
-  const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
+  const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast, projects: projectOverlays, projectDefs } = useStore();
   const allSessions = useStore((s) => s.sessions);
   // EVERY workspace the history knows, newest first, deduped — picking an
   // existing project must be one click, not a hand-typed absolute path (W14).
@@ -162,6 +162,19 @@ export function Composer(props: ComposerProps) {
   const allWorkspaces = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
+    // The picker selects PROJECTS, so an explicit project appears exactly once
+    // (INC-104): its primary folder leads the list — even with zero session
+    // history — and its other folders are absorbed into that row rather than
+    // repeating under the same name. A secondary folder stays reachable via
+    // "Use an existing folder".
+    for (const def of projectDefs) {
+      for (const [i, folder] of def.folders.entries()) {
+        const w = folder.trim().replace(/\/+$/, "");
+        if (!w) continue;
+        seen.add(w);
+        if (i === 0 && !out.includes(w)) out.push(w);
+      }
+    }
     for (const s of [...allSessions].sort((a, b) => b.id.localeCompare(a.id))) {
       const w = (s.workspace || "").trim().replace(/\/+$/, "");
       if (!w || seen.has(w)) continue;
@@ -169,7 +182,7 @@ export function Composer(props: ComposerProps) {
       out.push(w);
     }
     return out;
-  }, [allSessions]);
+  }, [allSessions, projectDefs]);
   const isSession = props.variant === "session";
 
   // Per-session draft: initialize from what was typed here last time (the
@@ -493,7 +506,7 @@ export function Composer(props: ComposerProps) {
   useEffect(() => {
     if (isSession || seeded.current || recallProject(storage.local) !== null) return;
     const candidate = allWorkspaces.find((w) => {
-      const label = projectLabel(w);
+      const label = projectNameForWorkspace(w, projectDefs, projectOverlays);
       // Scratch dirs never seed the composer (their label is per-workspace
       // since INC-78, so test the judgement, not the old aggregate string).
       return !isScratchWorkspace(w) && label !== "Other sessions";
@@ -537,7 +550,7 @@ export function Composer(props: ComposerProps) {
   // Home duplicating the selection state (W1).
   useEffect(() => {
     if (isSession) return;
-    (props as Extract<ComposerProps, { variant: "home" }>).onProjectChange?.(ws.trim() ? projectLabel(ws) : null);
+    (props as Extract<ComposerProps, { variant: "home" }>).onProjectChange?.(ws.trim() ? projectNameForWorkspace(ws, projectDefs, projectOverlays) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws, isSession]);
 
@@ -1331,7 +1344,7 @@ export function Composer(props: ComposerProps) {
 
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).
-  const wsShort = ws ? projectLabel(ws) : "New scratch workspace";
+  const wsShort = ws ? projectNameForWorkspace(ws, projectDefs, projectOverlays) : "New scratch workspace";
   const normalizedWs = ws.trim().replace(/\/+$/, "");
   // The picker's two states (HM-9, Codex parity):
   //   · idle  — the few most recent projects, so opening it doesn't dump 202 rows;
@@ -1351,7 +1364,7 @@ export function Composer(props: ComposerProps) {
     const query = projectQuery.trim().toLowerCase();
     if (query) {
       const rank = (workspace: string): number => {
-        const label = projectLabel(workspace).toLowerCase();
+        const label = projectNameForWorkspace(workspace, projectDefs, projectOverlays).toLowerCase();
         if (label === query) return 0;
         if (label.startsWith(query)) return 1;
         if (label.includes(query)) return 2;
@@ -1424,11 +1437,15 @@ export function Composer(props: ComposerProps) {
                 query: projectQuery,
                 page: projectMenuPage,
                 selected: !!ws,
-                projects: filteredProjects.map((workspace) => ({
-                  workspace,
-                  label: projectLabel(workspace),
-                  active: workspace === normalizedWs,
-                })),
+                projects: filteredProjects.map((workspace) => {
+                  const def = projectDefs.find((d) => (d.folders[0] || "").replace(/\/+$/, "") === workspace);
+                  return {
+                    workspace,
+                    label: projectNameForWorkspace(workspace, projectDefs, projectOverlays),
+                    subtitle: def && def.folders.length > 1 ? `${def.folders.length} folders` : undefined,
+                    active: workspace === normalizedWs,
+                  };
+                }),
                 onOpen: () => {
                   setProjectQuery("");
                   setProjectMenuPage("projects");

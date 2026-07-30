@@ -34,7 +34,7 @@ import {
   isManagedWorktreeWorkspace,
   orderProjectGroups,
   projectDisplayName,
-  projectLabel,
+  projectNameForWorkspace,
   scheduledUnread,
   sessionUpdatedDate,
   visibleProjectSessions,
@@ -993,7 +993,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             top={hoverPreview.top}
             title={title}
             when={when}
-            project={projectLabel(workspace)}
+            project={projectNameForWorkspace(workspace, projectDefs, projects)}
             branch={branch}
             status={status}
             onHoverStart={cancelHoverPreviewClose}
