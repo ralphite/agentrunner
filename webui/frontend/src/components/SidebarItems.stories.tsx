@@ -498,9 +498,10 @@ const projectActionProps = {
   onTogglePin: noop,
   onReveal: noop,
   onCreateWorktree: noop,
-  onRename: noop,
+  onEdit: noop,
   onArchiveChats: noop,
   onToggleRemoved: noop,
+  chatCount: 3,
 };
 
 function ProjectSession({

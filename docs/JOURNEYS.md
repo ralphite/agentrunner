@@ -340,8 +340,13 @@ GAPS.md，本文件只回答"产品要做什么"。
    只在 tooltip / hover preview 披露；project hover/focus 的背景覆盖完整 heading
    row（名称、`…` 与 New chat icons），不让 actions 落在高亮之外；同时提供摘要、`…` 与
    project-scoped New chat 快捷入口（预选 project、聚焦 composer、不提前建
-   session），Rename 只留在菜单；菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
-   safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
+   session）；菜单集中 Pin / Finder / permanent worktree / Edit project / archive chats /
+   Remove。project 可以由用户显式声明（一个名字 + 1..N 个 source folders，
+   INC-104）：多个目录的 session 并入同一组、无 session 的 project 显示
+   No chats、Edit 对话框可改名/增删 folder；未声明的 workspace 仍各自成
+   派生组，其 Remove 只隐藏 rail projection（数据不删且可恢复），而显式
+   project 的 Remove 删除的只是分组声明——session/journal/workspace 分毫
+   不动，派生组原样回来。Pinned 与 Projects
    section 可独立收展；键盘 context menu 保持等价，Escape 关闭后焦点回到原 row；
    button pressed state 不改变控件尺寸。project group fold 始终尊重用户偏好；选中 session 只保证
    所属 project heading 在分组 cap 外仍可见，不强制展开 session rows。全局

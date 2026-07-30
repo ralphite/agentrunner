@@ -4,6 +4,7 @@ import type {
   DiffResp,
   Envelope,
   Health,
+  ProjectDef,
   ProjectMeta,
   Run,
   ScheduleDetail,
@@ -136,6 +137,20 @@ export function buildProjectMeta(
       pinned: false,
       removed: false,
       lastOpened: Date.parse(FIXTURE_TIME),
+    },
+    overrides,
+  );
+}
+
+export function buildProjectDef(
+  overrides?: FixtureOverrides<ProjectDef>,
+): ProjectDef {
+  return mergeFixture<ProjectDef>(
+    {
+      id: "p-story-1",
+      name: "Storybook Project",
+      folders: [FIXTURE_WORKSPACE],
+      createdAt: Date.parse(FIXTURE_TIME),
     },
     overrides,
   );

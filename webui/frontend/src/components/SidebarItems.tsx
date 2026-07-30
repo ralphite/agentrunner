@@ -8,10 +8,12 @@ import {
   EnvelopeSimpleOpen,
   Folder,
   FolderOpen,
+  GearSix,
   GitBranch,
   GitFork,
   PencilSimple,
   PushPin,
+  WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import type { Session } from "../types";
@@ -236,10 +238,14 @@ export interface SidebarProjectActionsProps {
   pinned?: boolean;
   removed?: boolean;
   workspace?: string;
+  // Explicit registry entry (INC-104): Remove deletes the declaration itself
+  // (vs. the derived group's hide/restore), and the dialog opens in edit mode.
+  explicit?: boolean;
+  chatCount?: number;
   onTogglePin: () => void;
   onReveal: () => void;
   onCreateWorktree: () => void;
-  onRename: () => void;
+  onEdit: () => void;
   onArchiveChats: () => void;
   onToggleRemoved: () => void;
 }
@@ -248,10 +254,12 @@ export function SidebarProjectActions({
   pinned = false,
   removed = false,
   workspace,
+  explicit = false,
+  chatCount = 0,
   onTogglePin,
   onReveal,
   onCreateWorktree,
-  onRename,
+  onEdit,
   onArchiveChats,
   onToggleRemoved,
 }: SidebarProjectActionsProps) {
@@ -270,14 +278,15 @@ export function SidebarProjectActions({
           <GitFork size={16} /> Create permanent worktree
         </MenuItem>
       )}
-      <MenuItem onClick={onRename}>
-        <PencilSimple size={16} /> Rename project
+      <MenuItem onClick={onEdit}>
+        <GearSix size={16} /> Edit project
       </MenuItem>
-      <MenuItem onClick={onArchiveChats}>
+      {/* Archiving nothing is not an action; a muted row says why it's inert. */}
+      <MenuItem onClick={onArchiveChats} disabled={chatCount === 0}>
         <ArchiveBox size={16} /> Archive chats
       </MenuItem>
       <MenuItem danger={!removed} onClick={onToggleRemoved}>
-        <X size={16} /> {removed ? "Restore project" : "Remove"}
+        <X size={16} /> {explicit ? "Remove" : removed ? "Restore project" : "Remove"}
       </MenuItem>
     </>
   );
@@ -289,6 +298,10 @@ export interface SidebarProjectItemProps {
   name: string;
   folded?: boolean;
   removed?: boolean;
+  // Rendered as a muted child row when the group is open but holds no
+  // sessions — an explicit project the user declared but hasn't chatted in
+  // yet (INC-104): "No chats".
+  emptyLabel?: string;
   children?: ReactNode;
   actions: ReactNode;
   overflow?: SidebarProjectOverflow;
@@ -305,6 +318,7 @@ export function SidebarProjectItem({
   name,
   folded = false,
   removed = false,
+  emptyLabel,
   children,
   actions,
   overflow = null,
@@ -388,6 +402,7 @@ export function SidebarProjectItem({
         </span>
       </div>
       {children}
+      {!folded && emptyLabel && <div className="project-empty-chats">{emptyLabel}</div>}
       {!folded && overflow && (
         <button className="show-more project-show-more" onClick={onToggleOverflow}>
           {overflow === "more" ? "Show more" : "Show less"}
@@ -405,6 +420,11 @@ export type SidebarPreviewCardProps =
       pinned?: boolean;
       chats: number;
       workspace?: string;
+      // Explicit projects list every source folder (INC-104); the card is the
+      // one honest place a multi-folder project discloses its full extent, and
+      // where a folder gone from disk gets its warning.
+      folders?: string[];
+      missing?: string[];
       inline?: boolean;
       onHoverStart?: () => void;
       onHoverEnd?: () => void;
@@ -441,10 +461,15 @@ export function SidebarPreviewCard(props: SidebarPreviewCardProps) {
           <PushPin size={16} weight={props.pinned ? "fill" : "regular"} />
         </div>
         <div><ChatCircle size={16} /><span>{props.chats} {props.chats === 1 ? "chat" : "chats"}</span></div>
-        <div className="project-preview-path">
-          <FolderOpen size={16} />
-          <span>{props.workspace || "No workspace"}</span>
-        </div>
+        {(props.folders?.length ? props.folders : [props.workspace || "No workspace"]).map((folder) => {
+          const gone = props.missing?.includes(folder);
+          return (
+            <div className="project-preview-path" key={folder}>
+              {gone ? <WarningCircle size={16} /> : <FolderOpen size={16} />}
+              <span>{folder}{gone ? " · missing" : ""}</span>
+            </div>
+          );
+        })}
       </div>
     );
   }

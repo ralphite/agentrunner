@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { CaretRight, Folder, Globe, Terminal, X } from "@phosphor-icons/react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { CaretRight, Folder, FolderSimplePlus, Globe, Terminal, X } from "@phosphor-icons/react";
 import { useAppServices } from "../app/appServices";
 import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
@@ -158,7 +158,162 @@ export function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
       return <RunDetailsModal data={modal.data} status={modal.status} />;
     case "viewer":
       return <ViewerModal title={modal.title} body={modal.body} />;
+    case "project":
+      return <ProjectModal modal={modal} />;
   }
+}
+
+// ProjectModal is the Create/Edit project dialog (INC-104): a name over one or
+// more source folders. Create-from-a-derived-group is the upgrade path — same
+// dialog, prefilled. Server validation sentences render inline (role=alert)
+// and the dialog stays open; Remove is an in-footer two-step because the
+// confirm modal shares this slot and opening it would destroy unsaved edits.
+export function ProjectModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind: "project" }> }) {
+  const { sessions, createProject, saveProject, deleteProject, openModal, openPrompt } = useStore();
+  const isEdit = modal.mode === "edit" && !!modal.id;
+  const [name, setName] = useState(modal.initialName || "");
+  const [folders, setFolders] = useState<string[]>(modal.initialFolders || []);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const nameId = useId();
+  const close = () => openModal(null);
+
+  // Known workspaces from session history, offered as <datalist> suggestions —
+  // picking one guarantees the folder's spelling matches the journal's, which
+  // is what the exact-match grouping keys on.
+  const suggestions = useMemo(() => {
+    const have = new Set(folders);
+    const out: string[] = [];
+    for (const session of sessions) {
+      const ws = (session.workspace || "").trim().replace(/\/+$/, "");
+      if (ws && !have.has(ws) && !out.includes(ws)) out.push(ws);
+      if (out.length >= 30) break;
+    }
+    return out;
+  }, [sessions, folders]);
+
+  const addFolder = () => {
+    openPrompt({
+      title: "Add folder",
+      label: "Absolute folder path",
+      placeholder: "/path/to/folder",
+      submitLabel: "Add",
+      suggestions,
+      onSubmit: (value) => {
+        const clean = value.trim().replace(/\/+$/, "");
+        if (!clean) return;
+        setFolders((current) => (current.includes(clean) ? current : [...current, clean]));
+        setError("");
+      },
+    });
+  };
+
+  const canSave = !!name.trim() && folders.length > 0 && !busy;
+  const save = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (isEdit) await saveProject(modal.id!, { name: name.trim(), folders });
+      else await createProject({ name: name.trim(), folders });
+      close();
+    } catch (e: any) {
+      setError(e?.message || "Something went wrong — try again.");
+      setBusy(false);
+    }
+  };
+
+  const removeProject = async () => {
+    if (!modal.id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteProject(modal.id);
+      close();
+    } catch (e: any) {
+      setError(e?.message || "Something went wrong — try again.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={isEdit ? "Edit project" : "Create project"}
+      onClose={close}
+      returnFocus={modal.returnFocus}
+      footer={
+        <>
+          {isEdit ? (
+            confirmingRemove ? (
+              <span className="flex items-center gap-2">
+                <span className="text-[12.5px] text-dim">Remove permanently?</span>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)}>Keep</Button>
+                <Button variant="outline" size="sm" tone="danger" loading={busy} onClick={removeProject}>Remove</Button>
+              </span>
+            ) : (
+              <button className="proj-remove-pill" onClick={() => setConfirmingRemove(true)}>
+                Remove project
+              </button>
+            )
+          ) : (
+            <span />
+          )}
+          <span className="flex items-center gap-2">
+            <Button variant="ghost" onClick={close}>Cancel</Button>
+            <Button variant="solid" disabled={!canSave} loading={busy} onClick={save}>
+              {isEdit ? "Save" : "Create project"}
+            </Button>
+          </span>
+        </>
+      }
+    >
+      <div className="proj-name-field">
+        <span className="proj-name-icon" aria-hidden="true"><Folder size={16} /></span>
+        <Input
+          id={nameId}
+          variant="unstyled"
+          type="text"
+          autoFocus
+          value={name}
+          placeholder="Project name"
+          aria-label="Project name"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void save();
+          }}
+        />
+      </div>
+      <div className="proj-source-label">Source folders</div>
+      {folders.length > 0 ? (
+        <div className="proj-folders">
+          {folders.map((folder) => (
+            <div className="proj-folder-row" key={folder}>
+              <Folder size={16} className="proj-folder-glyph" aria-hidden="true" />
+              <span className="proj-folder-path" title={folder}>{folder}</span>
+              <IconButton
+                size="sm"
+                variant="ghost"
+                aria-label={`Remove folder ${folder}`}
+                onClick={() => setFolders((current) => current.filter((f) => f !== folder))}
+              >
+                <X size={14} />
+              </IconButton>
+            </div>
+          ))}
+          <button className="proj-folder-add" onClick={addFolder}>
+            <FolderSimplePlus size={16} aria-hidden="true" /> Add folder
+          </button>
+        </div>
+      ) : (
+        <button className="proj-empty-drop" onClick={addFolder}>
+          <FolderSimplePlus size={18} aria-hidden="true" />
+          <span>Add folders the agent can read and edit</span>
+        </button>
+      )}
+      {error && <p className="proj-error" role="alert">{error}</p>}
+    </Modal>
+  );
 }
 
 export function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind: "confirm" }> }) {
@@ -227,6 +382,7 @@ export function PromptModal({
   initial,
   placeholder,
   submitLabel,
+  suggestions,
   onSubmit,
 }: {
   title: string;
@@ -234,6 +390,7 @@ export function PromptModal({
   initial?: string;
   placeholder?: string;
   submitLabel?: string;
+  suggestions?: string[];
   onSubmit: (value: string) => void;
 }) {
   const { openPrompt } = useStore();
@@ -244,6 +401,7 @@ export function PromptModal({
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
   );
   const inputId = useId();
+  const listId = useId();
   const [value, setValue] = useState(initial || "");
   const close = () => openPrompt(null);
   const submit = () => {
@@ -273,12 +431,20 @@ export function PromptModal({
         autoFocus
         value={value}
         placeholder={placeholder}
+        list={suggestions?.length ? listId : undefined}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
           if (e.key === "Escape") close();
         }}
       />
+      {/* Native typeahead: zero-dependency, keyboard/screen-reader friendly
+          (INC-104: Add folder suggests the journal's workspace spellings). */}
+      {suggestions && suggestions.length > 0 && (
+        <datalist id={listId}>
+          {suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
+        </datalist>
+      )}
     </Modal>
   );
 }

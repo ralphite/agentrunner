@@ -791,7 +791,7 @@ describe("project hover and management controls (INC-87)", () => {
       "Pin project",
       "Reveal in Finder",
       "Create permanent worktree",
-      "Rename project",
+      "Edit project",
       "Archive chats",
       "Remove",
     ]);
@@ -836,7 +836,7 @@ describe("project hover and management controls (INC-87)", () => {
     expect(screen.getByRole("button", { name: "More actions for app" })).toBeTruthy();
   });
 
-  it("starts a project-scoped chat while rename remains in the menu", () => {
+  it("starts a project-scoped chat while Edit opens the upgrade-prefilled dialog", () => {
     const newSessionForProject = vi.fn();
     mount({ newSessionForProject });
 
@@ -844,8 +844,17 @@ describe("project hover and management controls (INC-87)", () => {
     expect(newSessionForProject).toHaveBeenCalledWith("/repo/app");
 
     fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Rename project" }));
-    expect(useStore.getState().prompt?.title).toBe("Rename project");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit project" }));
+    const modal = useStore.getState().modal;
+    // A derived group opens the dialog in create mode, prefilled — Save is
+    // what upgrades it into an explicit registry entry (INC-104).
+    expect(modal).toMatchObject({
+      kind: "project",
+      mode: "create",
+      overlayKey: "/repo/app",
+      initialName: "app",
+      initialFolders: ["/repo/app"],
+    });
   });
 
   it("opens the existing worktree prompt flow", () => {

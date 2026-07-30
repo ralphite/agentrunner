@@ -30,11 +30,13 @@ import { Menu, MenuItem } from "./Menu";
 import {
   buildSidebarModel,
   isManagedWorktreeWorkspace,
+  orderProjectGroups,
   projectDisplayName,
   projectLabel,
   scheduledUnread,
   sessionUpdatedDate,
   visibleProjectSessions,
+  type ProjectGroup,
 } from "../viewModels";
 import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
@@ -146,11 +148,12 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     markRead,
     openHelp,
     projects,
+    projectDefs,
+    deleteProject,
     toggleProjectFolded,
     toggleProjectPinned,
     setProjectRemoved,
     openProjectIn,
-    setProjectName,
     newSessionForProject,
     openModal,
     openPrompt,
@@ -246,20 +249,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       showArchived,
       query: "",
       titleOf: (session) => displayTitle(renames, session.id, session.title),
+      projectDefs,
     }),
-    [sessions, pinned, archived, showArchived, renames],
+    [sessions, pinned, archived, showArchived, renames, projectDefs],
   );
   const archivedCount = sessions.filter((session) => archived.includes(session.id)).length;
   const runningRuns = runs.filter((run) => run.status === "running").length;
   const schedUnread = scheduledUnread(sessions, unread);
   // Pinning is a stable presentation sort within Projects. Removed projects
   // stay in the journal-derived model (and in search) but leave this rail until
-  // the explicit recovery row reveals them.
+  // the explicit recovery row reveals them. Ordering itself lives in
+  // orderProjectGroups (INC-94 behaviour preserved as sort "priority").
   const orderedProjects = useMemo(() => {
     const visible = model.projects.filter((project) => showRemovedProjects || !projects[project.key]?.removed);
-    return [...visible].sort(
-      (a, b) => Number(!!projects[b.key]?.pinned) - Number(!!projects[a.key]?.pinned),
-    );
+    return orderProjectGroups(visible, { overlays: projects, sort: "priority" });
   }, [model.projects, projects, showRemovedProjects]);
   const removedProjectCount = model.projects.filter((project) => projects[project.key]?.removed).length;
   const orderedIds = useMemo(
@@ -434,13 +437,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   // One source for the project group's actions: the desktop right-click
   // ContextMenu and the touch ⋯ Menu on the heading row (INC-87.2) render the
   // same items, so the two entrances can never drift apart.
-  const renderProjectActions = (key: string, label: string, workspace: string | undefined, ids: string[]) => {
+  const renderProjectActions = (group: ProjectGroup, label: string) => {
+    const key = group.key;
     const overlay = projects[key];
+    // The primary folder carries the single-target actions (Reveal, worktree,
+    // New chat); a multi-folder project's full list lives in the hover card.
+    const workspace = group.workspace;
+    const ids = group.sessions.map((session) => session.id);
     return (
       <SidebarProjectActions
         pinned={overlay?.pinned}
         removed={overlay?.removed}
         workspace={workspace}
+        explicit={!!group.projectId}
+        chatCount={ids.length}
         onTogglePin={() => void toggleProjectPinned(key, !overlay?.pinned)}
         onReveal={() => {
           if (workspace) openProjectIn(workspace, "finder");
@@ -459,16 +469,36 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             },
           });
         }}
-        onRename={() => openPrompt({
-          title: "Rename project",
-          label: "Display name",
-          initial: overlay?.displayName || "",
-          placeholder: label,
-          submitLabel: "Rename",
-          onSubmit: (value) => setProjectName(key, value),
+        onEdit={() => openModal({
+          kind: "project",
+          // A derived group opens the same dialog in create mode, prefilled —
+          // Save upgrades it into an explicit registry entry (INC-104).
+          mode: group.projectId ? "edit" : "create",
+          id: group.projectId,
+          overlayKey: group.projectId ? undefined : key,
+          initialName: label,
+          initialFolders: group.folders ?? (workspace ? [workspace] : []),
         })}
         onArchiveChats={() => ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}
         onToggleRemoved={() => {
+          if (group.projectId) {
+            const id = group.projectId;
+            openModal({
+              kind: "confirm",
+              title: "Remove project?",
+              body: `"${label}" is only a grouping — its chats, journals, and files stay exactly where they are. The folders go back to grouping on their own.`,
+              confirmLabel: "Remove",
+              danger: true,
+              onConfirm: async () => {
+                try {
+                  await deleteProject(id);
+                } catch (error: any) {
+                  toast(error.message, "error", error.details);
+                }
+              },
+            });
+            return;
+          }
           if (overlay?.removed) {
             void setProjectRemoved(key, false);
             return;
@@ -694,7 +724,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                 name={name}
                 folded={folded}
                 removed={overlay?.removed}
-                actions={renderProjectActions(project.key, name, project.workspace, project.sessions.map((session) => session.id))}
+                emptyLabel={project.sessions.length === 0 ? "No chats" : undefined}
+                actions={renderProjectActions(project, name)}
                 overflow={
                   !folded && !showAll && project.sessions.length > shown.length
                     ? "more"
@@ -836,6 +867,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               pinned={overlay?.pinned}
               chats={project.sessions.length}
               workspace={project.workspace}
+              folders={project.folders}
+              missing={project.missing}
               onHoverStart={cancelHoverPreviewClose}
               onHoverEnd={scheduleHoverPreviewClose}
             />
@@ -878,17 +911,23 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           {renderSessionActions(ctx.sid, ctx.returnFocus)}
         </ContextMenu>
       )}
-      {ctx?.kind === "project" && (
-        <ContextMenu
-          x={ctx.x}
-          y={ctx.y}
-          ariaLabel={`${ctx.label} actions`}
-          returnFocus={ctx.returnFocus}
-          onClose={() => setCtx(null)}
-        >
-          {renderProjectActions(ctx.key, ctx.label, ctx.workspace, ctx.ids)}
-        </ContextMenu>
-      )}
+      {ctx?.kind === "project" && (() => {
+        // Resolve the live group so the menu reflects the model at render
+        // time; the ctx snapshot only anchors position and labels.
+        const group = model.projects.find((item) => item.key === ctx.key);
+        if (!group) return null;
+        return (
+          <ContextMenu
+            x={ctx.x}
+            y={ctx.y}
+            ariaLabel={`${ctx.label} actions`}
+            returnFocus={ctx.returnFocus}
+            onClose={() => setCtx(null)}
+          >
+            {renderProjectActions(group, ctx.label)}
+          </ContextMenu>
+        );
+      })()}
     </aside>
   );
 }

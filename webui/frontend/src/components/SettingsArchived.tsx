@@ -5,8 +5,8 @@ import { displayTitle } from "../title";
 import { ArchivedProjectGroup } from "./SettingsArchivedParts";
 
 export function SettingsArchived({ query, onClose }: { query: string; onClose: () => void }) {
-  const { sessions, archived, toggleArchive, renames, select } = useStore();
-  const model = buildArchivedModel(sessions, archived, query, (session) => displayTitle(renames, session.id, session.title));
+  const { sessions, archived, toggleArchive, renames, select, projectDefs } = useStore();
+  const model = buildArchivedModel(sessions, archived, query, (session) => displayTitle(renames, session.id, session.title), projectDefs);
   const total = model.projects.reduce((count, project) => count + project.sessions.length, 0);
 
   const openSession = (sid: string) => {

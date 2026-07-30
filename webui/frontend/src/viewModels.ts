@@ -1,13 +1,27 @@
-import type { Session } from "./types";
+import type { ProjectDef, Session } from "./types";
 import { friendlyStatus, sessionFriendlyStatus } from "./components/pill";
 import { sessionDate } from "./time";
 
 export interface ProjectGroup {
-  key: string;
+  key: string; // a workspace path (derived group) or "project:<id>" (explicit)
   label: string;
-  workspace?: string;
+  workspace?: string; // explicit: folders[0] (the primary); derived: the path
   sessions: Session[];
+  // Explicit-project fields (INC-104); absent on derived groups.
+  projectId?: string;
+  folders?: string[];
+  order?: number; // manual sort rank (1-based; 0/absent = unranked)
+  createdAt?: number; // recency stand-in while the project has no sessions
+  missing?: string[]; // folders currently absent from disk
 }
+
+// The overlay key for an explicit project's cosmetic state. Workspace paths
+// always start with "/", so the prefix can never collide with a derived key.
+export const PROJECT_KEY_PREFIX = "project:";
+export const projectGroupKey = (id: string) => PROJECT_KEY_PREFIX + id;
+
+export type SidebarOrganize = "by-project" | "one-list";
+export type SidebarSort = "priority" | "updated" | "manual";
 
 export interface SidebarModel {
   pinned: Session[];
@@ -250,6 +264,13 @@ export function buildSidebarModel(
     showArchived: boolean;
     query: string;
     titleOf: (session: Session) => string;
+    // Explicit project registry (INC-104). A session whose workspace exactly
+    // matches one of a project's folders belongs to that project's group; the
+    // per-workspace derived groups remain the fallback for everything else.
+    projectDefs?: ProjectDef[];
+    // "one-list" flattens the rail: no project groups, every non-pinned
+    // session in the flat section, newest first (INC-104 organize menu).
+    organize?: SidebarOrganize;
   },
 ): SidebarModel {
   const query = options.query.trim().toLowerCase();
@@ -273,6 +294,37 @@ export function buildSidebarModel(
   const pinned = ordered.filter((session) => requestedPins.has(session.id));
   const pinnedIds = new Set(pinned.map((session) => session.id));
 
+  if (options.organize === "one-list") {
+    // The flat section IS the sidebar in this mode. Pinned still wins — a
+    // session appears in exactly one section, never two.
+    return {
+      pinned,
+      projects: [],
+      workspaceLessSessions: ordered.filter((session) => !pinnedIds.has(session.id)),
+    };
+  }
+
+  const folderToProject = new Map<string, ProjectDef>();
+  for (const def of options.projectDefs ?? []) {
+    for (const folder of def.folders) {
+      const clean = folder.trim().replace(/\/+$/, "");
+      // First declaration wins; the server already refuses duplicate folders,
+      // so this is only a defensive tiebreak.
+      if (clean && !folderToProject.has(clean)) folderToProject.set(clean, def);
+    }
+  }
+  const explicitGroup = (def: ProjectDef): ProjectGroup => ({
+    key: projectGroupKey(def.id),
+    label: def.name,
+    workspace: def.folders[0],
+    projectId: def.id,
+    folders: def.folders,
+    order: def.order,
+    createdAt: def.createdAt,
+    missing: def.missing,
+    sessions: [],
+  });
+
   const groups = new Map<string, ProjectGroup>();
   // Workspace-less sessions stay out of the project map entirely. Grouping
   // them under a synthetic "Other sessions" folder made the rail claim a
@@ -287,18 +339,94 @@ export function buildSidebarModel(
       workspaceLessSessions.push(session);
       continue;
     }
-    const identity = projectIdentity(clean);
+    const def = folderToProject.get(clean);
+    const identity = def ? explicitGroup(def) : { ...projectIdentity(clean), sessions: [] };
     const key = identity.key;
     if (!groups.has(key)) {
-      groups.set(key, {
-        ...identity,
-        sessions: [],
-      });
+      groups.set(key, identity);
     }
     groups.get(key)!.sessions.push(session);
   }
 
+  // Projects with no sessions yet still exist — the user declared them. They
+  // render with a "No chats" row. A live search stays scoped to sessions
+  // (title/id/workspace), so empty groups sit this one out.
+  if (!query) {
+    for (const def of options.projectDefs ?? []) {
+      const key = projectGroupKey(def.id);
+      if (!groups.has(key)) groups.set(key, explicitGroup(def));
+    }
+  }
+
   return { pinned, projects: [...groups.values()], workspaceLessSessions };
+}
+
+// orderProjectGroups is the one place project-group ordering lives (INC-94 →
+// INC-104). Group recency is the FIRST member session — buildSidebarModel
+// inserts groups while walking the update-ordered session list, so the first
+// member is the group's newest and this reproduces the historical
+// insertion-order behaviour exactly. An empty explicit project stands on its
+// createdAt.
+//
+// - "priority": pinned groups first, then recency (the pre-INC-104 default).
+// - "updated":  pure recency; pins keep their glyph but stop sorting.
+// - "manual":   explicit projects by their saved order (1-based; 0 =
+//   unranked), everything unranked — including every derived group — sinks
+//   below by recency. Honest boundary: manual ordering only orders what the
+//   user can actually drag, which is explicit projects.
+export function orderProjectGroups(
+  groups: ProjectGroup[],
+  options: {
+    overlays: Record<string, ProjectOverlay & { pinned?: boolean }>;
+    sort: SidebarSort;
+  },
+): ProjectGroup[] {
+  const recencyStandIn = (group: ProjectGroup): Session => {
+    if (group.sessions.length > 0) return group.sessions[0];
+    const created = group.createdAt ? new Date(group.createdAt).toISOString() : undefined;
+    return { id: group.key, status: "", turns: 0, updatedAt: created } as Session;
+  };
+  const byRecency = (a: ProjectGroup, b: ProjectGroup) =>
+    compareSessionsByUpdate(recencyStandIn(a), recencyStandIn(b));
+  const pinnedRank = (group: ProjectGroup) => (options.overlays[group.key]?.pinned ? 0 : 1);
+  const manualRank = (group: ProjectGroup) =>
+    group.projectId && group.order && group.order > 0 ? group.order : Number.MAX_SAFE_INTEGER;
+  const sorted = [...groups];
+  switch (options.sort) {
+    case "updated":
+      sorted.sort(byRecency);
+      break;
+    case "manual":
+      sorted.sort((a, b) => manualRank(a) - manualRank(b) || byRecency(a, b));
+      break;
+    default:
+      sorted.sort((a, b) => pinnedRank(a) - pinnedRank(b) || byRecency(a, b));
+  }
+  return sorted;
+}
+
+// projectNameForWorkspace answers "what does the user call the place this
+// session lives?" for every surface that names a workspace — sidebar hints,
+// the command palette, Scheduled chips, the Home headline. Explicit project
+// name (through its overlay rename) wins, then the derived group's overlay
+// rename, then the derived label. "" for no workspace, as ever (SB-13).
+export function projectNameForWorkspace(
+  workspace: string | undefined,
+  defs?: ProjectDef[],
+  overlays?: Record<string, ProjectOverlay>,
+): string {
+  const clean = (workspace || "").trim().replace(/\/+$/, "");
+  if (!clean) return "";
+  for (const def of defs ?? []) {
+    for (const folder of def.folders) {
+      if (folder.trim().replace(/\/+$/, "") === clean) {
+        const custom = (overlays?.[projectGroupKey(def.id)]?.displayName || "").trim();
+        return custom || def.name;
+      }
+    }
+  }
+  const custom = (overlays?.[clean]?.displayName || "").trim();
+  return custom || projectLabel(clean);
 }
 
 export function buildArchivedModel(
@@ -306,12 +434,16 @@ export function buildArchivedModel(
   archived: string[],
   query: string,
   titleOf: (session: Session) => string,
+  projectDefs?: ProjectDef[],
 ): SidebarModel {
   const archivedIds = new Set(archived);
   const model = buildSidebarModel(
     sessions.filter((session) => archivedIds.has(session.id)),
-    { pinned: [], archived: [], showArchived: true, query, titleOf },
+    { pinned: [], archived: [], showArchived: true, query, titleOf, projectDefs },
   );
+  // The archived browser only shows groups that hold archived sessions — an
+  // empty explicit project has nothing to browse here.
+  model.projects = model.projects.filter((group) => group.sessions.length > 0);
   // Settings → Archived is a purely *grouped* browser (it has no flat section),
   // so workspace-less sessions from the sidebar's flat `Sessions` section would
   // silently vanished from it. Fold them back into one trailing bucket here —

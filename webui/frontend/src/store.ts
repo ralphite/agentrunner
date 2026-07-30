@@ -47,6 +47,19 @@ export type ModalKind =
     }
   | { kind: "inspect"; data: unknown; status?: string }
   | { kind: "viewer"; title: string; body: string }
+  // Create/Edit project dialog (INC-104). "create" with an overlayKey is the
+  // upgrade path: a derived group opened in the dialog, prefilled from its
+  // current label and workspace; Save registers the explicit project.
+  | {
+      kind: "project";
+      mode: "create" | "edit";
+      id?: string; // edit: the registry entry being edited
+      overlayKey?: string; // create-from-derived: the derived group being upgraded
+      initialName?: string;
+      initialFolders?: string[];
+      // Ephemeral UI reference only; never persisted or sent to the daemon.
+      returnFocus?: HTMLElement;
+    }
   | null;
 
 // PromptState is the app-styled replacement for window.prompt (QA Round1
@@ -60,6 +73,10 @@ export interface PromptState {
   initial?: string;
   placeholder?: string;
   submitLabel?: string; // primary button text (default "OK"); e.g. "Commit"
+  // Optional typeahead suggestions rendered as a native <datalist> (INC-104:
+  // Add folder offers the journal's workspace spellings so a typed path
+  // matches the grouping exactly).
+  suggestions?: string[];
   onSubmit: (value: string) => void;
 }
 
@@ -140,8 +157,13 @@ export interface AppState {
   // "project:<id>" for an explicit project (INC-104).
   projects: Record<string, ProjectMeta>;
   // Explicit project registry (INC-104): user-declared name + source folders,
-  // shared across every webui instance via <DataDir>/projects.json.
+  // shared across every webui instance via <DataDir>/projects.json. The CRUD
+  // actions are dialog-driven and NOT optimistic: the dialog awaits, shows the
+  // server's validation sentence inline, and only closes on success.
   projectDefs: ProjectDef[];
+  createProject: (input: { name: string; folders: string[] }) => Promise<ProjectDef>;
+  saveProject: (id: string, patch: { name?: string; folders?: string[]; order?: number }) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
   setProjectName: (key: string, name: string) => Promise<void>;
   toggleProjectFolded: (key: string, folded: boolean) => Promise<void>;
@@ -497,6 +519,17 @@ export function createAppStore(
 
   projects: {},
   projectDefs: [],
+  createProject: async (input) => {
+    const resp = await services.api.createProject(input);
+    applyProjectsPayload(set, resp);
+    return resp.created;
+  },
+  saveProject: async (id, patch) => {
+    applyProjectsPayload(set, await services.api.saveProject({ id, ...patch }));
+  },
+  deleteProject: async (id) => {
+    applyProjectsPayload(set, await services.api.deleteProject(id));
+  },
   refreshProjects: async () => {
     try {
       applyProjectsPayload(set, await services.api.projects());

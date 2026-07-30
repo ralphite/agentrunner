@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, projectDisplayName, projectLabel, quickSwitchSessions, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
+import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, orderProjectGroups, projectDisplayName, projectLabel, projectNameForWorkspace, quickSwitchSessions, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
 import type { ProjectGroup } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
@@ -191,6 +191,83 @@ describe("project sidebar model", () => {
     expect(scheduleLabel()).toBe("Goal");
     expect(scheduleLabel("cron")).toBe("Scheduled");
     expect(scheduleLabel("parallel")).toBe("Best of N");
+  });
+});
+
+describe("explicit projects (INC-104)", () => {
+  const defs = [
+    { id: "p-1", name: "Orca", folders: ["/repo/app", "/repo/docs"], createdAt: Date.parse("2026-07-01T00:00:00Z") },
+    { id: "p-2", name: "Empty proj", folders: ["/repo/fresh"], createdAt: Date.parse("2026-07-19T00:00:00Z") },
+  ];
+  const claimSessions: Session[] = [
+    { id: "s-app", status: "idle", turns: 1, title: "In app", workspace: "/repo/app", updatedAt: "2026-07-22T12:00:00Z" },
+    { id: "s-docs", status: "idle", turns: 1, title: "In docs", workspace: "/repo/docs/", updatedAt: "2026-07-21T12:00:00Z" },
+    { id: "s-other", status: "idle", turns: 1, title: "Elsewhere", workspace: "/repo/lib", updatedAt: "2026-07-20T12:00:00Z" },
+  ];
+  const opts = { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s: Session) => s.title || s.id };
+
+  it("merges sessions from every folder into one named group and keeps the fallback derived group", () => {
+    const model = buildSidebarModel(claimSessions, { ...opts, projectDefs: defs });
+    const orca = model.projects.find((p) => p.key === "project:p-1")!;
+    expect(orca.label).toBe("Orca");
+    expect(orca.workspace).toBe("/repo/app"); // primary = folders[0]
+    expect(orca.folders).toEqual(["/repo/app", "/repo/docs"]);
+    expect(orca.sessions.map((s) => s.id)).toEqual(["s-app", "s-docs"]);
+    // The claimed workspaces no longer form derived groups; the unclaimed one does.
+    expect(model.projects.map((p) => p.key)).toEqual(["project:p-1", "/repo/lib", "project:p-2"]);
+  });
+
+  it("keeps a session-less project visible with its createdAt as recency, except while searching", () => {
+    const model = buildSidebarModel(claimSessions, { ...opts, projectDefs: defs });
+    const empty = model.projects.find((p) => p.key === "project:p-2")!;
+    expect(empty.sessions).toEqual([]);
+    expect(empty.createdAt).toBe(defs[1].createdAt);
+    const searched = buildSidebarModel(claimSessions, { ...opts, projectDefs: defs, query: "app" });
+    expect(searched.projects.map((p) => p.key)).not.toContain("project:p-2");
+  });
+
+  it("flattens everything into the Sessions section in one-list mode", () => {
+    const model = buildSidebarModel(claimSessions, { ...opts, projectDefs: defs, organize: "one-list", pinned: ["s-docs"] });
+    expect(model.projects).toEqual([]);
+    expect(model.pinned.map((s) => s.id)).toEqual(["s-docs"]);
+    expect(model.workspaceLessSessions.map((s) => s.id)).toEqual(["s-app", "s-other"]);
+  });
+
+  it("orders groups per sort mode: priority pins first, updated ignores pins, manual ranks then sinks", () => {
+    const model = buildSidebarModel(claimSessions, { ...opts, projectDefs: defs });
+    const overlays = { "/repo/lib": { pinned: true } };
+    expect(orderProjectGroups(model.projects, { overlays, sort: "priority" }).map((g) => g.key))
+      .toEqual(["/repo/lib", "project:p-1", "project:p-2"]);
+    expect(orderProjectGroups(model.projects, { overlays, sort: "updated" }).map((g) => g.key))
+      .toEqual(["project:p-1", "/repo/lib", "project:p-2"]);
+    const ranked = model.projects.map((g) => (g.key === "project:p-2" ? { ...g, order: 1 } : g));
+    expect(orderProjectGroups(ranked, { overlays, sort: "manual" }).map((g) => g.key))
+      .toEqual(["project:p-2", "project:p-1", "/repo/lib"]);
+  });
+
+  it("resolves the user-facing name for any workspace consistently", () => {
+    expect(projectNameForWorkspace("/repo/docs", defs)).toBe("Orca");
+    expect(projectNameForWorkspace("/repo/app", defs, { "project:p-1": { displayName: "Renamed" } })).toBe("Renamed");
+    expect(projectNameForWorkspace("/repo/lib", defs, { "/repo/lib": { displayName: "Lib custom" } })).toBe("Lib custom");
+    expect(projectNameForWorkspace("/repo/lib", defs)).toBe("lib");
+    expect(projectNameForWorkspace("", defs)).toBe("");
+    expect(projectNameForWorkspace(undefined)).toBe("");
+  });
+
+  it("carries explicit grouping into the Archived browser but drops empty projects there", () => {
+    const model = buildArchivedModel(
+      [
+        { id: "a-app", status: "completed", turns: 1, title: "Archived app", workspace: "/repo/app" },
+        { id: "a-docs", status: "completed", turns: 1, title: "Archived docs", workspace: "/repo/docs" },
+      ],
+      ["a-app", "a-docs"],
+      "",
+      (s) => s.title || s.id,
+      defs,
+    );
+    expect(model.projects.map((p) => p.key)).toEqual(["project:p-1"]);
+    // No updatedAt on either row → id-descending fallback puts a-docs first.
+    expect(model.projects[0].sessions.map((s) => s.id)).toEqual(["a-docs", "a-app"]);
   });
 });
 

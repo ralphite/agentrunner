@@ -294,6 +294,44 @@ export const KeyboardNavigation: Story = {
   },
 };
 
+// INC-104 · Create/Edit project dialog.
+export const ProjectCreate: Story = {
+  render: () => (
+    <ModalsFixture initialState={{ prompt: null, modal: { kind: "project", mode: "create" } }} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("dialog", { name: "Create project" })).toBeVisible();
+    await expect(canvas.getByText("Add folders the agent can read and edit")).toBeVisible();
+    const submit = canvas.getByRole("button", { name: "Create project" });
+    await expect(submit).toBeDisabled();
+  },
+};
+
+export const ProjectEditMultiFolder: Story = {
+  render: () => (
+    <ModalsFixture
+      initialState={{
+        prompt: null,
+        modal: {
+          kind: "project",
+          mode: "edit",
+          id: "p-story-1",
+          initialName: "Orca",
+          initialFolders: ["/repo/app", "/repo/docs"],
+        },
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("dialog", { name: "Edit project" })).toBeVisible();
+    await expect(canvas.getByTitle("/repo/docs")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Remove project" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Save" })).toBeEnabled();
+  },
+};
+
 export const ModelFieldsDefault: Story = {
   render: () => <ModelFieldsFixture />,
   play: async ({ canvasElement }) => {

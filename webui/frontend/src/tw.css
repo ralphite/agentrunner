@@ -2284,6 +2284,32 @@
     @apply w-full max-w-[560px] overflow-hidden rounded-[var(--radius-overlay)] border border-line bg-panel;
     box-shadow: var(--shadow-dialog);
   }
+  /* INC-104 · Create/Edit project dialog. Layout mirrors the Codex mock (name
+     field with a folder-icon prefix cell, a bordered source-folders card of
+     ~44px rows, a soft-red Remove pill); every colour is an existing token so
+     both themes come along for free. */
+  .proj-name-field { @apply flex h-10 items-stretch overflow-hidden rounded-[12px] border border-line bg-panel focus-within:border-accent; }
+  .proj-name-icon { @apply grid w-10 shrink-0 place-items-center border-r border-line text-dim; }
+  .proj-name-field input { @apply h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-[14px] text-ink outline-none; }
+  .proj-source-label { @apply text-[13px] font-medium text-ink; }
+  .proj-folders { @apply divide-y divide-line overflow-hidden rounded-[12px] border border-line; }
+  .proj-folder-row { @apply flex h-11 items-center gap-2.5 pl-3 pr-1.5; }
+  .proj-folder-glyph { @apply shrink-0 text-dim; }
+  /* rtl+ltr trick keeps the path's tail (the basename) visible when it
+     truncates — the start of a long path is the least informative part. */
+  .proj-folder-path { @apply min-w-0 flex-1 truncate text-[13px] text-ink; direction: rtl; text-align: left; }
+  .proj-folder-path > * { direction: ltr; }
+  .proj-folder-add { @apply flex h-11 w-full items-center gap-2.5 border-0 bg-transparent px-3 text-left text-[13px] text-dim shadow-none hover:enabled:bg-panel-2; }
+  .proj-empty-drop { @apply grid w-full place-items-center gap-1.5 rounded-[12px] border border-dashed border-line bg-transparent px-4 py-7 text-[13px] text-dim shadow-none hover:enabled:bg-panel-2; }
+  .proj-error { @apply m-0 text-[12.5px]; color: var(--red); }
+  .proj-remove-pill {
+    @apply h-8 rounded-[10px] border-0 px-3 text-[13px] font-medium shadow-none;
+    background: var(--red-soft);
+    color: var(--red);
+  }
+  /* Sidebar: an explicit project with nothing in it yet (INC-104). Indent
+     matches a nested session row so the rail reads as one column. */
+  .project-empty-chats { @apply py-[5px] pl-[32px] pr-2 text-[13px] leading-5 text-ink-2 opacity-70; }
   .mhead, .mfoot { @apply flex items-center justify-between gap-2 border-b border-line px-4 py-3; }
   .mfoot { @apply border-b-0 border-t; }
   .mbody { @apply grid gap-3 p-4; }
