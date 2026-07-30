@@ -818,3 +818,14 @@ func TestGoalVerifyPlanModeShortCircuit(t *testing.T) {
 		t.Fatalf("plan-mode verifier started %d activities, want 0", n)
 	}
 }
+
+func TestGoalChecksDefaultUnlimited(t *testing.T) {
+	g := &state.Goal{Goal: "finish everything"}
+	if got := goalMaxChecks(g); got != 0 {
+		t.Fatalf("omitted max_checks = %d, want unlimited (0)", got)
+	}
+	msg := goalContinuation(g, 21, "still working", pipeline.ModeDefault)
+	if !strings.Contains(msg, "goal check 21 (unlimited)") {
+		t.Fatalf("continuation does not disclose unlimited budget: %q", msg)
+	}
+}

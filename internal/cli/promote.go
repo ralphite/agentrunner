@@ -123,7 +123,7 @@ func promoteWinner(ctx context.Context, shadowDir, baseRef, winnerDir, root stri
 
 	// Winner tree → object DB via a throwaway index (the shadow's real index
 	// and the workspace stay untouched). The shadow's info/exclude keeps the
-	// same credential hard-excludes every snapshot honors.
+	// same machine-regenerable-tree exclusions every snapshot honors.
 	if out, err := gitShadow(nil, "add", "-A"); err != nil {
 		return nil, out, fmt.Errorf("promote: git add on winner tree failed: %w", err)
 	}

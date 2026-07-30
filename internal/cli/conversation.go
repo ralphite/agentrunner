@@ -766,23 +766,20 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		fs.Var(&verifiers, "verify", "a command verifier — exit 0 = pass (repeatable); omit for a self-certified goal (the model claims completion via goal_complete)")
 		var llmVerifiers repeatedFlag
 		fs.Var(&llmVerifiers, "verify-llm", "an llm_judge verifier — a rubric an independent LLM scores the model's goal_complete claim against (INC-48); claim-gated")
-		maxChecks := fs.Int("max-checks", 0, "goal-level budget: max verifier checks before a visible truncation (attach default 20)")
+		maxChecks := fs.Int("max-checks", 0, "optional goal-level budget: max verifier checks before a visible truncation (omitted = unlimited)")
 		if err := fs.Parse(reorderFlags(fs, rest)); err != nil {
 			return ExitUsage
 		}
-		// A non-positive --max-checks is a user error, not a budget: without this
-		// an explicit 0 silently became the default (10) and a negative value ran
-		// a nonsensical budget (QA Wave7 olive-02). Distinguish "unset" (use the
-		// attach default / leave an update's budget alone) from an explicit bad
-		// value via fs.Visit — only a value the user actually typed is validated.
+		// Distinguish unset (unlimited on attach; preserve on update) from an
+		// explicit 0 (set/clear to unlimited). Only negative values are invalid.
 		maxChecksSet := false
 		fs.Visit(func(f *flag.Flag) {
 			if f.Name == "max-checks" {
 				maxChecksSet = true
 			}
 		})
-		if maxChecksSet && *maxChecks < 1 {
-			fmt.Fprintf(stderr, "goal %s: --max-checks must be a positive integer (got %d)\n", sub, *maxChecks)
+		if maxChecksSet && *maxChecks < 0 {
+			fmt.Fprintf(stderr, "goal %s: --max-checks must be >= 0 (0 = unlimited; got %d)\n", sub, *maxChecks)
 			return ExitUsage
 		}
 		gc := &protocol.GoalControl{GoalID: "goal", Goal: strings.Join(fs.Args(), " ")}
@@ -792,17 +789,9 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		for _, r := range llmVerifiers {
 			gc.Verifiers = append(gc.Verifiers, event.GoalVerifier{Kind: "llm_judge", Rubric: r})
 		}
-		// Only send a Budget when it should change: an update that omits
-		// --max-checks must NOT silently reset the running goal's budget
-		// (review Bug 2). Attach gets a default.
-		switch {
-		case sub == "attach":
-			mc := *maxChecks
-			if mc == 0 {
-				mc = 10
-			}
-			gc.Budget = &event.GoalBudget{MaxChecks: mc}
-		case *maxChecks > 0:
+		// Omitted means unlimited on attach and preserves the current budget
+		// on update. Explicit 0 clears a cap; a positive value sets one.
+		if maxChecksSet {
 			gc.Budget = &event.GoalBudget{MaxChecks: *maxChecks}
 		}
 		if sub == "attach" && strings.TrimSpace(gc.Goal) == "" {

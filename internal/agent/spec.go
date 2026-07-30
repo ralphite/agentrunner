@@ -67,8 +67,9 @@ func (s *SchemaJSON) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// DefaultMaxGenerationSteps applies when a spec omits max_generation_steps.
-const DefaultMaxGenerationSteps = 200
+// DefaultMaxGenerationSteps is unlimited. A positive spec value opts into a
+// per-turn cap.
+const DefaultMaxGenerationSteps = 0
 
 // defaultTools is the capability-first tool face for an Agent definition that
 // omits `tools`. Contextual collaboration/goal/artifact tools are still added
@@ -310,9 +311,6 @@ func loadSpec(path string, allowLegacyModel bool) (*AgentSpec, error) {
 	if !hasTopLevelYAMLKey(&top, "agents_dynamic") {
 		spec.AgentsDynamic = true
 	}
-	if spec.MaxGenerationSteps == 0 {
-		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
-	}
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "shared"
 	}
@@ -489,7 +487,7 @@ func (s *AgentSpec) validate(path string) error {
 	}
 
 	if s.MaxGenerationSteps < 0 {
-		return fail("max_generation_steps", "must be positive")
+		return fail("max_generation_steps", "must be >= 0 (0 = unlimited)")
 	}
 	switch s.Receipts {
 	case "", "steer", "turn_end":

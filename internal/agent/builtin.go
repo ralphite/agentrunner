@@ -70,9 +70,6 @@ func BuiltinSpec(name string) (*AgentSpec, bool) {
 	if yaml.Unmarshal(raw, &top) == nil && !hasTopLevelYAMLKey(&top, "agents_dynamic") {
 		spec.AgentsDynamic = true
 	}
-	if spec.MaxGenerationSteps == 0 {
-		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
-	}
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "shared"
 	}

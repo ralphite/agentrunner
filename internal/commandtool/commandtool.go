@@ -3,8 +3,8 @@
 // manifest (name / description / command / timeout / params schema). The
 // model's arguments arrive as JSON on the command's stdin; each invocation
 // runs as an execute-class command effect through the full permission
-// pipeline and the mandatory OS sandbox (决策 #34) — this package only owns
-// DISCOVERY, not execution.
+// pipeline and the executor's host-parity default or explicitly requested OS
+// sandbox (决策 #34) — this package only owns DISCOVERY, not execution.
 //
 // Discovery honors the trust model (决策 #19). A command tool is 可执行配置
 // (it runs a command with model-controlled stdin), so it sits on the
@@ -12,9 +12,8 @@
 //
 //   - USER layer (~/.config/agentrunner/tools/*.json) is the user's own
 //     machine — always loaded.
-//   - PROJECT layer (<ws>/.claude/tools/*.json) is repo content that travels
-//     with a clone — loaded ONLY when the workspace is trusted. Cloning an
-//     untrusted repo must not equal handing over arbitrary code execution.
+//   - PROJECT layer (<ws>/.claude/tools/*.json) loads by default with project
+//     code. project_trust: explicit can restore the trust-registry gate.
 //
 // Collision rules: a manifest whose name matches a built-in tool is refused
 // (the built-in wins, the manifest is dropped with a warning); a name already
@@ -32,11 +31,6 @@ import (
 	"sort"
 	"strings"
 )
-
-// MaxTimeoutS clamps a manifest's declared timeout: a command tool is a
-// foreground effect, not a daemon. TimeoutS == 0 means "use the harness
-// execute-class default" (owned by the durable-timer substrate, not here).
-const MaxTimeoutS = 3600
 
 // nameRe bounds a tool name to the provider function-name shape (Gemini and
 // Anthropic both accept ^[A-Za-z0-9_-]{1,64}$) and, being a bare identifier,
@@ -101,10 +95,6 @@ func resolve(m Manifest, source string) (Tool, error) {
 	if m.TimeoutS < 0 {
 		return Tool{}, fmt.Errorf("tool %q: negative timeout_s", m.Name)
 	}
-	timeout := m.TimeoutS
-	if timeout > MaxTimeoutS {
-		timeout = MaxTimeoutS
-	}
 	schema := m.Params
 	if len(bytes.TrimSpace(schema)) == 0 {
 		schema = defaultSchema
@@ -120,7 +110,7 @@ func resolve(m Manifest, source string) (Tool, error) {
 		Name:        m.Name,
 		Description: m.Description,
 		Command:     m.Command,
-		TimeoutS:    timeout,
+		TimeoutS:    m.TimeoutS,
 		Source:      source,
 		InputSchema: schema,
 	}, nil
@@ -145,7 +135,8 @@ func Validate(raw []byte, reserved map[string]bool) (Tool, error) {
 	return t, nil
 }
 
-// Discover loads the user and (only when trusted) project manifest
+// Discover loads the user and, when the resolved project policy allows it,
+// project manifests.
 // directories, applying the trust gate and collision rules. It never fails:
 // unreadable dirs are "no tools", and every malformed/rejected manifest
 // becomes a warning string the caller surfaces. Results are sorted by name.

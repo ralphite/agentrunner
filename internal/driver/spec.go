@@ -20,10 +20,6 @@ import (
 	"github.com/ralphite/agentrunner/internal/agentcatalog"
 )
 
-// DefaultMaxIterations bounds a goal-mode driver that omits max_iterations —
-// a goal that never verifies must still terminate.
-const DefaultMaxIterations = 10
-
 // Schedule kinds. immediate = goal mode; interval / cron = loop mode on a
 // fixed cadence; self_paced = loop mode where the CHILD declares the pace
 // via the schedule_next / finish_series built-in tools.
@@ -99,7 +95,7 @@ type DriverSpec struct {
 	Agent *agent.AgentSpec `yaml:"-"`
 	// Prompt is the instruction every child iteration receives.
 	Prompt string `yaml:"prompt"`
-	// MaxIterations caps goal mode; zero means DefaultMaxIterations.
+	// MaxIterations caps the series; zero means unlimited.
 	MaxIterations int `yaml:"max_iterations,omitempty"`
 	// N is the best-of-N attempt count (schedule=parallel); must be >= 2.
 	N int `yaml:"n,omitempty"`
@@ -213,12 +209,10 @@ func LoadSpec(path string) (*DriverSpec, error) {
 	if spec.AgentSpecPath == "" {
 		return nil, fail("agent_spec", "required")
 	}
-	// A negative max_iterations is a user error, not a budget: 0 is the
-	// documented "use DefaultMaxIterations" sentinel, but a negative value used
-	// to be silently coerced to the default too (QA Wave7 olive-02) — reject it
-	// like agent.LoadSpec rejects a negative max_generation_steps.
+	// A negative max_iterations is a user error; zero deliberately means
+	// unlimited.
 	if spec.MaxIterations < 0 {
-		return nil, fail("max_iterations", fmt.Sprintf("must be >= 0 (0 = default %d; got %d)", DefaultMaxIterations, spec.MaxIterations))
+		return nil, fail("max_iterations", fmt.Sprintf("must be >= 0 (0 = unlimited; got %d)", spec.MaxIterations))
 	}
 	// n only means anything under schedule: parallel (best-of-N). Setting it on
 	// any other schedule used to silently run the default loop, ignoring n with
@@ -274,11 +268,8 @@ func (s *DriverSpec) schedule() string {
 	return s.Schedule
 }
 
-// maxIterations returns the effective cap.
+// maxIterations returns the explicit cap; zero means unlimited.
 func (s *DriverSpec) maxIterations() int {
-	if s.MaxIterations <= 0 {
-		return DefaultMaxIterations
-	}
 	return s.MaxIterations
 }
 

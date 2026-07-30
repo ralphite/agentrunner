@@ -535,19 +535,18 @@ func TestScheduleStatusJSONProjectsTerminalAndLegacySchedules(t *testing.T) {
 	}
 }
 
-// TestGoalMaxChecksValidation pins that a non-positive --max-checks is rejected
-// at parse time (before any daemon round-trip), while an unset flag is left to
-// the attach default / an update's existing budget (QA Wave7 olive-02).
+// TestGoalMaxChecksValidation pins that negative --max-checks is rejected at
+// parse time; zero is the explicit unlimited spelling.
 func TestGoalMaxChecksValidation(t *testing.T) {
 	for _, sub := range []string{"attach", "update"} {
-		for _, bad := range []string{"0", "-3"} {
+		for _, bad := range []string{"-3"} {
 			var out, errOut bytes.Buffer
 			code := goalCmd([]string{"somesession", sub, "do the thing", "--verify", "true", "--max-checks", bad}, &out, &errOut)
 			if code != ExitUsage {
 				t.Errorf("goal %s --max-checks %s: code = %d, want ExitUsage", sub, bad, code)
 			}
-			if !strings.Contains(errOut.String(), "must be a positive integer") {
-				t.Errorf("goal %s --max-checks %s: stderr = %q, want the positive-integer error", sub, bad, errOut.String())
+			if !strings.Contains(errOut.String(), "must be >= 0") {
+				t.Errorf("goal %s --max-checks %s: stderr = %q, want the non-negative error", sub, bad, errOut.String())
 			}
 		}
 	}

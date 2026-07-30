@@ -149,6 +149,26 @@ func TestLoopMaxGenerationSteps(t *testing.T) {
 	}
 }
 
+func TestLoopGenerationStepsDefaultUnlimited(t *testing.T) {
+	steps := make([]scripted.Step, 0, 6)
+	for range 5 {
+		steps = append(steps, scripted.Step{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{Name: "bash", Args: map[string]any{"command": "true"}}},
+			{Finish: "tool_use"},
+		}})
+	}
+	steps = append(steps, scripted.Step{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}})
+	l := testLoop(t, scripted.Fixture{Steps: steps}, t.TempDir())
+	l.Spec.MaxGenerationSteps = 0
+	res, err := l.Run(context.Background(), "finish the work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "completed" || res.GenSteps != 6 {
+		t.Fatalf("result = %+v, want all six generations without truncation", res)
+	}
+}
+
 // The blanket appender redaction: a credential entering via the PROMPT (the
 // classic shell-expansion leak) must not reach session_started, input_received,
 // the fold's user message, or the provider request.

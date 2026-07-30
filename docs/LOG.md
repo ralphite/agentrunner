@@ -8366,3 +8366,78 @@ permission escalation 人审、handoff 唯一性与 frozen journal；删除的�
 `TestLoadSpecCapabilityFirstDefaultsAndExplicitOptOut`、
 `TestDynamicRoleInheritsParentCapabilities`、
 `TestSpawnGateDefaultsUnlimitedAndHonorsExplicitCaps`。
+
+## 2026-07-30 capability-first 系统审计：取消安全默认与隐藏自动停止（不变量修订）
+
+**用户裁决**：产品核心能力尚未成立时，不得由 harness 用安全默认、信任门或
+隐藏小常数代替用户关闭能力。G63 只解释了 spawn 症状；沿 capability 从定义加载
+追到执行/持久化后，发现同一种限制分散在 config、permission、tool、hook、MCP、
+driver、goal、index/snapshot 九层。
+
+**旧不变量与直接后果**：
+
+1. project hooks/command tools 必须先 `ar trust`；部署在自有项目里仍会静默丢掉
+   build/lint/deploy 集成。
+2. permission hard floor 把 workspace 外路径与 credential-shaped path 强制
+   ask/deny；file tools 即使普通规则 allow 也被 workspace containment 拦住。
+3. index/grep/glob/snapshot 按点目录/文件名猜凭据，导致 `.github`、`.claude`、
+   `.env`、`.npmrc` 等真实 project state 搜不到或无法 rewind。
+4. `web_fetch` 无条件拒绝 link-local/metadata 并带 30s client timeout，本地
+   服务、云实例内服务和慢响应构造上不可用。
+5. builtin tool、MCP、command tool、hook 分别藏 120s/3600s 等 timeout；
+   agent turn、goal、driver 分别藏 200/10/10 的自动终止值；内置 worker 还显式
+   写死 24 generation steps。用户没配置任何限制也会被系统自行停止。
+6. large workspace 默认 `auto`，达到阈值自动摘 keyword search 与 snapshot；
+   性能保护被做成了能力默认禁用。
+
+**新不变量**：所有这类字段统一遵循“省略 = 能力成立 / host parity /
+unlimited；显式声明才收窄”：
+
+- project executable config 默认加载；user settings 写
+  `project_trust: explicit` 才启用 registry gate。
+- permission floor 只保 plan mode 的 edit/execute deny。默认 file tools 可访问
+  host realpath；`sandbox.filesystem: workspace` 才要求 workspace/grant 并隔离
+  credential paths/env。
+- 普通 dotdir 与 credential-shaped project files 可读写、检索、快照、rewind；
+  只排 `.git`、机器可再生或 vendored trees。known-process-value redaction 保留，
+  但不是拒绝能力的理由。
+- network 默认完整可达且 `web_fetch` 无 wall timeout；显式
+  `sandbox.network:none` 仍对所有 egress fail-closed，显式 network rules 仍生效。
+- builtin/MCP/command/hook timeout 省略/0 = unlimited，显式正数原值生效、不
+  clamp；`max_generation_steps`、`max_checks`、`max_iterations` 同理。CLI
+  `--max-checks 0` 可显式清除已有 cap。worker/lead 不再藏工具削减或 step cap。
+- `large_workspace.mode` 默认 `never`（不自动降级）；显式 `auto|always` 保留。
+
+**为什么原来会这样**：早期 threat review 分别在 loader、pipeline、executor、
+storage 和 loop 各自加了一道 defense-in-depth，却没有用一次端到端
+“一个默认 coding agent 能否完成开发”验收来约束合成结果。每道局部规则都能解释，
+叠加后却由任意一层否决核心能力；同时 200/10/10/120s/3600s 这些实现常数没有
+被当成产品决策登记，测试只验证“会截断”，没有验证“用户未声明时不截断”。
+
+**保留边界的裁决**：plan mode 不可 edit/execute；用户显式 permission deny/ask、
+sandbox、budget、timeout 与 trust opt-in；effect/activity journal；
+known-value redaction 与 log 0600；输出大小/grep result/HTTP body/rate limit 等
+资源与协议正确性上限；handoff 唯一性及子不能凭 role payload 创造父没有的
+authority。这些不会静默取消默认 coding 能力。
+
+**contract review / 锚**：三层同步 UJ-20、SPEC B/D/F、DESIGN §4/5/6/9/10/13
+及决策 #19/#33/#34/#40；G59/G60/G64 关闭。代码锚覆盖
+`TestResolveProjectTrustDefaultsAllAndExplicitOptIn`、
+`TestPermissionEscapeFollowsOrdinaryRules`/
+`TestFloorLeavesCredentialAccessToOrdinaryPolicy`、
+`TestOutsidePathOpenByDefaultAndSandboxRequiresGrant`、
+`TestCredentialShapedProjectFilesAreIndexed`、
+`TestSnapshotIncludesCredentialShapedProjectFiles`、
+`TestLoopGenerationStepsDefaultUnlimited`、
+`TestGoalChecksDefaultUnlimited`、
+`TestMaxIterationsDefaultsUnlimitedAndPositiveCaps`、
+`TestResolveDefaultsAndPreservesTimeout`。旧 journal/frozen spec 不改写；
+新加载与新 session 使用新默认。
+
+**真实共享 store 闸门（2026-07-30）**：用本提交 binary + 真 Gemini 启动
+custom spec，故意省略 `tools/permissions/agents_dynamic/agent_workspace`。root
+session `20260730-200438-session-aa00a9b4fe6e0eed` 成功动态创建 child
+`…-sub-call_6_0-a1`；child 亲自 `write_file` 写
+`QA_CHILD_OK.txt=DYNAMIC_CHILD_SHARED_OK`，父随后 `read_file` 精确读回。
+会话未关闭/未删除；110 条 events 与 last-turn diff（1 insertion）保留于
+`qa/runs/2026-07-30-QA-capability-defaults/`。

@@ -52,9 +52,7 @@ func TestGrepFindsMatches(t *testing.T) {
 	}
 }
 
-// The credential red line: grep must never surface the content of a
-// credential-shaped file, even though it lives in the workspace.
-func TestGrepRespectsCredentialExclusion(t *testing.T) {
+func TestGrepIncludesCredentialShapedProjectFiles(t *testing.T) {
 	e, root := newExec(t)
 	mkfile(t, root, ".env", "API_TOKEN=supersecretvalue\n")
 	mkfile(t, root, "readme.md", "set API_TOKEN in your env\n")
@@ -64,13 +62,8 @@ func TestGrepRespectsCredentialExclusion(t *testing.T) {
 		t.Fatalf("grep errored: %v", m)
 	}
 	ms := grepMatches(t, m)
-	if len(ms) != 1 || ms[0]["path"].(string) != "readme.md" {
-		t.Fatalf("credential file leaked or wrong matches: %v", ms)
-	}
-	for _, mm := range ms {
-		if mm["path"] == ".env" {
-			t.Fatal(".env content surfaced in grep — credential red line breached")
-		}
+	if len(ms) != 2 {
+		t.Fatalf("credential-shaped project file missing: %v", ms)
 	}
 }
 
@@ -197,7 +190,7 @@ func TestGlobMatches(t *testing.T) {
 	}
 }
 
-func TestGlobRespectsExclusion(t *testing.T) {
+func TestGlobSkipsDerivedButIncludesProjectCredentials(t *testing.T) {
 	e, root := newExec(t)
 	mkfile(t, root, "node_modules/x.go", "")
 	mkfile(t, root, ".env", "")
@@ -205,10 +198,12 @@ func TestGlobRespectsExclusion(t *testing.T) {
 
 	m, _ := run(t, e, "glob", `{"pattern":"**/*"}`)
 	ps := globPaths(t, m)
+	foundEnv := false
 	for _, p := range ps {
-		if p == ".env" || p == filepath.Join("node_modules", "x.go") {
+		if p == filepath.Join("node_modules", "x.go") {
 			t.Fatalf("excluded path surfaced: %v", ps)
 		}
+		foundEnv = foundEnv || p == ".env"
 	}
 	found := false
 	for _, p := range ps {
@@ -218,6 +213,9 @@ func TestGlobRespectsExclusion(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("real file missing: %v", ps)
+	}
+	if !foundEnv {
+		t.Fatalf(".env missing from project glob: %v", ps)
 	}
 }
 

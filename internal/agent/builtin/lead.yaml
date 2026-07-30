@@ -17,7 +17,6 @@ system_prompt: |
      交付后你 send_message 通知 Reviewer 去评审、Reviewer 把结论 send_message
      发回 SWE);要某个已静止成员再做一轮时,直接 send_message 给它即可唤醒续做。
   5. 收尾:全部完成后向用户简洁汇总各成员产出与协作过程。
-tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
 agents_dynamic: true
 agent_workspace: shared
 permissions:

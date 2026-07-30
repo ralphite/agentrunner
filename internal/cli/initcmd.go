@@ -34,7 +34,7 @@ system_prompt: >
 
 # --- optional ---------------------------------------------------------
 # mode: plan                # default | plan | acceptEdits
-# max_generation_steps: 200 # cap on model calls per turn
+# max_generation_steps: 200 # optional cap; omitted/0 = unlimited
 # budget:
 #   max_total_tokens: 200000
 # agents: [worker]              # sibling worker.yaml specs allowed to spawn
@@ -77,7 +77,7 @@ name: my-driver
 prompt: Make the test suite pass          # the instruction EVERY iteration receives
 agent_spec: dev                         # shared Agent name, or a YAML path relative to this file
 
-max_iterations: 5     # goal-mode cap (default 10)
+max_iterations: 5     # optional series cap; omitted/0 = unlimited
 verifiers:            # ALL must pass for an iteration to satisfy the goal
   - kind: command     # command | llm_judge | human (a bare command: implies kind command)
     command: "test -f done.txt"         # exit 0 = pass

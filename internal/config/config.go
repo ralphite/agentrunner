@@ -1,8 +1,7 @@
 // Package config merges the three settings sources — user, project, spec —
-// and owns the trust registry (3.4). Project-level configuration is code
-// from the repo you cloned: its hooks NEVER run untrusted, and its
-// permission rules may only tighten (allow downgrades to ask) until the
-// workspace is explicitly trusted via `agentrunner trust`.
+// and owns the optional project trust registry (3.4). Local single-user runs
+// trust project capabilities by default; users who want the clone boundary
+// can opt into project_trust: explicit.
 package config
 
 import (
@@ -28,6 +27,9 @@ type Settings struct {
 	// DefaultModel is user-level only. Agent definitions never choose models;
 	// CLI surfaces use this when no explicit --model is supplied.
 	DefaultModel modelconfig.Selection `yaml:"default_model,omitempty"`
+	// ProjectTrust is user-level only. Empty/"all" loads project permissions,
+	// hooks, and command tools by default; "explicit" consults trusted.yaml.
+	ProjectTrust string `yaml:"project_trust,omitempty"`
 	// Notify is the notifier channel (S6 模块⑤) — a documented carve-out:
 	// ONLY the user-level settings are consulted (a cloned repo must never
 	// redirect notifications), so Merge ignores it entirely.
@@ -40,6 +42,11 @@ type Settings struct {
 	// the repo is who knows it). LOG 决策 records this carve-out.
 	LargeWorkspace LargeWorkspaceSpec `yaml:"large_workspace,omitempty"`
 }
+
+const (
+	ProjectTrustAll      = "all"
+	ProjectTrustExplicit = "explicit"
+)
 
 // LargeWorkspaceSpec configures the wsprobe gate.
 //
@@ -107,6 +114,11 @@ func LoadFile(path string) (Settings, error) {
 			return Settings{}, fmt.Errorf("settings %s: default_model: %w", path, err)
 		}
 	}
+	switch s.ProjectTrust {
+	case "", ProjectTrustAll, ProjectTrustExplicit:
+	default:
+		return Settings{}, fmt.Errorf("settings %s: project_trust: want all|explicit, got %q", path, s.ProjectTrust)
+	}
 	for ev := range s.Hooks.Lifecycle {
 		if !hook.LifecycleEvents[ev] {
 			return Settings{}, fmt.Errorf("settings %s: hooks.lifecycle: unknown event %q", path, ev)
@@ -127,9 +139,8 @@ func LoadFile(path string) (Settings, error) {
 	return s, nil
 }
 
-// LoadProjectFile reads repository-owned settings. default_model is
-// intentionally user/session-owned: accepting it here would make a cloned
-// repository silently choose the model and spend level for a new session.
+// LoadProjectFile reads repository-owned settings. default_model and
+// project_trust are intentionally user/session-owned.
 func LoadProjectFile(path string) (Settings, error) {
 	s, err := LoadFile(path)
 	if err != nil {
@@ -137,6 +148,9 @@ func LoadProjectFile(path string) (Settings, error) {
 	}
 	if s.DefaultModel.Provider != "" || s.DefaultModel.ID != "" || s.DefaultModel.Effort != "" {
 		return Settings{}, fmt.Errorf("settings %s: default_model is user-level only; move it to ~/.config/agentrunner/settings.yaml", path)
+	}
+	if s.ProjectTrust != "" {
+		return Settings{}, fmt.Errorf("settings %s: project_trust is user-level only; move it to ~/.config/agentrunner/settings.yaml", path)
 	}
 	return s, nil
 }
@@ -150,6 +164,15 @@ func validateRules(rules []pipeline.PermissionRule) error {
 		}
 	}
 	return nil
+}
+
+// ResolveProjectTrust applies the capability-first default. The registry is
+// consulted only when the user explicitly opts into that boundary.
+func ResolveProjectTrust(user Settings, dataDir, wsRoot string) (bool, error) {
+	if user.ProjectTrust != ProjectTrustExplicit {
+		return true, nil
+	}
+	return IsTrusted(dataDir, wsRoot)
 }
 
 // Merge builds the effective config. Precedence: user rules first, then
@@ -183,7 +206,7 @@ func Merge(user, project Settings, specRules []pipeline.PermissionRule, projectT
 
 	// Scale gate: project wins over user, both over the built-in default.
 	// Trust-independent by design — see LargeWorkspaceSpec.
-	m.LargeWorkspaceThreshold, m.LargeWorkspaceMode = wsprobe.DefaultThreshold, wsprobe.ModeAuto
+	m.LargeWorkspaceThreshold, m.LargeWorkspaceMode = wsprobe.DefaultThreshold, wsprobe.ModeNever
 	for _, s := range []LargeWorkspaceSpec{user.LargeWorkspace, project.LargeWorkspace} {
 		if s.Threshold != nil {
 			m.LargeWorkspaceThreshold = *s.Threshold

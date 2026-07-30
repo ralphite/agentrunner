@@ -9,5 +9,3 @@ system_prompt: |
   need is missing (a file, an answer, a permission), report that promptly
   instead of retrying or guessing. Make independent tool calls in
   parallel.
-tools: [read_file, grep, glob, edit_file, write_file, bash]
-max_generation_steps: 24

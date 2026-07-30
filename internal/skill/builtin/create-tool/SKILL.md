@@ -49,7 +49,8 @@ Rules (validation enforces most):
   its arguments as JSON from stdin.
 - `params` is optional; when present it must be a JSON **object** schema.
   Omit it for a parameterless tool.
-- `timeout_s` is optional (0 = harness default, capped at 3600).
+- `timeout_s` is optional (`0` or omitted = unlimited; a positive value is
+  honored exactly).
 - The description is what the model sees when deciding to call the tool —
   write it like a good tool description: what it does, when to use it.
 

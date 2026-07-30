@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -189,36 +188,11 @@ func (g *PermissionGate) matchOneCommand(eff Effect, relPath string, args toolAr
 	return Decision{}, false
 }
 
-// hardFloor runs before rules AND mode defaults. Two of its three rulings are
-// now approvals rather than denials (LOG 2026-07-29, user ruling): reaching
-// outside the workspace, and touching a credential file. What made them
-// unconditional denials was the assumption that nothing outside the workspace
-// is ever legitimately the user's intent — but a person owns the machine this
-// runs on, and their work routinely spans directories. The gate exists to stop
-// an *agent* going where it pleases, so the ruling becomes "ask the human",
-// not "refuse the human".
-//
-// They stay in the floor rather than moving into the rules layer, because the
-// floor's real property is what still holds: no permission rule and no mode —
-// bypass included — can turn either of these into a silent allow. `bypass`
-// skips the ask for ordinary effects; it does not skip these. The only ruling
-// that remains an outright denial is plan mode's edit/execute prohibition,
-// which is the whole content of plan mode (exit_plan_mode is the sanctioned
-// way out and is exempt).
+// hardFloor runs before rules AND mode defaults. Only an explicitly selected
+// plan mode imposes an unbypassable restriction. Host filesystem and
+// credential access are governed by ordinary permission rules plus the
+// optional filesystem sandbox; they are not silently re-tightened here.
 func (g *PermissionGate) hardFloor(eff Effect) (Decision, bool) {
-	args := effArgs(eff)
-	relPath, escaped := g.resolveRel(args.Path)
-	if escaped {
-		return Ask(fmt.Sprintf("outside the workspace: %s", args.Path)), true
-	}
-	// Credential files are the likeliest prize for a prompt injection, so they
-	// never pass silently — but the person at the keyboard may legitimately
-	// want one read or edited, and can now say so. The snapshot layer still
-	// refuses to checkpoint them.
-	if args.Path != "" && isCredentialPath(relPath) &&
-		(eff.ToolName == "read_file" || eff.Class == "edit") {
-		return Ask(fmt.Sprintf("credential file: %s", args.Path)), true
-	}
 	if g.effectiveMode(eff) == ModePlan && eff.ToolName != "exit_plan_mode" &&
 		(eff.Class == "edit" || eff.Class == "execute") {
 		return Deny("plan mode: " + eff.Class + " tools are disabled (no rule can override)"), true
@@ -361,46 +335,6 @@ func (r PermissionRule) describe() string {
 
 func (r PermissionRule) isCatchAllAsk() bool {
 	return r.Action == event.VerdictAsk && r.Tool == "" && r.Path == "" && r.Command == "" && r.Network == ""
-}
-
-// credentialBasenames name files whose contents are credentials. A read of
-// any of them — at any depth in the workspace — is denied by the hard floor
-// (C3). Mirrors snapshot.hardExcludes (which refuses to checkpoint the same
-// files); keep the two lists in sync.
-var credentialBasenames = []string{
-	".env", ".env.*", ".envrc",
-	"*.pem", "*.key",
-	"id_rsa", "id_rsa.*", "id_ed25519", "id_ed25519.*",
-	".git-credentials", ".netrc", ".npmrc", ".pypirc",
-	"credentials.json",
-}
-
-// isCredentialPath reports whether a workspace-relative (forward-slash) path
-// names a credential file whose contents must never reach the model. Matches
-// the basename at any depth, plus anything under a .ssh/ dir and .aws/credentials.
-func isCredentialPath(rel string) bool {
-	if rel == "" {
-		return false
-	}
-	rel = strings.TrimPrefix(rel, "./")
-	base := rel
-	if i := strings.LastIndex(rel, "/"); i >= 0 {
-		base = rel[i+1:]
-	}
-	for _, pat := range credentialBasenames {
-		if ok, _ := path.Match(pat, base); ok {
-			return true
-		}
-	}
-	for _, seg := range strings.Split(rel, "/") {
-		if seg == ".ssh" {
-			return true
-		}
-	}
-	if base == "credentials" && strings.Contains(rel+"/", ".aws/") {
-		return true
-	}
-	return false
 }
 
 // globMatch translates a glob to a regexp. Path semantics (pathish=true):

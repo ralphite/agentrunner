@@ -132,28 +132,6 @@ func derivedExcludePatterns() []string {
 	return out
 }
 
-// hardExcludes are paths NEVER snapshotted (DESIGN: 凭据路径显式排除出
-// 快照/rewind 范围 — a rewind must not resurrect deleted credentials).
-// Written to the shadow repo's info/exclude; .gitignore semantics.
-var hardExcludes = []string{
-	".env",
-	".env.*",
-	".envrc",
-	"*.pem",
-	"*.key",
-	"id_rsa*",
-	"id_ed25519*",
-	".git-credentials",
-	".netrc",
-	".npmrc",
-	".pypirc",
-	"credentials.json",
-	// Unanchored (**): a nested subproject's credentials are just as much
-	// credentials (S7 出口 review — the bare pattern anchored to the root).
-	"**/.aws/credentials",
-	".ssh/",
-}
-
 // ShadowRepo snapshots via a separate GIT_DIR. The workspace's own .git is
 // never tracked (git refuses paths containing a .git component), so the
 // user's repo and the agent's git operations stay invisible in both
@@ -240,9 +218,7 @@ func (s *ShadowRepo) writeExcludes() error {
 	if err := os.MkdirAll(info, 0o700); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
-	content := "# agentrunner hard excludes — credentials never enter snapshots\n" +
-		strings.Join(hardExcludes, "\n") + "\n" +
-		"\n# machine-regenerable trees — DOCUMENTED AS OUTSIDE REWIND SCOPE.\n" +
+	content := "# machine-regenerable trees — DOCUMENTED AS OUTSIDE REWIND SCOPE.\n" +
 		"# The workspace's own .gitignore still does most of this work; these are\n" +
 		"# the floor, for the workspace that has no .gitignore at all.\n" +
 		strings.Join(derivedExcludePatterns(), "\n") + "\n"
@@ -338,8 +314,8 @@ var snapshotRefPattern = regexp.MustCompile(`^[0-9a-f]{40}(?:[0-9a-f]{24})?$`)
 // Diff compares a durable barrier snapshot with the current workspace. It
 // uses a private temporary index: the running agent may take another snapshot
 // concurrently, but this review never reads or mutates the shadow HEAD/index.
-// `git add -A` makes untracked/deleted files visible and reuses info/exclude,
-// including the hard credential exclusions.
+// `git add -A` makes untracked/deleted files visible and reuses the
+// machine-regenerable-tree excludes.
 func (s *ShadowRepo) Diff(ctx context.Context, ref string) (DiffResult, error) {
 	if !snapshotRefPattern.MatchString(ref) {
 		return DiffResult{}, fmt.Errorf("snapshot: invalid snapshot ref")

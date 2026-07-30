@@ -35,7 +35,7 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 	if err != nil {
 		return nil, nil, err
 	}
-	trusted, err := config.IsTrusted(dataDir, ws.Root())
+	trusted, err := config.ResolveProjectTrust(user, dataDir, ws.Root())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -81,7 +81,7 @@ func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.Permis
 	if err != nil {
 		return nil, nil, err
 	}
-	trusted, err := config.IsTrusted(dataDir, ws.Root())
+	trusted, err := config.ResolveProjectTrust(user, dataDir, ws.Root())
 	if err != nil {
 		return nil, nil, err
 	}

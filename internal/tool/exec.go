@@ -297,10 +297,9 @@ func (e *Executor) GrantedPaths() []string {
 	return out
 }
 
-// resolvePath maps a tool path to an absolute one. Inside the workspace this
-// is WS.Resolve unchanged. Outside it, the path is allowed ONLY if the user
-// approved this exact path — the gate has already asked by the time execution
-// runs, so an un-granted escape here means the approval never happened.
+// resolvePath maps a tool path to an absolute one. Terminal-parity mode allows
+// host paths just like bash; the opt-in filesystem sandbox retains the exact
+// approved-path grant mechanism.
 func (e *Executor) resolvePath(path string) (string, error) {
 	abs, err := e.WS.Resolve(path)
 	if err == nil {
@@ -309,6 +308,9 @@ func (e *Executor) resolvePath(path string) (string, error) {
 	resolved, rerr := e.resolveUnbounded(path)
 	if rerr != nil {
 		return "", err
+	}
+	if !e.FilesystemContained() {
+		return resolved, nil
 	}
 	e.grantMu.Lock()
 	granted := e.grantedPaths[resolved]
@@ -400,10 +402,8 @@ func stripFrontmatter(s string) string {
 	return strings.TrimLeft(body, "\n")
 }
 
-// grep/glob limits (INC-3). Both are read-class content-surfacing tools:
-// they walk the workspace with the SAME credential/vendored-tree exclusion
-// as keyword_search (index.SkipDir/SkipFile) so no credential line ever
-// lands in the journal, and they cap output like every other tool.
+// grep/glob limits (INC-3). Both are read-class content-surfacing tools and
+// share the derived/vendored-tree exclusion seam with keyword_search.
 const (
 	grepDefaultMatches = 100 // max_results omitted → this many (grep.json contract)
 	grepMaxMatches     = 200

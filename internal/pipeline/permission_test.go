@@ -47,7 +47,7 @@ func TestPermissionRulesTable(t *testing.T) {
 		{"doublestar path allow", toolEffect("edit_file", "edit", `{"path":"src/a/b/c.go","old":"x","new":"y"}`), event.VerdictAllow},
 		{"singlestar no slash", toolEffect("edit_file", "edit", `{"path":"README.md"}`), event.VerdictAllow},
 		{"singlestar rejects slash", toolEffect("edit_file", "edit", `{"path":"docs/x.md"}`), event.VerdictAsk},
-		{"credential path asks", toolEffect("read_file", "read", `{"path":"secrets/key.pem"}`), event.VerdictAsk},
+		{"credential path follows explicit deny", toolEffect("read_file", "read", `{"path":"secrets/key.pem"}`), event.VerdictDeny},
 		{"llm effects pass through", Effect{ID: "eff-llm-t1", Kind: "llm_call"}, event.VerdictAllow},
 	}
 	for _, tc := range cases {
@@ -71,16 +71,12 @@ func TestPermissionFirstMatchWins(t *testing.T) {
 	}
 }
 
-// Reaching outside the workspace asks the human (LOG 2026-07-29) — but it asks
-// in EVERY mode, bypass included, and an allow-everything rule does not make it
-// silent. That is the floor's remaining property: no rule and no mode can turn
-// this into an unattended allow.
-func TestPermissionEscapeAsksEvenInBypass(t *testing.T) {
+func TestPermissionEscapeFollowsOrdinaryRules(t *testing.T) {
 	for _, mode := range []string{ModeDefault, ModeBypass, ModePlan, ModeAcceptEdits} {
 		g := &PermissionGate{WS: newPermWS(t), Mode: mode, Rules: []PermissionRule{{Action: "allow"}}}
 		d := g.Check(context.Background(), toolEffect("read_file", "read", `{"path":"src/../../etc/passwd"}`))
-		if d.Action != event.VerdictAsk || !strings.Contains(d.Reason, "outside the workspace") {
-			t.Errorf("mode %s: decision = %+v, want an out-of-workspace ask", mode, d)
+		if d.Action != event.VerdictAllow {
+			t.Errorf("mode %s: decision = %+v, want explicit allow", mode, d)
 		}
 	}
 }
@@ -266,45 +262,26 @@ func TestFloorGatePrecedesHooks(t *testing.T) {
 	if d.Action != event.VerdictDeny {
 		t.Fatalf("floor must deny plan-mode edit: %+v", d)
 	}
-	// An escape reaches the human even in bypass — the floor asks, it does not
-	// silently allow.
+	// Host filesystem reach is not a hard-floor concern.
 	floorBypass := &FloorGate{WS: ws, Mode: ModeBypass}
 	esc := floorBypass.Check(context.Background(), toolEffect("read_file", "read", `{"path":"../../etc/passwd"}`))
-	if esc.Action != event.VerdictAsk {
-		t.Fatalf("floor must ask about an escape even in bypass: %+v", esc)
+	if esc.Action != event.VerdictAllow {
+		t.Fatalf("floor must leave host paths to ordinary policy: %+v", esc)
 	}
 }
 
-// A credential file never passes SILENTLY — it is the likeliest prize for a
-// prompt injection, so no rule and no mode may allow it unattended. The person
-// at the keyboard can still say yes (LOG 2026-07-29); what the floor guarantees
-// is that they are asked (C3).
-func TestFloorAsksBeforeCredentialAccess(t *testing.T) {
+func TestFloorLeavesCredentialAccessToOrdinaryPolicy(t *testing.T) {
 	ws := newPermWS(t)
 	floor := &FloorGate{WS: ws}
 	for _, p := range []string{".npmrc", ".netrc", "sub/dir/.env", "deploy/id_rsa", "x.pem", ".ssh/config", "svc/.aws/credentials"} {
 		d := floor.Check(context.Background(), toolEffect("read_file", "read", `{"path":"`+p+`"}`))
-		if d.Action != event.VerdictAsk {
-			t.Errorf("read_file %q must be floor-asked, got %+v", p, d)
+		if d.Action != event.VerdictAllow {
+			t.Errorf("read_file %q must pass the floor, got %+v", p, d)
 		}
 		e := floor.Check(context.Background(), toolEffect("edit_file", "edit", `{"path":"`+p+`","old":"x","new":"y"}`))
-		if e.Action != event.VerdictAsk {
-			t.Errorf("edit_file %q must be floor-asked, got %+v", p, e)
+		if e.Action != event.VerdictAllow {
+			t.Errorf("edit_file %q must pass the floor, got %+v", p, e)
 		}
-	}
-	// Even an allow-everything rule set does not make it silent.
-	permissive := &FloorGate{WS: ws, Mode: ModeBypass}
-	if d := permissive.Check(context.Background(), toolEffect("read_file", "read", `{"path":".env"}`)); d.Action != event.VerdictAsk {
-		t.Errorf("credential read under bypass = %+v, want ask", d)
-	}
-	// Ordinary files still read.
-	if d := floor.Check(context.Background(), toolEffect("read_file", "read", `{"path":"src/main.go"}`)); d.Action == event.VerdictDeny {
-		t.Errorf("ordinary read wrongly denied: %+v", d)
-	}
-	// The deny targets the READ leak only — a project may legitimately create a
-	// .env; the floor does not block writing one.
-	if d := floor.Check(context.Background(), toolEffect("write_file", "edit", `{"path":".npmrc"}`)); d.Action == event.VerdictDeny {
-		t.Errorf("write to credential path must not be floor-denied here: %+v", d)
 	}
 }
 
