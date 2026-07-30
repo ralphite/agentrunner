@@ -1356,3 +1356,83 @@ describe("sidebar organize menu (INC-104)", () => {
     expect(names()).toEqual(["app", "lib"]); // pure recency
   });
 });
+
+describe("manual project order (INC-104)", () => {
+  const manualSessions = [
+    { id: "20260722-120000-app", status: "idle", turns: 1, title: "App chat", workspace: "/repo/app", updatedAt: "2026-07-22T12:00:00Z" },
+    { id: "20260721-120000-lib", status: "idle", turns: 1, title: "Lib chat", workspace: "/repo/lib", updatedAt: "2026-07-21T12:00:00Z" },
+  ];
+  const defs = [
+    { id: "p-app", name: "App", folders: ["/repo/app"] },
+    { id: "p-lib", name: "Lib", folders: ["/repo/lib"] },
+  ];
+
+  const mountManual = (saveProject = vi.fn(async () => {})) => {
+    localStorage.setItem("ar.sidebar.sort", "manual");
+    useStore.setState({
+      sessions: manualSessions as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      projectDefs: defs as any,
+      modal: null,
+      prompt: null,
+      saveProject,
+      openModal: (modal: any) => useStore.setState({ modal }),
+    });
+    return { saveProject, ...render(<Sidebar />) };
+  };
+
+  afterEach(() => localStorage.clear());
+
+  it("offers Move up/down only under manual sort and renumbers 1..n on move", async () => {
+    const { saveProject } = mountManual();
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Lib" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move up" }));
+    // Unranked before the move: both entries get their new 1-based rank.
+    await waitFor(() => expect(saveProject).toHaveBeenCalledWith("p-lib", { order: 1 }));
+    await waitFor(() => expect(saveProject).toHaveBeenCalledWith("p-app", { order: 2 }));
+  });
+
+  it("keeps the menu free of Move items outside manual sort", () => {
+    localStorage.setItem("ar.sidebar.sort", "priority");
+    useStore.setState({
+      sessions: manualSessions as any,
+      sessionsReady: true,
+      projectDefs: defs as any,
+      projects: {},
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+    });
+    render(<Sidebar />);
+    fireEvent.click(screen.getByRole("button", { name: "More actions for App" }));
+    expect(screen.queryByRole("menuitem", { name: "Move up" })).toBeNull();
+  });
+
+  it("reorders by drag and drop between explicit rows", async () => {
+    const { saveProject, container } = mountManual();
+    const groups = [...container.querySelectorAll<HTMLElement>(".project-group")];
+    expect(groups.length).toBe(2);
+    expect(groups[0].getAttribute("draggable")).toBe("true");
+
+    const data: Record<string, string> = {};
+    const dt = {
+      setData: (k: string, v: string) => { data[k] = v; },
+      getData: (k: string) => data[k] ?? "",
+      effectAllowed: "",
+      dropEffect: "",
+    };
+    // Drag the second group (Lib) onto the first (App): Lib lands before App.
+    fireEvent.dragStart(groups[1], { dataTransfer: dt });
+    fireEvent.dragOver(groups[0], { dataTransfer: dt });
+    fireEvent.drop(groups[0], { dataTransfer: dt });
+    await waitFor(() => expect(saveProject).toHaveBeenCalledWith("p-lib", { order: 1 }));
+    await waitFor(() => expect(saveProject).toHaveBeenCalledWith("p-app", { order: 2 }));
+  });
+});

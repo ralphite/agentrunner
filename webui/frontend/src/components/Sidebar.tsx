@@ -167,6 +167,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     openHelp,
     projects,
     projectDefs,
+    saveProject,
     deleteProject,
     toggleProjectFolded,
     toggleProjectPinned,
@@ -469,6 +470,45 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     />
   );
 
+  // Manual reordering (INC-104, Sort by = Manual order). Both entrances —
+  // drag-and-drop and the menu's Move up/down — funnel into one commit:
+  // renumber the visible explicit projects 1..n and save only the entries
+  // whose rank actually changed. Derived groups don't take part; they sink
+  // below the ranked ones by recency (the honest boundary in DESIGN §12).
+  const [draggingProject, setDraggingProject] = useState<string | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+  const commitManualOrder = async (ids: string[]) => {
+    const current = new Map(projectDefs.map((def) => [def.id, def.order ?? 0]));
+    for (let i = 0; i < ids.length; i++) {
+      const want = i + 1;
+      if (current.get(ids[i]) === want) continue;
+      try {
+        await saveProject(ids[i], { order: want });
+      } catch (error: any) {
+        toast(error.message, "error", error.details);
+        return;
+      }
+    }
+  };
+  const visibleExplicitIds = () =>
+    orderedProjects.filter((group) => group.projectId).map((group) => group.projectId!);
+  const moveProject = (id: string, delta: number) => {
+    const ids = visibleExplicitIds();
+    const from = ids.indexOf(id);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, id);
+    void commitManualOrder(ids);
+  };
+  const dropProjectBefore = (dragId: string, targetId: string) => {
+    const ids = visibleExplicitIds();
+    if (dragId === targetId || !ids.includes(dragId) || !ids.includes(targetId)) return;
+    ids.splice(ids.indexOf(dragId), 1);
+    ids.splice(ids.indexOf(targetId), 0, dragId);
+    void commitManualOrder(ids);
+  };
+
   // The Projects section header's controls (INC-104): the ⋯ organize menu and
   // the + create button. Rendered in both by-project and one-list headings so
   // each mode can always reach the other.
@@ -559,6 +599,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             },
           });
         }}
+        onMoveUp={sort === "manual" && group.projectId ? () => moveProject(group.projectId!, -1) : undefined}
+        onMoveDown={sort === "manual" && group.projectId ? () => moveProject(group.projectId!, 1) : undefined}
         onEdit={() => openModal({
           kind: "project",
           // A derived group opens the same dialog in create mode, prefilled —
@@ -865,6 +907,33 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                   else next.add(project.key);
                   return next;
                 })}
+                drag={sort === "manual" && project.projectId ? {
+                  onDragStart: (event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", project.projectId!);
+                    setDraggingProject(project.projectId!);
+                    clearHoverPreview();
+                  },
+                  onDragOver: (event) => {
+                    if (!draggingProject || draggingProject === project.projectId) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDropTargetKey(project.key);
+                  },
+                  onDragLeave: () => setDropTargetKey((current) => (current === project.key ? null : current)),
+                  onDrop: (event) => {
+                    event.preventDefault();
+                    const dragId = draggingProject;
+                    setDraggingProject(null);
+                    setDropTargetKey(null);
+                    if (dragId && project.projectId) dropProjectBefore(dragId, project.projectId);
+                  },
+                  onDragEnd: () => {
+                    setDraggingProject(null);
+                    setDropTargetKey(null);
+                  },
+                  dropIndicator: dropTargetKey === project.key && draggingProject !== project.projectId,
+                } : undefined}
               >
                 {shown.map((session) => renderSession(session, true))}
               </SidebarProjectItem>

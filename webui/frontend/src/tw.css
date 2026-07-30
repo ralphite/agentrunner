@@ -693,6 +693,10 @@
     .section-heading-actions { @apply flex; }
   }
   .projects-none { @apply px-2 py-[5px] text-[13px] leading-5 text-ink-2 opacity-70; }
+  /* Manual-order drag (INC-104): the insertion line above the hovered group,
+     and a grab cursor on rows that can be dragged. */
+  .project-group[draggable="true"] { cursor: grab; }
+  .project-group.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[2px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
   .project-heading-row.pseudo-hover .project-heading-actions,

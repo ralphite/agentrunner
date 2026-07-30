@@ -1,6 +1,8 @@
-import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import {
   Archive as ArchiveBox,
+  ArrowDown,
+  ArrowUp,
   ArrowsOutSimpleIcon,
   ChatCircle,
   DotsThree,
@@ -248,6 +250,11 @@ export interface SidebarProjectActionsProps {
   onEdit: () => void;
   onArchiveChats: () => void;
   onToggleRemoved: () => void;
+  // Present only while Sort by = Manual order (INC-104): the keyboard
+  // equivalent of dragging the row. Derived groups don't take part in manual
+  // ordering, so they never receive these.
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }
 
 export function SidebarProjectActions({
@@ -262,12 +269,24 @@ export function SidebarProjectActions({
   onEdit,
   onArchiveChats,
   onToggleRemoved,
+  onMoveUp,
+  onMoveDown,
 }: SidebarProjectActionsProps) {
   return (
     <>
       <MenuItem onClick={onTogglePin}>
         <PushPin size={16} weight={pinned ? "fill" : "regular"} /> {pinned ? "Unpin project" : "Pin project"}
       </MenuItem>
+      {onMoveUp && (
+        <MenuItem onClick={onMoveUp}>
+          <ArrowUp size={16} /> Move up
+        </MenuItem>
+      )}
+      {onMoveDown && (
+        <MenuItem onClick={onMoveDown}>
+          <ArrowDown size={16} /> Move down
+        </MenuItem>
+      )}
       {workspace && (
         <MenuItem onClick={onReveal}>
           <FolderOpen size={16} /> Reveal in Finder
@@ -312,6 +331,17 @@ export interface SidebarProjectItemProps {
   onDismissPreview: () => void;
   onNewChat: () => void;
   onToggleOverflow?: () => void;
+  // Manual-order drag handles (INC-104): present only while Sort by = Manual
+  // order and only on explicit projects. dropIndicator paints the insertion
+  // line while another group hovers above this one.
+  drag?: {
+    onDragStart: (event: DragEvent<HTMLDivElement>) => void;
+    onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+    onDragLeave: () => void;
+    onDrop: (event: DragEvent<HTMLDivElement>) => void;
+    onDragEnd: () => void;
+    dropIndicator?: boolean;
+  };
 }
 
 export function SidebarProjectItem({
@@ -329,6 +359,7 @@ export function SidebarProjectItem({
   onDismissPreview,
   onNewChat,
   onToggleOverflow,
+  drag,
 }: SidebarProjectItemProps) {
   const openContextFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
@@ -338,7 +369,16 @@ export function SidebarProjectItem({
   };
 
   return (
-    <div className="project-group" data-project-state={removed ? "removed" : "visible"}>
+    <div
+      className={`project-group${drag?.dropIndicator ? " drop-target" : ""}`}
+      data-project-state={removed ? "removed" : "visible"}
+      draggable={!!drag}
+      onDragStart={drag?.onDragStart}
+      onDragOver={drag?.onDragOver}
+      onDragLeave={drag?.onDragLeave}
+      onDrop={drag?.onDrop}
+      onDragEnd={drag?.onDragEnd}
+    >
       <div
         className="project-heading-row"
         onMouseEnter={(event) => onPreview(event.currentTarget.getBoundingClientRect().top)}
