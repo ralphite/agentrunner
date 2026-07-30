@@ -3,6 +3,7 @@ package tool
 import (
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -160,7 +161,7 @@ func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), []string, e
 		// so a grant made mid-session applies from the next call with no restart.
 		// Moot under terminal parity, where nothing needed granting.
 		plan.Writable = append(plan.Writable, e.GrantedPaths()...)
-		plan.Denied = credentialPaths(root)
+		plan.Denied = e.credentialDenies(root)
 		env, withheld = sandboxEnvironment(resolvedTmp, e.Session, e.EnvPassthrough())
 	}
 	cmd, err := platformSandboxCommand(plan)
@@ -235,6 +236,20 @@ func sandboxEnvironment(home, session string, passthrough []string) (env, withhe
 	return env, withheld
 }
 
+// maxCredentialDenies caps the deny list. Every entry becomes one
+// `(deny file-read* …)` line inside the profile that platformSandboxCommand
+// passes to `sandbox-exec -p` IN ARGV, so an unbounded list is not just slow —
+// past ARG_MAX it fails the command outright with E2BIG. Hitting the cap is
+// reported, never silent: the sandbox still denies the workspace-wide default,
+// so this trims defense-in-depth entries, not the boundary itself.
+const maxCredentialDenies = 512
+
+// credentialDenies is the memoized credential deny list for this executor.
+func (e *Executor) credentialDenies(root string) []sandboxDeny {
+	e.credOnce.Do(func() { e.credPaths = credentialPaths(root) })
+	return e.credPaths
+}
+
 func credentialPaths(root string) []sandboxDeny {
 	var denied []sandboxDeny
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -242,11 +257,27 @@ func credentialPaths(root string) []sandboxDeny {
 			return nil
 		}
 		name := d.Name()
-		if d.IsDir() && (name == ".ssh" || name == ".aws") {
-			denied = append(denied, sandboxDeny{Path: path, Subpath: true})
-			return fs.SkipDir
+		if d.IsDir() {
+			if name == ".ssh" || name == ".aws" {
+				denied = append(denied, sandboxDeny{Path: path, Subpath: true})
+				return fs.SkipDir
+			}
+			// Prune derived/vendored trees and dotdirs, in lockstep with the
+			// index/grep/glob walks. Previously this walk pruned NOTHING but
+			// .ssh/.aws — it descended .git and node_modules in full, once per
+			// bash call. Nothing credential-shaped lives in a build output that
+			// isn't already covered by the patterns below.
+			if path != root && index.SkipDir(name) {
+				return fs.SkipDir
+			}
+			return nil
 		}
-		if !d.IsDir() && index.SkipFile(name) {
+		if index.SkipFile(name) {
+			if len(denied) >= maxCredentialDenies {
+				slog.Warn("sandbox credential deny list truncated; workspace-wide default still applies",
+					"cap", maxCredentialDenies, "root", root)
+				return fs.SkipAll
+			}
 			denied = append(denied, sandboxDeny{Path: path})
 		}
 		return nil

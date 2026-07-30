@@ -304,6 +304,38 @@ remember 同 durable command 族）+ `ValidTransition` 校验（bypass 仍拒）
 点目录；排除发生时在结果里回报条数（`excluded` 计数），静默是这条的核心危害。
 → UJ-01, UJ-05
 
+**G61 `snapshot.Diff()` 每次都全树重哈希（read-tree 索引没有 stat cache）— 🔧 纯实现缺口（影响：高）**
+`snapshot.go:241-246` 用 `GIT_INDEX_FILE` + `read-tree <ref>` 建临时索引，再
+`git add -A .`。**read-tree 建出来的索引不带 stat cache**，于是 git 无法走
+mtime/size 快捷路径，必须重读重哈希整棵树。实测（300k 文件合成树）：
+
+| 路径 | 耗时 |
+|---|---|
+| `Snapshot()` 的 `add -A`（持久索引，stat-cache 命中） | **796 ms** |
+| `Diff()` 的 `add -A`（read-tree 索引，无 stat cache） | **29,010 ms** |
+
+**36 倍**，且这是 `ar diff --scope last-turn` 与 webui DIFF 屏的路径；
+`ChangesOutcome` 的 `refreshKey={events.length}`（`SessionFeature.tsx:944`）
+让它**每来一个流式 event 就重拉一次**，而 `runAR` 超时只有 30 s
+（`meta.go:476`）——300k 规模已经压在超时线上。注意决策 #42 的大仓闸**盖不住
+这条**：闸只在阈值以上关 snapshot，阈值以下（数万文件）这条依旧是数秒级。
+修法方向：复用带 stat cache 的持久索引做比较，而不是每次 read-tree 重建
+（`DiffSnapshots` 已经不碰工作树，可参照）。
+→ UJ-05, UJ-11
+
+**G62 snapshot 的 harness 级 exclude 表只实现了凭据那一半 — 🔧 纯实现缺口（影响：中）**
+`DESIGN.md`（§6 快照章）明确要求"harness 级 exclude 列表（**node_modules/
+venv/build 类** + 凭据文件硬排除表）"，但 `snapshot.go:71-88` 的
+`hardExcludes` **只有凭据模式**，派生/vendored 目录一条都没有。于是排除
+完全依赖 workspace 自己的 `.gitignore`；而 `gitRawWithEnv` 里
+`GIT_CONFIG_GLOBAL=/dev/null` + `HOME=<gitDir>`（`snapshot.go:198`）还让用户
+的**全局** `core.excludesFile` 失效。后果：没有 `.gitignore` 的目录（例如
+`webui/api.go:729` 自动创建的 `runtime/ws-*`）会被整棵树 staging。
+讽刺的是同一个文件在 `:427`（`reviewHiddenUntrackedPath`）已经写好了那张
+完整的表——review 投影在用，staging 没接上。修法方向：把 `:427` 那张表接进
+`writeExcludes`，并按 DESIGN 要求把"被排除的路径文档化为 rewind 范围外"。
+→ UJ-05, UJ-11
+
 **G60 redaction 只覆盖"进程已知的值"，workspace 凭据文件经 bash 可原文入 journal — ⚠️ 设计欠定（影响：中）**
 DESIGN 已把"只登记 `redact.Plausible` 的进程已知凭据值"写成文档化残余风险。
 决策 #34 修订（默认终端等价）**扩大了它的暴露面**：修订前默认档 bash 读不到

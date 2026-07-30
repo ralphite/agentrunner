@@ -217,6 +217,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | OS 沙箱依赖交付（`ar doctor` 环境预检：backend + network=all/none 双档 probe、失败非零退出并回显修复指引；probe 报错自带按发行版修复指引；install.sh Linux 检测/自动安装 bubblewrap + AppArmor userns 放开 + 真实 probe 验证，`AR_SKIP_SANDBOX_DEPS`/`AR_REQUIRE_SANDBOX`；composite action `.github/actions/setup-ar` 一行接入，qa-all 复用；显式取舍：不打包 static bwrap） | ✅ | UJ-25 | INC-75 · TestDoctor*（探针注入双路径）+ TestLinuxSandboxHint*（缺失/probe 失败两形态）· gate A 孪生 test-install.sh 场景 6–8（Linux）· gate B=QA-75：sandbox-doctor workflow ubuntu runner 真跑绿 |
 | 云 workspace 生命周期 | 🧊 | UJ-13 | GAPS G11（S7 预授权裁掉，重启走新增量） |
 | IDE 集成 | 🧊 | — | 同上裁决 |
+| 大 workspace 降级闸（`internal/wsprobe` 有界探针：数到 `large_workspace.threshold`（默认 50k 可索引文件）即早退，成本恒定 ~190ms/run；超阈则 `keyword_search` 从工具面摘除 + shadow snapshot 不开（走既有 `none` 降级，barrier 自动不落）+ sandbox 凭据扫描剪枝并按 executor 缓存；stderr 与 `<env>` 双路出声；`large_workspace.{threshold,mode}` 可在 user/project settings 覆盖，**project 直接生效**——性能旋钮无安全面，不套 untrusted 收紧阶梯） | ✅ | UJ-01/03 | 决策 #42 · TestProbeSaturatesAtThreshold/TestProbeSkipsWhatTheIndexSkips · TestGatedToolsWithholdsIndexedSearchWhenLarge · TestSnapshotStoreNilForLargeWorkspace · TestCredentialPathsPrunesDerivedTrees · 真机 60k 实测：大仓 0 barrier vs 小仓 5 barrier，模型自述 keyword_search 不可用 |
 | 多根 workspace（--add-dir 类） | ❌ | — | GAPS G17（待 journey 目录定版） |
 
 ---

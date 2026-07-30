@@ -29,6 +29,17 @@ func shadowDirFor(root string) (string, error) {
 // failure degrades to nil — barriers exist for fork/rewind and must never
 // be a reason a run cannot start.
 func snapshotStoreFor(ws *workspace.Workspace, stderr io.Writer) snapshot.Store {
+	// Large workspace: decline to snapshot. `git add -A` over a monorepo at
+	// every gen-step, assistant message and user message is the wrong trade,
+	// and DESIGN already sanctions this exact degradation ("备选 backend …
+	// none（rewind/fork 优雅不可用，其余功能不受影响）"). Returning nil —
+	// rather than skipping barriers somewhere downstream — is what keeps
+	// 决策 7's bold clause true for free: no snapshot, no barrier, so the
+	// harness never advertises a rewind it cannot honor. The one-line note
+	// was already printed by stampWorkspaceScale.
+	if ws.IsLarge() {
+		return nil
+	}
 	dir, err := shadowDirFor(ws.Root())
 	if err == nil {
 		var st snapshot.Store

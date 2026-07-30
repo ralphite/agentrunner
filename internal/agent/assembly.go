@@ -65,11 +65,21 @@ func assembleSystem(run state.Session, specPrompt, mode string) string {
 // per-turn-volatile state (git status) enters as appended messages instead,
 // never rewriting this prefix. Git status is deferred until the workspace
 // grows a git seam; cwd + date already pin the invariant DESIGN cares about.
-func renderEnvBlock(cwd string, now time.Time) string {
+// The large-workspace note is session-stable for the same reason cwd is: the
+// verdict is stamped once per run, before the prefix is frozen. It is a HINT,
+// not the mechanism — the tool list is what actually withholds indexed search
+// (agent.Loop.gatedTools), so a note gone stale across a resume costs the
+// model an explanation, never a wrong capability.
+func renderEnvBlock(cwd string, now time.Time, largeWorkspace bool) string {
 	if cwd == "" {
 		return ""
 	}
-	return fmt.Sprintf("<env>\ncwd: %s\ndate: %s\n</env>", cwd, now.Format("2006-01-02"))
+	var scale string
+	if largeWorkspace {
+		scale = "\nworkspace: large — indexed search (keyword_search) is unavailable here; " +
+			"use grep for content and glob for filenames, narrowing with their `path` argument"
+	}
+	return fmt.Sprintf("<env>\ncwd: %s\ndate: %s%s\n</env>", cwd, now.Format("2006-01-02"), scale)
 }
 
 // RenderSpecChange freezes the NEW spec's prefix blocks and effective
@@ -77,7 +87,7 @@ func renderEnvBlock(cwd string, now time.Time) string {
 // a session start performs, done by whoever executes the switch. The
 // returned event is ready to journal; appending it IS the switch.
 func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
-	resolve SubSpecResolver, pipe *pipeline.Pipeline) (*event.SpecChanged, error) {
+	resolve SubSpecResolver, pipe *pipeline.Pipeline, largeWorkspace bool) (*event.SpecChanged, error) {
 
 	specJSON, err := json.Marshal(spec)
 	if err != nil {
@@ -87,7 +97,7 @@ func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
 	return &event.SpecChanged{
 		SpecName: spec.Name, Model: spec.Model.ID,
 		Spec: specJSON, SpecPath: specPath, Source: "user",
-		Env:    renderEnvBlock(wsRoot, now),
+		Env:    renderEnvBlock(wsRoot, now, largeWorkspace),
 		Memory: memoryBlock, Skills: skillsBlock,
 		Agents:           renderAgentsDirectory(spec.Agents, spec.AgentsDynamic, resolve),
 		PermissionLayers: marshalPermissionLayers(pipe),

@@ -103,7 +103,12 @@ func TestBackgroundOutputTailWhileRunning(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "echo progress-beacon; echo ok > prog.txt; sleep 30", "background": true}}},
+				// The TERM trap is the same deterministic device
+				// TestBackgroundWorkKill uses: without it the cancellation
+				// receipt can land BEFORE the kill ack, and step 5's
+				// "cancelling" expectation then reads the completion notice
+				// instead — a latent race that only shows up under load.
+				Args: map[string]any{"command": "trap 'sleep 0.5; exit 0' TERM; echo progress-beacon; echo ok > prog.txt; sleep 30", "background": true}}},
 			{Finish: "tool_use"},
 		}},
 		// Block until the bg work has definitely produced its output.

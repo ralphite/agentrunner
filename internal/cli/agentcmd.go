@@ -99,7 +99,7 @@ func agentCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	changed, err := agent.RenderSpecChange(spec, specRef, started.WorkspaceRoot,
-		time.Now(), siblingSpecResolver(specRef, spec.Model, false), pipe)
+		time.Now(), siblingSpecResolver(specRef, spec.Model, false), pipe, ws.IsLarge())
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun

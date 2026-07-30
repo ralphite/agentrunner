@@ -886,6 +886,13 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   `git reset` 也打不断快照链。备选 backend：archive copy；`none`
   （rewind/fork 优雅不可用，其余功能不受影响）。git 只是默认实现，
   不是设计依赖。
+- **大 workspace 自动选 `none`**：`internal/wsprobe` 的有界探针判定
+  workspace 超过 `large_workspace.threshold`（默认 50k 可索引文件）时，
+  run 路径不开 shadow store。走的就是上面那条既有降级——**不是新增
+  语义**：`Snapshots == nil` 让 `captureContinuationCheckpoint` 返回
+  nil，§15 决策 7 的"无 snapshot 则不落 barrier"因此自动成立，barrier
+  逻辑无需任何特判。降级必须**出声**（stderr + `<env>` 提示），静默
+  掉 rewind 等于谎称能力。`large_workspace.mode=never/always` 可覆盖。
 - **shadow writer 单写纪律**：同一 shadow `GIT_DIR` 的 init、index/HEAD
   snapshot mutation 与 ref push 受 repo-path advisory `flock` 串行，跨 session、
   goroutine 和进程均成立；Diff 使用 private index，仍可并发只读。
@@ -897,7 +904,14 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   notifier stream 同例）。常驻 indexer actor 按查询增量刷新（fingerprint
   比对）；v0 backend 为 identifier-aware 的词法排序（BM25），embedding
   backend 可替换而不动上层。凭据路径沿用快照硬排除表——snippet 会进
-  journal，凭据内容不得入索引。**边界诚实（与 bash 条款同性质）**：
+  journal，凭据内容不得入索引。**大 workspace 不建索引**：BM25 索引实测
+  常驻 ≈ 被索引源码字节的 **9.8 倍**（100k 文件 1.6 GB、300k 文件
+  4.9 GB，线性），超阈时 `keyword_search` 从**工具面摘除**而非静默降级
+  ——模型看不到它，自然走 grep/glob（有界、流式、回答同类问题）；
+  `<env>` 同时说明为何不可用。executor 侧仍保留一条真话错误，供 replay
+  或强制调用命中时用，绝不改为"顺手建一次索引"。dispatch allowlist 仍以
+  **fold 事实**为准（被摘的名字照旧在册），否则 workspace 涨过阈值就会
+  让 resume 拒掉原会话服务过的调用。**边界诚实（与 bash 条款同性质）**：
   indexer 以 workspace root 为界直接遍历文件（不经文件类 tool 的
   per-path resolve），path 规则因此**不约束** snippet 暴露；边界由
   rooted walk + 永不跟随 symlink + 硬排除表 + snippet 过 redact 保证。

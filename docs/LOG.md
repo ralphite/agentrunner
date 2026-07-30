@@ -8082,3 +8082,74 @@ cmd.Env 留 nil)、`internal/cli/doctor.go`(报告改口:能否满足收容请�
 (新增"无 backend 仍跑")、`commandtool_test.go` ×2、`hookenv_test.go`(改测
 全继承与真 HOME)、`agent/sandbox_test.go`、`agent/commandtool_test.go`、
 `driver_test.go` ×2、`spec_errors/nested_sandbox_field.golden`。
+
+---
+
+## 2026-07-29 大 workspace 降级闸：探针有界、走既有 none 降级（决策 #42）
+
+**背景**：用户问"在有十亿文件的大项目目录里用 agentrunner 会怎样"。实测
+（合成树，本机 34 GB RAM / APFS）定位到三处按整棵树收费的路径：
+
+| 规模 | 源码字节 | 首次 `keyword_search` | **BM25 索引常驻** | 后续每次 search |
+|---|---|---|---|---|
+| 100k 文件 | 167 MB | 10.5 s | **1,640 MB（9.8×）** | 1.0 s |
+| 300k 文件 | 502 MB | 37.1 s | **4,922 MB（9.8×）** | 7.4 s |
+
+放大倍数在两个规模上**精确稳定在 9.8×**（线性）。外推：1M 文件 ≈ 16 GB
+常驻、10M ≈ 160 GB → OOM。十亿文件连最便宜的一步都过不去：实测
+267k stat/s → 单次遍历约 62 分钟；git index 实测 88 字节/条目 → 十亿条目
+≈ 88 GB 的 index 文件，而 git 每次 `add` 都整体重写它。
+
+另两处：`Snapshot()` 的 `git add -A` 热态 796 ms（300k，stat-cache 命中）
+但**每 gen-step / 每 assistant message / 每 user message 各一次**；
+`credentialPaths` 每次 bash 调用重扫全树，且**只跳 .ssh/.aws**（连 `.git`
+和 `node_modules` 都整棵descend）。
+
+**裁决（用户选定"索引 + snapshot + sandbox 三腿全关，自动探针 + 可覆盖"）**：
+
+1. **探针必须有界**。不能为了判断"要不要遍历"而先遍历一遍——`wsprobe`
+   数到阈值即 `SkipAll`，成本恒定（50k ≈ 190 ms，每 run 一次）。同一形状
+   在 `webui/meta.go:331` 的 `@` 选择器上早就用对了，这里是把它推广。
+2. **探针复用 `index.SkipDir`**，量的是索引真正会吃的那个集合——否则
+   一个大头在 `node_modules` 的仓库会为索引根本不读的文件触发闸。对
+   snapshot 那一腿这是**承认的启发式**：真实 staging 成本由 `.gitignore`
+   决定，有界探针便宜地拿不到。
+3. **snapshot 腿走既有降级，不新增语义**。`snapshotStoreFor` 返回 nil，
+   §15 决策 7 的粗体条款"无 snapshot 则不落 barrier"因此自动成立，
+   barrier 逻辑零改动。DESIGN 早已把 `none` 列为合法备选，所以这不是
+   不变量变更。真机实测：60k 大仓 **0 barrier**，同 prompt 小仓 **5 barrier**。
+4. **索引腿从工具面摘除，而不是留着报错**。留着会浪费模型一轮去撞错误；
+   摘掉它模型自然用 grep/glob（有界、流式、回答同类问题）。executor 侧
+   仍留一条真话错误给 replay/强制调用，绝不"顺手建一次索引"。
+5. **dispatch allowlist 仍以 fold 事实为准**（被摘的名字照旧在册）。这条
+   是被 `loop.go` 原注释"Rebuilt identically on resume … deterministic"逼
+   出来的：workspace 涨过阈值不能让 resume 拒掉原会话服务过的调用。
+   超集只会拒得更少，方向安全。
+6. **降级必须出声**。stderr 一行 + `<env>` 一行（含替代工具与覆盖方式）。
+   静默掉 rewind 等于谎称能力——这也是不把它做成静默 fallback 的原因。
+7. **`large_workspace` 不套 untrusted 收紧阶梯**：它是性能旋钮，没有安全
+   面（只能少花内存，不能扩大触达），而 monorepo 的规模本就是**仓库自己
+   才知道**的属性，所以 project settings 直接生效。这与 `default_model`
+   的 user-only 裁决方向相反，故在此显式记账。`threshold` 用指针类型，
+   好让显式 `0`（关闸）与未设区分开。
+
+**闸门**：`check.sh` 全绿 + 前端 940 测试 + build；真机 4 组 Gemini 真跑
+（60k 大仓降级 / 小仓阳性对照 / `mode:never` 覆盖恢复 keyword_search 且
+barrier 回到 5 / `sandbox.filesystem=workspace` 下 `cat .env` 仍
+"Operation not permitted"）。
+
+**顺手修掉的坑（非本次范围但被暴露）**：
+`TestBackgroundOutputTailWhileRunning` 的 step 5 期望 `"cancelling"`，但
+`kill` 先 `cancel()` 再返回 ack，取消回执可以**先于** ack 落地——该测试用
+裸 `sleep 30`，取消瞬时完成，于是"最后一条消息"是完成通知而非 ack。加了
+兄弟测试 `TestBackgroundWorkKill` 早已在用的 `trap 'sleep 0.5; exit 0' TERM`
+确定性装置。这是**我新增的测试改变了包内时序才暴露的潜伏 race**，不是本
+次生产改动引入的：移除新增测试后整包 2/2 绿，加回后修前会红。
+
+**新增/改动**：`internal/wsprobe/`（新包）、`workspace.SetScale/IsLarge`、
+`config.LargeWorkspaceSpec` + Merge + LoadFile 校验、
+`cli/pipeline.go:stampWorkspaceScale`（唯一探针点，两个 builder 覆盖全部
+run 路径）、`cli/snapshot.go` 闸、`agent/loop.go:gatedTools/scaleWithheldTools`、
+`agent/assembly.go:renderEnvBlock`、`tool/exec.go:keywordSearch` 真话错误 +
+`credOnce` 缓存、`tool/sandbox.go:credentialDenies` 剪枝 + 512 条封顶
+（避免 `sandbox-exec -p` 撞 E2BIG）。

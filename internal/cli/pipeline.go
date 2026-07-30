@@ -9,6 +9,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/workspace"
+	"github.com/ralphite/agentrunner/internal/wsprobe"
 )
 
 // buildPipeline assembles the effect pipeline — pre-hooks → permission →
@@ -39,6 +40,7 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 		return nil, nil, err
 	}
 	merged := config.Merge(user, project, specRules, trusted)
+	stampWorkspaceScale(ws, merged, stderr)
 	if len(project.Permissions)+len(project.Hooks.PreTool)+len(project.Hooks.PostTool) > 0 && !trusted {
 		fmt.Fprintf(stderr, "note: project settings present but workspace is untrusted — hooks ignored, allows tightened (agentrunner trust %s)\n", ws.Root())
 	}
@@ -84,6 +86,7 @@ func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.Permis
 		return nil, nil, err
 	}
 	merged := config.Merge(user, project, nil, trusted)
+	stampWorkspaceScale(ws, merged, stderr)
 	runner := &hook.Runner{
 		PreTool:   merged.Hooks.PreTool,
 		PostTool:  merged.Hooks.PostTool,
@@ -91,6 +94,24 @@ func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.Permis
 		Dir:       ws.Root(),
 	}
 	return assemblePipeline(ws, layers, runner, mode, maxTokens, stderr), runner, nil
+}
+
+// stampWorkspaceScale resolves the large-workspace verdict once per run and
+// records it on the Workspace, where all three whole-tree gates read it
+// (IndexStore via the tool list, shadow snapshot via snapshotStoreFor, the
+// sandbox credential scan). This is the ONLY place the probe runs: every run
+// path reaches exactly one of the two pipeline builders, so the bounded walk
+// is paid once and no gate has to re-measure.
+//
+// Degradation is announced, never silent — a run that quietly stopped
+// snapshotting would look like a harness that lost rewind for no reason.
+func stampWorkspaceScale(ws *workspace.Workspace, merged config.Merged, stderr io.Writer) {
+	v := wsprobe.Resolve(ws.Root(), merged.LargeWorkspaceThreshold, merged.LargeWorkspaceMode)
+	ws.SetScale(v.Files, v.Large)
+	if v.Large {
+		fmt.Fprintf(stderr, "note: large workspace (%s) — indexed search off (use grep/glob), "+
+			"snapshots off (fork/rewind unavailable). Override with large_workspace.mode in settings.yaml\n", v.Reason)
+	}
 }
 
 // assemblePipeline lays the fixed gate order — floor → spawn → hooks →

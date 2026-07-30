@@ -93,6 +93,13 @@ type Executor struct {
 	// the agent tree, so the whole tree shares one index per workspace.
 	indexOnce sync.Once
 	index     *index.Indexer
+	// credOnce/credPaths memoize the sandbox credential deny list. It used to
+	// be a full uncapped tree walk on EVERY bash call; the set it looks for
+	// (credential-shaped filenames) does not meaningfully churn within a
+	// session, so one walk per executor is the right trade. A file created
+	// mid-session is still covered by the sandbox's own workspace-root grant.
+	credOnce  sync.Once
+	credPaths []sandboxDeny
 	// skillPaths maps spec-bundled skill names to SKILL.md files outside the
 	// workspace (the spec author granted that fixed set). Guarded like blobs:
 	// a shared-workspace child reuses the parent's executor, so first set
@@ -781,6 +788,17 @@ func (e *Executor) keywordSearch(args json.RawMessage) Result {
 	}
 	if e.WS == nil {
 		return errResult("keyword_search: no workspace")
+	}
+	// Large workspace: refuse rather than build the index. The model is not
+	// advertised this tool at that scale (agent.Loop.gatedTools), so reaching
+	// here means a replayed old call or a hand-forced one — and either way
+	// building a multi-gigabyte resident index is the one outcome the gate
+	// exists to prevent. Name the bounded alternatives in the error so a model
+	// that did get here recovers on its next call instead of retrying.
+	if e.WS.IsLarge() {
+		return errResult("keyword_search: unavailable in a large workspace " +
+			"(indexing it would hold gigabytes resident) — use grep for content " +
+			"and glob for filenames; both take a `path` to narrow the search")
 	}
 	e.indexOnce.Do(func() { e.index = index.New(e.WS.Root()) })
 	hits, files, err := e.index.Search(in.Query, in.MaxResults)

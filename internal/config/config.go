@@ -18,6 +18,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/wsprobe"
 )
 
 // Settings is one source's settings.yaml shape.
@@ -31,6 +32,25 @@ type Settings struct {
 	// ONLY the user-level settings are consulted (a cloned repo must never
 	// redirect notifications), so Merge ignores it entirely.
 	Notify NotifySpec `yaml:"notify,omitempty"`
+	// LargeWorkspace tunes the whole-tree degradation gate. Unlike
+	// permissions it is a PERFORMANCE knob with no security surface — it
+	// cannot grant reach, only decline to spend memory — so it is exempt
+	// from the "silent repo content may only tighten" ladder and the project
+	// value simply wins (a monorepo's scale is a property of the repo, and
+	// the repo is who knows it). LOG 决策 records this carve-out.
+	LargeWorkspace LargeWorkspaceSpec `yaml:"large_workspace,omitempty"`
+}
+
+// LargeWorkspaceSpec configures the wsprobe gate.
+//
+//	large_workspace:
+//	  threshold: 50000   # indexable files above which whole-tree work degrades; 0 = gate off
+//	  mode: auto         # auto | never | always
+type LargeWorkspaceSpec struct {
+	// Threshold is a pointer so an explicit `threshold: 0` (gate off) is
+	// distinguishable from an absent key (use the built-in default).
+	Threshold *int   `yaml:"threshold,omitempty"`
+	Mode      string `yaml:"mode,omitempty"`
 }
 
 // NotifySpec configures the notification channel: an argv receiving the
@@ -54,6 +74,10 @@ type Merged struct {
 	Hooks       Hooks
 	// ProjectTrusted records the trust verdict for observability.
 	ProjectTrusted bool
+	// LargeWorkspaceThreshold / Mode are the resolved wsprobe inputs.
+	// Threshold is already defaulted, so callers pass it straight through.
+	LargeWorkspaceThreshold int
+	LargeWorkspaceMode      string
 }
 
 // LoadFile reads one settings.yaml strictly (unknown keys are errors).
@@ -87,6 +111,18 @@ func LoadFile(path string) (Settings, error) {
 		if !hook.LifecycleEvents[ev] {
 			return Settings{}, fmt.Errorf("settings %s: hooks.lifecycle: unknown event %q", path, ev)
 		}
+	}
+	// A typo'd mode must fail loudly, not silently fall back to auto — a
+	// settings file that reads as "never degrade" but behaves as "auto" is
+	// exactly the kind of quiet mismatch this gate must not introduce.
+	switch s.LargeWorkspace.Mode {
+	case "", wsprobe.ModeAuto, wsprobe.ModeNever, wsprobe.ModeAlways:
+	default:
+		return Settings{}, fmt.Errorf("settings %s: large_workspace.mode: want auto|never|always, got %q",
+			path, s.LargeWorkspace.Mode)
+	}
+	if t := s.LargeWorkspace.Threshold; t != nil && *t < 0 {
+		return Settings{}, fmt.Errorf("settings %s: large_workspace.threshold: must be >= 0 (0 turns the gate off), got %d", path, *t)
 	}
 	return s, nil
 }
@@ -143,6 +179,18 @@ func Merge(user, project Settings, specRules []pipeline.PermissionRule, projectT
 		m.Hooks.PreTool = append(m.Hooks.PreTool, project.Hooks.PreTool...)
 		m.Hooks.PostTool = append(m.Hooks.PostTool, project.Hooks.PostTool...)
 		mergeLifecycle(&m.Hooks, project.Hooks.Lifecycle)
+	}
+
+	// Scale gate: project wins over user, both over the built-in default.
+	// Trust-independent by design — see LargeWorkspaceSpec.
+	m.LargeWorkspaceThreshold, m.LargeWorkspaceMode = wsprobe.DefaultThreshold, wsprobe.ModeAuto
+	for _, s := range []LargeWorkspaceSpec{user.LargeWorkspace, project.LargeWorkspace} {
+		if s.Threshold != nil {
+			m.LargeWorkspaceThreshold = *s.Threshold
+		}
+		if s.Mode != "" {
+			m.LargeWorkspaceMode = s.Mode
+		}
 	}
 	return m
 }

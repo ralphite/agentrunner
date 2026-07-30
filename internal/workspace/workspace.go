@@ -13,7 +13,31 @@ import (
 // Workspace is a rooted directory with realpath boundary checks.
 type Workspace struct {
 	root string // absolute, symlink-resolved
+	// large is the resolved large-workspace verdict (internal/wsprobe),
+	// stamped ONCE by the run assembly seam and read by the whole-tree gates
+	// (IndexStore, shadow snapshot, sandbox credential scan). The zero value
+	// is "not large", so a Workspace built by any path that never stamps it
+	// keeps the un-gated behavior — the gate fails OPEN, toward today's
+	// semantics, never toward silent degradation.
+	large      bool
+	largeFiles int
 }
+
+// SetScale stamps the large-workspace verdict. Called once per run from the
+// config-assembly seam; files is the probe's saturating count, for messages
+// only. Deliberately not part of New: New is O(1) by contract (three syscalls)
+// and the probe is not free.
+func (w *Workspace) SetScale(files int, large bool) {
+	w.largeFiles, w.large = files, large
+}
+
+// IsLarge reports whether whole-tree subsystems must degrade for this
+// workspace. False unless SetScale said otherwise.
+func (w *Workspace) IsLarge() bool { return w.large }
+
+// ScaleFiles is the probe's count behind IsLarge. It SATURATES at the
+// threshold — never present it as the workspace's true file count.
+func (w *Workspace) ScaleFiles() int { return w.largeFiles }
 
 // New builds a Workspace rooted at dir.
 func New(dir string) (*Workspace, error) {

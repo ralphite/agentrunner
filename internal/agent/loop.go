@@ -467,7 +467,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
 		SpecPath: l.SpecPath,
-		Env:      renderEnvBlock(wsRoot, l.Clock.Now()),
+		Env:      renderEnvBlock(wsRoot, l.Clock.Now(), l.largeWorkspace()),
 		Memory:   memoryBlock, Skills: skillsBlock,
 		Agents:       renderAgentsDirectory(l.Spec.Agents, l.Spec.AgentsDynamic, l.SubSpecs),
 		CommandTools: commandTools,
@@ -1247,7 +1247,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// truth outlives every dropped wake signal.
 		l.scanPendingChildMail()
 	}
-	toolDefs, err := tool.ProviderDefs(l.Spec.Tools)
+	toolDefs, err := tool.ProviderDefs(l.gatedTools())
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -1374,6 +1374,19 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	l.advertisedTools = make(map[string]bool, len(toolDefs)+1)
 	for _, d := range toolDefs {
 		l.advertisedTools[d.Name] = true
+	}
+	// Scale-withheld tools stay ALLOWED in the gate even though they were kept
+	// out of this turn's provider face. The determinism claim above is what
+	// forces this: the allowlist must be a function of FOLDED facts, and the
+	// large-workspace verdict is live environment (a tree that grew past the
+	// threshold between record and resume would otherwise make a resumed
+	// session's gate disagree with the one that recorded it, refusing a call
+	// the original happily served). A superset only ever refuses less, and the
+	// withheld tool is unreachable in practice — the model cannot see it — and
+	// truthful if reached anyway: the executor returns an unavailable error
+	// instead of building the index this gate exists to avoid.
+	for _, n := range l.scaleWithheldTools() {
+		l.advertisedTools[n] = true
 	}
 	// exit_plan_mode is a harness-level transition dispatched specially (it is
 	// not a registry tool in toolDefs, so it isn't in the loop above) — it is
@@ -2722,6 +2735,55 @@ func decide(s state.State, maxGenerationSteps int) action {
 		return action{kind: doTruncate, turn: turn}
 	}
 	return action{kind: doIdle, turn: turn}
+}
+
+// scaleGatedTools are the tools whose cost scales with the WHOLE workspace
+// tree rather than with the request. keyword_search sits on the IndexStore,
+// which holds a measured ~9.8x the indexed source bytes resident for the life
+// of the process (1.6 GB at 100k files, 4.9 GB at 300k) and re-walks the tree
+// on every query. grep and glob answer the same questions by streaming, so
+// withholding these leaves the model a bounded path to the same information —
+// which is why the gate withholds rather than degrades silently.
+// semantic_search is the legacy alias for the same executor branch.
+var scaleGatedTools = map[string]bool{"keyword_search": true, "semantic_search": true}
+
+// largeWorkspace reports the verdict stamped by the run assembly seam
+// (cli.stampWorkspaceScale). Absent an Executor or Workspace it is false: the
+// gate fails open, toward un-degraded behavior.
+func (l *Loop) largeWorkspace() bool {
+	return l.Exec != nil && l.Exec.WS != nil && l.Exec.WS.IsLarge()
+}
+
+// gatedTools is the spec's tool list minus anything the workspace scale
+// withholds. The spec itself is never rewritten — this shapes only what the
+// provider is handed, so a session that moves to a smaller workspace (or sets
+// large_workspace.mode=never) gets the full face back with no migration.
+func (l *Loop) gatedTools() []string {
+	if !l.largeWorkspace() {
+		return l.Spec.Tools
+	}
+	out := make([]string, 0, len(l.Spec.Tools))
+	for _, n := range l.Spec.Tools {
+		if !scaleGatedTools[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// scaleWithheldTools is the complement of gatedTools: the spec's own tools
+// that this workspace's scale kept off the wire.
+func (l *Loop) scaleWithheldTools() []string {
+	if !l.largeWorkspace() {
+		return nil
+	}
+	var out []string
+	for _, n := range l.Spec.Tools {
+		if scaleGatedTools[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // takeBarrier journals a CheckpointBarrier at the current cut (S7.2,
