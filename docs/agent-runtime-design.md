@@ -260,6 +260,19 @@ weaker models spin on poll + sleep, bypassing the wake path entirely.
 **Orchestration intelligence lives in the model; the runtime only supplies
 primitives that can always deliver, always kill, always start.**
 
+**In-tree messaging — peers are a flat tree**: any session in the tree may
+send an Input to any other in-tree session (durable, data plane, `agent`
+source) — not just along the parent edge. Peer collaboration is therefore a
+root that spawns N siblings and may simply stand by as a **passive anchor**
+(no orchestration, no content relay — it burns no window), while siblings
+message each other directly. The tree cap is not about control flow: it is
+what makes the `agent` trust class, the budget root (messages activate turns
+= spend; the tree budget is the only backstop for peer cycles), and a unique
+approval/kill owner well-defined (§2, §8). Truly rootless peers are
+deliberately unsupported — not infeasible, but ungoverned: no budget anchor,
+no approval destination, no trust chain. Richer group forms (shared
+blackboards, group chat) are registered in §12.
+
 **Tree-level constraints**:
 
 - **Approvals bubble along the correlation id** (the envelope's tree axis,
@@ -564,7 +577,9 @@ on. Registered here so they are not mistaken for "doesn't exist":
   (append-only messages, never touching the advertised surface), nested
   effects from tools that initiate model calls, third-party idempotency claims
   treated as untrusted.
-- **Non-tree topologies**: handoff, group chat, shared blackboards — only
-  tree-shaped delegation today.
+- **Non-tree topologies**: handoff, group chat, shared blackboards (a
+  cross-session shared fold — essentially a second, subscribable journal
+  kind) — today only tree-scoped collaboration: delegation plus in-tree peer
+  messaging (§5).
 - **approve-with-edit**: a recorded form of "approve with replaced
   parameters" (today only allow / deny).

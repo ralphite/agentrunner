@@ -208,6 +208,15 @@ fire-and-yield——派完可结束 turn、完成会作为消息自动唤醒、�
 模型会用轮询 + sleep 自旋，把自动唤醒路径整个架空。**编排的智能在模型，
 runtime 只提供"随时能投、能杀、能起"的原语。**
 
+**树内消息——peer 就是扁平树**：树内任一 session 可向任何其他树内 session
+投一条 Input（durable、数据面、`agent` 来源）——不限于父子边。所以 peer
+协作的形态是：root spawn 出 N 个 sibling 后**待命当被动锚点**（不编排、不
+中继内容——不烧自己的 window），sibling 之间直接互发消息。树这个上限不是
+控制流问题：它是 `agent` 信任级、预算根（消息激活 turn = 花钱；树预算是
+peer 环的唯一兜底）与唯一审批/kill owner 的定义前提（§2、§8）。完全
+rootless 的 peers 刻意不支持——不是做不到，是无从治理：没有预算锚、没有
+审批去处、没有信任链。更丰富的群体形态（共享 blackboard、群聊）登记在 §12。
+
 **树级约束**：
 
 - **审批沿 correlation id**（envelope 的树归属轴，见 §11）**冒泡到人**——审批
@@ -433,5 +442,7 @@ thinking 块），管线与记账不感知 provider。**opaque signature 随 eve
   重建（审计与评测的根基；当前只落组装完成的消息）。
 - **生态接入纪律**：动态工具面公告（只能追加消息、不得动 advertised 面）、
   工具内反向发起模型调用的嵌套 effect、第三方幂等声明视同 untrusted。
-- **非树拓扑**：handoff、群聊、共享黑板——当前仅支持树形委派。
+- **非树拓扑**：handoff、群聊、共享黑板（跨 session 的共享 fold——本质是
+  第二种可订阅的 journal）——当前仅支持树内协作：委派 + 树内 peer 消息
+  （§5）。
 - **approve-with-edit**：批准并替换参数的记录形态（当前只有 allow/deny）。
