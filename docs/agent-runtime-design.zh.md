@@ -128,9 +128,11 @@ flowchart TD
   M --> CL
   CL -- "安全边界 / 待命处消费" --> J
   J --> F --> AS
-  AS -- "请求" --> PR
+  AS -- "generation step 也是 effect" --> EP
+  EP -- "llm activity" --> PR
   PR -- "stream" --> MC
-  MC -- "tool calls" --> EP --> AC
+  MC -- "tool calls" --> EP
+  EP --> AC
   AC -- "结果落 journal → 回 loop 顶" --> J
   MC -- "无 tool call：final generation" --> SB
   SB -. "下一条输入" .-> TURN
@@ -267,6 +269,9 @@ effect → [1] Floor      硬底线（越界 / 凭据 / 只读模式）：纯判
   且只能更严。
 - **预算 reserve-then-settle**：否则 N 个并行 call 对着同一个过期计数器放行，
   合计超支 N 倍。
+- **模型调用本身也是 effect**：每个 generation step 过同一排关卡——budget
+  按预估预留（如 max output tokens）、按归一化实际 usage 结算，per-turn 的
+  step 上限也在这道关卡执行；重试/退避是这个 activity 的数据化策略（§11）。
 - **每种关卡结果都定义"模型看到什么"**：deny / block / 拒批 / 失败一律渲染
   成 error tool result，loop 继续；只有 session 级预算耗尽才优雅收尾。给
   模型的错误与给用户的错误是两个 surface。

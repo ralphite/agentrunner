@@ -158,9 +158,11 @@ flowchart TD
   M --> CL
   CL -- "consumed at safe boundary / standby" --> J
   J --> F --> AS
-  AS -- "request" --> PR
+  AS -- "generation step is an effect too" --> EP
+  EP -- "llm activity" --> PR
   PR -- "stream" --> MC
-  MC -- "tool calls" --> EP --> AC
+  MC -- "tool calls" --> EP
+  EP --> AC
   AC -- "results journaled → back to top of loop" --> J
   MC -- "no tool calls: final generation" --> SB
   SB -. "next input" .-> TURN
@@ -342,6 +344,10 @@ effect → [1] Floor      hard floor (escape / credentials / read-only mode):
   only get stricter.
 - **Budgets are reserve-then-settle**: otherwise N parallel calls each clear
   the same stale counter and jointly overrun N-fold.
+- **The model call is an effect too**: each generation step passes the same
+  gates — budget reserves on estimate (e.g. max output tokens), settles on
+  normalized actual usage, and the per-turn step cap is enforced at this gate;
+  retry/backoff is this activity's data-defined policy (§11).
 - **Every gate outcome defines what the model sees**: deny / block / rejection
   / failure all render as error tool results and the loop continues; only
   session-level budget exhaustion ends gracefully (a final message to wrap up,
