@@ -407,6 +407,16 @@ design. Four points:
   (exhaustion ends with a graceful wrap-up, not a hard cut) → tree budget
   (min(child cap, parent remaining) + the parent's epsilon, §5). Reserve on
   estimate at the gate, settle on actuals at the terminal event.
+- **Budgets anchor on instances, not kinds**: an agent is a spec — a template
+  with no journal, no owner, no lifetime; the session/tree is the instance
+  with all three. Enforcement needs an authoritative counter with atomic
+  reserve-then-settle, and session/tree counters are pure folds of
+  single-writer journals — no cross-session coordination; and a budget must
+  have an addressee ("exhausted → ask the owner"), which a shared spec does
+  not. Per-agent-kind or per-account caps are quota governance over shared
+  pools (cross-session state, admission control) — real needs, registered in
+  §12. The same ledger still reports spend by agent kind: attribution is a
+  projection; enforcement is a gate.
 - **Two structural cost levers**, both core mechanisms rather than bolt-on
   optimizations: **prompt caching** (about an order of magnitude — the entire
   rationale for prefix stability, §6) and **context isolation** (children burn

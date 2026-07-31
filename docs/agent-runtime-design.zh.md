@@ -316,6 +316,13 @@ token 是这个 runtime 的货币——模型调用是墙钟与成本的绝对�
   上限（防单 turn runaway）→ session 级 token/cost 上限（耗尽时让模型收尾
   的优雅停止，不是掐断）→ 树预算（min(子限额, 父剩余) + 父 epsilon，§5）。
   关卡时刻按预估原子预留、终态按实际结算。
+- **预算锚在实例上，不锚在种类上**：agent 是 spec——模板，没有 journal、
+  没有 owner、没有生命周期；session/树才是三者俱全的实例。执行需要能原子
+  reserve-then-settle 的权威计数器，session/树的计数器是单写者 journal 的
+  纯 fold——零跨 session 协调；且预算必须有收件人（"尽了 → 找 owner 加钱"），
+  共用的 spec 没有。按 agent 种类或按账户的上限是共享池上的配额治理（跨
+  session 状态、准入控制）——真实需求，登记在 §12。同一本账仍可按 agent
+  种类**报表**花费：归因是投影，执行是关卡。
 - **两个结构性省钱杠杆**，都已是核心机制而非附加优化：**prompt caching**
   （约一个数量级——prefix 稳定不变量的全部理由，§6）与**上下文隔离**
   （子 agent 烧自己的 window、只有 Outcome 回流父——多 agent 首先是经济
