@@ -2392,3 +2392,17 @@ ChangesOutcome.test no-skeleton/single-flight。
 | 9 | 双实例 | 8788 建的项目 8809 立即可读(共享 projects.json) |
 | 10 | 重启 + journal 纯净 | webui 重启项目在;sessions 行仍只有 7 个既有字段 |
 | 11 | 删除项目 | 确认文案明说数据不动;派生组回来**非隐藏态** |
+
+## QA-96 多根 workspace(INC-105,UJ-24)
+
+**目标**:project 会话的边界 = 全部 source folders 联合——extra 根免审批读写、genesis/`sessions list` 携带 `workspace_roots`、Changes 每根一段。
+
+| # | 场景 | 硬断言 |
+|---|---|
+| 1 | 双 folder 项目里开会话(primary=A),真 turn 指令在 B 写文件 | 零审批;文件真实落盘 |
+| 2 | `ar sessions list --json` | 行带 `workspace_roots:[A,B]` |
+| 3 | `GET /diff?scope=working-tree` | 顶层=primary(旧消费者兼容);`roots[]` 两段,B 段含该文件 new-file diff |
+| 4 | DiffView | 主流为 primary;B 渲染只读折叠段(basename+全路径+计数+verbatim diff) |
+| 5 | 单根会话 | genesis/env 字节不变、diff 无 roots、无 extra 段(孪生 TestSingleRootGenesisUnchangedByMultiRoot) |
+
+证据:`qa/runs/2026-07-29-QA-95-project-registry/findings.md` QA-96 节。
