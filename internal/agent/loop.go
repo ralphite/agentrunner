@@ -432,8 +432,14 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 		return RunResult{}, err
 	}
 	var wsRoot string
+	var wsRoots []string
 	if l.Exec != nil && l.Exec.WS != nil {
 		wsRoot = l.Exec.WS.Root()
+		// Journal the full boundary only when it is actually multi-root — a
+		// single-root genesis stays byte-identical to pre-INC-105 journals.
+		if all := l.Exec.WS.Roots(); len(all) > 1 {
+			wsRoots = all
+		}
 	}
 	// Custom-command expansion (G21): a /name opening prompt expands to its
 	// repo-defined macro body BEFORE journaling, re-redacted since the body
@@ -466,9 +472,10 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Prompt: prompt,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
-		SpecPath: l.SpecPath,
-		Env:      renderEnvBlock(wsRoot, l.Clock.Now(), l.largeWorkspace()),
-		Memory:   memoryBlock, Skills: skillsBlock,
+		WorkspaceRoots: wsRoots,
+		SpecPath:       l.SpecPath,
+		Env:            renderEnvBlock(wsRoot, wsRoots, l.Clock.Now(), l.largeWorkspace()),
+		Memory:         memoryBlock, Skills: skillsBlock,
 		Agents:       renderAgentsDirectory(l.Spec.Agents, l.Spec.AgentsDynamic, l.SubSpecs),
 		CommandTools: commandTools,
 		Inputs:       l.Inputs,

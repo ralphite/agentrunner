@@ -4,6 +4,7 @@ import {
   CaretUp,
   CaretUpDown,
   CaretDown,
+  FolderSimple,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { isBinaryPath, pushErrorMessage } from "../api";
@@ -11,7 +12,7 @@ import { useAppServices } from "../app/appServices";
 import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
-import type { DiffResp, DiffScope } from "../types";
+import type { DiffResp, DiffRootResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import {
   DIFF_TOOLBAR_TIGHT_PX,
@@ -889,6 +890,17 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
           </details>
         );
       })}
+      {/* INC-105 · Multi-root sessions: every non-primary root gets its own
+          read-only section, so a change in root B is never invisible just
+          because the session's cwd is root A. Commit/push above act on the
+          PRIMARY only — these sections state their root and stay read-only
+          (per-root actions are a follow-up). */}
+      {scope === "working-tree" &&
+        (data.roots?.length ?? 0) > 1 &&
+        data.roots!
+          .filter((probe) => probe.root !== data.workspace)
+          .map((probe) => <ExtraRootChanges key={probe.root} probe={probe} />)}
+
     </>,
     "diffwrap" + (wrap ? " diff-wrap" : ""),
   );
@@ -1321,5 +1333,48 @@ export function FileBody({
         </>
       )}
     </div>
+  );
+}
+
+
+// ExtraRootChanges renders one non-primary root's working-tree changes in a
+// multi-root session (INC-105): a collapsible section headed by the folder
+// name with +/− totals, holding the verbatim unified diff. Read-only by
+// design — the toolbar's commit/push act on the primary root only.
+function ExtraRootChanges({ probe }: { probe: DiffRootResp }) {
+  const base = probe.root.split("/").filter(Boolean).pop() || probe.root;
+  const files = splitDiff(probe.diff || "");
+  const add = files.reduce((n, f) => n + f.add, 0);
+  const del = files.reduce((n, f) => n + f.del, 0);
+  const untracked = probe.untracked || [];
+  const empty = files.length === 0 && untracked.length === 0;
+  return (
+    <details className="diff-extra-root" open={!empty}>
+      <summary>
+        <FolderSimple size={15} aria-hidden="true" />
+        <b>{base}</b>
+        <span className="diff-extra-root-path" title={probe.root}>{probe.root}</span>
+        {!empty && (
+          <span className="diff-extra-root-counts">
+            {add > 0 && <ins>+{add}</ins>}
+            {del > 0 && <del>−{del}</del>}
+          </span>
+        )}
+      </summary>
+      {!probe.isRepo ? (
+        <p className="diff-extra-root-note">Not a git repository — changes here aren’t tracked.</p>
+      ) : empty ? (
+        <p className="diff-extra-root-note">No changes in this folder.</p>
+      ) : (
+        <>
+          <pre className="diff-extra-root-diff">{probe.diff}</pre>
+          {untracked.length > 0 && (
+            <p className="diff-extra-root-note">
+              {untracked.length} untracked {untracked.length === 1 ? "file" : "files"}: {untracked.join(", ")}
+            </p>
+          )}
+        </>
+      )}
+    </details>
   );
 }

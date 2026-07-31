@@ -71,6 +71,7 @@ type runOptions struct {
 	effort             string
 	prompt             string
 	workspace          string
+	extraRoots         []string
 	maxGenerationSteps int
 	mode               string
 	fixtureOut         string // record-fixture mode when non-empty
@@ -90,6 +91,8 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
+	var rootDirs repeatedFlag
+	fs.Var(&rootDirs, "root", "extra workspace root the session may read and write (repeatable; INC-105 multi-root projects)")
 	maxGenerationSteps := fs.Int("max-generation-steps", 0, "override spec max_generation_steps")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
 	modelFlags := addModelFlags(fs)
@@ -137,6 +140,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		effort:             *modelFlags.effort,
 		prompt:             rest[1],
 		workspace:          *workspaceDir,
+		extraRoots:         rootDirs,
 		maxGenerationSteps: *maxGenerationSteps,
 		mode:               *mode,
 		fixtureOut:         *fixtureOut,
@@ -170,7 +174,7 @@ func runAgent(opts runOptions) int {
 		spec.MaxGenerationSteps = opts.maxGenerationSteps
 	}
 
-	ws, err := workspace.New(opts.workspace)
+	ws, err := workspace.NewMultiRoot(opts.workspace, opts.extraRoots)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitUsage

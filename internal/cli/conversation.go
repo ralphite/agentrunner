@@ -44,6 +44,8 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&imagePaths, "image", "attach an image file to the opening message (repeatable)")
 	var filePaths repeatedFlag
 	fs.Var(&filePaths, "file", "attach a file of any type to the opening message (repeatable)")
+	var rootDirs repeatedFlag
+	fs.Var(&rootDirs, "root", "extra workspace root the session may read and write (repeatable; INC-105 multi-root projects)")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -83,6 +85,22 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
 		return ExitUsage
 	}
+	// Extra roots get the same preflight as the workspace: each must be an
+	// existing absolute directory — a ghost root would silently widen
+	// nothing and confuse the journal record.
+	roots := make([]string, 0, len(rootDirs))
+	for _, g := range rootDirs {
+		gAbs, gerr := filepath.Abs(g)
+		if gerr != nil {
+			fmt.Fprintln(stderr, gerr)
+			return ExitUsage
+		}
+		if st, gerr := os.Stat(gAbs); gerr != nil || !st.IsDir() {
+			fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", gAbs)
+			return ExitUsage
+		}
+		roots = append(roots, gAbs)
+	}
 	// Structured output has ONE entry: the spec's output_schema (PLAN 5.7).
 	// A provider with native support constrains generation server-side
 	// (INC-35) and needs nothing here. For any other provider the INC-26
@@ -118,7 +136,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	cmd := daemon.Command{
 		Cmd: "run", SpecPath: specRef, Prompt: rest[1],
-		Workspace: wsAbs, Mode: *mode, Model: selection,
+		Workspace: wsAbs, Mode: *mode, Model: selection, Roots: roots,
 		Images: images, Files: files,
 	}
 	if *detach {

@@ -15,17 +15,17 @@ import (
 // clock (never "now").
 func TestRenderEnvBlockDeterministic(t *testing.T) {
 	at := time.Date(2026, 7, 3, 14, 30, 0, 0, time.UTC)
-	got := renderEnvBlock("/work/ws", at, false)
+	got := renderEnvBlock("/work/ws", nil, at, false)
 	want := "<env>\ncwd: /work/ws\ndate: 2026-07-03\n</env>"
 	if got != want {
 		t.Fatalf("env block = %q, want %q", got, want)
 	}
 	// A different wall-clock time on the SAME day must not change the block:
 	// only the date is frozen in, so caching survives intra-day turns.
-	if later := renderEnvBlock("/work/ws", at.Add(6*time.Hour), false); later != got {
+	if later := renderEnvBlock("/work/ws", nil, at.Add(6*time.Hour), false); later != got {
 		t.Errorf("env block drifted within the day: %q vs %q", later, got)
 	}
-	if renderEnvBlock("", at, false) != "" {
+	if renderEnvBlock("", nil, at, false) != "" {
 		t.Errorf("empty cwd must yield no env block")
 	}
 }
@@ -37,13 +37,13 @@ func TestRenderEnvBlockDeterministic(t *testing.T) {
 // leaves the model guessing.
 func TestRenderEnvBlockLargeWorkspace(t *testing.T) {
 	at := time.Date(2026, 7, 3, 14, 30, 0, 0, time.UTC)
-	small := renderEnvBlock("/work/ws", at, false)
-	large := renderEnvBlock("/work/ws", at, true)
+	small := renderEnvBlock("/work/ws", nil, at, false)
+	large := renderEnvBlock("/work/ws", nil, at, true)
 
 	if large == small {
 		t.Fatal("large workspace must change the env block")
 	}
-	if later := renderEnvBlock("/work/ws", at.Add(6*time.Hour), true); later != large {
+	if later := renderEnvBlock("/work/ws", nil, at.Add(6*time.Hour), true); later != large {
 		t.Errorf("large env block drifted within the day: %q vs %q", later, large)
 	}
 	for _, want := range []string{"keyword_search", "grep", "glob"} {
@@ -55,7 +55,7 @@ func TestRenderEnvBlockLargeWorkspace(t *testing.T) {
 	if strings.Count(large, "<env>") != 1 || strings.Count(large, "</env>") != 1 {
 		t.Errorf("malformed env block: %q", large)
 	}
-	if renderEnvBlock("", at, true) != "" {
+	if renderEnvBlock("", nil, at, true) != "" {
 		t.Errorf("empty cwd must yield no env block even when large")
 	}
 }
@@ -70,7 +70,7 @@ func TestAssemblyPrefixByteStable(t *testing.T) {
 		SystemPrompt: "be precise",
 		Tools:        []string{"read_file"},
 	}
-	env := renderEnvBlock("/work/ws", time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC), false)
+	env := renderEnvBlock("/work/ws", nil, time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC), false)
 
 	s := state.New()
 	s = mustApply(t, s, event.TypeSessionStarted, &event.SessionStarted{

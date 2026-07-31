@@ -404,7 +404,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 		if wsRoot == "" {
 			wsRoot = "."
 		}
-		ws, err := workspace.New(wsRoot)
+		ws, err := workspace.NewMultiRoot(wsRoot, req.Roots)
 		if err != nil {
 			return err
 		}

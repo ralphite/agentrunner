@@ -270,3 +270,43 @@ describe("Diff line wrap (INC-41 DF-4)", () => {
     expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("false");
   });
 });
+
+// INC-105 · Multi-root sessions: every non-primary root renders its own
+// read-only section after the primary stream, so a change in root B is never
+// invisible just because the session's cwd is root A.
+describe("multi-root changes (INC-105)", () => {
+  it("renders one section per extra root with its diff, and none for single-root", async () => {
+    const extraDiff = `diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1 +1,2 @@
+ old line
++multi root line
+`;
+    arMock.diff = () => Promise.resolve(worktreeDiff({
+      roots: [
+        { root: "/tmp/ws", isRepo: true, diff: twoFileDiff, numstat: "", untracked: [] },
+        { root: "/repos/docs", isRepo: true, diff: extraDiff, numstat: "", untracked: ["scratch.txt"] },
+      ],
+    }));
+    const { container } = render(<DiffView sid="mr1" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    const section = container.querySelector(".diff-extra-root")!;
+    expect(section).toBeTruthy();
+    // The section names its root and shows the verbatim diff + untracked note.
+    expect(section.textContent).toContain("docs");
+    expect(section.textContent).toContain("/repos/docs");
+    expect(section.querySelector(".diff-extra-root-diff")!.textContent).toContain("multi root line");
+    expect(section.textContent).toContain("scratch.txt");
+    // Exactly one extra section — the primary never duplicates itself.
+    expect(container.querySelectorAll(".diff-extra-root").length).toBe(1);
+    cleanup();
+
+    // Single-root responses render no extra sections at all.
+    arMock.diff = () => Promise.resolve(worktreeDiff());
+    const { container: single } = render(<DiffView sid="mr2" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(single.querySelectorAll(".diff-extra-root").length).toBe(0);
+  });
+});

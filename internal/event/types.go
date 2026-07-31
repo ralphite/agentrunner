@@ -187,6 +187,14 @@ type SessionStarted struct {
 	// without the original spec file (2.17).
 	Spec          json.RawMessage `json:"spec,omitempty"`
 	WorkspaceRoot string          `json:"workspace_root,omitempty"`
+	// WorkspaceRoots is the FULL multi-root boundary (INC-105), primary
+	// first: WorkspaceRoots[0] == WorkspaceRoot always. Absent on single-root
+	// sessions and every pre-INC-105 journal — readers treat absence as
+	// [WorkspaceRoot]. Frozen at session start (a later project edit affects
+	// new sessions only); resume and fork rebuild the same boundary from it.
+	// WorkspaceRoot stays authoritative for every primary-anchored face (cwd,
+	// git, snapshots) and for old readers.
+	WorkspaceRoots []string `json:"workspace_roots,omitempty"`
 	// Env is the environment block (cwd, date) rendered and FROZEN at session
 	// start (S4.4c / DESIGN §context-assembly): volatile data captured once
 	// so it never rewrites the cacheable prompt prefix on later turns.

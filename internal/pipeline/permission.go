@@ -313,6 +313,14 @@ func (g *PermissionGate) resolveRel(path string) (string, bool) {
 	if err != nil {
 		return "", true
 	}
+	// Multi-root (INC-105): the rel base is whichever root holds the path, so
+	// a `path: "src/**"` rule matches src/ under ANY declared root.
+	for _, root := range g.WS.Roots() {
+		if abs == root || strings.HasPrefix(abs, root+"/") {
+			rel := strings.TrimPrefix(strings.TrimPrefix(abs, root), "/")
+			return rel, false
+		}
+	}
 	rel := strings.TrimPrefix(abs, g.WS.Root())
 	return strings.TrimPrefix(rel, "/"), false
 }

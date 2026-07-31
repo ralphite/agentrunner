@@ -121,7 +121,7 @@ func TestCredentialDeniesMemoized(t *testing.T) {
 	}
 	e := &Executor{WS: wsAtScale(t, root, false)}
 
-	first := e.credentialDenies(root)
+	first := e.credentialDenies()
 	if len(first) != 1 {
 		t.Fatalf("want 1 deny, got %d", len(first))
 	}
@@ -130,7 +130,7 @@ func TestCredentialDeniesMemoized(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "later.pem"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if second := e.credentialDenies(root); len(second) != len(first) {
+	if second := e.credentialDenies(); len(second) != len(first) {
 		t.Errorf("deny list must be memoized: %d then %d", len(first), len(second))
 	}
 }

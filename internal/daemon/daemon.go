@@ -40,6 +40,9 @@ type Command struct {
 	Workspace string                `json:"workspace,omitempty"`
 	Mode      string                `json:"mode,omitempty"`
 	Model     modelconfig.Selection `json:"model,omitempty"`
+	// Roots: extra workspace roots for the session (INC-105 multi-root
+	// projects) — validated by the CLI; the loop journals the full boundary.
+	Roots []string `json:"roots,omitempty"`
 	// Series opts a drive into the merged-stream session form (INC-80.2a).
 	Series bool `json:"series,omitempty"`
 
@@ -137,6 +140,9 @@ type RunRequest struct {
 	Workspace string
 	Mode      string
 	Model     modelconfig.Selection
+	// Roots are extra workspace roots (INC-105 multi-root projects); the
+	// primary is Workspace, the boundary is their union.
+	Roots []string
 	// Images/Files ride the OPENING prompt (PLAN 5.5, `new --image/--file`):
 	// same wire shape as a send's attachments, CAS-stored by the loop before
 	// the opening InputReceived journals.
@@ -1841,6 +1847,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(runCtx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Prompt: cmd.Prompt,
 			Workspace: cmd.Workspace, Mode: cmd.Mode, Model: cmd.Model,
+			Roots:  cmd.Roots,
 			Images: cmd.Images, Files: cmd.Files,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,

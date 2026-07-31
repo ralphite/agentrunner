@@ -8327,3 +8327,49 @@ gitignore 的少数工作区。所以这不是丢信号，是把少数派对齐�
 → 快照里**只有 `src/main.go`**、shadow.git **128 KB**；②用已部署的 pre-G62
 二进制建出跟踪了 **200** 个 node_modules 的 shadow，换带 G62 的二进制重开
 → **降为 0**，`src/main.go` 完好，新快照干净。
+
+## 2026-07-31 · INC-105 多根 workspace:project 的每个 folder 都是一等边界(不变量修订,决策 #44,用户裁决)
+
+**问题链**:INC-104 的多 folder project 只做了分组;session 的 jail 仍是单根,
+agent 访问项目第二个 folder 弹 out-of-workspace 审批——与 Create 对话框
+"Add folders the agent can read and edit" 的承诺直接矛盾。用户先裁"auto
+approve 零开销",再裁"support multi root, we don't want to patch for each
+issue"——grant 例外表方案(先行实现过一版)被推翻:例外表要求 diff/快照/
+搜索/每个未来消费面各自记得查表,忘一处裂一处。
+
+**不变量修订(四件事)**
+- 旧:session 边界 = 一个 `WorkspaceRoot`(journal genesis 单值;jail/沙箱/
+  permission/diff 全部据此)。
+- 为何动:多 folder project 的读写承诺在单根模型下只能靠补丁例外表兑现。
+- 新:边界 = roots 联合(`workspace.NewMultiRoot`),primary=roots[0] 独占
+  单根语义(cwd/相对路径基/env 首行/git/快照/记忆/skills/command-tools/
+  trust/wsprobe 锚)。genesis 增 `workspace_roots`(additive;单根会话的
+  genesis 与 env **字节不变**——frozen prefix 不移位);resume/fork 由它
+  重建,fork 的 primary 是自己的 worktree、extras 共享实盘。
+- 波及面:internal/workspace(NewMultiRoot/Roots/Resolve)、tool/sandbox
+  (writable+凭据 deny 每根、GrantRoot 例外表撤销)、pipeline/permission
+  (rel 以所在根为基,extras 不再触发 "outside the workspace" ask)、
+  agent/loop+assembly(genesis+env 披露 roots)、cli(new/run `--root`、
+  resume 重建、sessions list `workspace_roots`)、daemon(Command.Roots)、
+  webui(newSession 自动 `--root`、sessionMeta.Roots、working-tree diff
+  每根 probe + 响应 `roots[]`、DiffView 每 extra root 只读段)。
+
+**明确裁决(不是缺口)**
+- 快照体系 primary-only:barrier/rewind/fork 物化/last-turn 对账只覆盖
+  primary。N 份快照会让 fork 物化翻倍复杂,收益存疑;extras 的改动在
+  timeline 文件级卡有痕、在 working-tree Changes 有段。
+- Changes 的 commit/push/discard/Undo 仍作用 primary;extras 段只读
+  (per-root 动作属 P3)。
+- 搜索面(keyword_search/grep/glob/@-mention/file-tree)仍 primary(P2)。
+- project settings/hooks/trust/command-tools 只读 primary(extras 的
+  `.agentrunner/` 不加载)。
+- 授权是会话创建时快照:Edit project 新增 folder 只影响新会话。
+- 单 workspace 会话(scratch/worktree/非 project)一切照旧:roots=[root],
+  全部改造点对 len==1 退化为原行为。
+
+**孪生**:TestMultiRootResolveSpansEveryRoot / TestMultiRootDedupesAndOrdersRoots /
+TestMultiRootRejectsMissingExtra(workspace)、
+TestMultiRootSessionReachesExtraRootAndJournalsBoundary /
+TestSingleRootGenesisUnchangedByMultiRoot(agent)、
+TestNewSessionSpansProjectRoots / TestDiffCoversEveryRoot(webui)、
+DiffView.test.tsx「multi-root changes」。

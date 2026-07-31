@@ -479,7 +479,11 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		// contract uses camelCase below, just like nextRunAt.
 		UpdatedAtCLI string `json:"updated_at,omitempty"`
 		UpdatedAt    string `json:"updatedAt,omitempty"`
-		Attention    *struct {
+		// WorkspaceRootsCLI receives the CLI's snake_case key (INC-105: the
+		// session's full multi-root boundary, primary first); camelCase below.
+		WorkspaceRootsCLI []string `json:"workspace_roots,omitempty"`
+		WorkspaceRoots    []string `json:"workspaceRoots,omitempty"`
+		Attention         *struct {
 			Approvals int `json:"approvals,omitempty"`
 			Answers   int `json:"answers,omitempty"`
 		} `json:"attention,omitempty"`
@@ -508,7 +512,7 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		}
 		discovered := make(map[string]sessionMeta, len(rows))
 		for _, runtimeRow := range rows {
-			discovered[runtimeRow.ID] = sessionMeta{Workspace: runtimeRow.Workspace, Title: runtimeRow.Title}
+			discovered[runtimeRow.ID] = sessionMeta{Workspace: runtimeRow.Workspace, Title: runtimeRow.Title, Roots: runtimeRow.WorkspaceRootsCLI}
 		}
 		s.meta.merge(discovered)
 		for i := range rows {
@@ -536,6 +540,7 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			rows[i].ScheduleControl, rows[i].ScheduleControlCLI = rows[i].ScheduleControlCLI, false
 			rows[i].ScheduleDetail, rows[i].ScheduleDetailCLI = rows[i].ScheduleDetailCLI, false
 			rows[i].UpdatedAt, rows[i].UpdatedAtCLI = rows[i].UpdatedAtCLI, ""
+			rows[i].WorkspaceRoots, rows[i].WorkspaceRootsCLI = rows[i].WorkspaceRootsCLI, nil
 		}
 		writeJSON(w, http.StatusOK, rows)
 		return
@@ -634,6 +639,14 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	// belongs to the dying connection. Detached, the session lives in the
 	// daemon and its approvals are answerable via the shared broker.
 	args := []string{"new", "--detach", "--workspace", ws}
+	// INC-105: a session started inside a declared project spans the
+	// project's OTHER source folders too — one multi-root boundary, exactly
+	// what the user declared with "folders the agent can read and edit". The
+	// registry is the webui's; core only ever sees plain --root directories
+	// journaled into the session's genesis.
+	for _, extra := range s.projectSiblingFolders(ws) {
+		args = append(args, "--root", extra)
+	}
 	args = append(args, modelArgs...)
 	if req.Mode != "" {
 		args = append(args, "--mode", req.Mode)

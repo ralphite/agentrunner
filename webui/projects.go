@@ -171,6 +171,42 @@ func (s *projectStore) folderSet() map[string]bool {
 	return out
 }
 
+// projectSiblingFolders returns the OTHER source folders of the project the
+// given workspace belongs to (INC-105): the extra workspace roots a new
+// session in that workspace spans. Empty when the workspace is not a declared
+// project folder. Only folders that currently exist ride along — `ar new`
+// preflights each --root and a missing directory would fail the whole
+// session create.
+func (s *server) projectSiblingFolders(ws string) []string {
+	if s.projects == nil {
+		return nil
+	}
+	wsCanon := canonPath(ws)
+	for _, def := range s.projects.list() {
+		claimed := false
+		for _, f := range def.Folders {
+			if canonPath(f) == wsCanon {
+				claimed = true
+				break
+			}
+		}
+		if !claimed {
+			continue
+		}
+		out := make([]string, 0, len(def.Folders)-1)
+		for _, f := range def.Folders {
+			if canonPath(f) == wsCanon {
+				continue
+			}
+			if st, err := os.Stat(f); err == nil && st.IsDir() {
+				out = append(out, f)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 func newProjectID(now time.Time) string {
 	var b [2]byte
 	_, _ = rand.Read(b[:])

@@ -2343,6 +2343,16 @@
   /* Sidebar: an explicit project with nothing in it yet (INC-104). Indent
      matches a nested session row so the rail reads as one column. */
   .project-empty-chats { @apply py-[5px] pl-[32px] pr-2 text-[13px] leading-5 text-ink-2 opacity-70; }
+  /* INC-105 · Multi-root Changes: a non-primary root's read-only section. */
+  .diff-extra-root { @apply mx-3 mb-3 overflow-hidden rounded-[10px] border border-line; }
+  .diff-extra-root > summary { @apply flex cursor-pointer items-center gap-2 bg-panel-2 px-3 py-2 text-[13px] text-ink; }
+  .diff-extra-root > summary b { @apply font-semibold; }
+  .diff-extra-root-path { @apply min-w-0 flex-1 truncate text-[12px] text-dim; }
+  .diff-extra-root-counts { @apply flex shrink-0 items-center gap-1.5 text-[12px]; }
+  .diff-extra-root-counts ins { @apply no-underline; color: var(--green, #1a7f37); }
+  .diff-extra-root-counts del { @apply no-underline; color: var(--red); }
+  .diff-extra-root-diff { @apply m-0 max-h-[420px] overflow-auto whitespace-pre px-3 py-2 font-mono text-[12px] leading-[18px] text-ink; }
+  .diff-extra-root-note { @apply m-0 px-3 py-2 text-[12.5px] text-dim; }
   .mhead, .mfoot { @apply flex items-center justify-between gap-2 border-b border-line px-4 py-3; }
   .mfoot { @apply border-b-0 border-t; }
   .mbody { @apply grid gap-3 p-4; }

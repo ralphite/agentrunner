@@ -70,23 +70,31 @@ func assembleSystem(run state.Session, specPrompt, mode string) string {
 // not the mechanism — the tool list is what actually withholds indexed search
 // (agent.Loop.gatedTools), so a note gone stale across a resume costs the
 // model an explanation, never a wrong capability.
-func renderEnvBlock(cwd string, now time.Time, largeWorkspace bool) string {
+func renderEnvBlock(cwd string, roots []string, now time.Time, largeWorkspace bool) string {
 	if cwd == "" {
 		return ""
+	}
+	// Multi-root sessions (INC-105) disclose every root so the model reaches
+	// the project's other folders by absolute path instead of guessing. A
+	// single-root env block stays byte-identical to pre-INC-105 sessions —
+	// the frozen prefix of existing journals must not shift.
+	var extra string
+	if len(roots) > 1 {
+		extra = "\nworkspace roots (read-write, use absolute paths): " + strings.Join(roots, ", ")
 	}
 	var scale string
 	if largeWorkspace {
 		scale = "\nworkspace: large — indexed search (keyword_search) is unavailable here; " +
 			"use grep for content and glob for filenames, narrowing with their `path` argument"
 	}
-	return fmt.Sprintf("<env>\ncwd: %s\ndate: %s%s\n</env>", cwd, now.Format("2006-01-02"), scale)
+	return fmt.Sprintf("<env>\ncwd: %s%s\ndate: %s%s\n</env>", cwd, extra, now.Format("2006-01-02"), scale)
 }
 
 // RenderSpecChange freezes the NEW spec's prefix blocks and effective
 // permission layers for a SpecChanged fact (决策 #32) — the same rendering
 // a session start performs, done by whoever executes the switch. The
 // returned event is ready to journal; appending it IS the switch.
-func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
+func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, wsRoots []string, now time.Time,
 	resolve SubSpecResolver, pipe *pipeline.Pipeline, largeWorkspace bool) (*event.SpecChanged, error) {
 
 	specJSON, err := json.Marshal(spec)
@@ -97,7 +105,7 @@ func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
 	return &event.SpecChanged{
 		SpecName: spec.Name, Model: spec.Model.ID,
 		Spec: specJSON, SpecPath: specPath, Source: "user",
-		Env:    renderEnvBlock(wsRoot, now, largeWorkspace),
+		Env:    renderEnvBlock(wsRoot, wsRoots, now, largeWorkspace),
 		Memory: memoryBlock, Skills: skillsBlock,
 		Agents:           renderAgentsDirectory(spec.Agents, spec.AgentsDynamic, resolve),
 		PermissionLayers: marshalPermissionLayers(pipe),

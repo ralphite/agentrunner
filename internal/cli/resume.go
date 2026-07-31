@@ -104,7 +104,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 
-	ws, err := workspace.New(started.WorkspaceRoot)
+	ws, err := workspaceFromStarted(started)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
@@ -201,6 +201,26 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
+// workspaceFromStarted rebuilds the session's full boundary (INC-105): the
+// primary plus any extra roots journaled at genesis. Extra roots that have
+// vanished from disk are dropped with a warning instead of failing the whole
+// resume — the primary is the session's home and must exist; an extra is
+// reach, and a missing one just narrows reach to what still exists.
+func workspaceFromStarted(started *event.SessionStarted) (*workspace.Workspace, error) {
+	if len(started.WorkspaceRoots) > 1 {
+		extras := make([]string, 0, len(started.WorkspaceRoots)-1)
+		for _, root := range started.WorkspaceRoots[1:] {
+			if st, err := os.Stat(root); err == nil && st.IsDir() {
+				extras = append(extras, root)
+			} else {
+				fmt.Fprintf(os.Stderr, "agentrunner: workspace root %s is gone; continuing without it\n", root)
+			}
+		}
+		return workspace.NewMultiRoot(started.WorkspaceRoot, extras)
+	}
+	return workspace.New(started.WorkspaceRoot)
+}
+
 func readSessionStarted(dir string) (*event.SessionStarted, error) {
 	events, err := store.ReadEvents(dir)
 	if err != nil {
@@ -234,6 +254,13 @@ func sessionStartedFromEvents(events []event.Envelope) (*event.SessionStarted, e
 	}
 	started := decoded.(*event.SessionStarted)
 	if forked != nil && forked.WorkspaceRoot != "" {
+		// Multi-root (INC-105): the fork's PRIMARY is its own worktree; the
+		// parent's extra roots stay reachable as shared live folders (the
+		// snapshot/rewind isolation covers the primary only — a deliberate
+		// design ruling, see DESIGN §12).
+		if len(started.WorkspaceRoots) > 1 {
+			started.WorkspaceRoots = append([]string{forked.WorkspaceRoot}, started.WorkspaceRoots[1:]...)
+		}
 		started.WorkspaceRoot = forked.WorkspaceRoot
 	}
 	return started, nil
@@ -391,9 +418,14 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		// UpdatedAt is the same journal mtime that orders pagination. Exposing it
 		// lets clients preserve durable activity recency instead of guessing from
 		// the session id's creation stamp.
-		UpdatedAt string            `json:"updated_at,omitempty"`
-		Attention *sessionAttention `json:"attention,omitempty"`
-		mtime     int64
+		UpdatedAt string `json:"updated_at,omitempty"`
+		// WorkspaceRoots is the session's full multi-root boundary (INC-105),
+		// primary first — surfaced so the webui can show working-tree changes
+		// for every root the agent can write, not just the primary workspace.
+		// Absent (or nil) for single-root sessions.
+		WorkspaceRoots []string          `json:"workspace_roots,omitempty"`
+		Attention      *sessionAttention `json:"attention,omitempty"`
+		mtime          int64
 	}
 	now := time.Now()
 	type candidate struct {
@@ -513,6 +545,7 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				r.Turns = len(s.Interactions.Turns)
 				if started, serr := sessionStartedFromEvents(events); serr == nil {
 					r.Workspace = started.WorkspaceRoot
+					r.WorkspaceRoots = started.WorkspaceRoots
 					r.Title = strings.TrimSpace(strings.SplitN(started.Prompt, "\n", 2)[0])
 				}
 				// The auto/manual/fork title projection (INC-52, HANDA-PARITY

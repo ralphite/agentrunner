@@ -924,7 +924,8 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   或强制调用命中时用，绝不改为"顺手建一次索引"。dispatch allowlist 仍以
   **fold 事实**为准（被摘的名字照旧在册），否则 workspace 涨过阈值就会
   让 resume 拒掉原会话服务过的调用。**边界诚实（与 bash 条款同性质）**：
-  indexer 以 workspace root 为界直接遍历文件（不经文件类 tool 的
+  indexer 以 primary workspace root 为界直接遍历文件（多根会话的 extras
+  暂不入索引——INC-105 记账，搜索面属 P2；不经文件类 tool 的
   per-path resolve），path 规则因此**不约束** snippet 暴露；边界由
   rooted walk + 永不跟随 symlink + 硬排除表 + snippet 过 redact 保证。
 - **bash 可以逃逸 workspace**（pip install、网络调用、写外部路径）。
@@ -1450,7 +1451,11 @@ resume 永不重读 live default。
   派生组原样回来（升格时服务端清掉被认领 folder 的派生 overlay 并把
   pin/fold 迁至 `project:<id>` key，防止残留 removed:true 让派生组"复活成
   隐藏态"）。一个 folder 只能属于一个 project（canonical 比较）；folder 在
-  磁盘上消失不锁死编辑——update 只对新增 folder 做存在校验。不同 workspace
+  磁盘上消失不锁死编辑——update 只对新增 folder 做存在校验。**在 project
+  内开的会话是多根会话（INC-105，决策 #44）**：webui 把其余 folders 作为
+  `--root` 传给 `ar new`，runtime 的联合边界让 agent 免审批读写全部
+  folders，Changes 每根一腿分组显示；快照/rewind/Apply 仍锚 primary
+  （folders[0]）。不同 workspace
   的 display label 允许重名，sidebar 不追加常驻 path subtitle；完整 workspace 只在
   原生 tooltip / hover preview 披露（INC-92）。project heading 的 hover/focus
   background 由包含 menu / New chat icons 的 outer row wrapper 统一承担，不让 actions
@@ -1897,6 +1902,7 @@ resume 永不重读 live default。
 | 39 | 机器发送方/webhook ingress（INC-50,2026-07-11,G14/UJ-12） | daemon 可选 `--http` 起单端点 ingress `POST /hooks/<id>`（默认关）→ 同一条 durable send 通道投递。per-hook capability（不可猜 id+token，落盘仅哈希、不进 journal）；未鉴权限流+body 上限；载荷 `source:"machine"`+`trust:"untrusted"`+`principal:"hook:<n>"`；**untrusted 驱动 loop 侧隔离框定**（模型可见前缀、trust 钳制、不做宏展开）；machine 非 user-class，不越 close/kill 标记（对 marked session 410）；`X-Command-Id` 幂等重投。 | 外部事件唤醒是"输入投递"的第三个发送方（§2 三类归一），不另起通道；注入防御必须落在模型可见面（仅元数据=纸面防御）；越标记特权是用户手势的专属（决策 #30），机器只享 parked-unmarked revive。窄切片：HTTP/WS 壳仍 backlog。 |
 | 40 | Goal 终态与恢复（INC-66,2026-07-13，决策 #21 修订） | `GoalAchieved` **只**表示 verifier pass/satisfied 并摘 goal；check budget 用尽写 `GoalExhausted{budget}`，保留 unmet goal、停止自动 continuation。`GoalUpdated` 清 exhausted/recovery checkpoint，允许提高预算或修改要求后在同一 context 继续。当前 generation 的 `goal_satisfied|goal_budget_exhausted` 是明确静止收据。 | 旧 `GoalAchieved{budget}` 把 verifier fail 表示成成功并删除恢复目标，既语义矛盾又使 update 假成功；新事件仍由同一 journal+fold 恢复，不引入第二套机制，也不放宽 verifier。 |
 | 41 | driver 无 user-facing 面（INC-80，用户裁决 2026-07-19） | driver/series 是 loop-mode 与目标模式的**内部实现抽象**，不是产品概念：用户面只有「会话 + 挂在会话上的 goal / repeating(schedule) / best-of-N」。新建 drive 默认走 merged-stream series 会话形态（SessionStarted+SeriesStarted 头，唯 parallel×retry 组合留 legacy 流）；`ar drive` 降为 webui 薄壳的 transport 命令（help 不再宣传），Scheduled 面以 series SESSION 行为 canonical；旧 DriverStarted journal 永远只读可查。 | 双基座并存是概念面爆炸与双实现漂移的共同根源（2026-07-19 双盲评审交集 #1）；收敛进 session journal 后调度/目标/并击共享同一 fold、同一恢复、同一投影，webui 不再手工镜像。 |
+| 44 | 多根 workspace（INC-105，用户裁决 2026-07-30，**不变量修订**） | session 的文件系统边界从「一个 workspace root」升级为「primary + extras 的**联合**」：`workspace.Workspace` 持 roots（`Roots()[0]`=primary），`Resolve` 对任一 root 内放行，opt-in 沙箱 writable/凭据 deny 覆盖每根，permission path 规则以**所在根**为 rel 基。primary 独占单根语义：cwd、相对路径基、`<env>` 首行、git/快照/记忆/skills/command-tools/trust/探针锚。genesis 新增 `workspace_roots`（additive；单根会话字节不变），resume/fork 由它重建；fork 的 primary 是自己的 worktree，extras 以**共享实盘**延续。**快照体系（barrier/rewind/fork 物化/last-turn 对账）为 primary-only 的明确裁决**——隔离与回滚只覆盖 primary，不是缺口是边界。webui 起会话时把 project 其余 folders 自动作为 `--root` 传入；working-tree Changes 每根一腿。 | 多 folder project 的「read and edit」承诺必须由 runtime 兑现；grant 例外表方案会让每个消费面各自记得查表、忘一处裂一处（用户裁决"不逐 issue 打补丁"）。联合边界作为一等事实源后,file tools/沙箱/permission/diff 全部从同一处派生;快照 primary-only 是成本与收益的诚实取舍（N 份快照物化让 fork 翻倍复杂，收益存疑），留待需求出现再升级。 |
 
 ---
 

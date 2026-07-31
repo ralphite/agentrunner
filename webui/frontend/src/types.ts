@@ -43,6 +43,8 @@ export interface Session extends Cadence {
   updatedAt?: string;
   title?: string;
   workspace?: string;
+  // Full multi-root boundary (INC-105), primary first; absent = single-root.
+  workspaceRoots?: string[];
   kind?: "session" | "driver";
 }
 
@@ -90,6 +92,28 @@ export interface DiffResp {
   repoRoot?: string;
   // The workspace is a LINKED git worktree of mainRepo, checked out on `branch`
   // ("" when detached) — enables the Apply-back / Remove controls (INC-49).
+  worktree?: boolean;
+  mainRepo?: string;
+  branch?: string;
+  diff: string;
+  numstat: string;
+  untracked: string[];
+  untrackedReasons?: Record<string, "binary" | "large" | "unavailable">;
+  hiddenUntracked?: number;
+  conflicts?: string[];
+  // Multi-root sessions (INC-105): one probe per workspace root, primary
+  // first. The top-level fields above remain the primary's — old consumers
+  // keep working; roots is the full picture.
+  roots?: DiffRootResp[];
+}
+
+// DiffRootResp is one root's working-tree probe within a multi-root session
+// (INC-105) — the same shape the top level carries for the primary.
+export interface DiffRootResp {
+  root: string;
+  isRepo: boolean;
+  nested?: boolean;
+  repoRoot?: string;
   worktree?: boolean;
   mainRepo?: string;
   branch?: string;

@@ -10,9 +10,14 @@ import (
 	"strings"
 )
 
-// Workspace is a rooted directory with realpath boundary checks.
+// Workspace is the session's filesystem boundary: one PRIMARY root plus zero
+// or more extra roots (INC-105 multi-root projects). The primary keeps every
+// single-root semantic — cwd, relative-path base, the git/snapshot anchor —
+// while extras add same-level read-write reach: a project the user declared
+// as "these folders" is one boundary, not one folder and N exceptions.
 type Workspace struct {
-	root string // absolute, symlink-resolved
+	root   string   // primary — absolute, symlink-resolved
+	extras []string // additional roots, same resolution; never contains root
 	// large is the resolved large-workspace verdict (internal/wsprobe),
 	// stamped ONCE by the run assembly seam and read by the whole-tree gates
 	// (IndexStore, shadow snapshot, sandbox credential scan). The zero value
@@ -41,34 +46,89 @@ func (w *Workspace) ScaleFiles() int { return w.largeFiles }
 
 // New builds a Workspace rooted at dir.
 func New(dir string) (*Workspace, error) {
-	abs, err := filepath.Abs(dir)
+	resolved, err := resolveRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("workspace root %s: %w", dir, err)
-	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return nil, fmt.Errorf("workspace root %s: %w", dir, err)
-	}
-	info, err := os.Stat(resolved)
-	if err != nil {
-		return nil, fmt.Errorf("workspace root %s: %w", dir, err)
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("workspace root %s: not a directory", dir)
+		return nil, err
 	}
 	return &Workspace{root: resolved}, nil
 }
 
-// Root returns the resolved workspace root.
+// NewMultiRoot builds a Workspace whose boundary is the union of primary and
+// extras (INC-105). Extras resolve exactly like the primary; duplicates of
+// the primary or of each other collapse. A missing extra is an error — the
+// caller declared it part of the boundary, and silently narrowing a boundary
+// is worse than failing loudly.
+func NewMultiRoot(primary string, extras []string) (*Workspace, error) {
+	w, err := New(primary)
+	if err != nil {
+		return nil, err
+	}
+	for _, extra := range extras {
+		resolved, err := resolveRoot(extra)
+		if err != nil {
+			return nil, err
+		}
+		if resolved == w.root || contains(w.extras, resolved) {
+			continue
+		}
+		w.extras = append(w.extras, resolved)
+	}
+	return w, nil
+}
+
+func resolveRoot(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("workspace root %s: %w", dir, err)
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("workspace root %s: %w", dir, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("workspace root %s: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("workspace root %s: not a directory", dir)
+	}
+	return resolved, nil
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// Root returns the resolved PRIMARY root: the cwd, the relative-path base,
+// and the anchor for every per-repo face (git, snapshots, memory, probes).
 func (w *Workspace) Root() string {
 	return w.root
 }
 
-// Resolve maps a tool-supplied path (relative to root, or absolute) to a
-// real absolute path, rejecting anything that escapes the workspace after
-// symlink and ".." resolution — including paths that do not exist yet
-// (their deepest existing ancestor is resolved instead, so a new file
-// behind an out-of-tree symlinked directory is still rejected).
+// Roots returns every root, primary first. Single-root workspaces return
+// exactly [Root()], so range-over-Roots call sites degrade to today's
+// behavior with no special case.
+func (w *Workspace) Roots() []string {
+	return append([]string{w.root}, w.extras...)
+}
+
+// ExtraRoots returns the non-primary roots (empty for single-root sessions).
+func (w *Workspace) ExtraRoots() []string {
+	return append([]string(nil), w.extras...)
+}
+
+// Resolve maps a tool-supplied path (relative to the primary root, or
+// absolute) to a real absolute path, rejecting anything that escapes the
+// workspace after symlink and ".." resolution — including paths that do not
+// exist yet (their deepest existing ancestor is resolved instead, so a new
+// file behind an out-of-tree symlinked directory is still rejected). With
+// extra roots (INC-105) "the workspace" is their union: a path inside ANY
+// root is inside the boundary.
 func (w *Workspace) Resolve(requested string) (string, error) {
 	path := requested
 	if !filepath.IsAbs(path) {
@@ -81,10 +141,19 @@ func (w *Workspace) Resolve(requested string) (string, error) {
 		return "", fmt.Errorf("resolve %s: %w", requested, err)
 	}
 
-	if resolved != w.root && !strings.HasPrefix(resolved, w.root+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes workspace: %s -> %s", requested, resolved)
+	if underRoot(resolved, w.root) {
+		return resolved, nil
 	}
-	return resolved, nil
+	for _, extra := range w.extras {
+		if underRoot(resolved, extra) {
+			return resolved, nil
+		}
+	}
+	return "", fmt.Errorf("path escapes workspace: %s -> %s", requested, resolved)
+}
+
+func underRoot(resolved, root string) bool {
+	return resolved == root || strings.HasPrefix(resolved, root+string(filepath.Separator))
 }
 
 // ResolveOutside resolves a path the same way Resolve does — symlinks on the

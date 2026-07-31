@@ -22,6 +22,10 @@ import (
 type sessionMeta struct {
 	Workspace string `json:"workspace"`
 	Title     string `json:"title"`
+	// Roots is the session's full multi-root boundary (INC-105), primary
+	// first; empty for single-root sessions. Cached so the working-tree diff
+	// can cover every root the agent can write.
+	Roots []string `json:"roots,omitempty"`
 }
 
 // projectMeta is the workspace-keyed overlay added by INC-53 (HANDA #24): a
@@ -121,18 +125,32 @@ func (s *metaStore) set(sid, ws, title string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cur := s.m[sid]
-	before := cur
-	if ws != "" {
+	changed := false
+	if ws != "" && cur.Workspace != ws {
 		cur.Workspace = ws
+		changed = true
 	}
 	if title != "" && cur.Title == "" {
 		cur.Title = firstLine(title, 100)
+		changed = true
 	}
 	s.m[sid] = cur
-	if cur == before {
+	if !changed {
 		return
 	}
 	s.persistLocked()
+}
+
+func rootsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // merge hydrates metadata discovered from AgentRunner's journal-backed
@@ -147,14 +165,20 @@ func (s *metaStore) merge(entries map[string]sessionMeta) {
 			continue
 		}
 		cur := s.m[sid]
-		before := cur
-		if incoming.Workspace != "" {
+		rowChanged := false
+		if incoming.Workspace != "" && cur.Workspace != incoming.Workspace {
 			cur.Workspace = incoming.Workspace
+			rowChanged = true
 		}
 		if incoming.Title != "" && cur.Title == "" {
 			cur.Title = firstLine(incoming.Title, 100)
+			rowChanged = true
 		}
-		if cur != before {
+		if len(incoming.Roots) > 0 && !rootsEqual(cur.Roots, incoming.Roots) {
+			cur.Roots = incoming.Roots
+			rowChanged = true
+		}
+		if rowChanged {
 			s.m[sid] = cur
 			changed = true
 		}
@@ -536,22 +560,52 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	top, insideRepo := git(r.Context(), meta.Workspace, "rev-parse", "--show-toplevel")
-	if !insideRepo {
-		writeJSON(w, http.StatusOK, resp)
-		return
+	// Primary root fills the top level exactly as it always has — existing
+	// consumers keep working untouched.
+	for k, v := range s.workingTreeProbe(r.Context(), meta.Workspace) {
+		resp[k] = v
 	}
-	if root := strings.TrimSpace(top); !samePath(root, meta.Workspace) {
+	// Multi-root sessions (INC-105): one probe per root, primary first, so
+	// Changes covers every folder the agent can write — a change in root B
+	// must never be invisible just because the session's cwd is root A.
+	if len(meta.Roots) > 1 {
+		probes := make([]map[string]any, 0, len(meta.Roots))
+		for _, root := range meta.Roots {
+			probe := s.workingTreeProbe(r.Context(), root)
+			probe["root"] = root
+			probes = append(probes, probe)
+		}
+		resp["roots"] = probes
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// workingTreeProbe answers one root's working-tree state: repo shape,
+// staged+unstaged diff, synthetic new-file diffs for untracked content,
+// conflicts, and worktree lineage. Extracted verbatim from the single-root
+// handleDiff body so the multi-root loop (INC-105) runs the exact same probe
+// per root.
+func (s *server) workingTreeProbe(ctx context.Context, dir string) map[string]any {
+	resp := map[string]any{
+		"isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "",
+		"untracked": []string{}, "untrackedReasons": map[string]string{}, "hiddenUntracked": 0,
+		"conflicts": []string{},
+		"worktree":  false, "mainRepo": "", "branch": "",
+	}
+	top, insideRepo := git(ctx, dir, "rev-parse", "--show-toplevel")
+	if !insideRepo {
+		return resp
+	}
+	if root := strings.TrimSpace(top); !samePath(root, dir) {
 		resp["nested"] = true
 		resp["repoRoot"] = root
-		writeJSON(w, http.StatusOK, resp)
-		return
+		return resp
 	}
 	resp["isRepo"] = true
-	resp["conflicts"] = unmergedPaths(r.Context(), meta.Workspace)
+	resp["conflicts"] = unmergedPaths(ctx, dir)
 	// A linked worktree is its own toplevel (so isRepo is true), but it belongs
 	// to a main checkout the UI names and offers Apply/Remove against (INC-49).
-	if isWt, mainRepo, branch := worktreeInfo(r.Context(), meta.Workspace); isWt {
+	if isWt, mainRepo, branch := worktreeInfo(ctx, dir); isWt {
 		resp["worktree"] = true
 		resp["mainRepo"] = mainRepo
 		resp["branch"] = branch
@@ -567,20 +621,20 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	// `git diff --cached` (index vs the empty tree) joined with the
 	// unstaged diff.
 	var diff, numstat string
-	if _, hasHead := git(r.Context(), meta.Workspace, "rev-parse", "--verify", "-q", "HEAD"); hasHead {
-		diff, _ = git(r.Context(), meta.Workspace, "diff", "HEAD")
-		numstat, _ = git(r.Context(), meta.Workspace, "diff", "HEAD", "--numstat")
+	if _, hasHead := git(ctx, dir, "rev-parse", "--verify", "-q", "HEAD"); hasHead {
+		diff, _ = git(ctx, dir, "diff", "HEAD")
+		numstat, _ = git(ctx, dir, "diff", "HEAD", "--numstat")
 	} else {
-		staged, _ := git(r.Context(), meta.Workspace, "diff", "--cached")
-		unstaged, _ := git(r.Context(), meta.Workspace, "diff")
+		staged, _ := git(ctx, dir, "diff", "--cached")
+		unstaged, _ := git(ctx, dir, "diff")
 		diff = joinDiffText(staged, unstaged)
-		stagedNum, _ := git(r.Context(), meta.Workspace, "diff", "--cached", "--numstat")
-		unstagedNum, _ := git(r.Context(), meta.Workspace, "diff", "--numstat")
+		stagedNum, _ := git(ctx, dir, "diff", "--cached", "--numstat")
+		unstagedNum, _ := git(ctx, dir, "diff", "--numstat")
 		numstat = joinDiffText(stagedNum, unstagedNum)
 	}
 	resp["diff"] = diff
 	resp["numstat"] = numstat
-	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain", "--untracked-files=all"); ok {
+	if porcelain, ok := git(ctx, dir, "status", "--porcelain", "--untracked-files=all"); ok {
 		untracked := []string{} // never nil — the UI does .length on this
 		untrackedReasons := map[string]string{}
 		var extra bytes.Buffer // synthetic new-file diffs for untracked content
@@ -602,7 +656,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 			}
 			// Inline the content of small, regular, text files as a new-file
 			// diff so the UI shows it (git diff omits untracked entirely).
-			full := filepath.Join(meta.Workspace, path)
+			full := filepath.Join(dir, path)
 			if info, err := os.Stat(full); err == nil && info.Mode().IsRegular() && info.Size() <= 256*1024 {
 				if content, err := os.ReadFile(full); err == nil && !bytes.Contains(content, []byte{0}) {
 					if extra.Len()+len(content) > maxInlineUntrackedBytes {
@@ -641,7 +695,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		resp["untrackedReasons"] = untrackedReasons
 		resp["hiddenUntracked"] = hiddenUntracked
 	}
-	writeJSON(w, http.StatusOK, resp)
+	return resp
 }
 
 func hiddenUntrackedPath(path string) bool {

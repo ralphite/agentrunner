@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -348,5 +349,125 @@ func TestProjectCreateNormalizesToJournalSpelling(t *testing.T) {
 	}
 	if resp.Created.Folders[0] != real {
 		t.Fatalf("folder stored as %q, want journal spelling %q", resp.Created.Folders[0], real)
+	}
+}
+
+// TestNewSessionSpansProjectRoots (INC-105): starting a session inside a
+// declared multi-folder project passes every OTHER folder as --root, so the
+// journaled boundary is the whole project — no per-path approvals later.
+func TestNewSessionSpansProjectRoots(t *testing.T) {
+	dir := t.TempDir()
+	folderA := filepath.Join(dir, "app")
+	folderB := filepath.Join(dir, "docs")
+	for _, d := range []string{folderA, folderB} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	argsFile := filepath.Join(dir, "args")
+	s := &server{
+		arPath:     writeFakeAR(t, argsFile, "session 20260731-000000-multiroot"),
+		runtimeDir: filepath.Join(dir, "runtime"),
+		meta:       newMetaStore(""),
+		projects:   newProjectStore(filepath.Join(dir, "projects.json")),
+		spellings:  func(context.Context) map[string]string { return nil },
+	}
+	if _, err := s.projects.create("Orca", []string{folderA, folderB}); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"provider": "gemini", "model": "gemini-flash-latest", "effort": "medium",
+		"spec":      "name: dev\nsystem_prompt: t\ntools: []\n",
+		"workspace": folderA, "message": "hi", "mode": "default",
+	})
+	req := httptest.NewRequest("POST", "/api/sessions", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	s.handleNewSession(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "--root\n"+folderB+"\n") {
+		t.Fatalf("argv must span the project: %q", args)
+	}
+	// A workspace outside any project stays single-root.
+	loner := filepath.Join(dir, "loner")
+	if err := os.Mkdir(loner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body2, _ := json.Marshal(map[string]any{
+		"provider": "gemini", "model": "gemini-flash-latest", "effort": "medium",
+		"spec":      "name: dev\nsystem_prompt: t\ntools: []\n",
+		"workspace": loner, "message": "hi", "mode": "default",
+	})
+	if err := os.Remove(argsFile); err != nil {
+		t.Fatal(err)
+	}
+	req2 := httptest.NewRequest("POST", "/api/sessions", strings.NewReader(string(body2)))
+	req2.Header.Set("Content-Type", "application/json")
+	rr2 := httptest.NewRecorder()
+	s.handleNewSession(rr2, req2)
+	args2, _ := os.ReadFile(argsFile)
+	if strings.Contains(string(args2), "--root") {
+		t.Fatalf("a non-project workspace must not grow roots: %q", args2)
+	}
+}
+
+// TestDiffCoversEveryRoot (INC-105): the working-tree diff answers per root —
+// a change in root B is visible even though the session's primary is root A.
+func TestDiffCoversEveryRoot(t *testing.T) {
+	dir := t.TempDir()
+	rootA := filepath.Join(dir, "a")
+	rootB := filepath.Join(dir, "b")
+	mustGit := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	for _, d := range []string{rootA, rootB} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mustGit(d, "init", "-q")
+	}
+	if err := os.WriteFile(filepath.Join(rootA, "alpha.txt"), []byte("A\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "beta.txt"), []byte("B\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sid := "20260731-000000-multiroot-diff"
+	s := &server{meta: newMetaStore("")}
+	s.meta.merge(map[string]sessionMeta{sid: {Workspace: rootA, Roots: []string{rootA, rootB}}})
+
+	req := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
+	req.SetPathValue("sid", sid)
+	rr := httptest.NewRecorder()
+	s.handleDiff(rr, req)
+	var resp struct {
+		Diff  string `json:"diff"`
+		Roots []struct {
+			Root string `json:"root"`
+			Diff string `json:"diff"`
+		} `json:"roots"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, rr.Body.String())
+	}
+	// Top level stays the primary — untouched contract for old consumers.
+	if !strings.Contains(resp.Diff, "alpha.txt") || strings.Contains(resp.Diff, "beta.txt") {
+		t.Fatalf("top-level diff must be the primary's: %q", resp.Diff)
+	}
+	if len(resp.Roots) != 2 || resp.Roots[0].Root != rootA || resp.Roots[1].Root != rootB {
+		t.Fatalf("roots must list every root, primary first: %+v", resp.Roots)
+	}
+	if !strings.Contains(resp.Roots[1].Diff, "beta.txt") {
+		t.Fatalf("root B's change must be visible: %+v", resp.Roots[1])
 	}
 }

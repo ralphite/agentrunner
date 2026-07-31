@@ -154,6 +154,13 @@ func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), []string, e
 			return nil, func() {}, nil, fmt.Errorf("resolve sandbox temp: %w", err)
 		}
 		plan.Writable = append([]string{root, resolvedTmp}, gitMetadataPaths(root)...)
+		// Extra workspace roots (INC-105 multi-root projects) are part of the
+		// boundary, not exceptions to it: each is writable with its own
+		// linked-worktree git metadata, exactly like the primary.
+		for _, extra := range e.WS.ExtraRoots() {
+			plan.Writable = append(plan.Writable, extra)
+			plan.Writable = append(plan.Writable, gitMetadataPaths(extra)...)
+		}
 		// Paths the user approved reaching outside the workspace (LOG 2026-07-29).
 		// Without this, an approved `edit_file` on ~/.zshrc would succeed while the
 		// very next `bash` line touching the same file failed at the OS boundary —
@@ -161,7 +168,7 @@ func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), []string, e
 		// so a grant made mid-session applies from the next call with no restart.
 		// Moot under terminal parity, where nothing needed granting.
 		plan.Writable = append(plan.Writable, e.GrantedPaths()...)
-		plan.Denied = e.credentialDenies(root)
+		plan.Denied = e.credentialDenies()
 		env, withheld = sandboxEnvironment(resolvedTmp, e.Session, e.EnvPassthrough())
 	}
 	cmd, err := platformSandboxCommand(plan)
@@ -244,9 +251,15 @@ func sandboxEnvironment(home, session string, passthrough []string) (env, withhe
 // so this trims defense-in-depth entries, not the boundary itself.
 const maxCredentialDenies = 512
 
-// credentialDenies is the memoized credential deny list for this executor.
-func (e *Executor) credentialDenies(root string) []sandboxDeny {
-	e.credOnce.Do(func() { e.credPaths = credentialPaths(root) })
+// credentialDenies is the memoized credential deny list for this executor —
+// the union across every workspace root (INC-105): a writable extra root can
+// hold credential-shaped files exactly as the primary can.
+func (e *Executor) credentialDenies() []sandboxDeny {
+	e.credOnce.Do(func() {
+		for _, root := range e.WS.Roots() {
+			e.credPaths = append(e.credPaths, credentialPaths(root)...)
+		}
+	})
 	return e.credPaths
 }
 
