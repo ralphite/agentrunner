@@ -4,7 +4,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -91,6 +93,91 @@ func TestBackgroundWorkHandleAndOutcome(t *testing.T) {
 	}
 	if !sawOutcome {
 		t.Error("background outcome did not arrive as a user-role message")
+	}
+}
+
+// S6.2 e2e (timeout-to-background): a FOREGROUND bash that outruns its
+// window converts to background instead of dying — the call pairs with a
+// handle placeholder mid-batch, the turn continues, and the completed
+// result still arrives as a user-role message. The journal shows the
+// conversion fact between Started and Completed.
+func TestForegroundWindowConvertsE2E(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		// GenStep 1: a plain foreground bash whose command outlives the
+		// 200ms window — no background flag, no timeout_s.
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "cv1", Name: "bash",
+				Args: map[string]any{"command": "sleep 1; echo slow-done"}}},
+			{Finish: "tool_use"},
+		}},
+		// GenStep 2: the model sees the conversion placeholder, not a
+		// timeout error, and yields; the loop idles over the live handle.
+		{
+			Expect:  scripted.Expect{LastMessageContains: "converted to background work"},
+			Respond: []scripted.Event{{Text: "moved on, waiting"}, {Finish: "end_turn"}},
+		},
+		// GenStep 3: the outcome arrived as a user message; wrap up.
+		{
+			Expect:  scripted.Expect{LastMessageContains: "slow-done"},
+			Respond: []scripted.Event{{Text: "work finished, all done"}, {Finish: "end_turn"}},
+		},
+	}}
+	l := testLoop(t, fix, t.TempDir())
+	l.ForegroundWindow = 200 * time.Millisecond
+	// The durable window timer must actually fire: the harness's frozen
+	// fake clock never advances, so this test runs on the wall clock.
+	l.Clock = clock.Real{}
+
+	res, err := l.Run(context.Background(), "run a slow command")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v", res)
+	}
+
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawConvert, sawComplete bool
+	for _, e := range events {
+		if e.Type == event.TypeActivityBackgrounded && strings.Contains(string(e.Payload), "tool-cv1") {
+			sawConvert = true
+		}
+		if e.Type == event.TypeActivityCompleted && strings.Contains(string(e.Payload), "tool-cv1") {
+			sawComplete = true
+		}
+	}
+	if !sawConvert || !sawComplete {
+		t.Fatalf("convert=%v complete=%v", sawConvert, sawComplete)
+	}
+
+	fold, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fold.Handles) != 0 {
+		t.Errorf("handles sub-state not empty at end: %+v", fold.Handles)
+	}
+	// The conversion placeholder pairs the call; the real output arrives as
+	// a user-role message, exactly like an explicit background launch.
+	tr := fold.Conversation.ToolResults["cv1"]
+	if !strings.Contains(string(tr.Result), "running") ||
+		!strings.Contains(string(tr.Result), "converted to background work") {
+		t.Errorf("placeholder = %s", tr.Result)
+	}
+	var sawOutcome bool
+	for _, m := range fold.Conversation.Messages {
+		for _, p := range m.Parts {
+			if strings.Contains(p.Text, "background work cv1 completed") &&
+				strings.Contains(p.Text, "slow-done") {
+				sawOutcome = true
+			}
+		}
+	}
+	if !sawOutcome {
+		t.Error("converted work's outcome did not arrive as a user-role message")
 	}
 }
 

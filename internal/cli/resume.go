@@ -14,6 +14,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/config"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
@@ -144,35 +145,37 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	// config-merge path.
 	var pipe *pipeline.Pipeline
 	var hooks *hook.Runner
+	var merged config.Merged
 	if len(permLayers) > 0 {
 		var layers [][]pipeline.PermissionRule
 		if err := json.Unmarshal(permLayers, &layers); err != nil {
 			fmt.Fprintf(stderr, "agentrunner: journaled permission layers: %v\n", err)
 			return ExitRun
 		}
-		pipe, hooks, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+		pipe, hooks, merged, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
 	} else {
-		pipe, hooks, err = buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+		pipe, hooks, merged, err = buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return ExitRun
 	}
 	loop := &agent.Loop{
-		Spec:       &spec,
-		Provider:   prov,
-		Exec:       &tool.Executor{WS: ws, Session: sessionID},
-		Store:      events,
-		Clock:      clock.Real{},
-		Out:        newTextRenderer(stdout).anchor(sessionID),
-		SessionID:  sessionID,
-		Version:    version,
-		Interrupts: interrupts,
-		Pipeline:   pipe,
-		Hooks:      hooks,
-		Approvals:  approvalResolver(stderr),
-		Snapshots:  snapshotStoreFor(ws, stderr),
-		SpecPath:   specPath,
+		Spec:             &spec,
+		Provider:         prov,
+		Exec:             &tool.Executor{WS: ws, Session: sessionID},
+		Store:            events,
+		Clock:            clock.Real{},
+		Out:              newTextRenderer(stdout).anchor(sessionID),
+		SessionID:        sessionID,
+		Version:          version,
+		Interrupts:       interrupts,
+		Pipeline:         pipe,
+		Hooks:            hooks,
+		ForegroundWindow: merged.ForegroundWindow,
+		Approvals:        approvalResolver(stderr),
+		Snapshots:        snapshotStoreFor(ws, stderr),
+		SpecPath:         specPath,
 	}
 	if specPath != "" {
 		loop.SubSpecs = siblingSpecResolver(specPath, spec.Model, true)

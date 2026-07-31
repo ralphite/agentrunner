@@ -1,6 +1,6 @@
 {
   "name": "bash",
-  "description": "Run a shell command in the workspace root. Output is truncated if long; the command is killed on timeout. Use this for running commands (builds, tests, git); when a dedicated tool fits, prefer it over the bash equivalent — grep/glob/keyword_search to search, read_file to read — they stay inside the workspace boundary and give better results. There is no TTY: interactive commands (`git rebase -i`, editors, REPLs, prompts) hang until killed. Do not commit, push, or create branches unless the user asks.",
+  "description": "Run a shell command in the workspace root. Output is truncated if long. A command still running when its foreground window elapses is NOT killed — it converts to background work: you get a handle immediately and the full result arrives as a message, so a slow build or test suite always completes. Use this for running commands (builds, tests, git); when a dedicated tool fits, prefer it over the bash equivalent — grep/glob/keyword_search to search, read_file to read — they stay inside the workspace boundary and give better results. Never use `find` or `grep -r` to search a repository: they crawl node_modules/vendor/.git and can run for minutes on a large monorepo, while the built-in glob/grep/keyword_search skip those trees. There is no TTY: interactive commands (`git rebase -i`, editors, REPLs, prompts) hang until killed. Do not commit, push, or create branches unless the user asks.",
   "class": "execute",
   "input_schema": {
     "type": "object",
@@ -9,9 +9,13 @@
         "type": "string",
         "description": "The shell command to execute."
       },
+      "timeout_s": {
+        "type": "integer",
+        "description": "Foreground window override for this call, in seconds (clamped to [1, 3600]). The call blocks your turn at most this long; if the command is still running when it elapses, it converts to background work and the result arrives as a message. Set it when you know the command's cost: higher to wait synchronously for a known-slow command whose result you need before deciding anything, lower to bail out fast on something that might hang."
+      },
       "background": {
         "type": "boolean",
-        "description": "Run the command in the background: returns a work handle immediately; the result arrives as a message when it finishes."
+        "description": "Run the command in the background from the start: returns a work handle immediately; the result arrives as a message when it finishes. Prefer this over timeout_s for commands you already know are long (full test suites, installs, builds)."
       },
       "notify": {
         "type": "string",

@@ -107,6 +107,13 @@ const (
 	TypeScheduleWake      = "schedule_wake"
 	TypeCommandHandled    = "command_handled"
 
+	// S6.2 timeout-to-background: a foreground tool activity outran its
+	// foreground window and converted to background form instead of being
+	// killed. The fold pairs the call with a handle placeholder (exactly the
+	// ActivityStarted{Background} rendering) and the terminal event settles
+	// through the background path later.
+	TypeActivityBackgrounded = "activity_backgrounded"
+
 	// Series events (INC-77, E1③ stream 合流): a drive series recorded IN
 	// the session journal — the program-driven parent session form. The
 	// iteration CHILDREN are ordinary spawn facts (SpawnRequested /
@@ -344,6 +351,21 @@ type ActivityCompleted struct {
 	IsError    bool            `json:"is_error,omitempty"`
 	// HookNote carries post-tool hook output (3.8): audit-only, additive.
 	HookNote string `json:"hook_note,omitempty"`
+}
+
+// ActivityBackgrounded converts an in-flight FOREGROUND tool activity into
+// background form (S6.2 timeout-to-background): the command outran its
+// foreground window and keeps running instead of being killed. The fold
+// pairs the call with a handle placeholder immediately — the same rendering
+// as ActivityStarted{Background}, so Gemini's 1:1 call/result contract is
+// satisfied on the spot and never revisited — and moves the activity into
+// the handles sub-state; the terminal event arrives later through the
+// background settle path and renders as a user-role message.
+type ActivityBackgrounded struct {
+	ActivityID string `json:"activity_id"`
+	// Notice is the model-visible note rendered into the handle placeholder:
+	// why the call moved to the background and how to follow it.
+	Notice string `json:"notice,omitempty"`
 }
 
 // ErrorInfo is the journaled form of a classified error (2.8 taxonomy).
@@ -1218,6 +1240,7 @@ var Registry = map[string]func() any{
 	TypeAssistantMessage:      func() any { return &AssistantMessage{} },
 	TypeActivityStarted:       func() any { return &ActivityStarted{} },
 	TypeActivityCompleted:     func() any { return &ActivityCompleted{} },
+	TypeActivityBackgrounded:  func() any { return &ActivityBackgrounded{} },
 	TypeActivityFailed:        func() any { return &ActivityFailed{} },
 	TypeActivityCancelled:     func() any { return &ActivityCancelled{} },
 	TypeTimerSet:              func() any { return &TimerSet{} },

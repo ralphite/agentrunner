@@ -8373,3 +8373,53 @@ TestMultiRootSessionReachesExtraRootAndJournalsBoundary /
 TestSingleRootGenesisUnchangedByMultiRoot(agent)、
 TestNewSessionSpansProjectRoots / TestDiffCoversEveryRoot(webui)、
 DiffView.test.tsx「multi-root changes」。
+## 2026-07-31 前台超时从"处决"改为"转后台"：S6.2 timeout-to-background（决策 #45）
+
+**问题**（用户提出）：大 monorepo 里一条 `find` 能跑几分钟；一个测试套件能跑
+半小时——而 **agent 事先不知道**。旧语义下前台 bash 固定 120s SIGKILL：慢命令
+阻塞整个 turn 到超时、然后白跑被杀、模型再盲目重试（timeout 可重试 ×3 = 最坏
+6 分钟徒劳）。用户原始提案是"跑超 10s 自动转非阻塞"。
+
+**裁决**：转后台的触发点放在**超时时刻**而非独立的 10s 定时器——把"本来就要
+打断它"的时点从 kill 改成转化,窗口阈值即现有 per-tool/per-call timeout 体系,
+机制统一、参数自由。用户拍板激进档:默认窗口 **10s**（`foreground_window_s`
+可配,0=回退旧语义;bash per-call `timeout_s` 可覆盖,command tool 用 manifest
+timeout）。范围:bash + command tool（本地进程组,kill 真能杀掉);MCP 不转
+（杀不掉远端副作用,维持 120s cancel + outcome_unknown)。
+
+**为什么不是纯粹的"10s 自动转"**：wall-clock 阈值本身信息量低（10s 对
+`git status` 是挂死、对 `cargo build` 是刚热身），模型在知情时比运行时猜得准
+——所以三层：模型 per-call 声明 > 作者 manifest 声明 > 运行时默认兜底。真验里
+真 Gemini 两次主动用了 `timeout_s`（读到 sleep 25 后声明 35s 同步等；被告知
+"别等"后声明 3s 收窄再 kill）——引导层与兜底层各干各的活。
+
+**实现要点**：executor `runAttempt` 的 fired 分支从 cancelRun 换成:落
+`ActivityBackgrounded`（新事件）→ 移交在跑 attempt（cancel+outcome channel）
+给 bgRuntime → `Do` 返 `ErrBackgrounded` 哨兵、不落终态。fold 把在飞前台
+activity 翻成 background 形态（占位 handle 复用 `ActivityStarted{Background}`
+同一渲染），此后 settle/kill/output/resume/fork 与显式后台**零差异**。可转
+attempt 的 run ctx 从 batch interrupt scope 改挂 run ctx（Convert.Base）+
+AfterFunc 看门：窗口内 steer 照旧杀前台（cause 保留、短宽限不变），转化后
+看门随 runAttempt 返回而解除。前台 execute 从 t=0 挂 bgLog live tail（batch
+收尾时未转化的清掉），转化瞬间 `output` 即有真进度。journal 写不进
+`ActivityBackgrounded` 时回退 kill——工作不得活过"它为何还在跑"的记录。
+
+**顺手的伤害控制**：goal verifier 内部 bash 钉回 `executeToolTimeout`（不然
+10s 窗口会把验证命令转走）；`Loop` 零值 window=0 = 旧语义，既有测试与任何
+漏接线的宿主都安全回退；bash.json 描述点名 find/grep -r 慢、引导内置
+glob/grep/keyword_search（它们跳 node_modules/vendor/dist/.git——find 慢的
+根因是绕过了它们）。config 走 LargeWorkspace 同款 performance-knob 阶梯
+（project 赢 user，carve-out 理由同录）。
+
+**闸门**：check.sh 全绿（gotest 82s）+ 新增 executor/fold/loop e2e/config
+9 个测试。真机三场景（真 Gemini,共享 store,qa/runs/2026-07-31-timeout-to-
+background/）：①不知情慢命令 10s 整转化→`output` poll 到 tail→结果回灌→
+模型逐字报出 marker;②模型读脚本知情后主动 `timeout_s:35` 同步拿结果;
+③"别等"→模型 `timeout_s:3` 收窄→转化→`kill`→`activity_cancelled` 终态、
+进程组无孤儿。journal 链逐 seq 核对:started→timer_set(+10s 整)→timer_fired→
+activity_backgrounded→(completed|cancelled)。
+
+**已知边界**（接受,不修）：webui 前端暂不消费 `bg_output`（后端已镜像,
+前台 live tail 的前端渲染是独立的 UI 活）;replay/attach 对转化调用沿用
+显式后台的既有渲染（终态落在 call chip 上);DESIGN "后台 activity" bullet
+里 pgid/log_ref/blob store 的陈年文实落差不属本条范围。

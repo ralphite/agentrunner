@@ -510,6 +510,11 @@ generation step 预算（从最后一条输入起算,防单 turn runaway）。
   （与 token delta 同 doctrine）——已落地（audit-0717 B9）：running
   handle 的 `output` 回有界 tail，chunk 同时镜像为 ephemeral
   `bg_output` 事件，journal 恒以完成结果为 durable 真相。
+  **超时即转化（S6.2）**：前台 bash/command tool 跑满 foreground
+  window 时不 kill 而是就地转为后台形态（`ActivityBackgrounded`）——
+  "agent 不知道命令多慢"由运行时兜底：慢 find、半小时测试不再阻塞
+  turn，也不再白跑到超时被杀。前台 execute 调用从 t=0 就挂 live tail，
+  转化瞬间 `output` 即有真进度可答。
 
 ---
 
@@ -825,6 +830,20 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   输出重定向到 log_ref（完成时全量入 blob
   store，tail 截断后入 event）。取消、timeout、retry、redaction 语义
   与前台完全相同——不同的只是模型何时看到结果（见 §4）。
+- **超时转后台（S6.2 timeout-to-background）**：前台 bash/command tool
+  的超时到期动作是**转化而非处决**——executor 落 `ActivityBackgrounded`，
+  fold 当场产出占位 handle 结果（与 `ActivityStarted{Background}` 同一
+  渲染，1:1 配对当场满足、永不再动），activity 进 handles 子状态，在跑
+  的 attempt 连同 cancel 与 outcome 移交后台 runtime——此后与显式后台
+  完全同构（kill/output/settle/resume/fork 零新概念）。窗口阶梯：模型
+  per-call `timeout_s`（bash，[1s,1h] clamp）> command tool manifest
+  timeout > settings `foreground_window_s`（默认 10s；project 赢 user；
+  0 = 关闭转化，整体回退旧 kill 语义）。kill 语义保留给不可转工具
+  （MCP 杀不掉远端副作用，维持 120s cancel）与 goal verifier（内部
+  bash 钉 120s）；journal 写不进转化事实时也回退 kill——工作不得活过
+  "它为何还在跑"的记录。batch 的 steering interrupt 在窗口内仍按原语义
+  杀前台 attempt；已转化的工作不在 batch interrupt scope 上，只答
+  run ctx 与 handle 的 kill。
 - **协作取消是 activity 的一等能力**：activity 持有 cancel signal，
   被打断时记录 `ActivityCancelled{partial_output}`。跑了 10 分钟的 bash
   必须能被 Esc 杀掉——interrupt 语义建立在这之上。

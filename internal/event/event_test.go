@@ -38,6 +38,8 @@ var samples = map[string]any{
 		Error: ErrorInfo{Class: "provider_server", Message: "503", Retryable: true}, Attempt: 2},
 	TypeActivityCancelled: &ActivityCancelled{ActivityID: "tool-call_3_1", PartialOutput: "partial",
 		Usage: &provider.Usage{InputTokens: 40, OutputTokens: 10}},
+	TypeActivityBackgrounded: &ActivityBackgrounded{ActivityID: "tool-call_3_1",
+		Notice: "still running after 10s — converted to background work"},
 	TypeTimerSet: &TimerSet{TimerID: "tm-1",
 		FireAt: time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC), Purpose: "activity_timeout"},
 	TypeTimerFired:      &TimerFired{TimerID: "tm-1"},

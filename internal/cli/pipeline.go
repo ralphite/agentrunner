@@ -15,29 +15,30 @@ import (
 // buildPipeline assembles the effect pipeline — pre-hooks → permission →
 // budget — from the merged three-source configuration (3.4), the run mode
 // (3.6), and the budget (3.7). It also returns the hook runner for the
-// loop's post-tool hooks.
+// loop's post-tool hooks and the merged config itself, for the knobs the
+// Loop consumes directly (foreground window).
 func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
-	mode string, maxTokens int, stderr io.Writer) (*pipeline.Pipeline, *hook.Runner, error) {
+	mode string, maxTokens int, stderr io.Writer) (*pipeline.Pipeline, *hook.Runner, config.Merged, error) {
 
 	userPath, err := runtime.UserConfigPath()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	user, err := config.LoadFile(userPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	project, err := config.LoadProjectFile(runtime.ProjectConfigPath(ws.Root()))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	dataDir, err := runtime.DataDir()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	trusted, err := config.IsTrusted(dataDir, ws.Root())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	merged := config.Merge(user, project, specRules, trusted)
 	stampWorkspaceScale(ws, merged, stderr)
@@ -52,7 +53,7 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 		Dir:       ws.Root(),
 	}
 	return assemblePipeline(ws, [][]pipeline.PermissionRule{merged.Permissions},
-		runner, mode, maxTokens, stderr), runner, nil
+		runner, mode, maxTokens, stderr), runner, merged, nil
 }
 
 // buildPipelineFromLayers rebuilds a resumed session's pipeline from the
@@ -63,27 +64,27 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 // permissions mid-flight. Hooks still come from live config (they are code,
 // not materializable data).
 func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.PermissionRule,
-	mode string, maxTokens int, stderr io.Writer) (*pipeline.Pipeline, *hook.Runner, error) {
+	mode string, maxTokens int, stderr io.Writer) (*pipeline.Pipeline, *hook.Runner, config.Merged, error) {
 
 	userPath, err := runtime.UserConfigPath()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	user, err := config.LoadFile(userPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	project, err := config.LoadProjectFile(runtime.ProjectConfigPath(ws.Root()))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	dataDir, err := runtime.DataDir()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	trusted, err := config.IsTrusted(dataDir, ws.Root())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, config.Merged{}, err
 	}
 	merged := config.Merge(user, project, nil, trusted)
 	stampWorkspaceScale(ws, merged, stderr)
@@ -93,7 +94,7 @@ func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.Permis
 		Lifecycle: merged.Hooks.Lifecycle,
 		Dir:       ws.Root(),
 	}
-	return assemblePipeline(ws, layers, runner, mode, maxTokens, stderr), runner, nil
+	return assemblePipeline(ws, layers, runner, mode, maxTokens, stderr), runner, merged, nil
 }
 
 // stampWorkspaceScale resolves the large-workspace verdict once per run and

@@ -27,7 +27,7 @@ func TestBuildPipelineFromLayers(t *testing.T) {
 		{{Tool: "bash", Action: "deny"}, {Action: "allow"}},      // child
 	}
 	var errOut bytes.Buffer
-	pipe, _, err := buildPipelineFromLayers(ws, layers, "", 0, &errOut)
+	pipe, _, _, err := buildPipelineFromLayers(ws, layers, "", 0, &errOut)
 	if err != nil {
 		t.Fatal(err)
 	}

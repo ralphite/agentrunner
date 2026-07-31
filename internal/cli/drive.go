@@ -196,7 +196,7 @@ func driveAgent(opts driveOptions) int {
 	// first-match; the trailing allow is the DRIVER-TRUST layer — verifiers
 	// are spec-declared config (same trust level as spec permissions), so an
 	// unmatched verifier runs instead of hitting the interactive mode default.
-	verifierPipe, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, opts.stderr)
+	verifierPipe, _, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, opts.stderr)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitRun
@@ -220,7 +220,7 @@ func driveAgent(opts driveOptions) int {
 			if budgetTokens > 0 {
 				frozen.Budget.MaxTotalTokens = budgetTokens
 			}
-			pipe, hooks, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
+			pipe, hooks, merged, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
 				frozen.Budget.MaxTotalTokens, opts.stderr)
 			if perr != nil {
 				// Surfaced by the child run's immediate failure; the driver's
@@ -229,19 +229,20 @@ func driveAgent(opts driveOptions) int {
 			}
 			fmt.Fprintf(opts.stderr, "iteration %d (%s)\n", iter, session)
 			return &agent.Loop{
-				Spec:      &frozen,
-				Provider:  prov,
-				Exec:      &tool.Executor{WS: ws, Session: session},
-				Store:     cs,
-				Clock:     clock.Real{},
-				Out:       opts.sink,
-				SessionID: session,
-				Version:   opts.version,
-				Pipeline:  pipe,
-				Mode:      frozen.Mode,
-				Hooks:     hooks,
-				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, opts.allowLegacy),
+				Spec:             &frozen,
+				Provider:         prov,
+				Exec:             &tool.Executor{WS: ws, Session: session},
+				Store:            cs,
+				Clock:            clock.Real{},
+				Out:              opts.sink,
+				SessionID:        session,
+				Version:          opts.version,
+				Pipeline:         pipe,
+				Mode:             frozen.Mode,
+				Hooks:            hooks,
+				ForegroundWindow: merged.ForegroundWindow,
+				Approvals:        approvals,
+				SubSpecs:         siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, opts.allowLegacy),
 			}
 		},
 		// Best-of-N (schedule=parallel): the attempt's whole face — executor
@@ -257,26 +258,27 @@ func driveAgent(opts driveOptions) int {
 				fmt.Fprintln(opts.stderr, werr)
 				wtWS = ws // surfaced by the attempt's failure; never nil-deref
 			}
-			pipe, hooks, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
+			pipe, hooks, merged, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
 				frozen.Budget.MaxTotalTokens, opts.stderr)
 			if perr != nil {
 				fmt.Fprintln(opts.stderr, perr)
 			}
 			fmt.Fprintf(opts.stderr, "attempt %d (%s) in %s\n", iter, session, worktree)
 			return &agent.Loop{
-				Spec:      &frozen,
-				Provider:  prov,
-				Exec:      &tool.Executor{WS: wtWS, Session: session},
-				Store:     cs,
-				Clock:     clock.Real{},
-				Out:       opts.sink,
-				SessionID: session,
-				Version:   opts.version,
-				Pipeline:  pipe,
-				Mode:      frozen.Mode,
-				Hooks:     hooks,
-				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, opts.allowLegacy),
+				Spec:             &frozen,
+				Provider:         prov,
+				Exec:             &tool.Executor{WS: wtWS, Session: session},
+				Store:            cs,
+				Clock:            clock.Real{},
+				Out:              opts.sink,
+				SessionID:        session,
+				Version:          opts.version,
+				Pipeline:         pipe,
+				Mode:             frozen.Mode,
+				Hooks:            hooks,
+				ForegroundWindow: merged.ForegroundWindow,
+				Approvals:        approvals,
+				SubSpecs:         siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, opts.allowLegacy),
 			}
 		},
 	}

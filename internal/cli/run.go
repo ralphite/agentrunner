@@ -213,30 +213,31 @@ func runAgent(opts runOptions) int {
 	if opts.mode != "" {
 		mode = opts.mode
 	}
-	pipe, hooks, err := buildPipeline(ws, spec.Permissions, mode, spec.Budget.MaxTotalTokens, opts.stderr)
+	pipe, hooks, merged, err := buildPipeline(ws, spec.Permissions, mode, spec.Budget.MaxTotalTokens, opts.stderr)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitRun
 	}
 
 	loop := &agent.Loop{
-		Spec:           spec,
-		Provider:       prov,
-		Exec:           &tool.Executor{WS: ws, Session: sessionID},
-		Store:          events,
-		Clock:          clock.Real{},
-		Out:            opts.sink,
-		SessionID:      sessionID,
-		Version:        opts.version,
-		Interrupts:     interrupts,
-		Pipeline:       pipe,
-		Mode:           mode,
-		Hooks:          hooks,
-		Approvals:      approvalResolver(opts.stderr),
-		SubSpecs:       siblingSpecResolver(specRef, spec.Model, false),
-		SpecPath:       specRef,
-		Snapshots:      snapshotStoreFor(ws, opts.stderr),
-		DurableOpening: true,
+		Spec:             spec,
+		Provider:         prov,
+		Exec:             &tool.Executor{WS: ws, Session: sessionID},
+		Store:            events,
+		Clock:            clock.Real{},
+		Out:              opts.sink,
+		SessionID:        sessionID,
+		Version:          opts.version,
+		Interrupts:       interrupts,
+		Pipeline:         pipe,
+		Mode:             mode,
+		Hooks:            hooks,
+		ForegroundWindow: merged.ForegroundWindow,
+		Approvals:        approvalResolver(opts.stderr),
+		SubSpecs:         siblingSpecResolver(specRef, spec.Model, false),
+		SpecPath:         specRef,
+		Snapshots:        snapshotStoreFor(ws, opts.stderr),
+		DurableOpening:   true,
 	}
 	result, runErr := loop.Run(ctx, opts.prompt)
 

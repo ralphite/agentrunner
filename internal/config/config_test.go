@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/pipeline"
 )
@@ -218,5 +219,38 @@ func TestSharedConfigWritersLoseNoRulesOrTrustEntries(t *testing.T) {
 		if ok, err := IsTrusted(data, ws); err != nil || !ok {
 			t.Errorf("IsTrusted(%s) = %v, %v", ws, ok, err)
 		}
+	}
+}
+
+// S6.2: foreground_window_s resolves with the LargeWorkspace ladder —
+// built-in 10s default, user overridden by project, 0 = disable, negatives
+// rejected at load.
+func TestForegroundWindowConfig(t *testing.T) {
+	if got := Merge(Settings{}, Settings{}, nil, false).ForegroundWindow; got != 10*time.Second {
+		t.Fatalf("default window = %v, want 10s", got)
+	}
+	sec := func(n int) *int { return &n }
+	if got := Merge(Settings{ForegroundWindowS: sec(60)}, Settings{}, nil, false).ForegroundWindow; got != time.Minute {
+		t.Fatalf("user window = %v, want 1m", got)
+	}
+	got := Merge(Settings{ForegroundWindowS: sec(60)}, Settings{ForegroundWindowS: sec(0)}, nil, false).ForegroundWindow
+	if got != 0 {
+		t.Fatalf("project 0 must win and disable, got %v", got)
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.yaml")
+	if err := os.WriteFile(path, []byte("foreground_window_s: 30\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadFile(path)
+	if err != nil || s.ForegroundWindowS == nil || *s.ForegroundWindowS != 30 {
+		t.Fatalf("LoadFile = %+v, %v", s.ForegroundWindowS, err)
+	}
+	if err := os.WriteFile(path, []byte("foreground_window_s: -5\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFile(path); err == nil {
+		t.Fatal("negative foreground_window_s must be rejected")
 	}
 }

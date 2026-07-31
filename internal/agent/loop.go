@@ -136,6 +136,14 @@ type Loop struct {
 	// tree (0 = root); the spawn gate caps it.
 	SubSpecs SubSpecResolver
 	Depth    int
+	// ForegroundWindow bounds how long a convertible tool call (bash and
+	// command tools — local process groups the handle's kill can actually
+	// stop) may block its batch before converting to background work (S6.2
+	// timeout-to-background). <= 0 disables conversion and restores the
+	// legacy kill timeout everywhere — the zero value keeps old semantics
+	// for direct constructions (tests). Hosts set it from merged settings
+	// (foreground_window_s, default 10s).
+	ForegroundWindow time.Duration
 	// Board is the agent tree's shared blackboard (S5.4): created at the
 	// root when the spec whitelists agents, inherited by every child. The
 	// store is ephemeral runtime state — durable influence flows through
@@ -2139,6 +2147,10 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	// SECOND is rejected model-visibly, because decide() must reach a single
 	// WAITING_INPUT — two parked questions have no well-defined resolution.
 	var askCall *provider.ToolCall
+	// fgLogs tracks convertible calls' live tails (allowed-index → callID):
+	// registered before execution so a conversion has the tail from t=0,
+	// released after the batch for calls that finished inside their window.
+	fgLogs := map[int]string{}
 	for i, p := range allowed {
 		if p.call.Name == "ask_user" {
 			if askCall == nil {
@@ -2284,14 +2296,23 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				return res.Payload, nil, res.IsError, nil
 			}
 		}
-		acts = append(acts, Activity{
+		a := Activity{
 			ID: "tool-" + p.call.CallID, Kind: event.KindTool,
 			Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
 			Idempotent: toolIdempotentIn(ds.s, p.call.Name),
-			Timeout:    toolTimeoutIn(ds.s, p.call.Name),
 			Run:        run,
 			PostRun:    l.buildPostRun(p.call),
-		})
+		}
+		window, convertible := l.toolWindow(ds.s, p.call)
+		a.Timeout = window
+		if convertible {
+			// The batch may hand this call to the background runtime when
+			// its window fires (S6.2); ctx — the RUN's, same as an explicit
+			// background launch — is what the converted work lives on.
+			l.armConvert(ctx, &a, window)
+			fgLogs[i] = p.call.CallID
+		}
+		acts = append(acts, a)
 		actIdx = append(actIdx, i)
 	}
 	var wg sync.WaitGroup
@@ -2304,6 +2325,18 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	}
 	wg.Wait()
 	stopInt()
+
+	// Release foreground live tails for calls that finished inside their
+	// window; converted calls keep theirs — the background settle owns them.
+	if len(fgLogs) > 0 {
+		l.bg.mu.Lock()
+		for i, callID := range fgLogs {
+			if !errors.Is(errsOut[i], ErrBackgrounded) {
+				delete(l.bg.logs, callID)
+			}
+		}
+		l.bg.mu.Unlock()
+	}
 
 	// All goroutines joined: ds.s is safe to read again. Process outcomes in
 	// call order (surface ordering; the journal already holds arrival order).
@@ -2320,6 +2353,20 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			continue
 		}
 		err := errsOut[i]
+		if errors.Is(err, ErrBackgrounded) {
+			// Converted mid-batch (S6.2): the fold already paired the call
+			// with its handle placeholder — emit that, exactly like an
+			// explicit background launch; the terminal arrives later as a
+			// message. This runs BEFORE the interrupted branch on purpose:
+			// a converted call's result stays the handle even when the rest
+			// of the batch was steered ("已配对的后台工作是 interrupt 的例外").
+			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
+					Tool: p.call.Name, CallID: p.call.CallID,
+					Result: compact(tr.Result), IsError: tr.IsError})
+			}
+			continue
+		}
 		if err == nil {
 			l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 				Tool: p.call.Name, CallID: p.call.CallID,
@@ -3406,6 +3453,100 @@ func toolTimeoutIn(s state.State, name string) time.Duration {
 		return executeToolTimeout
 	}
 	return 0
+}
+
+// toolWindow resolves one call's foreground window (S6.2): how long it may
+// block the batch, and whether outrunning the window CONVERTS it to
+// background work instead of killing it. Convertible tools are bash and
+// command tools — local process groups the handle's kill can actually stop;
+// everything else (MCP, network fetches) keeps the kill timeout from
+// toolTimeoutIn. The window is, in precedence order: the model's per-call
+// timeout_s (bash — it may know the command's cost better than any
+// default), the command tool's manifest timeout (the author's declared
+// blocking budget), then the host's ForegroundWindow. ForegroundWindow <= 0
+// disables conversion entirely and restores legacy kill semantics.
+func (l *Loop) toolWindow(s state.State, call provider.ToolCall) (time.Duration, bool) {
+	name := tool.Canonical(call.Name)
+	if l.ForegroundWindow <= 0 {
+		return toolTimeoutIn(s, name), false
+	}
+	if name == "bash" {
+		if t := bashWindowArg(call.Args); t > 0 {
+			return t, true
+		}
+		return l.ForegroundWindow, true
+	}
+	if ct, ok := commandToolIn(s, name); ok {
+		if ct.TimeoutS > 0 {
+			return time.Duration(ct.TimeoutS) * time.Second, true
+		}
+		return l.ForegroundWindow, true
+	}
+	return toolTimeoutIn(s, name), false
+}
+
+// bashWindowArg reads a bash call's per-call foreground window override
+// (timeout_s, clamped to [1s, 1h]). 0 = not set.
+func bashWindowArg(rawArgs json.RawMessage) time.Duration {
+	var a struct {
+		TimeoutS float64 `json:"timeout_s"`
+	}
+	_ = json.Unmarshal(rawArgs, &a)
+	if a.TimeoutS <= 0 {
+		return 0
+	}
+	d := time.Duration(a.TimeoutS * float64(time.Second))
+	if d < time.Second {
+		return time.Second
+	}
+	if d > time.Hour {
+		return time.Hour
+	}
+	return d
+}
+
+// armConvert wires timeout-to-background (S6.2) onto one convertible tool
+// activity: a live tail buffer from t=0 (so the handle's `output` answers
+// with real progress the moment the call converts, and the surface sees
+// foreground chunks as the same ephemeral bg_output stream) plus the
+// Convert spec whose HandOff moves the running attempt into the background
+// runtime. base is the RUN's ctx — converted work outlives the batch,
+// exactly like an explicit background launch. Drive-goroutine only (map
+// registration races otherwise).
+func (l *Loop) armConvert(base context.Context, a *Activity, window time.Duration) {
+	l.ensureBackground()
+	callID, activityID := a.CallID, a.ID
+	log := &bgLog{}
+	l.bg.mu.Lock()
+	l.bg.logs[callID] = log
+	l.bg.mu.Unlock()
+	inner := a.Run
+	a.Run = func(rc context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+		rc = tool.WithLiveOutput(rc, func(chunk []byte) {
+			log.append(chunk)
+			l.emit(protocol.Event{Kind: protocol.KindBgOutput, CallID: callID,
+				Text: redact.FromEnv().String(string(chunk))})
+		})
+		return inner(rc)
+	}
+	a.Convert = &ConvertSpec{
+		Base: base,
+		Notice: fmt.Sprintf("still running after %s — converted to background work; "+
+			"the full result arrives as a message when it finishes. Use output to see "+
+			"progress or kill to stop it; no need to poll or sleep — continue other "+
+			"work or end your turn.", window.Truncate(time.Millisecond)),
+		HandOff: func(cancel context.CancelCauseFunc, outcome <-chan ConvertOutcome) {
+			l.bg.mu.Lock()
+			l.bg.cancel[callID] = cancel
+			l.bg.mu.Unlock()
+			go func() {
+				o := <-outcome
+				l.bg.done <- bgOutcome{handle: callID, activityID: activityID,
+					result: o.Result, usage: o.Usage, isError: o.IsError,
+					err: o.Err, canceled: o.Canceled}
+			}()
+		},
+	}
 }
 
 // FirePendingTimers is the resume-side timer sweep (2.13 calls it): every

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -39,7 +40,19 @@ type Settings struct {
 	// value simply wins (a monorepo's scale is a property of the repo, and
 	// the repo is who knows it). LOG 决策 records this carve-out.
 	LargeWorkspace LargeWorkspaceSpec `yaml:"large_workspace,omitempty"`
+	// ForegroundWindowS bounds how long a bash/command-tool call may block
+	// its turn before converting to background work (S6.2
+	// timeout-to-background), in seconds. 0 disables conversion — calls
+	// then keep the legacy kill-on-timeout. Absent = the built-in default
+	// (10s). The same performance-knob carve-out as LargeWorkspace: a
+	// repo knows its own command latency (slow test suites), so the
+	// project value simply wins.
+	ForegroundWindowS *int `yaml:"foreground_window_s,omitempty"`
 }
+
+// defaultForegroundWindowS is the built-in timeout-to-background window
+// (seconds) when no settings source says otherwise.
+const defaultForegroundWindowS = 10
 
 // LargeWorkspaceSpec configures the wsprobe gate.
 //
@@ -78,6 +91,9 @@ type Merged struct {
 	// Threshold is already defaulted, so callers pass it straight through.
 	LargeWorkspaceThreshold int
 	LargeWorkspaceMode      string
+	// ForegroundWindow is the resolved timeout-to-background window (S6.2),
+	// already defaulted; 0 disables conversion (legacy kill semantics).
+	ForegroundWindow time.Duration
 }
 
 // LoadFile reads one settings.yaml strictly (unknown keys are errors).
@@ -123,6 +139,9 @@ func LoadFile(path string) (Settings, error) {
 	}
 	if t := s.LargeWorkspace.Threshold; t != nil && *t < 0 {
 		return Settings{}, fmt.Errorf("settings %s: large_workspace.threshold: must be >= 0 (0 turns the gate off), got %d", path, *t)
+	}
+	if v := s.ForegroundWindowS; v != nil && *v < 0 {
+		return Settings{}, fmt.Errorf("settings %s: foreground_window_s: must be >= 0 (0 disables timeout-to-background), got %d", path, *v)
 	}
 	return s, nil
 }
@@ -190,6 +209,14 @@ func Merge(user, project Settings, specRules []pipeline.PermissionRule, projectT
 		}
 		if s.Mode != "" {
 			m.LargeWorkspaceMode = s.Mode
+		}
+	}
+	// Foreground window: same trust-independent ladder (see the Settings
+	// field) — project wins over user, both over the built-in default.
+	m.ForegroundWindow = defaultForegroundWindowS * time.Second
+	for _, s := range []Settings{user, project} {
+		if s.ForegroundWindowS != nil {
+			m.ForegroundWindow = time.Duration(*s.ForegroundWindowS) * time.Second
 		}
 	}
 	return m

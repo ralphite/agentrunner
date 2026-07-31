@@ -426,7 +426,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 		if req.Mode != "" {
 			mode = req.Mode
 		}
-		pipe, hooks, err := buildPipeline(ws, spec.Permissions, mode, spec.Budget.MaxTotalTokens, stderr)
+		pipe, hooks, merged, err := buildPipeline(ws, spec.Permissions, mode, spec.Budget.MaxTotalTokens, stderr)
 		if err != nil {
 			return err
 		}
@@ -443,6 +443,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Pipeline:          pipe,
 			Mode:              mode,
 			Hooks:             hooks,
+			ForegroundWindow:  merged.ForegroundWindow,
 			Approvals:         socketApprovals{broker: broker, session: req.SessionID, sink: sink},
 			SubSpecs:          siblingSpecResolver(specRef, spec.Model, false),
 			SpecPath:          specRef,
@@ -800,32 +801,34 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 
 		var pipe *pipeline.Pipeline
 		var hooks *hook.Runner
+		var merged config.Merged
 		if len(permLayers) > 0 {
 			var layers [][]pipeline.PermissionRule
 			if err := json.Unmarshal(permLayers, &layers); err != nil {
 				return fmt.Errorf("journaled permission layers: %w", err)
 			}
-			pipe, hooks, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+			pipe, hooks, merged, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
 		} else {
-			pipe, hooks, err = buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+			pipe, hooks, merged, err = buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
 		}
 		if err != nil {
 			return err
 		}
 		loop := &agent.Loop{
-			Spec:      &spec,
-			Provider:  prov,
-			Judge:     prov,
-			Exec:      &tool.Executor{WS: ws, Session: sessionID},
-			Store:     events,
-			Clock:     clock.Real{},
-			Out:       sink,
-			SessionID: sessionID,
-			Version:   version,
-			Pipeline:  pipe,
-			Hooks:     hooks,
-			Approvals: socketApprovals{broker: broker, session: sessionID, sink: sink},
-			Snapshots: snapshotStoreFor(ws, stderr),
+			Spec:             &spec,
+			Provider:         prov,
+			Judge:            prov,
+			Exec:             &tool.Executor{WS: ws, Session: sessionID},
+			Store:            events,
+			Clock:            clock.Real{},
+			Out:              sink,
+			SessionID:        sessionID,
+			Version:          version,
+			Pipeline:         pipe,
+			Hooks:            hooks,
+			ForegroundWindow: merged.ForegroundWindow,
+			Approvals:        socketApprovals{broker: broker, session: sessionID, sink: sink},
+			Snapshots:        snapshotStoreFor(ws, stderr),
 		}
 		// Every revived session gets the live channels (决策 #31: only one
 		// session shape) — it accepts send/interrupt/kill like a freshly
@@ -1196,7 +1199,7 @@ func assembleHostedDriver(ctx context.Context, version, specPath string, spec *d
 	exec := &tool.Executor{WS: ws, Session: sessionID}
 	// Same verifier-adjudication construction as the foreground drive:
 	// user/project rules first, trailing driver-trust allow.
-	verifierPipe, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, stderr)
+	verifierPipe, _, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, stderr)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
@@ -1218,26 +1221,27 @@ func assembleHostedDriver(ctx context.Context, version, specPath string, spec *d
 			if budgetTokens > 0 {
 				frozen.Budget.MaxTotalTokens = budgetTokens
 			}
-			pipe, hooks, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
+			pipe, hooks, merged, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
 				frozen.Budget.MaxTotalTokens, stderr)
 			if perr != nil {
 				fmt.Fprintln(stderr, perr)
 			}
 			return &agent.Loop{
-				Spec:      &frozen,
-				Provider:  prov,
-				Judge:     prov,
-				Exec:      &tool.Executor{WS: ws, Session: session},
-				Store:     cs,
-				Clock:     clock.Real{},
-				Out:       childLifecycleFilter{inner: sink},
-				SessionID: session,
-				Version:   version,
-				Pipeline:  pipe,
-				Mode:      frozen.Mode,
-				Hooks:     hooks,
-				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, specPath == ""),
+				Spec:             &frozen,
+				Provider:         prov,
+				Judge:            prov,
+				Exec:             &tool.Executor{WS: ws, Session: session},
+				Store:            cs,
+				Clock:            clock.Real{},
+				Out:              childLifecycleFilter{inner: sink},
+				SessionID:        session,
+				Version:          version,
+				Pipeline:         pipe,
+				Mode:             frozen.Mode,
+				Hooks:            hooks,
+				ForegroundWindow: merged.ForegroundWindow,
+				Approvals:        approvals,
+				SubSpecs:         siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, specPath == ""),
 			}
 		},
 		// Best-of-N (schedule=parallel): attempt face binds to its worktree.
@@ -1252,26 +1256,27 @@ func assembleHostedDriver(ctx context.Context, version, specPath string, spec *d
 				fmt.Fprintln(stderr, werr)
 				wtWS = ws
 			}
-			pipe, hooks, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
+			pipe, hooks, merged, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
 				frozen.Budget.MaxTotalTokens, stderr)
 			if perr != nil {
 				fmt.Fprintln(stderr, perr)
 			}
 			return &agent.Loop{
-				Spec:      &frozen,
-				Provider:  prov,
-				Judge:     prov,
-				Exec:      &tool.Executor{WS: wtWS, Session: session},
-				Store:     cs,
-				Clock:     clock.Real{},
-				Out:       childLifecycleFilter{inner: sink},
-				SessionID: session,
-				Version:   version,
-				Pipeline:  pipe,
-				Mode:      frozen.Mode,
-				Hooks:     hooks,
-				Approvals: approvals,
-				SubSpecs:  siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, specPath == ""),
+				Spec:             &frozen,
+				Provider:         prov,
+				Judge:            prov,
+				Exec:             &tool.Executor{WS: wtWS, Session: session},
+				Store:            cs,
+				Clock:            clock.Real{},
+				Out:              childLifecycleFilter{inner: sink},
+				SessionID:        session,
+				Version:          version,
+				Pipeline:         pipe,
+				Mode:             frozen.Mode,
+				Hooks:            hooks,
+				ForegroundWindow: merged.ForegroundWindow,
+				Approvals:        approvals,
+				SubSpecs:         siblingSpecResolver(spec.AgentSpecPath, spec.Agent.Model, specPath == ""),
 			}
 		},
 	}

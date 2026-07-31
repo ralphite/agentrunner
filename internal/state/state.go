@@ -952,6 +952,32 @@ func Apply(s State, env event.Envelope) (State, error) {
 				ToolResult{Result: handle})
 		}
 
+	case *event.ActivityBackgrounded:
+		// Timeout-to-background (S6.2): a foreground tool call outran its
+		// window and converts to background form. From here on it is
+		// indistinguishable from an explicit ActivityStarted{Background}
+		// launch — the terminal folds (Completed/Failed/Cancelled) see
+		// Background on the in-flight entry and settle through the handle
+		// path: remove from Handles, render the outcome as a user message.
+		started, inFlight := s.Activities[p.ActivityID]
+		if !inFlight || started.Kind != event.KindTool ||
+			started.CallID == "" || started.Background {
+			break
+		}
+		started.Background = true
+		started.Notice = p.Notice
+		s.Activities = s.Activities.with(p.ActivityID, started)
+		s.Handles = s.Handles.with(started.CallID, started)
+		handlePayload := map[string]string{
+			"handle": started.CallID, "status": "running",
+		}
+		if p.Notice != "" {
+			handlePayload["note"] = p.Notice
+		}
+		handle, _ := json.Marshal(handlePayload)
+		s.Conversation = s.Conversation.withToolResult(started.CallID,
+			ToolResult{Result: handle})
+
 	case *event.ActivityCompleted:
 		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)

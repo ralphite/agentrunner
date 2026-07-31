@@ -47,6 +47,46 @@ type Activity struct {
 	// it to journal GenerationDiscarded and signal the surface to reopen the
 	// stream when deltas were already emitted.
 	DiscardOnRetry func() error
+	// Convert opts the activity into timeout-to-background (S6.2): the
+	// timer firing journals ActivityBackgrounded and hands the still-running
+	// attempt over instead of killing it. nil keeps the kill semantics.
+	Convert *ConvertSpec
+}
+
+// ErrBackgrounded is Do's report that the attempt converted to background
+// work instead of finishing (S6.2 timeout-to-background): no terminal event
+// was journaled — the background settle path owns that — and the call is
+// already paired with its handle placeholder in the fold. Callers treat it
+// as "the batch is done with this call", never as a failure.
+var ErrBackgrounded = errors.New("activity converted to background work")
+
+// ConvertOutcome is a converted attempt's eventual terminal report,
+// delivered on the channel ConvertSpec.HandOff received; the background
+// runtime forwards it to the settle path, which journals the terminal the
+// executor deliberately did not.
+type ConvertOutcome struct {
+	Result   json.RawMessage
+	Usage    *provider.Usage
+	IsError  bool
+	Err      error
+	Canceled bool
+}
+
+// ConvertSpec configures timeout-to-background for one activity (S6.2).
+type ConvertSpec struct {
+	// Base is the context the run derives from INSTEAD of the ctx passed to
+	// Do — the run's lifetime, so converted work survives the batch. While
+	// the attempt is still foreground the batch ctx cancels it all the same
+	// (a steering interrupt kills as before, cause preserved); after the
+	// conversion the work answers only to Base and the handle's kill.
+	Base context.Context
+	// Notice is journaled into ActivityBackgrounded and rendered into the
+	// handle placeholder the model sees.
+	Notice string
+	// HandOff transfers the running attempt at conversion time: cancel
+	// reaches the run (the handle's kill path), outcome yields its terminal
+	// report. Called on the activity goroutine, exactly once.
+	HandOff func(cancel context.CancelCauseFunc, outcome <-chan ConvertOutcome)
 }
 
 // ActivityExecutor is the single path every side effect takes (2.10).
@@ -86,6 +126,13 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 		}
 
 		result, usage, isError, err, timedOut := x.runAttempt(ctx, act, attempt)
+		if errors.Is(err, ErrBackgrounded) {
+			// The attempt converted to background work (S6.2): the journal
+			// holds Started + ActivityBackgrounded, the terminal settles
+			// later through the background path. No terminal here, no retry
+			// — report the conversion to the caller.
+			return err
+		}
 		if timedOut && err != nil && isCancellation(err) {
 			// The run surfaced OUR cancellation as an error: the true class
 			// is timeout (retryable), not canceled. Errors that do not
@@ -174,8 +221,27 @@ func (x *ActivityExecutor) runAttempt(ctx context.Context, act Activity, attempt
 		return nil, nil, false, err, false
 	}
 
-	runCtx, cancelRun := context.WithCancelCause(ctx)
-	defer cancelRun(nil)
+	// A convertible attempt (S6.2) derives its run ctx from Convert.Base —
+	// the run's lifetime — so the work survives the batch after a handoff.
+	// While it is still foreground, the batch ctx cancels it all the same:
+	// the watcher propagates the cancellation WITH its cause (a steering
+	// interrupt's short kill grace depends on it) and is detached on return,
+	// which is exactly the handoff boundary.
+	base := ctx
+	if act.Convert != nil && act.Convert.Base != nil {
+		base = act.Convert.Base
+	}
+	handedOff := false
+	runCtx, cancelRun := context.WithCancelCause(base)
+	defer func() {
+		if !handedOff {
+			cancelRun(nil)
+		}
+	}()
+	if base != ctx {
+		stop := context.AfterFunc(ctx, func() { cancelRun(context.Cause(ctx)) })
+		defer stop()
+	}
 	waitCtx, cancelWait := context.WithCancel(ctx)
 	defer cancelWait()
 
@@ -212,6 +278,32 @@ func (x *ActivityExecutor) runAttempt(ctx context.Context, act Activity, attempt
 			cancelRun(errs.ErrActivityTimeout)
 			<-outc
 			return nil, nil, false, err, false
+		}
+		if act.Convert != nil {
+			// Timeout-to-background (S6.2): the window elapsing converts
+			// the attempt instead of killing it. Journal the conversion
+			// (the fold pairs the call with its handle placeholder on this
+			// very append), hand the running attempt — its cancel and its
+			// eventual outcome — to the background runtime, and return
+			// without a terminal event. A journal that cannot record the
+			// conversion falls back to the kill: the work must not outlive
+			// the record of why it is still running.
+			if _, err := x.Append(event.TypeActivityBackgrounded, &event.ActivityBackgrounded{
+				ActivityID: act.ID, Notice: act.Convert.Notice,
+			}); err != nil {
+				cancelRun(errs.ErrActivityTimeout)
+				<-outc
+				return nil, nil, false, err, false
+			}
+			handedOff = true
+			conv := make(chan ConvertOutcome, 1)
+			go func() {
+				out := <-outc
+				conv <- ConvertOutcome{Result: out.result, Usage: out.usage,
+					IsError: out.isError, Err: out.err, Canceled: runCtx.Err() != nil}
+			}()
+			act.Convert.HandOff(cancelRun, conv)
+			return nil, nil, false, ErrBackgrounded, false
 		}
 		cancelRun(errs.ErrActivityTimeout)
 		out := <-outc // bounded drain: effect impls kill their process groups on cancel
