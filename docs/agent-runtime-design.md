@@ -315,9 +315,10 @@ and you void the signature), and summaries naturally carry no signature. The
 shared doctrine: the journal keeps everything (truth); **only the assembled
 view degrades** — fold to a seq, get that view.
 
-**Effect pipeline**: every side effect is an effect flowing through one
-adjudication line — hooks, permissions, approvals, budgets are gates on one
-pipeline, not four subsystems:
+**Effect pipeline**: every side effect — the model call, tool calls, spawn,
+publishing an Outcome — is an effect flowing through one adjudication line;
+hooks, permissions, approvals, budgets are gates on one pipeline, not four
+subsystems:
 
 ```
 effect → [1] Floor      hard floor (escape / credentials / read-only mode):
@@ -348,6 +349,13 @@ effect → [1] Floor      hard floor (escape / credentials / read-only mode):
   gates — budget reserves on estimate (e.g. max output tokens), settles on
   normalized actual usage, and the per-turn step cap is enforced at this gate;
   retry/backoff is this activity's data-defined policy (§11).
+- **Spawn is an effect too — the largest one a model can propose**: it creates
+  an autonomous actor. Permission answers "may you"; the Spawn gate answers
+  "does the tree have room" (depth/fan-out — pure shape adjudication, hence
+  placed before hooks); reserve-at-spawn lives at the budget gate (§5); and
+  the verdicts land in the journal like any effect. A bypass would need a
+  second authorization, budgeting, and audit path — the "four subsystems"
+  anti-pattern.
 - **Every gate outcome defines what the model sees**: deny / block / rejection
   / failure all render as error tool results and the loop continues; only
   session-level budget exhaustion ends gracefully (a final message to wrap up,

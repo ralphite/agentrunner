@@ -247,8 +247,9 @@ state → provider 请求的全部渲染（system prompt 拼装、tool/skill/子
 共同 doctrine：journal 留全量（truth），**只有装配视图降级**——fold 到哪个
 seq 就得到哪个视图。
 
-**Effect pipeline**：每个副作用都是一个 effect，流经同一条管线——hooks、
-permission、审批、预算不是四个子系统：
+**Effect pipeline**：每个副作用——模型调用、工具调用、spawn、发布 Outcome
+——都是一个 effect，流经同一条管线；hooks、permission、审批、预算不是四个
+子系统：
 
 ```
 effect → [1] Floor      硬底线（越界 / 凭据 / 只读模式）：纯判定，直接 deny
@@ -272,6 +273,11 @@ effect → [1] Floor      硬底线（越界 / 凭据 / 只读模式）：纯判
 - **模型调用本身也是 effect**：每个 generation step 过同一排关卡——budget
   按预估预留（如 max output tokens）、按归一化实际 usage 结算，per-turn 的
   step 上限也在这道关卡执行；重试/退避是这个 activity 的数据化策略（§11）。
+- **spawn 也是 effect——而且是模型能提出的最大副作用**：它创建一个自治的
+  actor。Permission 答"可不可以"，Spawn 关卡答"树里还有没有位置"（深度/
+  扇出——纯形状判定，故排在 hooks 之前）；reserve-at-spawn 就住在 budget
+  关卡里（§5）；判词照常落 journal。开旁路就得再造一套授权、预算、审计
+  ——正是"四个子系统"反模式。
 - **每种关卡结果都定义"模型看到什么"**：deny / block / 拒批 / 失败一律渲染
   成 error tool result，loop 继续；只有 session 级预算耗尽才优雅收尾。给
   模型的错误与给用户的错误是两个 surface。
