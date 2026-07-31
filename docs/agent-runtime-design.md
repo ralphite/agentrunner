@@ -1,223 +1,556 @@
 # An Actor-Model, Event-Sourced Agent Runtime
 
-**架构设计（3 页）**
+> English version; a Chinese edition lives at `agent-runtime-design.zh.md`
+> (kept in sync; this file wins on conflict).
 
-> 本文讲一个通用 agent runtime 的内核该长什么样：会话模型、输入通道、
-> 多 agent、turn 内机制、持久化与恢复、provider 抽象。目标是能长期驻留、
-> 挺过进程死亡、支持多方随时插话的执行环境，而不是一次性的 LLM 调用循环；
-> 不预设领域——写码、研究、运维、数据工作共用同一个内核。具体工具集、领域
-> 状态的快照与回滚、索引、生态接入、各类 surface 属于扩展层，本文略去。
+> Kernel design for a general-purpose agent runtime: the session model, input
+> channels, multi-agent trees, in-turn machinery, persistence and recovery. The
+> goal is an execution environment that lives for a long time, survives process
+> death, and lets any party speak at any moment — with no domain assumptions:
+> coding, research, ops, and data work share the same kernel. The runtime
+> manages only its own state (the journal and things derived from it); **world
+> state is entirely out of scope** (§10). Concrete toolsets, indexing, ecosystem
+> integrations, and surfaces belong to the extension layer. Decisions we know
+> we owe but have deliberately not made are registered in §12, not scattered
+> through the text.
 
-## 1. 本分
+## 1. The Job
 
-> **在一个长期存在的会话里，可靠地协调三方——用户、模型、并发的工作（工具
-> 与子 agent）——任何一方随时可以说话，会话据此持续推进，直到用户离开。**
+> **In one long-lived session, reliably coordinate three parties — the user,
+> the model, and concurrent work (tools and subagents) — any of whom may speak
+> at any moment; the session advances accordingly, until the user walks away.**
 
-全部设计从这句话推导；不服务于它的机制降级为扩展层。**多轮交互、并发编排、
-随时插话是日常动作，不是边缘特性**——它们必须是中心模型的直接推论，而不是
-补丁。一旦把本分默认成"把一次 run 跑到完成"，这些日常动作就会变成互不自洽
-的补丁堆；durability、effect 管线、安全都只是服务这个内核的机制。
+Everything derives from this sentence; any mechanism that does not serve it is
+demoted to the extension layer. Multi-turn interaction, concurrent
+orchestration, and speaking up mid-flight are **everyday actions** — they must
+fall out of the central model as direct corollaries, not be patched in.
 
-**四条原则**：一切可运行的是 actor；一切历史皆 event（state = journal 的纯
-fold）；一切副作用是 activity，流经同一条 effect pipeline；一切行为由数据
-定义（含 tool 定义本身，内核里不硬编码任何具体 agent）。
+**Four principles**: everything that runs is an actor; all history is events;
+every side effect flows through one effect pipeline; all behavior is defined by
+data (including tool definitions themselves — the kernel hard-codes no specific
+agent).
 
-**明确的非目标**：确定性 code replay、整树确定性 replay、分布式执行、生产级
-多租户。这些是取舍，不是遗漏（§6）。
+**Non-goals**: world-state management (snapshot / rollback / time travel —
+rationale in §10), deterministic code replay, deterministic whole-tree replay,
+distributed execution, production-grade multi-tenancy.
 
-## 2. 中心模型：Session = journal + 待命
+## 2. Skeleton and Vocabulary
 
-整个 runtime 只有**一种活的东西**：Session = `id` + `inbox`（持久有序队列，
-所有"说话"都进这里）+ `journal`（append-only event log）+ `state`（journal
-的纯 fold，唯一工作内存）。它没有自己的循环，一生只有两句话：**平时待命**
-（装着全部历史等下一条输入，等几秒或几天成本相同）；**每条输入触发一个 turn**：
+Eight load-bearing concepts, defined before use:
+
+- **journal**: the per-session append-only event log. Everything that ever
+  happened is an event; the journal is the single source of truth.
+- **fold**: `state = fold(journal)` — a **pure function** that applies each
+  event in order (apply reads no clock, does no IO, calls no model). State is
+  derived and always rebuildable; one journal can fold into multiple
+  projections (model view, display view, ops view) — "single source of truth"
+  refers to the journal, not to any one view.
+- **command log**: the second and last durable write surface — the mailbox's
+  WAL. External commands (inputs, approval responses, interrupt, kill) are
+  fsynced here first and acked; once consumed, their semantic effect enters the
+  journal as an event carrying the command_id. Recovery diffs the two sides:
+  commands accepted but with no completion fact in the journal are replayed.
+  **Why commands don't go straight into the journal**: the journal has a
+  **single writer** (the loop — that is what keeps offset/snapshot machinery
+  cheap), while commands arrive from outside at any moment; and arrival order ≠
+  application order — writing them straight in would force fold to define
+  "present but not yet visible" events, i.e. rebuild a worse mailbox inside the
+  journal.
+- **turn / generation step**: one input triggers one turn; one model call
+  inside the loop is one generation step. **The loop is the mechanism; a turn
+  is one execution of it** — the countable unit: per-turn budgets, "one turn at
+  a time per session", and queue-mode delivery ("next turn") are all quantified
+  over turns.
+- **safe boundary**: the top of the loop — after the previous batch of tool
+  results has fully landed in the journal, **before** the next assemble.
+  **In-turn** injection happens only here (steer, child receipts, background
+  completions); a step is never interrupted mid-flight. Queue-mode input is
+  instead consumed at standby, entering as the trigger of the **next turn** —
+  two injection points, each owning half. The control plane (interrupt / kill)
+  is out-of-band and goes through neither.
+- **effect / activity**: an effect is a **side-effect intent awaiting
+  adjudication** within a turn; once through the pipeline gates it **executes
+  and is recorded** as an activity (`Started` → execute → `Completed/Failed`),
+  one-to-one.
+- **session status & quiescence**: status is derived by fold (not a
+  state-machine field), exactly three — **running** (turn in flight) /
+  **waiting_approval** / **standby** (parked, waiting for the next input).
+  **Quiescent is not a fourth status** — it is a derived refinement of standby:
+  parked **and** no in-flight work (background/children), no pending timer —
+  "nothing will ever wake it again except a new input." Its only job is to time
+  completion semantics (§3).
+- **blob store**: a content-addressed blob repository. Large results and media
+  bytes go only into the blob store; events carry refs (the blob lands before
+  any event that references it; content addressing makes refs immutable and
+  dedup natural).
+
+**Input sources are a closed enum**: user / agent (in-tree) / machine (external
+events) / timer / program (runtime re-injection) / control. Source is journal
+metadata; on the conversation surface it is just a prefix. Authorization looks
+at the authenticated principal and its trust level (user highest; machine and
+external content permanently untrusted), **never at the wording of content**.
+`agent` is restricted to the tree because **the tree is the trust boundary** —
+in-tree authority derives from the spawn chain (frozen rules, one human owner,
+a shared budget root); an out-of-tree agent's message is not forbidden, it
+simply enters through the external door as machine (untrusted).
+
+## 3. The Central Model: a Session Is a Journal Plus Standby
+
+The runtime has exactly **one kind of living thing**: Session = `id` + `inbox`
+(durable ordered input queue) + `journal` + `state`. It has no loop of its own;
+its whole life is two sentences: **usually standing by**; **each input triggers
+one turn**. Standby is not a mechanism but the default state of existence: a
+journal on disk plus registered wake conditions — no process, no polling,
+survives crashes; waiting seconds or days costs the same. Precisely because
+"doing nothing" is free, "anyone can speak at any time" requires no
+coordination with the other side's lifecycle:
 
 ```
-输入到达（先落 journal，再被消费）
-  → 跑 ONE turn（= 一遍 agentic loop）:
+input arrives (journaled first, then consumed)
+  → run ONE turn:
       loop:
-        assemble(fold(journal)) → 调模型      # 一个 generation step
-        有 tool call → 执行（前台并发；后台只启动，拿 handle 即返回）
-                     → 回 loop 顶
-                       # ← 安全边界：排队的插话 / 回执在此进入
-        无 tool call → 这是 final generation，turn 结束
-  → 回到待命
+        assemble(fold(journal)) → call model      # one generation step
+        tool calls → execute (foreground concurrent; background just starts
+                     and returns a handle) → back to top    # ← safe boundary
+        no tool calls → final generation, turn ends
+  → back to standby
 ```
 
-同一 session 同时只跑一个 turn，忙时到达的输入排队。**这就是全部执行模型**
-——没有"run"这个概念、没有第二种运行形态、没有额外状态机。续聊、忙时排队、
-工作完成激活新 turn、子 agent、中途改编排，都是这一个循环的推论。
+One turn at a time per session; inputs arriving while busy are queued. **This
+is the entire execution model** — no "run" concept, no second execution mode,
+no extra state machine. Continued conversation, queueing while busy, work
+completions waking new turns, subagents, mid-flight re-orchestration: all
+corollaries of this one loop consuming this one inbox.
 
-**静止（quiescence）**是唯一的"结束"：最后一个 turn 收尾、无在飞工作、无未到
-期的自触发——由 journal **形状**自明，不是事件、不是状态机。静止时跑一串固定
-动作（发布产出 → 切 checkpoint barrier → 有 parent 则投回执），任何"结束时要
-做的事"挂进这个序列。静止可发生多次：再被唤醒、再静止，动作再跑一遍。
+The whole machine in one picture:
 
-**自检**：加功能前先问——"它能不能是一条 Input，或一个 turn 内动作？"都不能，
-先怀疑设计错了。
+```mermaid
+flowchart TD
+  subgraph SENDERS["senders — data plane"]
+    U["user"]
+    A["agent (in-tree)"]
+    TP["timer / program"]
+    M["machine (untrusted)"]
+  end
 
-## 3. Inbox：一条通道，多种发送方
+  subgraph SESSION["session"]
+    CL[("command log<br/>(mailbox WAL)")]
+    J[("journal<br/>(append-only truth)")]
+    SB["standby<br/>(default state of existence)"]
+    subgraph TURN["one turn = one loop execution"]
+      F["state = fold(journal)"]
+      AS["assemble"]
+      MC["model call<br/>(one generation step)"]
+      EP["effect pipeline<br/>floor → spawn → hooks → permission → budget"]
+      AC["activities<br/>(foreground concurrent / background handle)"]
+    end
+  end
 
-"任何一方对 session 说话"统一成"往 inbox 投一条 Input"——用户、子 agent、
-timer、外部事件是同一个问题的四个发送方，不是四套机制。**Input 是弱类型的**：
-对话面上就是纯内容 + 来源前缀，来源（user / agent / machine / timer / control）
-只是 journal 元数据，模型不该看到类型系统。
+  PR[["provider"]]
+  HU["human approver"]
+  CH["child session<br/>(own inbox + journal)"]
+  BS[("blob store")]
+  SN[("snapshot<br/>disposable cache")]
 
-**三条铁律**：投递与消费解耦（发送方从不阻塞在"agent 忙不忙"上）；
-journal-inputs-first（先 fsync 进 durable command log 再回执，崩溃不丢输入）；
-有序 + 幂等（输入 / interrupt / 审批 / kill 共用同一条 durable command 通道，
-调用方 mint 稳定 `command_id`，同 id 同 payload 返回原回执，重试不双执行）。
+  U --> CL
+  A --> CL
+  TP --> CL
+  M --> CL
+  CL -- "consumed at safe boundary / standby" --> J
+  J --> F --> AS
+  AS -- "request" --> PR
+  PR -- "stream" --> MC
+  MC -- "tool calls" --> EP --> AC
+  AC -- "results journaled → back to top of loop" --> J
+  MC -- "no tool calls: final generation" --> SB
+  SB -. "next input" .-> TURN
+  EP -. "ask (bubbles to a person)" .-> HU
+  AC -- "spawn → handle returns now" --> CH
+  CH -- "quiescent → receipt" --> CL
+  U =="control plane: interrupt / kill<br/>(durable command → out-of-band cancel)"==> TURN
+  AC -. "large bytes by ref" .-> BS
+  J -. "derived, droppable" .-> SN
+```
 
-**两个正交的时机维度**，都锚在安全边界、都不打断执行中的 step：投递模式
-`queue | steer`——前者进下个 turn，后者在安全边界以新 user 消息进对话、模型本
-turn 内下个 generation 就看到，**仍是追加不是打断**；**interrupt 与输入分立**
-——它先成为 durable command，再带外 cancel 当前 turn 的活动 ctx，把部分输出收尾
-进 journal。安全推论：**权限判定永远看 principal/trust，绝不看内容措辞**，机器
-来源恒记 untrusted，不能经由"诱导模型"拿到高于来源级别的权限。
+**Completion semantics hang off quiescence.** A session is always in one of
+three statuses (running / waiting_approval / standby, §2); **standby does not
+mean done** — a parked session may still have children in flight or timers
+pending, which will wake it again; a parent taking a receipt at that moment
+would be taking a wrong receipt. **Quiescence (standby ∧ no future wake
+source) is the only honest definition of "done"**, and it can happen many
+times (wake again, go quiescent again). Each quiescence lands a **numbered
+quiescence event** in the journal, then runs a fixed action sequence: produce
+the `Outcome` (an optional schema-checked structured result — child receipts,
+surface replies, and eval scoring all read it) → if there is a parent, post the
+receipt. **Actions are keyed by (session, quiescence number)** — a crash
+mid-sequence converges to exactly once; receipts are never double-delivered.
 
-## 4. 子 Agent：递归的 Session
-
-**没有"子 agent"这个独立概念——它就是 parent 指针非空的 Session。** 生命周期
-全是 inbox 动作，父子之间没有第二套通信机制：`spawn_agent` 创建子 session 并
-**立即返回 handle**（非阻塞，父可以继续 spawn 或直接结束 turn 回待命）；子静止
-时向**父 inbox** 投回执，父在安全边界看到并起新 turn——先完成的先处理，不等
-全体；`kill{handle}` = 给子投一条 control 输入；父崩溃时对每个在飞 handle 查子
-journal，已静止则从子 fold 结算，还在跑则重新挂接。
-
-一条**模型可见面的契约要求**：`spawn_agent` 与读后台输出的工具，其描述必须显式
-声明 fire-and-yield（派完可结束 turn、完成会作为消息自动唤醒、无需轮询）。否则
-较弱的模型会用"读输出 + sleep"自旋当等待手段，把自动唤醒路径整个架空——实测中
-补上这句声明后，同一任务的空转轮询从十余次降到零。**编排的智能在模型，runtime
-只提供"随时能投、能杀、能起"的原语。**
-
-**树级约束**是真正的防线：审批沿 correlation id 冒泡到人——审批的永远是人，不是
-parent agent；**权限继承拆两条规则**（mode 没有交集运算）——rules 做真交集并在
-spawn 时**冻结**成不可变数据（子无法自行放宽，父事后的 mode 跃迁不回溯），mode
-不交集但工具面先过冻结 rules；**树预算** = min(子限额, 父剩余)，reserve-at-spawn
-/ settle-at-child-idle，深度与扇出有数据化上限（spec 允许 A↔B 成环，上限是唯一
-防线）；**子的意义在上下文隔离**——子烧自己的 window，只有符合 contract 的报告
-回流父。
-
-## 5. Turn 内机制
-
-**Context assembly 是一等组件**：请求 = `assemble(fold(journal))`，两级分工
-——fold 是纯函数，只重建对话事实；assembly 负责 state → provider 请求的全部
-渲染：system prompt 拼装（顺序固定，其中 tool / skill / **子 agent 目录**的
-注入是 multi-agent 可用的前提——模型不知道某个子 agent 存在就永远不会 spawn
-它）、截断、配对重排。**prefix 稳定是显式不变量**（prompt caching 的经济性约
-10x，没有它 agent loop 在经济上不可用）：环境变化一律**以追加消息进入上下文，
-绝不改写 prefix**；工具面因此分两级——mode 过滤只作用于关卡侧的 permitted 面，
-进 prefix 的 advertised 面在 session 内稳定。
-
-**压缩不是 fold 的聪明逻辑，是记录在案的 activity**：摘要是一次 LLM 调用（非
-确定性副作用），走 effect pipeline、产出 `ContextCompacted{summary, boundary}`
-event 落进 journal，之后才改变后续 fold 的视图——fold 本身始终纯。另有一档无
-LLM 的轻量回收：只落一个单调 boundary 事件，由 assembly 把边界前可重算的
-read-class 工具结果渲染成占位符。共同 doctrine：journal 留全量结果（truth），
-**只有装配视图降级**——fold 到哪个 seq 就得到哪个视图，故 resume 与 rewind
-跨压缩边界的语义天然良定义。
-
-**Effect Pipeline**：每个副作用（模型调用、工具、spawn、发布产出）都是一个
-Effect，流经同一条管线——hooks、permission、审批、预算不是四个子系统：
+A five-line walkthrough (every step is "inbox delivery + turn advance"):
 
 ```
-effect → [1] Floor      硬底线（越界 / 凭据 / 只读模式）：纯判定，直接 deny
-         [2] Spawn      结构限制：树深度、扇出、handoff 唯一性
-         [3] Hooks pre  observe + block（不改写）
-         [4] Permission allow / ask / deny —— policy 是数据
+1 user posts "fix this bug"    → turn1: model spawns two children
+                                  (h1/h2 return immediately) → standby
+2 h1 goes quiescent, receipts  → turn2: "h1 concluded …, waiting on h2" → standby
+3 user steers "skip the tests" → enters at a safe boundary → model kills h2 …
+4 h2 receipts canceled         → turn3 wraps → quiescent → Outcome → standby
+5 process restarts             → standby survives; the next input just continues
+```
+
+**Self-check**: before adding any feature, ask — "can it be an Input, or an
+in-turn action?" If neither, suspect the design first.
+
+## 4. Input: One Data Channel, One Control Channel
+
+**The data plane has exactly one channel**: "anyone speaking to a session" =
+appending one Input to its inbox. Users, subagents, timers, and external events
+are different senders of the same problem, not separate mechanisms. Input is
+weakly typed: on the conversation surface it is plain content plus a source
+prefix. **Machine-sourced content is delimiter-escaped before entering the
+conversation surface** — the source prefix cannot be forged by content (a tool
+output embedding a fake "user" prefix cannot impersonate the user); this
+remains a soft marker and counts toward no security budget (§8).
+
+**Three iron laws**:
+
+1. **Delivery decoupled from consumption**: senders never block on "is the
+   agent busy"; consumption happens only at the safe boundary / standby.
+2. **journal-inputs-first**: fsync into the command log before acking; crashes
+   lose no input.
+3. **Ordered + idempotent**: a stable `command_id` makes retries safe; same id
+   + same payload returns the original receipt, **same id + different payload
+   is rejected**. Minting rules are per sender: interactive frontends key by UI
+   action; timers by (timer_id, logical due time); child receipts by
+   (child_id, quiescence number); external webhooks derive from the peer's
+   redelivery key at the ingress shell.
+
+**Two delivery timings** (both anchored at boundaries, both append-not-
+interrupt): `queue` (default — next turn) and `steer` (enters at a safe
+boundary as a fresh user message; the model sees it at the very next generation
+within the current turn).
+
+**The control plane is a second channel**, uniform across all sessions:
+**interrupt / kill first become durable commands, then out-of-band cancel the
+target turn's activity ctx**, wrapping partial output into the journal. They do
+not queue for a safe boundary — a "stop" that waits in line is not a stop.
+Against oneself it is interrupt; against a child it is kill; same mechanism.
+The child wraps up and posts a canceled receipt to the parent (the receipt
+rides the data plane). Data plane appends; control plane interrupts — two
+semantics, one channel each.
+
+## 5. Subagents: Recursive Sessions
+
+**There is no separate "subagent" concept — a subagent is a Session with a
+non-nil parent pointer.** `spawn_agent{agent, prompt, budget}` creates the
+child session and **returns a handle immediately** (non-blocking; the parent
+may keep spawning or end its turn and stand by). When the child goes quiescent
+it posts a receipt to the **parent's inbox** (idempotency key = quiescence
+number); the parent sees it at a safe boundary and starts a new turn — first
+done, first handled, no waiting for the rest. A re-woken child is a new
+quiescence cycle: **budget is re-reserved at wake and settled by baseline
+delta**, so the parent's books never double-count. On parent crash-recovery,
+each in-flight handle is checked against the child's journal: quiescent
+children settle from their fold; running ones are re-attached.
+
+A **model-visible contract requirement**: `spawn_agent` and the background-
+output reader must explicitly declare fire-and-yield — you may end your turn
+after dispatching; completion wakes you as a message; do not poll. Otherwise
+weaker models spin on poll + sleep, bypassing the wake path entirely.
+**Orchestration intelligence lives in the model; the runtime only supplies
+primitives that can always deliver, always kill, always start.**
+
+**Tree-level constraints**:
+
+- **Approvals bubble along the correlation id** (the envelope's tree axis,
+  §11) **to a human** — the approver is always a person, never the parent
+  agent.
+- **Permission inheritance splits into two rules**: rules take a true
+  intersection, computed at spawn and **frozen** into immutable data (the
+  child cannot widen itself; later parent mode transitions do not reach back);
+  modes do not intersect, but the tool surface is filtered through the frozen
+  rules first.
+- **Tree budget** = min(child cap, parent remaining), reserve-at-spawn /
+  settle-at-child-idle; **the reserve always keeps a minimum self-allowance
+  for the parent** (at least one generation) so a parent with every child in
+  flight can still process a steer or a kill — it cannot starve itself.
+- **Depth and fan-out have data-defined caps**; but when specs permit cycles,
+  the runaway shape is receipts waking each other (no depth or fan-out
+  growth) — **structural caps do not reach cycles; the tree budget is the
+  backstop for cycles**.
+- **The point of a child is context isolation**: it burns its own window; only
+  the Outcome flows back to the parent.
+
+## 6. Inside a Turn: Context Assembly and the Effect Pipeline
+
+**Assembly is a first-class component**, two stages with distinct jobs: fold
+rebuilds conversational fact; assembly renders state → provider request
+(system-prompt composition, injection of the tool / skill / **subagent
+directory** — a model that doesn't know a subagent exists will never spawn it —
+truncation, pairing re-order). Three disciplines:
+
+- **Assembly's input is only ever the fold.** Non-journal context (memory,
+  external resources) must first be materialized into the journal via an
+  injection event — a request is always rebuildable from the journal.
+- **Assembly is total**: a single result larger than the window is
+  force-spilled to the blob store + placeholder; there is no input for which a
+  request cannot be assembled.
+- **The prefix changes only at explicit generation-change points, never by
+  implicit drift.** Prompt-caching economics (about an order of magnitude) are
+  what make an agent loop affordable: environment changes enter as appended
+  messages; the tool surface is two-tier (mode filtering acts on the gate-side
+  permitted surface; the advertised surface that enters the prefix is stable
+  within a session); a compaction boundary is a journaled **monotonic** event —
+  crossing it buys one cache miss, a priced generation change, not an
+  exception to the invariant.
+
+**Compaction is not fold being clever; it is a recorded activity**: the
+summary is an LLM call that flows through the pipeline and lands a boundary
+event, and only then changes subsequent folds — fold itself stays pure. Below
+it sits an LLM-free light reclamation tier: a monotonic boundary event +
+assembly rendering pre-boundary recomputable read-class results as
+placeholders; **view degradation never touches tool calls or their pairing**
+(provider signatures are computed over preceding content; touch the pairing
+and you void the signature), and summaries naturally carry no signature. The
+shared doctrine: the journal keeps everything (truth); **only the assembled
+view degrades** — fold to a seq, get that view.
+
+**Effect pipeline**: every side effect is an effect flowing through one
+adjudication line — hooks, permissions, approvals, budgets are gates on one
+pipeline, not four subsystems:
+
+```
+effect → [1] Floor      hard floor (escape / credentials / read-only mode):
+         │              pure adjudication, straight deny
+         [2] Spawn      structural limits: tree depth, fan-out
+         [3] Hooks pre  observe + block (no rewriting)
+         [4] Permission allow / ask / deny — policy is data
          [5] Budget     reserve-then-settle
-         [6] Execute    以 activity 执行
+         [6] Execute    run as an activity
          [7] Hooks post
 ```
 
-- **纯判定的关卡排最前**，使必拒的 effect 绝不触发有副作用的 pre-hook。
-- **判定落在记录边界之内**：结论在执行**之前**落盘（ask 路径先落一条审批请求
-  并携带此前已完成的关卡判定——pre-hook 可能已产生副作用，这个事实必须先于
-  可能挂几天的审批落盘）。恢复时读记录值，**不重跑 hook、不重读 policy**。
-- **预算 reserve-then-settle**：否则 N 个并行 call 各自对着同一个过期计数器
-  放行，合起来超支 N 倍。
-- **每种关卡结果都定义"模型看到什么"**：deny / block / 拒批 / 执行失败一律渲染
-  成 error 形态的 tool result，**loop 继续**；只有 session 级预算耗尽才让模型
-  收尾后优雅停止。给模型的错误与给用户的错误是两个 surface，分开设计。
-- **边界诚实**：参数级规则只约束能被结构化解析的工具调用；执行类工具（shell、
-  解释器、浏览器）的实际行为无法从参数可靠推断——一条命令就能绕过一切参数
-  规则。真正的边界必须由执行环境的**强制隔离**（OS sandbox / 容器 / 网络出口
-  控制）闭环，隔离缺席时 fail closed、不降级裸跑。不假装规则覆盖了执行类工具。
+- **Pure-adjudication gates come first**, so an effect that must be denied
+  never triggers a side-effectful pre-hook.
+- **Adjudication lands inside the record boundary**: gate verdicts are
+  journaled before execution (the ask path lands the approval request carrying
+  all verdicts reached so far — a pre-hook may already have had side effects,
+  and that fact must land before an approval that may hang for days); recovery
+  reads recorded verdicts and never re-runs hooks. **The one exception is
+  Floor**: it is side-effect-free, cheap, and its constraints can tighten
+  while an approval hangs (the user switched the session read-only), so it
+  **re-evaluates at execution time** — recording discipline protects "who
+  approved what"; re-evaluation protects "is it still allowed now", and can
+  only get stricter.
+- **Budgets are reserve-then-settle**: otherwise N parallel calls each clear
+  the same stale counter and jointly overrun N-fold.
+- **Every gate outcome defines what the model sees**: deny / block / rejection
+  / failure all render as error tool results and the loop continues; only
+  session-level budget exhaustion ends gracefully (a final message to wrap up,
+  not a hard cut). Errors for the model and errors for the user are two
+  different surfaces.
+- **Boundary honesty**: parameter-level rules only constrain calls that can be
+  structurally parsed; the real behavior of execution-class tools (shell /
+  interpreters / browsers) cannot be inferred from parameters. The real
+  boundary is closed by **mandatory environmental isolation** (OS sandbox /
+  containers / network egress control); absent isolation, fail closed.
 
-**执行纪律**：并行 tool call 是常态（ask 挂起不阻塞已放行的 call，下次调模型前
-按原 call 顺序收齐结果）；token delta 只走 bus（显式 ephemeral），持久化的是
-组装完成的消息；后台 effect 的立即配对结果就是 `{handle, running}`，完成时的
-终态兼任 pending input、在安全边界作为新 user 消息进对话；interrupt 触发 sweep
-使所有未终态 call 得终态、未决审批作废且迟到应答按 id no-op（否则崩溃恢复后一条
-迟到的批准会执行用户早已放弃的危险调用）。
+**Execution discipline**: parallel tool calls are the norm (a pending ask does
+not block already-cleared calls); token deltas ride the bus only (explicitly
+ephemeral) — what persists is the assembled message; a background effect's
+immediate pairing result is `{handle, running}`, and its completion doubles as
+a pending input entering at a safe boundary as a fresh message; interrupt
+triggers a sweep — every non-terminal call gets a terminal state, pending
+approvals are voided, and late answers no-op by id (otherwise a late approval
+after resume would execute a call the user had long abandoned).
 
-## 6. 持久化与恢复
+## 7. Token Economics
 
-**最重要的取舍：不做确定性 code replay。** Temporal 式 replay 需要稳定 activity
-id、确定性协程调度、divergence 检测——一个数周级的引擎项目；而 agent loop 的全部
-状态不过是（消息列表、step 计数、待处理 tool call）。用三件更便宜的东西拿到同样
-的用户可见能力：**外部输入 durable accepted**（先留事实再消费，崩溃时从 command
-receipt 与 journal fact 的差集恢复）；**state 是纯 fold**（apply 不读时钟、不执行
-副作用，对话状态永远可从 log 重建）；**snapshot-resume**（安全边界打 snapshot 并
-记 journal offset，resume 只读 `seq > N`；snapshot 是可弃缓存，形状可疑就丢掉走
-全量 fold）。
+Tokens are this runtime's currency — model calls dominate both wall-clock and
+cost. Economic constraints are therefore **true invariants**, not optimization
+advice: a design that is semantically correct but blows the cache is a bad
+design. Four points:
 
-**挂起是显式状态，不是任意点挂起**：等待种类只有"等输入"与"等审批"两个，都发生
-在安全边界。等几分钟或几天成本相同，进程死了也一样——**durable 的等待不需要
-replay 引擎**。
+- **One set of books**: every model call's normalized usage (input / output /
+  cache read / cache write) lands in the journal with its activity event, at
+  the provider's real billing granularity. Budget gates, cost attribution, and
+  evals all read this one ledger. Cost aggregates along the correlation tree —
+  how much a tree burned, and each child's share, is a pure fold of the
+  journal, not side-channel statistics.
+- **Budgets are hierarchical, all reserve-then-settle**: per-turn generation-
+  step cap (stops single-turn runaway) → session-level token/cost caps
+  (exhaustion ends with a graceful wrap-up, not a hard cut) → tree budget
+  (min(child cap, parent remaining) + the parent's epsilon, §5). Reserve on
+  estimate at the gate, settle on actuals at the terminal event.
+- **Two structural cost levers**, both core mechanisms rather than bolt-on
+  optimizations: **prompt caching** (about an order of magnitude — the entire
+  rationale for prefix stability, §6) and **context isolation** (children burn
+  their own windows and return only the Outcome — multi-agent is an economic
+  structure first and a parallelism structure second, §5).
+- **Compaction is a priced trade**: crossing a compaction boundary
+  deliberately pays one cache miss for window headroom; the LLM-free light
+  tier fires before summarization — cheapest lever first.
 
-**Activity**：`Started` 先落盘 → 执行 → `Completed/Failed`；结果落盘前过凭据
-redaction；取消以**进程组**为准（确认组内进程全部退出才落 `Cancelled`，否则被
-"取消"的子进程会继续产生副作用、污染后续状态）；timeout 走 durable timer，绝不在
-关卡代码里读墙钟。**in-doubt（有 Started 无 Completed）按 tool 类别数据化处置**
-——崩溃几乎必然砸中 in-flight activity，因为 agent 的墙钟全在模型调用和子进程里：
-模型调用自动重发；read-class 与显式 `idempotent: true` 重跑；execute / edit-class
-**不重跑**，渲染 `[interrupted by crash]` 让 loop 继续；转人工只留给显式配置的
-高危工具。非幂等操作绝不静默重跑——它们根本不重跑，所以无人值守的运行也不会卡在
-人工 triage。
+## 8. Governance: Who May Cause What
 
-**冷启动**：待命的 session 无事可做（待命跨进程存活，下一条输入即接续）；turn
-中途崩的走 in-doubt 自愈后继续；在飞子从子 journal 的静止形状结算。**恢复只住在
-一个地方**（session resume），不存在与之竞争的第二套机制；actor 崩溃不自动
-restart，停在 failed 等人处理，不热循环。
+One-sentence charter: **every effect passes the pipeline and is judged by its
+initiating principal; there is no channel where content gets a say.**
 
-## 7. 分层与 Provider
+- **Graded authority** (principal/trust, §2): user is the only level that can
+  answer approvals, switch modes, or grant trust; agent (in-tree) is bounded
+  by frozen rules; machine and external content are permanently untrusted. An
+  untrusted source can at most influence what the model **proposes** — every
+  proposal still passes the full pipeline under its principal, so "machine
+  input talks the model into approving something" cannot happen: approval
+  answers are only accepted from the user command channel, and no untrusted
+  source gains authority above its own level by being paraphrased through the
+  model.
+- **Executable configuration has an explicit trust gate**: all behavior is
+  data (tool / hook / agent specs), and workspace-borne executable
+  configuration is **"readable as data, not run without trust"** — the
+  definitions injected into the prefix and the things that execute share an
+  origin; that is where supply-chain risk lives, and that is where the gate
+  sits.
+- **Authorization is freeze-style** (§5): intersect at spawn, freeze, no
+  reach-back — a running child cannot be dynamically widened, and later parent
+  transitions cannot contaminate the frozen surface.
+- **The audit chain lives in the journal**: every effect's verdict (which
+  rule, who approved, Floor's ruling at the time) lands with its events;
+  approval responses carry the principal's identity. Governance is not a
+  runtime filter layer; it is the journal's ability to answer "why was this
+  allowed."
+- **Hard defenses and soft markers are booked separately**: egress control, OS
+  isolation, the Floor, and credential redaction are hard defenses —
+  independent of whether the model behaves; untrusted framing and delimiter
+  escaping (§4) only lower the odds of following an injection and **count
+  toward no security budget**. Never conflate the two ledgers.
+
+## 9. Persistence and Recovery
+
+**The most important trade: no deterministic code replay.** An agent loop's
+entire state is just (message list, step count, pending tool calls); three
+cheaper things buy the same user-visible capability: **external inputs durably
+accepted** (§2 command log); **state as a pure fold**; **snapshot-resume**
+(snapshot conversational state at a safe boundary, record the journal offset,
+resume reads only `seq > N`; snapshots are disposable caches — anything
+suspicious is dropped for a full fold).
+
+**Suspension is explicit state**: the standby and waiting_approval of §2's
+three statuses ("ask a human" is a wait-class tool: it enters standby awaiting
+input, not a blocking activity), entered only at safe boundaries. Minutes or
+days cost the same — durable waiting needs no replay engine.
+
+**Activity semantics**: `Started` lands first → execute → terminal event
+lands; results pass credential redaction. **Cancellation is bounded**:
+process-group SIGTERM → grace → SIGKILL → confirmation window; if the group
+still won't die, land the third terminal state `cancelled-unconfirmed`
+(declaring "may still be producing side effects") and the turn wraps anyway —
+**an unkillable process must never block interrupt forever**. Timeouts ride
+durable timers; gate code never reads the wall clock; missed timer slots
+collapse into **exactly one** catch-up.
+
+**in-doubt is handled per tool class** (a crash almost always lands on an
+in-flight activity): LLM calls re-issue automatically; read-class and
+`idempotent: true` re-run; execute / edit-class **never re-run** — render
+`[interrupted by crash]` and continue. Honest note: **class and idempotency
+labels are the tool author's claims, unverifiable by the runtime** — a lying
+"read-only" tool with server-side effects is a documented residual risk;
+high-stakes tools should be configured to surface in-doubt to a human.
+
+**Recovery = session resume + one idempotent boot sweep.** Resume rebuilds a
+single session (standby ones need nothing; mid-turn crashes self-heal via
+in-doubt; in-flight children settle from their journals' quiescence shape).
+The boot sweep is a cold-start global scan: re-arm pending timers, diff the
+command log against the journal, re-host mid-turn stranded sessions — it
+**only discovers and delivers, carrying no state-machine semantics of its
+own**; all semantics stay in resume and fold. There is no third mechanism; a
+crashed actor is not auto-restarted — it parks in failed for a human, no hot
+loops.
+
+**Per-session single-writer is enforced by a lock/lease**: a second process
+loading the same session fails the lease and mounts read-only — otherwise two
+processes each run turns, precisely bypassing every in-doubt protection.
+
+## 10. Stance Toward the World: Gate, Record, Never Repeat — and Never Promise Undo
+
+World state is outside the runtime's jurisdiction and generally irreversible:
+a sent message cannot be unsent. So this design does **no world-state
+management at all** — no world snapshots, no rewind promises. But
+irreversibility is not ignored; it is the premise behind three kernel
+disciplines: approvals and budgets happen **before** execution (the pipeline
+is the irreversibility tax); every activity lands in the journal (you cannot
+undo, but you always know precisely what happened); after a crash,
+execute-class is **never silently re-run**.
+
+Conversation history itself forks naturally (append-only + pure fold: extend a
+prefix into a new branch at a legal cut). A legal cut = safe boundary, no
+in-doubt, standing timers dispatched, and **no in-flight child references** —
+a handle names another session's identity, not copyable conversational fact; a
+cut carrying in-flight children synthesizes cancellation wrap-ups on the new
+branch, and receipts belong to the original. Anything needing world isolation
+or rollback (e.g. N copies for best-of-N) depends on domain-provided
+isolation, outside this design.
+
+## 11. Layering and Providers
 
 ```
-会话内核  Session actor · inbox · loop · turn · 子 session      ← 中心
-Turn 机制 context assembly · effect pipeline · 工具             ← 即 "harness"
-持久化    journal · fold · snapshot · CAS · in-doubt
-扩展层    时间旅行 · 迭代驱动（goal / 周期 / best-of-N）· 生态接入
+Session kernel   Session actor · inbox · loop · turn · child sessions  ← center
+Turn machinery   assembly · effect pipeline · tools
+Persistence      journal · command log · fold · snapshot · blob store
+Extensions       conversation fork · iteration drivers · ecosystem
 ```
 
-**内核是库**：一切 surface（交互式前端、无人值守批处理、常驻服务、外部事件入口）
-都只是 inbox 的投递方 + 输出订阅方，是挂在内核上的薄壳、也都是 actor，不存在
-"特权 frontend"。kernel 基座只有三件东西：actor（id + mailbox + behavior）、bus
-（进程内 transport、**ephemeral**，任何影响结果的输入必须先 journal 再消费）、
-envelope（`command_id` 是外部幂等轴、`causation_id` 是 stream 内因果链，**两轴
-分立**才使"command 可重试"成立）。
+**The kernel is a library**: every surface is just an inbox sender plus a
+subscriber to journal projections; there is no privileged frontend. The kernel
+base is three things: actor (id + mailbox + behavior), bus (in-process,
+ephemeral — anything that affects results must be journaled before
+consumption), envelope (**three separate axes**: `command_id` the external
+idempotency axis, `causation_id` the within-stream causal chain,
+`correlation_id` tree membership — approval bubbling and tree-budget
+aggregation ride it).
 
-**Provider 是薄接口**（`complete(request) → stream`，streaming 原生）：能力通用
-且可选——caching、thinking、tools、structured output 以 provider 无关的方式表达，
-`capabilities()` 声明支持面，请求了不支持的能力**明确降级或报错，绝不静默忽略**；
-返回**归一化**——token 计数（含 cache read / write）、finish reason（含各家独有的
-异常形态，如畸形 tool call、安全拦截、零候选）、tool call、thinking 块统一成一套
-内部表示，管线与记账不感知具体 provider；**opaque signature 随 event 持久化**并
-原样回传——丢掉它，某些 provider 的多轮工具调用在第二次请求就会失败，推论是
-mid-run 换 provider 必须在压缩边界重开。**至少实现两个 provider**：第二个实现的
-唯一作用是验证抽象没漏。
+**Provider is a thin interface** (`complete(request) → stream`, plus token
+counting): capabilities are generic and optional (caching / thinking / tools /
+structured output expressed provider-agnostically; `capabilities()` declares
+support; unsupported requests **degrade explicitly or error — never silently
+ignored**); returns are normalized (usage, finish reasons including each
+vendor's anomalies, tool calls, thinking blocks) so pipeline and accounting
+stay provider-blind. **Opaque signatures persist with events and are returned
+verbatim** — and the corollary must be said out loud: **automatic model
+fallback is thereby forbidden**; switching provider/model happens only at a
+compaction boundary. Retry and backoff are explicit, data-defined policies of
+the model-call activity, not silent adapter behavior. Implement at least two
+providers — the second exists to prove the abstraction doesn't leak.
 
-**运行模式**（扩展层）：目标驱动、周期驱动、best-of-N 由迭代驱动器表达，但它们的
-会话内形态不新增状态机——完成裁决与定时唤醒只是**静止序列或安全边界上的一格**，
-唤醒即"以 program 源投一条输入"。这是 §2 自检的兑现。
+## 12. Open Ledger (Known, Deliberately Undecided)
 
-## 8. 边界与已知局限
+Things the kernel knows it owes but this design has deliberately not yet ruled
+on. Registered here so they are not mistaken for "doesn't exist":
 
-**单进程假设**：bus 是进程内的；跨进程部署时契约要分 ephemeral topic 与
-guaranteed send 两通道，重连方必须从 event log 对账未决状态，不依赖 bus 补投。
-**不保证整树确定性重现**：保证的是 per-stream 可审计（causation / correlation
-链完整），不是跨 actor 消息交错的重现。**软标记不计入安全预算**：untrusted 框定
-只降低模型服从注入的概率，真正的缓解是 egress 控制、OS sandbox、permission floor
-这些与模型是否听话无关的硬防线，两类防线不得混记；凭据 redaction 同理——runtime
-自身绝不写入凭据，但工具输出可能携带任意 secret，这是文档化的残余风险，不是闭合
-的保证。
+- **Storage lifecycle**: journal segmentation/archival, blob-store refcounting
+  and GC, tombstone semantics for "delete this secret-bearing output"
+  (append-only is a one-way door; deletion must be designed explicitly).
+- **Cross-session resource governance**: standby swap-out and rehydration
+  ("waiting costs the same" presumes it), global LLM-concurrency and
+  subprocess caps, interactive-first scheduling and admission.
+- **Event schema evolution**: event versioning, upcasts, skip-unknown-events
+  folding, quarantine/repair paths for poison events — a pure fold is only
+  pure for a fixed fold function, and journals outlive binaries.
+- **A minimal read side**: query interfaces for in-flight activities / pending
+  approvals / spend / subtree status, and structured metrics (the
+  multi-projection principle is established; the interface is not).
+- **Bounds on durable backlogs**: inbox backpressure and same-source
+  coalescing keys, approval TTLs (expire to deny), idempotency-index retention
+  windows.
+- **Output-side guardrails**: rewrite/mask filtering belongs to surfaces;
+  kernel hooks only observe + block, and token streams exit the bus before
+  post-hooks — the kernel does not promise output filtering.
+- **Assembled-request accounting**: record a ref to each `assemble` product so
+  historical requests are rebuildable (the foundation of audit and evals;
+  today only the assembled message is persisted).
+- **Ecosystem integration discipline**: dynamic tool-surface announcements
+  (append-only messages, never touching the advertised surface), nested
+  effects from tools that initiate model calls, third-party idempotency claims
+  treated as untrusted.
+- **Non-tree topologies**: handoff, group chat, shared blackboards — only
+  tree-shaped delegation today.
+- **approve-with-edit**: a recorded form of "approve with replaced
+  parameters" (today only allow / deny).
