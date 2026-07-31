@@ -452,4 +452,10 @@ thinking 块），管线与记账不感知 provider。**opaque signature 随 eve
 - **非树拓扑**：handoff、群聊、共享黑板（跨 session 的共享 fold——本质是
   第二种可订阅的 journal）——当前仅支持树内协作：委派 + 树内 peer 消息
   （§5）。
+- **同一 owner 下的跨树协作**：两个已存在的顶层 session 无法事后组队；
+  今天只能 owner 当桥（user-class 可向任何 session 投递），或从头共建一个
+  锚点 root。候选设计：**owner-granted link**——由 user-class 授予
+  "session A 可向 session B 发消息"的能力（journaled、可撤销；预算仍各归
+  各树；grant 下到达的消息按 agent 级收）。信任由 owner 延伸，绝不由 agent
+  自己伸手（§8）；账户级隐式全授就退化为某些交互产品的"账户即根"模型。
 - **approve-with-edit**：批准并替换参数的记录形态（当前只有 allow/deny）。

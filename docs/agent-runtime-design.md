@@ -591,5 +591,14 @@ on. Registered here so they are not mistaken for "doesn't exist":
   cross-session shared fold — essentially a second, subscribable journal
   kind) — today only tree-scoped collaboration: delegation plus in-tree peer
   messaging (§5).
+- **Cross-tree collaboration under one owner**: two existing top-level
+  sessions cannot be joined into a tree after the fact; today the owner is
+  the bridge (user-class may deliver to any session), or both must be created
+  under a shared anchor root. Candidate design: an **owner-granted link** —
+  user-class grants session A the capability to message session B (journaled,
+  revocable; budgets stay per-tree; the received message is agent-class under
+  the grant). Trust is extended by the owner, never by the agents themselves
+  (§8); an account-wide implicit grant reduces this to the "account as root"
+  model some interactive products use.
 - **approve-with-edit**: a recorded form of "approve with replaced
   parameters" (today only allow / deny).
