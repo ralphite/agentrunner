@@ -2829,6 +2829,8 @@
   .cx-td-tag.warn { @apply border-amber text-amber; }
   .cx-td-err { @apply mt-1 whitespace-pre-wrap rounded-[var(--radius-control)] bg-red-soft p-2 font-mono text-[12px] text-red; }
   .cx-td-partial { @apply text-[11.5px] italic text-dim; }
+  /* S6.2 · the runtime's "this outran its window and kept running" notice. */
+  .cx-td-note { @apply my-1 border-l-2 border-amber py-0.5 pl-2 text-[11.5px] leading-[1.45] text-dim; }
   .cx-grep-files { @apply flex min-w-0 flex-col gap-1.5; }
   .cx-grep-file { @apply min-w-0; }
   .cx-grep-fname { @apply truncate font-mono text-[12px] font-medium text-ink-2; }

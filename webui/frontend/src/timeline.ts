@@ -64,6 +64,12 @@ export interface ToolItem {
   background: boolean;
   status: "running" | "done" | "error" | "cancelled" | "failed";
   statusText: string;
+  // S6.2 · why this call is running in the background when the model never
+  // asked for it: the runtime's conversion notice, verbatim. Set only on a
+  // call that OUTRAN its foreground window (activity_backgrounded), never on
+  // an explicit `background: true` launch — the distinction is the whole
+  // point ("I chose this" vs "this turned out to be slow").
+  notice?: string;
   result?: any;
   errorMsg?: string;
   partial?: string;
@@ -1021,6 +1027,22 @@ export function foldEvents(events: Envelope[]): Folded {
           push({ kind: "sys", key: "s" + seq, text: `#${seq} ${env.type} ${p.name || ""}` });
         }
         break;
+      case "activity_backgrounded": {
+        // S6.2 timeout-to-background: a FOREGROUND call outran its window and
+        // kept running instead of being killed. Without this case the event
+        // degraded to a `sys` item — which the feed filters out — so the
+        // conversion was invisible: the card sat at "running" with no hint
+        // that the turn had moved on without it, and the reader had no way to
+        // tell a slow command from a hung one.
+        const t = toolByActivity.get(p.activity_id);
+        if (t) {
+          t.background = true;
+          t.statusText = "moved to background";
+          if (p.notice) t.notice = p.notice;
+        }
+        workChip(seq, "Moved to background — still running", "warn");
+        break;
+      }
       case "activity_completed": {
         // RT-5 · The runtime's own retry of a failed model call landed: this
         // completion settles EVERY earlier attempt failure of the activity —

@@ -259,6 +259,11 @@ export function ShellDetail({ t }: { t: ToolItem }) {
           $ {cmd}
         </pre>
       )}
+      {/* S6.2 · why a command the model ran in the foreground is suddenly
+          background work. It goes ABOVE the output because it explains the
+          gap the reader is looking at: the turn moved on here, and whatever
+          follows arrived later. */}
+      <BackgroundNotice t={t} />
       {out && (
         <pre className="shell-out max-h-[240px] min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words">
           {out.slice(0, 20000)}
@@ -582,10 +587,20 @@ export function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
   return (
     <>
       {view}
+      <BackgroundNotice t={t} />
       {t.errorMsg && <pre className="cx-td-err">{t.errorMsg}</pre>}
       {t.partial && t.name !== "bash" && <pre className="cx-td-partial">{t.partial}</pre>}
     </>
   );
+}
+
+// BackgroundNotice explains a call the runtime moved to the background on its
+// own (S6.2): the summary pill only has room to say THAT it happened, and
+// "why is this still running?" is exactly the question the detail view exists
+// to answer.
+export function BackgroundNotice({ t }: { t: ToolItem }) {
+  if (!t.notice) return null;
+  return <div className="cx-td-note">{t.notice}</div>;
 }
 
 export function ToolCard({ t }: { t: ToolItem }) {
@@ -610,7 +625,14 @@ export function ToolCard({ t }: { t: ToolItem }) {
         <span className={"step-body min-w-0 shrink truncate" + (mono ? " mono" : "")} title={body || undefined}>
           {summaryBody}{hasMoreBody && !summaryBody.endsWith("…") ? " …" : ""}
         </span>
-        {t.background && <span className="step-tag shrink-0">background</span>}
+        {/* S6.2 · a call the runtime MOVED to the background (it outran its
+            foreground window) says so, instead of wearing the same "background"
+            pill as one the model deliberately launched detached. */}
+        {t.background && (
+          <span className="step-tag shrink-0" title={t.notice || undefined}>
+            {t.notice ? "moved to background" : "background"}
+          </span>
+        )}
         {t.usage && (
           <span className="step-tok shrink-0" title="tokens">
             {t.usage.input_tokens + t.usage.output_tokens} tok

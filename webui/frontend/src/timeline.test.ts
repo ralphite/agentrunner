@@ -93,6 +93,41 @@ describe("foldEvents active flag", () => {
     }));
   });
 
+  it("shows a foreground tool converted to background work (S6.2), and stops pinning the session active", () => {
+    // A plain foreground bash outruns its window: the runtime journals
+    // activity_backgrounded instead of killing it. Before this case existed
+    // the event degraded to a filtered-out `sys` item, so the conversion was
+    // invisible in the thread and the session stayed at "Working…" over a
+    // call that had already handed the turn back.
+    const folded = foldEvents([
+      { seq: 1, type: "activity_started", payload: { activity_id: "tool-1", kind: "tool", name: "bash", args: { command: "./run_tests.sh" } } },
+      { seq: 2, type: "activity_backgrounded", payload: { activity_id: "tool-1", notice: "still running after 10s — converted to background work" } },
+      { seq: 3, type: "assistant_message", payload: { message: { parts: [{ text: "moved on" }] } } },
+      { seq: 4, type: "waiting_entered", payload: { kind: "input" } },
+    ]);
+    expect(folded.active).toBe(false);
+    expect(folded.items).toContainEqual(expect.objectContaining({
+      kind: "tool", background: true, statusText: "moved to background",
+      notice: "still running after 10s — converted to background work",
+    }));
+    // A visible beat in the thread, not a silently dropped sys line.
+    expect(folded.items).toContainEqual(expect.objectContaining({
+      kind: "chip", text: "Moved to background — still running", tone: "warn", fold: true,
+    }));
+    expect(folded.items.some((it: any) => it.kind === "sys")).toBe(false);
+  });
+
+  it("keeps an explicitly launched background call distinct from a converted one", () => {
+    // `background: true` is the model's own choice: no conversion notice, so
+    // the card says "background", not "moved to background".
+    const folded = foldEvents([
+      { seq: 1, type: "activity_started", payload: { activity_id: "tool-1", kind: "tool", name: "bash", args: {}, background: true } },
+    ]);
+    const tool = folded.items.find((it: any) => it.kind === "tool") as any;
+    expect(tool.statusText).toBe("background work");
+    expect(tool.notice).toBeUndefined();
+  });
+
   it("still counts a running foreground tool as active", () => {
     const folded = foldEvents([
       { seq: 1, type: "activity_started", payload: { activity_id: "tool-1", kind: "tool", name: "bash", args: {} } },
