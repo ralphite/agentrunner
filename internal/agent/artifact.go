@@ -63,7 +63,7 @@ func (l *Loop) materializeInputs(ctx context.Context, ds *driveState, appendE Ap
 			return fmt.Errorf("materialize %s: denied by %s", in.Path, denyingGate(outcome))
 		}
 	}
-	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
+	exec := l.newExecutor(appendE)
 	return exec.Do(ctx, Activity{
 		ID: "materialize", Kind: event.KindTool, Name: "materialize",
 		Idempotent: true,

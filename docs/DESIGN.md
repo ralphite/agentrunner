@@ -822,6 +822,14 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   它们根本不重跑；headless/无人值守 run 也因此不会卡死在人工 triage。
 - **retry 是 activity 的通用属性**：retry/backoff、rate limit 处理、
   model fallback 是 activity 级策略，所有副作用共享。
+- **rate limit 与 transient 是两条曲线**：`provider_server` / `timeout`
+  是故障，短促重试（3 次、1s/4s）后上浮；`provider_rate_limit` 不是故障
+  而是"稍后再来"，故**次数无上限**、退避 5s→10s→…→5min 封顶、带抖动
+  （同批 spawn 的兄弟会在同一瞬间撞墙，无抖动则会在同一瞬间一起回来），
+  并优先采信 provider 自己的 Retry-After / `google.rpc.RetryInfo`。
+  配额耗尽的 attempt 不花 token，故无限等待不会跑飞预算；kill/interrupt
+  照常穿透退避。`MaxAttempts:1` 是唯一的整体退出闸（autotitle 这类后台
+  小事不该为配额吊住会话）。
 - **声明式幂等是 in-doubt 自动重跑的唯一通道**：tool/activity 定义可
   标注 `idempotent: true`（默认 false）——只读 verifier、artifact
   重发布等都引用这一个机制；未声明者 in-doubt 一律上浮，绝不静默重跑。

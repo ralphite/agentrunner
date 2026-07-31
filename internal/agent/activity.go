@@ -29,6 +29,11 @@ type Activity struct {
 	Args       json.RawMessage
 	CallID     string
 	Idempotent bool
+	// Turn tags the generation step this activity belongs to, so a retry
+	// notice lands under the right turn on the surface. Passed explicitly
+	// rather than read off the fold: tool activities run on worker
+	// goroutines, and the fold belongs to the drive goroutine.
+	Turn int
 	// Timeout arms a durable timer for each attempt (2.11): TimerSet is
 	// journaled, and on fire the run ctx is canceled with cause
 	// errs.ErrActivityTimeout. Zero means no timeout.
@@ -94,24 +99,106 @@ type ActivityExecutor struct {
 	Append AppendFunc
 	Clock  clock.Clock
 	Redact *redact.Redactor
-	// MaxAttempts/Backoff default to 3 attempts with 1s/4s waits.
+	// MaxAttempts/Backoff default to 3 attempts with 1s/4s waits. They
+	// govern the TRANSIENT classes (server errors, timeouts) — a rate limit
+	// gets its own, far more patient policy below. MaxAttempts == 1 opts an
+	// activity out of retrying entirely, rate limits included.
 	MaxAttempts int
 	Backoff     []time.Duration
+	// RateLimitBackoff is the curve for provider_rate_limit. It exists
+	// separately because a rate limit is not a transient glitch: the service
+	// is telling us WHEN to come back, and 5 seconds of trying is an answer
+	// to a different question. The last entry repeats, so the curve caps
+	// rather than growing without bound.
+	RateLimitBackoff []time.Duration
+	// RateLimitMaxAttempts caps rate-limit retries; 0 means unlimited —
+	// wait the quota out rather than failing a turn the user will only have
+	// to re-send by hand. A rate-limited attempt costs no tokens, so an
+	// unbounded wait cannot run away with the budget, and cancel/kill/
+	// interrupt still cut through it (the wait honors ctx).
+	RateLimitMaxAttempts int
+	// Jitter returns a fraction in [0,1) used to spread synchronized
+	// retries. A fleet of sibling agents hits the same quota wall in the
+	// same instant; without jitter they would also come back in the same
+	// instant, re-colliding forever. nil = no jitter (tests want exact
+	// waits). Only ever lengthens a wait, never shortens it below what the
+	// provider asked for.
+	Jitter func() float64
+	// OnRetry reports a scheduled retry to the surface. Without it a
+	// long rate-limit wait is indistinguishable from a hung turn: the
+	// stream simply goes quiet for minutes.
+	OnRetry func(RetryNotice)
+}
+
+// RetryNotice is one scheduled retry, for the surface to render.
+type RetryNotice struct {
+	ActivityID string
+	Kind       string
+	Name       string
+	Turn       int
+	Attempt    int // the attempt that just failed
+	Class      errs.Class
+	Wait       time.Duration
+	Err        error
+}
+
+// defaultRateLimitBackoff caps at 5 minutes: long enough that waiting out a
+// daily quota costs a trivial number of probes, short enough that a
+// per-minute window reopening is noticed promptly.
+var defaultRateLimitBackoff = []time.Duration{
+	5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second,
+	80 * time.Second, 160 * time.Second, 5 * time.Minute,
+}
+
+// retryPlan decides whether a failed attempt gets another go, and how long
+// to wait first. hint is the provider's own Retry-After, when it gave one.
+func (x *ActivityExecutor) retryPlan(class errs.Class, attempt int, hint time.Duration) (time.Duration, bool) {
+	if !class.Retryable() {
+		return 0, false
+	}
+	maxAttempts := x.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 3
+	}
+	if maxAttempts == 1 {
+		return 0, false // explicit opt-out; applies to every class
+	}
+
+	if class == errs.ProviderRateLimit {
+		if x.RateLimitMaxAttempts > 0 && attempt >= x.RateLimitMaxAttempts {
+			return 0, false
+		}
+		curve := x.RateLimitBackoff
+		if curve == nil {
+			curve = defaultRateLimitBackoff
+		}
+		wait := curve[min(attempt-1, len(curve)-1)]
+		// The provider knows its own window; never come back sooner than it
+		// asked. Our curve is the backstop for a service that says nothing,
+		// or says something too optimistic to keep repeating.
+		if hint > wait {
+			wait = hint
+		}
+		if x.Jitter != nil {
+			wait += time.Duration(x.Jitter() * 0.25 * float64(wait))
+		}
+		return wait, true
+	}
+
+	if attempt >= maxAttempts {
+		return 0, false
+	}
+	backoff := x.Backoff
+	if backoff == nil {
+		backoff = []time.Duration{time.Second, 4 * time.Second}
+	}
+	return backoff[min(attempt-1, len(backoff)-1)], true
 }
 
 // Do runs the activity: Started → execute → terminal, retrying retryable
 // failures with backoff through the Clock. Args and results pass through
 // credential redaction before journaling.
 func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
-	maxAttempts := x.MaxAttempts
-	if maxAttempts == 0 {
-		maxAttempts = 3
-	}
-	backoff := x.Backoff
-	if backoff == nil {
-		backoff = []time.Duration{time.Second, 4 * time.Second}
-	}
-
 	for attempt := 1; ; attempt++ {
 		if _, err := x.Append(event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: act.ID,
@@ -174,8 +261,9 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 		}
 
 		class := errs.ClassOf(err)
-		final := !class.Retryable() || attempt >= maxAttempts
-		if _, aerr := x.Append(event.TypeActivityFailed, &event.ActivityFailed{
+		wait, again := x.retryPlan(class, attempt, errs.RetryAfter(err))
+		final := !again
+		failed := &event.ActivityFailed{
 			ActivityID: act.ID,
 			Attempt:    attempt,
 			Error: event.ErrorInfo{
@@ -184,7 +272,14 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 				Retryable: class.Retryable(),
 			},
 			Final: final,
-		}); aerr != nil {
+		}
+		if again {
+			// Journal WHEN the next attempt lands, not just that there is
+			// one: a reader of the log (or a UI replaying it) can then tell a
+			// four-second blip from a five-minute quota wait.
+			failed.RetryAt = x.Clock.Now().Add(wait)
+		}
+		if _, aerr := x.Append(event.TypeActivityFailed, failed); aerr != nil {
 			return aerr
 		}
 
@@ -196,9 +291,25 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 				return derr
 			}
 		}
-		wait := backoff[min(attempt-1, len(backoff)-1)]
+		if x.OnRetry != nil {
+			x.OnRetry(RetryNotice{
+				ActivityID: act.ID, Kind: act.Kind, Name: act.Name, Turn: act.Turn,
+				Attempt: attempt, Class: class, Wait: wait, Err: err,
+			})
+		}
 		if werr := x.Clock.WaitUntil(ctx, x.Clock.Now().Add(wait)); werr != nil {
-			return werr
+			// Interrupted mid-backoff. A rate-limit wait runs to minutes, so
+			// this is an ordinary way for a kill or a steering interrupt to
+			// land — not a rare race. Journal the same terminal a cancel
+			// during the ATTEMPT would have (ActivityFailed{non-final}
+			// deliberately leaves the entry in flight, state.go), so the fold
+			// is not left carrying a phantom in-flight activity.
+			if _, aerr := x.Append(event.TypeActivityCancelled, &event.ActivityCancelled{
+				ActivityID: act.ID,
+			}); aerr != nil {
+				return aerr
+			}
+			return errs.Wrap(errs.Canceled, context.Cause(ctx), act.Name)
 		}
 	}
 }

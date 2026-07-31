@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type Class string
@@ -79,6 +80,12 @@ type Error struct {
 	Class Class
 	Msg   string
 	Err   error
+	// After is the provider's OWN "come back in N" hint (Gemini's
+	// google.rpc.RetryInfo, Anthropic's Retry-After header). The service
+	// knows when its window reopens far better than any backoff curve we
+	// invent, so the retry policy prefers this over its own schedule. Zero
+	// means the provider said nothing.
+	After time.Duration
 }
 
 func (e *Error) Error() string {
@@ -96,6 +103,21 @@ func New(class Class, format string, args ...any) *Error {
 
 func Wrap(class Class, err error, msg string) *Error {
 	return &Error{Class: class, Msg: msg, Err: err}
+}
+
+// WrapAfter is Wrap plus the provider's own retry hint (see Error.After).
+func WrapAfter(class Class, err error, msg string, after time.Duration) *Error {
+	return &Error{Class: class, Msg: msg, Err: err, After: after}
+}
+
+// RetryAfter extracts the provider's retry hint from an error chain; zero
+// when no wrapped *Error carried one.
+func RetryAfter(err error) time.Duration {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.After
+	}
+	return 0
 }
 
 // ClassOf classifies any error: a wrapped *Error wins; context sentinels

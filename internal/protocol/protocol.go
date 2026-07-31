@@ -27,6 +27,7 @@ const (
 	KindModeChanged     Kind = "mode_changed"
 	KindDiscard         Kind = "discard" // a streamed turn was thrown away; reopen the stream
 	KindError           Kind = "error"   // USER-visible error (not the model-visible render)
+	KindRetry           Kind = "retry"   // an attempt failed and is scheduled to run again (not yet an error)
 	KindRunEnd          Kind = "run_end"
 	KindNote            Kind = "note"      // blackboard publish mirrored to watchers (S6, ephemeral)
 	KindBgOutput        Kind = "bg_output" // ephemeral: a background work's stdout/stderr chunk (2.10 进度 tail; CallID = handle)
@@ -46,7 +47,12 @@ type Event struct {
 	Result  string `json:"result,omitempty"`   // tool_result payload (compact JSON)
 	IsError bool   `json:"is_error,omitempty"` // tool_result / error
 	Mode    string `json:"mode,omitempty"`
-	Reason  string `json:"reason,omitempty"` // run_end reason
+	Reason  string `json:"reason,omitempty"` // run_end reason; KindRetry: the errs.Class
+	// RetryIn/Attempt describe a scheduled retry (KindRetry). A rate-limit
+	// wait runs to minutes, so a surface needs the number to count down
+	// with — "retrying" alone reads the same as a hang.
+	RetryIn float64 `json:"retry_in,omitempty"` // seconds until the next attempt
+	Attempt int     `json:"attempt,omitempty"`  // the attempt that just failed
 	// ApprovalID names a pending ask (approval_request) so a detached
 	// client can answer it (`agentrunner approve <session> <id> ...`).
 	ApprovalID string `json:"approval_id,omitempty"`

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -282,6 +283,57 @@ func (l *Loop) emit(e protocol.Event) {
 		// follow one member live. The daemon hub preserves a non-empty tag.
 		e.Session = l.SessionID
 		l.Out.Emit(e)
+	}
+}
+
+// newExecutor builds an ActivityExecutor carrying the loop's shared retry
+// policy: rate limits wait the quota out (unbounded, capped backoff) instead
+// of failing the turn, sibling agents jitter apart so a fleet that hit the
+// wall together does not come back together, and every scheduled retry
+// reaches the surface — a five-minute wait must not look like a hang.
+func (l *Loop) newExecutor(appendE AppendFunc) *ActivityExecutor {
+	return &ActivityExecutor{
+		Append: appendE, Clock: l.Clock, Redact: redact.FromEnv(),
+		Jitter:  rand.Float64,
+		OnRetry: l.emitRetry,
+	}
+}
+
+// emitRetry renders a scheduled retry for the surface. Rate limits get their
+// own phrasing: the turn is not failing, it is waiting for a window to
+// reopen, and the user's only question is how long.
+func (l *Loop) emitRetry(n RetryNotice) {
+	what := n.Name
+	if n.Kind == event.KindLLM {
+		what = "the model call"
+	} else if what != "" {
+		what = "tool " + what
+	}
+	var text string
+	if n.Class == errs.ProviderRateLimit {
+		text = fmt.Sprintf("rate limited by the model provider; retrying %s in %s (attempt %d)",
+			what, humanWait(n.Wait), n.Attempt+1)
+	} else {
+		text = fmt.Sprintf("%s failed (%s); retrying in %s (attempt %d)",
+			what, n.Class, humanWait(n.Wait), n.Attempt+1)
+	}
+	slog.Info("activity retry scheduled", "activity", n.ActivityID, "class", n.Class,
+		"attempt", n.Attempt, "wait", n.Wait)
+	l.emit(protocol.Event{
+		Kind: protocol.KindRetry, N: n.Turn, Text: text,
+		Reason: string(n.Class), RetryIn: n.Wait.Seconds(), Attempt: n.Attempt,
+	})
+}
+
+// humanWait renders a backoff the way a waiting person reads it.
+func humanWait(d time.Duration) string {
+	switch {
+	case d < time.Second:
+		return d.Round(time.Millisecond).String()
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Round(time.Second).Seconds()))
+	default:
+		return d.Round(time.Second).String()
 	}
 }
 
@@ -1436,7 +1488,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		return cause
 	}
 
-	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
+	exec := l.newExecutor(appendE)
 
 	// Capability downgrade (S4.7): if the spec asks for thinking but the
 	// provider can't do it, drop it — explicitly and once, never silently.
@@ -1658,7 +1710,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			var streamed bool // any delta emitted this attempt?
 			err := exec.Do(actCtx, Activity{
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
-				Name: "complete", Idempotent: true,
+				Name: "complete", Idempotent: true, Turn: act.turn,
 				DiscardOnRetry: func() error {
 					// A retry after deltas were streamed: tell the surface to
 					// throw away the partial stream and reopen (GenerationDiscarded).
@@ -1723,6 +1775,19 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					if len(collected.Message.Parts) == 0 && collected.Finish == provider.FinishMaxTokens {
 						return nil, nil, false, errs.New(errs.ProviderServer,
 							"model returned an empty message (truncated at token cap, no text or tool calls)")
+					}
+					// The same defect wearing the provider's catch-all finish
+					// reason. An overloaded backend answers 200-with-nothing, and
+					// FinishOther is where every reason we do not recognize lands
+					// — so an empty message here is a failed generation, not a
+					// turn the model chose to end. Journaling it as "blocked"
+					// told users their prompt hit a safety filter when the
+					// service was merely saturated (seen throughout a real 429
+					// storm); a REAL content block reports its own reason and
+					// maps to FinishBlocked, which still ends the turn.
+					if len(collected.Message.Parts) == 0 && collected.Finish == provider.FinishOther {
+						return nil, nil, false, errs.New(errs.ProviderServer,
+							"model returned an empty message with no finish reason (provider likely overloaded)")
 					}
 					turn = collected
 					usage := collected.Usage
@@ -2132,7 +2197,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		defer mu.Unlock()
 		return appendE(typ, payload)
 	}
-	execP := &ActivityExecutor{Append: serialAppend, Clock: l.Clock, Redact: redact.FromEnv()}
+	execP := l.newExecutor(serialAppend)
 	errsOut := make([]error, len(allowed))
 	// Activities are BUILT on this goroutine (their config reads ds.s, which
 	// the concurrent serialAppend mutates) and only RUN concurrently. Spawn
@@ -2300,6 +2365,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			ID: "tool-" + p.call.CallID, Kind: event.KindTool,
 			Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
 			Idempotent: toolIdempotentIn(ds.s, p.call.Name),
+			Turn:       act.turn,
 			Run:        run,
 			PostRun:    l.buildPostRun(p.call),
 		}

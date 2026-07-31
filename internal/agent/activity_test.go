@@ -90,7 +90,10 @@ func TestActivityRetryOnRetryable(t *testing.T) {
 			Run: func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 				attempts++
 				if attempts == 1 {
-					return nil, nil, false, errs.New(errs.ProviderRateLimit, "429")
+					// A TRANSIENT class: this test pins the generic retry
+					// mechanics on the ordinary 1s/4s curve. Rate limits run
+					// their own, far more patient policy — activity_ratelimit_test.go.
+					return nil, nil, false, errs.New(errs.ProviderServer, "503")
 				}
 				return nil, nil, false, nil
 			},

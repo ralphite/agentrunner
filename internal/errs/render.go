@@ -9,7 +9,7 @@ import (
 // is the NORMALIZED form; per-provider wire shapes map in S4.7. The model
 // gets actionable guidance, not stack traces.
 var renderTable = map[Class]string{
-	ProviderRateLimit: "the model service is rate limited; the harness already retried",
+	ProviderRateLimit: "the model service is rate limited; the harness retried until the wait was cut short",
 	ProviderServer:    "the model service had a server error; the harness already retried",
 	ProviderAuth:      "the model service rejected the harness credentials",
 	ProviderInvalid:   "the request was rejected as invalid",

@@ -12,8 +12,11 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -144,12 +147,35 @@ func emitAccumulated(acc sdk.Message, yield func(provider.StreamEvent, error) bo
 func classify(err error) error {
 	var apiErr *sdk.Error
 	if errors.As(err, &apiErr) {
-		return errs.Wrap(errs.FromHTTPStatus(apiErr.StatusCode), err, "anthropic")
+		return errs.WrapAfter(errs.FromHTTPStatus(apiErr.StatusCode), err,
+			"anthropic", retryDelay(apiErr))
 	}
 	if class := errs.ClassOf(err); class == errs.Canceled || class == errs.Timeout {
 		return errs.Wrap(class, err, "anthropic")
 	}
 	return errs.Wrap(errs.ProviderServer, err, "anthropic") // transport-level: retry
+}
+
+// retryDelay reads the Retry-After response header. Anthropic sends it in
+// seconds on 429; the retry policy trusts it over its own curve. The HTTP
+// date form is accepted too, per RFC 9110.
+func retryDelay(e *sdk.Error) time.Duration {
+	if e.Response == nil {
+		return 0
+	}
+	raw := e.Response.Header.Get("Retry-After")
+	if raw == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(raw); err == nil {
+		if d := time.Until(t); d > 0 {
+			return d
+		}
+	}
+	return 0
 }
 
 // mapFinish normalizes Anthropic stop reasons. Refusal is a safety block

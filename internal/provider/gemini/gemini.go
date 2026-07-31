@@ -10,6 +10,7 @@ import (
 	"iter"
 	"os"
 	"strings"
+	"time"
 
 	"google.golang.org/genai"
 
@@ -98,12 +99,34 @@ func classify(err error) error {
 			return errs.Wrap(errs.FromHTTPStatus(ae.Code), err,
 				"gemini: model not found — use a current id such as `gemini-flash-latest` or `gemini-2.5-pro`")
 		}
-		return errs.Wrap(errs.FromHTTPStatus(ae.Code), err, "gemini")
+		return errs.WrapAfter(errs.FromHTTPStatus(ae.Code), err, "gemini", retryDelay(ae))
 	}
 	if class := errs.ClassOf(err); class == errs.Canceled || class == errs.Timeout {
 		return errs.Wrap(class, err, "gemini")
 	}
 	return errs.Wrap(errs.ProviderServer, err, "gemini") // transport-level: worth a retry
+}
+
+// retryDelay reads google.rpc.RetryInfo out of an APIError's details. A
+// 429 for a per-minute window carries the seconds until it reopens; the
+// retry policy trusts that over its own curve. Anything unparseable is
+// simply absent — the caller falls back to the computed backoff.
+func retryDelay(ae genai.APIError) time.Duration {
+	for _, d := range ae.Details {
+		t, _ := d["@type"].(string)
+		if !strings.HasSuffix(t, "google.rpc.RetryInfo") {
+			continue
+		}
+		// Proto duration JSON is a string like "27s" / "1.5s".
+		raw, ok := d["retryDelay"].(string)
+		if !ok {
+			continue
+		}
+		if v, err := time.ParseDuration(raw); err == nil && v > 0 {
+			return v
+		}
+	}
+	return 0
 }
 
 // streamState tracks per-call accumulation across stream chunks.
@@ -189,6 +212,17 @@ func (st *streamState) finish() provider.FinishReason {
 		return provider.FinishEndTurn
 	case genai.FinishReasonMaxTokens:
 		return provider.FinishMaxTokens
+	case genai.FinishReasonSafety, genai.FinishReasonRecitation,
+		genai.FinishReasonBlocklist, genai.FinishReasonProhibitedContent,
+		genai.FinishReasonSPII, genai.FinishReasonImageSafety,
+		genai.FinishReasonImageProhibitedContent, genai.FinishReasonImageRecitation:
+		// A REAL content block: the model had something to say and policy
+		// stopped it. Kept distinct from the catch-all below because the two
+		// deserve opposite handling — a block ends the turn, whereas OTHER is
+		// mostly what an overloaded backend returns, and telling a user their
+		// prompt tripped a safety filter when the service was merely busy is
+		// both wrong and alarming (observed under a real 429 storm).
+		return provider.FinishBlocked
 	default:
 		return provider.FinishOther
 	}

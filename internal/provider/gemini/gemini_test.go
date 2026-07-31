@@ -284,7 +284,15 @@ func TestFinishMapping(t *testing.T) {
 		{genai.FinishReasonStop, false, provider.FinishEndTurn},
 		{genai.FinishReasonStop, true, provider.FinishToolUse},
 		{genai.FinishReasonMaxTokens, false, provider.FinishMaxTokens},
-		{genai.FinishReasonSafety, false, provider.FinishOther},
+		// A real content block is distinct from the catch-all: the loop ENDS
+		// the turn on blocked, but treats an empty OTHER as a failed
+		// generation worth retrying (an overloaded backend answers
+		// 200-with-nothing under OTHER).
+		{genai.FinishReasonSafety, false, provider.FinishBlocked},
+		{genai.FinishReasonRecitation, false, provider.FinishBlocked},
+		{genai.FinishReasonProhibitedContent, false, provider.FinishBlocked},
+		{genai.FinishReasonOther, false, provider.FinishOther},
+		{genai.FinishReasonUnspecified, false, provider.FinishOther},
 	}
 	for _, tc := range cases {
 		st := &streamState{sawToolCall: tc.sawCall, finishReason: tc.reason}

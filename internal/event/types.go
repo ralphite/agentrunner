@@ -383,6 +383,10 @@ type ActivityFailed struct {
 	// activity is over, and for tool calls the fold renders the failure
 	// as the call's model-visible result.
 	Final bool `json:"final,omitempty"`
+	// RetryAt is when the next attempt is scheduled (non-final only). A
+	// rate-limit wait can run to minutes; without this the log says only
+	// "will retry" and a reader cannot tell that from a hang.
+	RetryAt time.Time `json:"retry_at,omitempty"`
 }
 
 type ActivityCancelled struct {

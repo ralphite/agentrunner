@@ -297,7 +297,7 @@ func (l *Loop) goalVerify(ctx context.Context, ds *driveState, appendE AppendFun
 		}
 
 		var res tool.Result
-		exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
+		exec := l.newExecutor(appendE)
 		if err := exec.Do(ctx, Activity{
 			ID: actID, Kind: event.KindTool, Name: "verifier:command",
 			Args: args, Idempotent: true, Timeout: toolTimeoutIn(ds.s, "bash"),
@@ -368,7 +368,7 @@ func (l *Loop) goalVerifyLLM(ctx context.Context, ds *driveState, appendE Append
 	// rubric+evidence hash-free display (redacted) for the trace.
 	args, _ := json.Marshal(map[string]string{"rubric": rubric})
 	var verdict json.RawMessage
-	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
+	exec := l.newExecutor(appendE)
 	if err := exec.Do(ctx, Activity{
 		ID: actID, Kind: event.KindLLM, Name: "verifier:llm_judge",
 		Args: args, Idempotent: true, Timeout: 0,

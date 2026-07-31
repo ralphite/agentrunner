@@ -155,10 +155,23 @@ func TestGenerationDiscardedOnPartialStreamRetry(t *testing.T) {
 		t.Fatalf("res = %+v", res)
 	}
 
-	// The discarded partial and the final both streamed; a discard sits between.
-	kinds := strings.Join(sink.kinds(), ",")
-	if !strings.Contains(kinds, "text_delta,discard,text_delta") {
-		t.Fatalf("expected partial→discard→final, got %s", kinds)
+	// The discarded partial and the final both streamed, with a discard
+	// between them. Ordering, not adjacency: a scheduled retry announces
+	// itself between the discard and the next attempt's first delta.
+	kinds := sink.kinds()
+	firstDelta, discardAt, finalDelta := -1, -1, -1
+	for i, k := range kinds {
+		switch {
+		case k == "text_delta" && firstDelta < 0:
+			firstDelta = i
+		case k == "discard" && discardAt < 0:
+			discardAt = i
+		case k == "text_delta" && discardAt >= 0 && finalDelta < 0:
+			finalDelta = i
+		}
+	}
+	if firstDelta < 0 || discardAt < firstDelta || finalDelta < discardAt {
+		t.Fatalf("expected partial→discard→final, got %s", strings.Join(kinds, ","))
 	}
 
 	// GenerationDiscarded is durable in the log.

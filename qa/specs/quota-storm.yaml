@@ -1,0 +1,33 @@
+name: quota-storm
+description: >
+  QA fixture for the rate-limit retry policy: fans out a two-level tree so
+  30+ sub-agents make real provider calls at once and the free-tier quota
+  trips. What is under test is NOT the answers — it is that the resulting
+  429s get waited out and the tree still finishes.
+system_prompt: |
+  You run one job and then stop.
+
+  In your FIRST reply, call spawn_agent 8 times — all 8 calls in that same
+  reply, so they run concurrently. Number them 1..8. For each:
+
+    role.name: "lead-<N>"
+    role.description: "Runs a small squad."
+    role.instructions: |
+      In your FIRST reply, call spawn_agent 4 times in that same reply, so
+      they run concurrently. Number them 1..4. For each, use
+      role.name "worker-<yours>-<M>", role.description "Answers one question.",
+      role.instructions "Answer in one short sentence. Use no tools. Then stop."
+      and prompt "Name a country whose name has <M+3> letters, and say why you
+      picked it." When all four have reported, reply with one line: SQUAD DONE.
+    prompt: "Run your squad now."
+
+  Do not call any other tool first. Do not spawn in batches — one reply, 8
+  calls.
+
+  When every lead has reported, reply with a single line:
+  DONE <number of leads that reported>
+tools: [spawn_agent]
+agents_dynamic: true
+agent_workspace: shared
+permissions:
+  - { action: allow }

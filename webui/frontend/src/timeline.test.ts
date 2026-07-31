@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, goalNoopReceipts, guiReason, suppressEchoedChips, verdictLabel } from "./timeline";
+import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, goalNoopReceipts, guiReason, retryWaitWords, suppressEchoedChips, verdictLabel } from "./timeline";
 import { isSessionNotFound, isValidSessionId } from "./components/SessionView";
 import { workedLabel } from "./components/Timeline";
 import { summarizeChanges } from "./diffSummary";
@@ -893,12 +893,14 @@ describe("model-call failure projection", () => {
       { seq: 6, type: "activity_completed", payload: { activity_id: "llm-t3" } },
     ] as any);
     expect(folded.failure).toBeUndefined();
+    // A rate limit still being retried reads as waiting, not as a failure to
+    // act on — the harness goes again on its own.
     const chips = folded.items.filter(
-      (it) => it.kind === "chip" && it.text.startsWith("The model provider rate-limited this request"),
+      (it) => it.kind === "chip" && it.text.startsWith("Waiting out the model provider's rate limit"),
     );
     expect(chips).toHaveLength(2);
     for (const chip of chips) {
-      expect(chip).toMatchObject({ tone: "warn", text: "The model provider rate-limited this request · retried automatically" });
+      expect(chip).toMatchObject({ tone: "warn", text: "Waiting out the model provider's rate limit · retried automatically" });
     }
   });
 
@@ -952,6 +954,28 @@ describe("model-call failure projection", () => {
     expect(folded.items).toContainEqual(
       expect.objectContaining({ kind: "tool", status: "failed", errorMsg: "tool_failed: exit 2" }),
     );
+  });
+
+  it("a rate limit under retry says WAITING, and never asks the user to retry by hand", () => {
+    // The harness is waiting the quota window out on its own. Telling the
+    // user to "retry the turn" here would spend another request against the
+    // same wall — the hint has to say no action is needed.
+    const ex = explainFailure("provider_rate_limit", "429", { attempt: 3, waitWords: "2m 40s" });
+    expect(ex.title).toBe("Waiting out the model provider's rate limit");
+    expect(ex.hint).toContain("no action needed");
+    expect(ex.hint).toContain("after a 2m 40s wait");
+    expect(ex.hint).toContain("attempt 4");
+    expect(ex.hint).not.toMatch(/retry the turn/i);
+  });
+
+  it("renders the retry wait as a duration, not a countdown that goes stale", () => {
+    // Measured from the failure's own timestamp, so a replay an hour later
+    // still reads truthfully.
+    expect(retryWaitWords("2026-07-31T00:00:05Z", "2026-07-31T00:00:00Z")).toBe("5s");
+    expect(retryWaitWords("2026-07-31T00:05:00Z", "2026-07-31T00:00:00Z")).toBe("5m");
+    expect(retryWaitWords("2026-07-31T00:02:40Z", "2026-07-31T00:00:00Z")).toBe("2m 40s");
+    expect(retryWaitWords(undefined, "2026-07-31T00:00:00Z")).toBeUndefined();
+    expect(retryWaitWords("2026-07-31T00:00:00Z", "2026-07-31T00:00:05Z")).toBeUndefined();
   });
 
   it("explains each provider error class in plain language with a way out", () => {

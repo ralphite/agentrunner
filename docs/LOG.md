@@ -8423,3 +8423,61 @@ activity_backgrounded→(completed|cancelled)。
 前台 live tail 的前端渲染是独立的 UI 活）;replay/attach 对转化调用沿用
 显式后台的既有渲染（终态落在 call chip 上);DESIGN "后台 activity" bullet
 里 pgid/log_ref/blob store 的陈年文实落差不属本条范围。
+
+## 2026-07-31 配额失败一直重试到成功（rate limit 独立退避曲线）
+
+**背景**：用户问"配额类失败是不是会一直自动重试到成功或换成别的
+失败"。答案是否——`ActivityExecutor` 对所有 retryable class 共用一条
+3 次 / 1s+4s 的曲线，故一次 429 的全部容忍窗口只有 **5 秒**，之后
+`final=true` → loop `abort` 整个 turn；daemon 侧把失败 resume 记进
+`s.failed` 并明确不重试（`teardowninput_test.go` 有"must not
+retry-storm"断言），只有用户手动 send 才会重来。模型可见文案还写着
+"the harness already retried"，用户可见文案写着"Wait a moment, then
+retry the turn"——两句都在为 5 秒的努力过度承诺。
+
+**动作**：
+1. `provider_rate_limit` 拆出独立策略：次数无上限（`RateLimitMaxAttempts:0`）、
+   退避 5s→10s→20s→40s→80s→160s→**5min 封顶**、±25% 抖动（只加不减）。
+   transient 类（`provider_server`/`timeout`）保持 3 次 / 1s+4s 不动。
+   `MaxAttempts:1` 升级为"整体退出闸"，autotitle 借它自动豁免。
+2. 采信 provider 自己的等待建议：`errs.Error.After` 新字段，gemini 解析
+   `google.rpc.RetryInfo.retryDelay`、anthropic 解析 `Retry-After` 头
+   （秒数与 HTTP-date 两种形态）。取 `max(hint, 曲线)`——不早于服务
+   要求的时刻回来，也不让一个反复回 "1s" 的服务把我们变成热循环。
+3. 可见性：`ActivityFailed.RetryAt`（下次尝试的时刻，落 journal）+
+   新 protocol kind `retry`（live 流，带 class/wait/attempt）。前端
+   `explainFailure` 对"重试中的限流"改说"Waiting out…／no action needed"，
+   不再让用户手动 retry；等待渲染成**时长**而非倒计时（`retryWaitWords`
+   从失败事件自身时间戳算起），replay 一小时后仍然是真话。
+4. 退避中被取消现在补落 `ActivityCancelled`——窗口从 5 秒涨到数分钟后，
+   kill/interrupt 落在退避里成了常规路径，不能再给 fold 留幽灵 in-flight。
+
+**坑（真机压测挖出来的，值得单记）**：把 API 打爆后，会话仍然会死，
+只是换了扇门——Gemini 过载时返回 **200 + 空 candidate + finishReason
+OTHER**，而 `finish()` 把除 STOP/MAX_TOKENS 外的一切都塌成 `FinishOther`，
+loop 再把它渲染成"model stopped for a safety or policy reason
+(blocked)"。于是"服务器忙"被报成"你的 prompt 触发了安全策略"，
+既错又吓人，且照样终结 turn。修法：SAFETY/RECITATION/BLOCKLIST/
+PROHIBITED_CONTENT/SPII/IMAGE_* 显式映射到 `FinishBlocked`（真拦截，
+仍不重试，DESIGN §"safety/blocked 不重试"不变），兜底的 OTHER 留给过载；
+loop 对**空消息 + OTHER** 按 `provider_server` 失败处理（与既有的
+空消息 + MAX_TOKENS 守卫同一处方），于是它进入重试而不是终结会话。
+
+**闸门**：check.sh 全绿；新增 `activity_ratelimit_test.go` 9 例
+（无上限、曲线封顶、hint 优先、抖动只加不减、MaxAttempts:1 豁免、
+RetryAt 落盘、OnRetry 先于等待、退避中取消落终态）+ 前端 2 例。
+存量 3 例按新事实更新（`TestActivityRetryOnRetryable` 改用 transient
+类、stream 序列断言从"相邻"放宽到"顺序"、`TestFinishMapping` 补
+blocked/other 区分）。
+
+**真机验收**（真 Gemini，共享 store，`ar run` 走新二进制——共享 daemon
+跑的是旧二进制，走 `ar new` 会得到假结果）：先用 60 并发 curl 确认该 key
+的 429 可达（28/60 被限），并确认**真实 429 里既无 `RetryInfo` 也无
+`Retry-After` 头**——曲线是唯一驱动，hint 只是可选增强。随后
+`qa/specs/quota-storm.yaml` 起两层扇出树（**39 个 agent**）并用
+`saturate.sh` 同时压满配额：全树 **66 次 provider_rate_limit 失败、
+final 为 0**（每一次都被等了出来），9 次 provider_server 里 2 次按 3 次
+预算正常放弃；最大到 attempt 3；抖动实测把同批兄弟的 attempt-1 散在
+5.00–6.21s、attempt-2 散在 10.10–12.37s、attempt-3 散在 20.23–24.92s。
+run 退出码 0、`DONE 8`。同一场景在修 OTHER 误判前两次都以假"blocked"
+收场。旧策略下这 66 次里的每一次都会在 5 秒后杀死自己那条 turn。

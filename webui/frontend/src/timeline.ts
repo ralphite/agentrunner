@@ -202,8 +202,45 @@ export interface FailureExplained {
   hint?: string; // what the user can do about it
 }
 
-export function explainFailure(cls: string, message: string): FailureExplained {
+// PendingRetry describes an attempt the harness has already scheduled, so the
+// notice can say "waiting" instead of asking the user to do something.
+export interface PendingRetry {
+  attempt: number; // the attempt that just failed
+  waitWords?: string; // how long the harness waits first, e.g. "2m 30s"
+}
+
+// retryWaitWords renders how LONG the harness is waiting before the next
+// attempt — deliberately a duration, not a countdown to a wall-clock moment.
+// The timeline is re-read long after the fact (replay, a tab left open), and
+// "retrying in 30s" that has been true for an hour is a lie; "after a 30s
+// wait" stays true forever. Measured from the failure's own timestamp.
+export function retryWaitWords(retryAt: string | undefined, failedAt: string | undefined): string | undefined {
+  if (!retryAt || !failedAt) return undefined;
+  const at = Date.parse(retryAt);
+  const from = Date.parse(failedAt);
+  if (Number.isNaN(at) || Number.isNaN(from)) return undefined;
+  const secs = Math.round((at - from) / 1000);
+  if (secs <= 0) return undefined;
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const rem = secs % 60;
+  return rem ? `${mins}m ${rem}s` : `${mins}m`;
+}
+
+export function explainFailure(cls: string, message: string, pending?: PendingRetry): FailureExplained {
   const msg = message || "";
+  // A rate limit that is still being retried is not a failure the user has to
+  // act on — the harness is waiting the quota window out and will go again on
+  // its own. Telling them to "retry the turn" here would be worse than
+  // useless: a manual send just spends another request against the same wall.
+  if (cls === "provider_rate_limit" && pending) {
+    return {
+      title: "Waiting out the model provider's rate limit",
+      hint: `Out of quota for the moment — no action needed. Retrying automatically${
+        pending.waitWords ? ` after a ${pending.waitWords} wait` : ""
+      } (attempt ${pending.attempt + 1}).`,
+    };
+  }
   // The empty-reply-at-token-cap case is a distinct, common, and confusing
   // sub-case of provider_server: the model didn't error, it ran out of room.
   if (/empty message|token cap|truncat/i.test(msg)) {
@@ -1083,7 +1120,10 @@ export function foldEvents(events: Envelope[]): Folded {
           // it in one sentence here, keep the raw text on the notice so the
           // banner's "technical details" fold can show it verbatim.
           const cls = String(p.error?.class || "");
-          const ex = explainFailure(cls, String(p.error?.message || ""));
+          const pending = p.final
+            ? undefined
+            : { attempt: Number(p.attempt || 0), waitWords: retryWaitWords(p.retry_at, env.ts) };
+          const ex = explainFailure(cls, String(p.error?.message || ""), pending);
           const notice: FailureNotice = {
             seq,
             cls,
