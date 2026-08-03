@@ -2854,7 +2854,7 @@ func decide(s state.State, maxGenerationSteps int) action {
 		// Resolved results owe the model its next generation step, bounded
 		// by the per-turn budget (anti-runaway, counted from the last input
 		// — a cumulative cap would silently wedge a long-lived session).
-		if turn-s.Session.LastInputGenStep >= maxGenerationSteps {
+		if maxGenerationSteps > 0 && turn-s.Session.LastInputGenStep >= maxGenerationSteps {
 			return action{kind: doTruncate, turn: turn}
 		}
 		return action{kind: doTurn, turn: turn + 1}
@@ -2864,7 +2864,7 @@ func decide(s state.State, maxGenerationSteps int) action {
 	// a truly quiet session idles. The idle also wakes on background
 	// settlements, so live background work needs no extra branch.
 	if hasInputAfterLastAssistant(s) {
-		if turn-s.Session.LastInputGenStep < maxGenerationSteps {
+		if maxGenerationSteps <= 0 || turn-s.Session.LastInputGenStep < maxGenerationSteps {
 			return action{kind: doTurn, turn: turn + 1}
 		}
 		return action{kind: doTruncate, turn: turn}

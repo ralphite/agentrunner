@@ -4,8 +4,12 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/state"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -54,8 +58,8 @@ func TestLoadSpecValid(t *testing.T) {
 	if spec.Model.Provider != "" || spec.Model.ID != "" {
 		t.Errorf("definition unexpectedly resolved a model = %+v", spec.Model)
 	}
-	if spec.MaxGenerationSteps != DefaultMaxGenerationSteps {
-		t.Errorf("max_generation_steps default = %d, want %d", spec.MaxGenerationSteps, DefaultMaxGenerationSteps)
+	if spec.MaxGenerationSteps != 0 {
+		t.Errorf("max_generation_steps default = %d, want 0 (unlimited)", spec.MaxGenerationSteps)
 	}
 	if len(spec.Tools) != 3 {
 		t.Errorf("tools = %v", spec.Tools)
@@ -165,5 +169,89 @@ func TestBindModelCopiesAgentContextPolicy(t *testing.T) {
 	}
 	if spec.Model.CompactAtTokens != 12000 || spec.Model.MicrocompactAtTokens != 9000 {
 		t.Fatalf("context policy not copied into effective spec: %+v", spec.Model)
+	}
+}
+
+// Spawn-by-default (2026-08-02): a spec silent on agents gets the builtin
+// directory; an explicit `agents: []` opts out; agents_dynamic keeps its
+// declared face; budgets stay off unless asked for.
+func TestSpawnByDefault(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	silent, err := LoadSpec(write("silent.yaml", "name: silent\nsystem_prompt: x\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(silent.Agents, DefaultAgents) {
+		t.Errorf("silent spec agents = %v, want default %v", silent.Agents, DefaultAgents)
+	}
+
+	optOut, err := LoadSpec(write("optout.yaml", "name: optout\nsystem_prompt: x\nagents: []\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if optOut.Agents == nil || len(optOut.Agents) != 0 {
+		t.Errorf("explicit agents: [] should stay empty, got %v", optOut.Agents)
+	}
+
+	dyn, err := LoadSpec(write("dyn.yaml", "name: dyn\nsystem_prompt: x\nagents_dynamic: true\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dyn.Agents != nil {
+		t.Errorf("agents_dynamic spec should not gain a static directory, got %v", dyn.Agents)
+	}
+
+	// Builtin specs share the default: chat (silent on agents) gains the
+	// directory; dev keeps its own declared whitelist.
+	chat, ok := BuiltinSpec("chat")
+	if !ok {
+		t.Fatal("chat builtin missing")
+	}
+	if !slices.Equal(chat.Agents, DefaultAgents) {
+		t.Errorf("chat agents = %v, want default %v", chat.Agents, DefaultAgents)
+	}
+	dev, ok := BuiltinSpec("dev")
+	if !ok {
+		t.Fatal("dev builtin missing")
+	}
+	if slices.Equal(dev.Agents, DefaultAgents) && len(dev.Agents) == 0 {
+		t.Errorf("dev should keep its declared whitelist, got %v", dev.Agents)
+	}
+}
+
+// Budget-off-by-default: max_generation_steps 0 means unlimited — a fresh
+// input deep into a very long session still gets its turn instead of the
+// visible truncation the same shape hits under a positive cap.
+func TestDecideUnlimitedGenerationSteps(t *testing.T) {
+	mk := func() state.State {
+		s := state.New()
+		s.Session.Status = state.StatusRunning
+		s.Session.GenStep = 500
+		s.Session.LastAssistantGenStep = 500
+		s.Session.LastInputGenStep = 0
+		msgs := []provider.Message{{Role: provider.RoleUser,
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "q"}}}}
+		for i := 0; i < 500; i++ {
+			msgs = append(msgs, provider.Message{Role: provider.RoleAssistant,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: "a"}}})
+		}
+		msgs = append(msgs, provider.Message{Role: provider.RoleUser,
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "next"}}})
+		s.Conversation.Messages = msgs
+		return s
+	}
+	if act := decide(mk(), 10); act.kind != doTruncate {
+		t.Fatalf("positive cap control: kind = %v, want truncate", act.kind)
+	}
+	if act := decide(mk(), 0); act.kind != doTurn {
+		t.Fatalf("maxGenerationSteps=0 must mean unlimited (doTurn), got %v", act.kind)
 	}
 }

@@ -40,8 +40,8 @@ func TestBuiltinSpecLoads(t *testing.T) {
 			}
 			// LoadSpec-equivalent defaults must be applied (the embed path
 			// skips LoadSpec).
-			if spec.MaxGenerationSteps != DefaultMaxGenerationSteps {
-				t.Errorf("MaxGenerationSteps = %d, want default %d", spec.MaxGenerationSteps, DefaultMaxGenerationSteps)
+			if spec.MaxGenerationSteps != 0 {
+				t.Errorf("MaxGenerationSteps = %d, want 0 (unlimited by default)", spec.MaxGenerationSteps)
 			}
 			if spec.Model.Provider != "" || spec.Model.ID != "" {
 				t.Errorf("built-in definition unexpectedly carries model %+v", spec.Model)

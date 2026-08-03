@@ -58,11 +58,11 @@ func BuiltinSpec(name string) (*AgentSpec, bool) {
 		return nil, false
 	}
 	// Apply the same defaults LoadSpec would (the embed skips that path).
-	if spec.MaxGenerationSteps == 0 {
-		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
-	}
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "isolated"
+	}
+	if spec.Agents == nil && !spec.AgentsDynamic {
+		spec.Agents = append([]string(nil), DefaultAgents...)
 	}
 	return &spec, true
 }

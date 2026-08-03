@@ -67,8 +67,15 @@ func (s *SchemaJSON) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// DefaultMaxGenerationSteps applies when a spec omits max_generation_steps (S1 defaults pack).
-const DefaultMaxGenerationSteps = 200
+// MaxGenerationSteps semantics: 0 (or omitted) = unlimited — budgets are
+// off by default and only bind when a spec asks for them. Negative is a
+// load error.
+//
+// DefaultAgents is the sub-agent directory every spec gets when it does not
+// speak on the subject: spawning sub-agents is a basic capability, on by
+// default. A spec opts out with an explicit `agents: []` (or narrows/widens
+// with its own list); agents_dynamic specs keep their declared face.
+var DefaultAgents = []string{"worker", "explore", "plan"}
 
 // ModelSpec and ThinkingSpec are runtime-effective aliases. Agent YAML never
 // decodes them; session input/default resolution binds Model after loading.
@@ -287,11 +294,14 @@ func loadSpec(path string, allowLegacyModel bool) (*AgentSpec, error) {
 		spec.Skills[i] = dir
 	}
 
-	if spec.MaxGenerationSteps == 0 {
-		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
-	}
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "isolated"
+	}
+	// Spawn-by-default (2026-08-02): a spec that never mentions agents gets
+	// the builtin directory. nil distinguishes an absent field from an
+	// explicit `agents: []` opt-out (yaml decodes [] to a non-nil slice).
+	if spec.Agents == nil && !spec.AgentsDynamic {
+		spec.Agents = append([]string(nil), DefaultAgents...)
 	}
 	// Fail fast on a declared sub-agent whose spec file is missing, instead of
 	// letting the broken reference surface only at spawn time mid-session, after
@@ -466,7 +476,7 @@ func (s *AgentSpec) validate(path string) error {
 	}
 
 	if s.MaxGenerationSteps < 0 {
-		return fail("max_generation_steps", "must be positive")
+		return fail("max_generation_steps", "must be non-negative (0 = unlimited)")
 	}
 	switch s.Receipts {
 	case "", "steer", "turn_end":
