@@ -127,6 +127,43 @@ func TestKillOneToolCallLeavesTheTurnRunning(t *testing.T) {
 	}
 }
 
+// Call ids repeat across the tree: a child's first tool call and its
+// parent's first call are both "call_1_0". Keyed on the bare id, the
+// child's call displaces the parent's handle FOR that child — and then
+// "stop this agent" stops only whatever command it happened to be running
+// while the agent itself carries on. Caught on the real stack (QA
+// 2026-08-02), so the scoping is pinned here.
+func TestChildCallIDDoesNotDisplaceParentHandle(t *testing.T) {
+	root := &Loop{SessionID: "root", Depth: 0}
+	child := &Loop{SessionID: "root-sub-call_1_0-a1", Depth: 1}
+	if got := root.killID("call_1_0"); got != "call_1_0" {
+		t.Fatalf("root killID = %q; want the bare id `ar ps` hands back", got)
+	}
+	if got := child.killID("call_1_0"); got == root.killID("call_1_0") {
+		t.Fatalf("child killID collides with the parent's handle (%q)", got)
+	}
+	// And the two really do coexist in one table.
+	reg := kill.NewRegistry()
+	root.Kills, child.Kills = reg, reg
+	_, cancelHandle := context.WithCancelCause(context.Background())
+	_, cancelChildCall := context.WithCancelCause(context.Background())
+	defer cancelHandle(nil)
+	defer cancelChildCall(nil)
+	reg.Register(kill.Target{
+		ID: root.killID("call_1_0"), Kind: "agent", Name: "worker",
+		Session: child.SessionID,
+	}, cancelHandle)
+	child.registerKill("call_1_0", "tool", "bash", cancelChildCall)
+
+	if got := len(reg.List()); got != 2 {
+		t.Fatalf("registry holds %d entries; want the handle AND the child's call", got)
+	}
+	hits := reg.KillSession(child.SessionID)
+	if len(hits) != 2 {
+		t.Fatalf("kill --agent hit %d units (%+v); want the agent and its in-flight call", len(hits), hits)
+	}
+}
+
 // The model is told which of the two happened, in its own tool result.
 func TestKilledCallRendersKilledToModel(t *testing.T) {
 	evs := []event.Envelope{}

@@ -120,7 +120,7 @@ export function BackgroundProcessRow({
         <IconButton
           size="sm"
           variant="ghost"
-          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          className="shrink-0 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100"
           onClick={() => onKill(work.handle)}
           title="Stop this — the session keeps going"
           aria-label={`Stop ${backgroundLabel(work)}`}

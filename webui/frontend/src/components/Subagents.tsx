@@ -303,7 +303,7 @@ export function SubagentItem({
           <IconButton
             size="sm"
             variant="ghost"
-            className="mt-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            className="mt-1 shrink-0 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100"
             onClick={() => onKill!(node.session!)}
             title="Stop this agent — your session keeps going"
             aria-label={`Stop agent ${identity}`}

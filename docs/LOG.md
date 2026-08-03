@@ -8529,6 +8529,21 @@ Stop(interrupt)=停当前这一步;Kill=停**一个在跑的单元**(工具调�
   让前台 goroutine 那条迟到的 unregister 变成 no-op——否则交接窗口正好
   让工作变得杀不掉)。
 
+**真机 QA 抓到的两个坑（2026-08-03,共享 daemon + 真 Gemini）**:
+- **call id 跨树撞车**。子的第一个工具调用和父的 spawn handle 都叫
+  `call_1_0`,注册表按裸 id 索引 → 子的调用把父的 handle 顶掉,
+  `kill --agent <child>` 于是只杀掉子正在跑的 bash,**子 agent 本身仍
+  `running`**。修法:非 root 成员的 id 按 `<session>#<id>` 限定
+  (`Loop.killID`,root 保持裸 id——`ar ps`/webui 后台行交回来的就是裸的)。
+  修后 `killable` 同时列出 agent handle 与子的调用,`--agent` 报
+  "killed 2 running …: bash, worker",子进程组与子 loop 一起断。
+  钉子 TestChildCallIDDoesNotDisplaceParentHandle。
+- **hover-only 的停止按钮等于没有**。初版按 sidebar quick-action 的成例
+  做成 `opacity-0 group-hover`,结果它连无障碍树都进不去、自动化点不到,
+  更要紧的是:用户明确要的主操作藏在 hover 后是**不可发现**的。改为常驻
+  `opacity-60 hover:opacity-100`。改完 ref 立刻出现在 a11y 树里,真机点
+  击直接杀掉 `sleep 900`。
+
 **波及面**:新包 `internal/kill`(Registry/Target,tree-shared,子 Loop 经
 `childLoopWithExec` 继承,故孙子层也够得着);`errs.ErrKilled`;
 `ActivityCancelled.Reason`(additive,空值=旧 interrupt 措辞);fold 渲染

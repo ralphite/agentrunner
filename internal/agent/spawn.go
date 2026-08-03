@@ -609,8 +609,11 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	// aimed at the child also reaches the calls it is running.
 	unregisterKill := func() {}
 	if l.Kills != nil {
+		// The ID is scoped to the PARENT (whose handle this is), the Session
+		// to the CHILD — so `kill --agent <child>` cuts the child loop and
+		// the call it is parked in together.
 		unregisterKill = l.Kills.Register(kill.Target{
-			ID: call.CallID, Kind: "agent", Name: agentName, Session: childSession,
+			ID: l.killID(call.CallID), Kind: "agent", Name: agentName, Session: childSession,
 		}, cancel)
 	}
 
