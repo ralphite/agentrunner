@@ -2426,3 +2426,15 @@ ChangesOutcome.test no-skeleton/single-flight。
 | 3 | A `send_message{to: handle}` 布置 task2(12*12 / cahier) | 投递 durable;**静止 B 被 revive**,B journal 第二条 input 带 `[message from chat (…)]` 前缀;**第二次** subagent_completed;A gen-step 6 汇报 144 | PASS |
 | 4 | A `send_message{to: 顶层 C 的 id}`(非本树) | error tool result:`neither "parent", a session id in this tree, nor a handle you own`;loop 继续,A 如实转述 | PASS(边界如设计) |
 | 5 | 全程预算 | 无 max_generation_steps 截断、无 budget deny(默认无控制) | PASS |
+
+## QA-98 缺口修复批:G59/G60/G50/G47(2026-08-03)
+
+**目标**:同批四修复的真机验收。**环境**:共享 store + 部署后共享 daemon
+(stamp 3f2a67af),真 Gemini;证据 `qa/runs/2026-08-03-fixes/`。
+
+| # | 场景 | 硬断言 | 结果 |
+|---|---|---|---|
+| 1 | G59:agentrunner 仓真 turn `glob .github/workflows/*.yml` | 返回 12 个 workflow 路径(修复前 [] 且 truncated:false)+ 结果带 `excluded` 计数(122) | PASS |
+| 2 | G60:daemon 腿 workspace 植入 .env → `cat .env` | journal 原文零命中;stdout=`[REDACTED:.env:PROBE_G60_KEY]`(修复前落原文) | PASS |
+| 3 | G47:前台 22s turn 中 queue 一条 → `ar steer-queued` | promoted input seq < 该 turn final generation seq,同 turn 应答内容含新问题答案;无第二 turn | PASS(第一轮抓到 pump FIFO 竞态并修:mailbox 对账) |
+| 4 | G50 | 单测锚 TestWeakTitleFloor(弱标题真机不可定向诱发,记档) | 孪生绿 |

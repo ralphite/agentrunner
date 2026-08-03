@@ -957,8 +957,10 @@ before-ack、幂等）→ loop `Promotes` 通道 + promoted 集，`drainSteer` �
 backlog；迟到 promote no-op（晚批准先例）；resume 重放种入 promoted 集。
 入口：`ar steer-queued <sid> <cmd-id>` + webui queued 行 **Steer** 按钮
 （仅 running 时显示，POST /api/sessions/:sid/steer-queued）。
-锚：TestPromoteDeliversQueuedInputMidTurn/TestPromoteUnknownTargetIsNoop。
-原始登记（保留）：
+锚：TestPromoteDeliversQueuedInputMidTurn/TestPromoteUnknownTargetIsNoop/
+TestPromoteFromMailboxWithoutChannelDelivery（真机定因回归：daemon pump
+FIFO 使 promote 永远晚目标一拍——修复为 drainSteer 读 durable mailbox
+对账，channel 只是唤醒）。真机：QA-98 场景 3。原始登记（保留）：
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue
 消失，并在当前 turn 的安全边界注入；这不是 composer 下一条消息的模式开关。AgentRunner
 现有 durable 命令只有 `send --steer` 与 `unqueue <command_id>`，没有“以原 command id/
