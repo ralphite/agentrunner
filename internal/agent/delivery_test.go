@@ -273,3 +273,49 @@ func TestPromoteUnknownTargetIsNoop(t *testing.T) {
 		t.Fatal("queued message never got its own turn")
 	}
 }
+
+// G47 真机定因回归: the daemon pump is FIFO — a promote logged behind its
+// still-blocked target never reaches the channel by the boundary that
+// drains the input. The DURABLE mailbox is the truth: drainSteer must
+// consult it and steer the input mid-turn anyway.
+func TestPromoteFromMailboxWithoutChannelDelivery(t *testing.T) {
+	root := t.TempDir()
+	gate := filepath.Join(root, "release")
+	l := testLoop(t, gatedTurn(gate, "turn over", "second turn"), root)
+	inputs := make(chan protocol.UserInput, 2)
+	l.UserInputs = inputs // NOTE: no Promotes channel wired at all
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		waitForEvent(t, l.Store, event.TypeActivityStarted, 1)
+		inputs <- protocol.UserInput{Text: "MAILBOX_PROMOTED", CommandID: "c-mb", DeliverySeq: 1,
+			Delivery: protocol.DeliveryQueue}
+		// The promote exists ONLY in the durable mailbox — exactly the pump
+		// ordering race shape from the live run.
+		if _, err := store.AppendCommand(l.Store.Dir(), protocol.SessionCommand{
+			CommandRef: protocol.CommandRef{CommandID: "promote-1"},
+			Kind:       protocol.CommandPromote,
+			Promote:    &protocol.Promote{TargetCommandID: "c-mb"},
+		}); err != nil {
+			t.Error(err)
+		}
+		if err := os.WriteFile(gate, []byte("go"), 0o644); err != nil {
+			t.Error(err)
+		}
+		waitAnswers(t, l.Store.Dir(), 1)
+		close(inputs)
+	}()
+	if _, err := l.Run(context.Background(), "do multi-step work"); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+
+	pSeq := seqOf(t, l.Store.Dir(), event.TypeInputReceived, "MAILBOX_PROMOTED")
+	finalSeq := seqOf(t, l.Store.Dir(), event.TypeAssistantMessage, "turn over")
+	if pSeq == 0 || finalSeq == 0 {
+		t.Fatalf("missing anchors: promoted=%d final=%d", pSeq, finalSeq)
+	}
+	if pSeq > finalSeq {
+		t.Fatalf("mailbox-only promote missed the boundary (%d > %d) — durable truth ignored", pSeq, finalSeq)
+	}
+}

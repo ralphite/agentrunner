@@ -13,6 +13,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 // longPasteThreshold is the input size past which the text body folds into
@@ -353,6 +354,27 @@ func (l *Loop) drainPromotes() {
 	}
 }
 
+// mergeMailboxPromotes folds promote commands straight from the durable
+// mailbox into the promoted set (G47). The channel is only a wake hint; the
+// fsynced command log is what the user's click actually guaranteed.
+func (l *Loop) mergeMailboxPromotes() {
+	if l.Store == nil {
+		return
+	}
+	cmds, err := store.ReadCommands(l.Store.Dir(), 0)
+	if err != nil {
+		return
+	}
+	for _, c := range cmds {
+		if c.Kind == protocol.CommandPromote && c.Promote != nil {
+			if l.promotedTargets == nil {
+				l.promotedTargets = map[string]bool{}
+			}
+			l.promotedTargets[c.Promote.TargetCommandID] = true
+		}
+	}
+}
+
 // up while a turn ran all enter the next turn's context together. Stops at
 // the first empty read; a close seen here is remembered for the idle.
 func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
@@ -425,6 +447,20 @@ drain:
 		if promoted(in) {
 			hasSteer = true
 			break
+		}
+	}
+	// Channel-order race (G47 真机定因): the daemon pump is FIFO — a promote
+	// queued BEHIND its blocked target input cannot be on the channel yet at
+	// the boundary that drains the input. The durable mailbox is the truth
+	// (fsync-before-ack), so when queue-mode inputs are pending and no steer
+	// was seen, consult it directly before deferring.
+	if !hasSteer && len(batch)+len(ds.deferredInputs) > 0 {
+		l.mergeMailboxPromotes()
+		for _, in := range append(append([]protocol.UserInput{}, ds.deferredInputs...), batch...) {
+			if promoted(in) {
+				hasSteer = true
+				break
+			}
 		}
 	}
 	if !hasSteer {
