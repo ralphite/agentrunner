@@ -2406,3 +2406,23 @@ ChangesOutcome.test no-skeleton/single-flight。
 | 5 | 单根会话 | genesis/env 字节不变、diff 无 roots、无 extra 段(孪生 TestSingleRootGenesisUnchangedByMultiRoot) |
 
 证据:`qa/runs/2026-07-29-QA-95-project-registry/findings.md` QA-96 节。
+
+## QA-97 Session 级协作:A 给 B 布置新任务(默认值翻转,UJ-11/18)
+
+**目标**:同 commit 的两个默认值翻转全链路——(a) spawn 默认全开:未声明
+`agents:` 的 spec(chat)也能 spawn;(b) budget 默认全关:全程无步数/token
+上限拦截。核心 journey:A spawn worker B → 回执;A 用 send_message 给
+**已静止**的 B 布置**新任务** → B revive → **第二次回执**;跨树 send 被拒
+(树=信任边界,通用设计 §5)。
+
+**环境**:私有新二进制 daemon(XDG_DATA_HOME=~/.local/share/ar-qa0802-xdg,
+共享 daemon 跑旧二进制会假失败),真 Gemini;测完会话拷回共享 store。
+证据:`qa/runs/2026-08-02-coord/`。
+
+| # | 场景 | 硬断言 | 结果 |
+|---|---|---|---|
+| 1 | `ar new chat`(spec 无 agents 字段)开场即要求 spawn worker | gen-step 1 发出 `spawn_agent{agent:"worker"}` 且 ok(默认注入 [worker,explore,plan] 生效);fire-and-yield:派完收 turn | PASS |
+| 2 | worker 完成 task1(17*23 / Tagebuch) | A 收 `subagent_completed` 回执自动唤醒,gen-step 3 汇报 391 | PASS |
+| 3 | A `send_message{to: handle}` 布置 task2(12*12 / cahier) | 投递 durable;**静止 B 被 revive**,B journal 第二条 input 带 `[message from chat (…)]` 前缀;**第二次** subagent_completed;A gen-step 6 汇报 144 | PASS |
+| 4 | A `send_message{to: 顶层 C 的 id}`(非本树) | error tool result:`neither "parent", a session id in this tree, nor a handle you own`;loop 继续,A 如实转述 | PASS(边界如设计) |
+| 5 | 全程预算 | 无 max_generation_steps 截断、无 budget deny(默认无控制) | PASS |
