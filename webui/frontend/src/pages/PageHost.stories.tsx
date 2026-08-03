@@ -65,7 +65,7 @@ type Story = StoryObj<typeof meta>;
 export const HomeRoute: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("textbox", { name: "Message AgentRunner" })).toBeVisible();
+    await expect(canvas.getByRole("textbox", { name: "Message Orca" })).toBeVisible();
   },
 };
 

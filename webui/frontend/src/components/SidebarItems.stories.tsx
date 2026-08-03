@@ -616,7 +616,7 @@ export const ProjectStateMatrix: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "Collapsed project" })).toHaveAttribute("aria-expanded", "false");
     await expect(canvas.getByRole("button", { name: "AgentRunner" })).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByRole("button", { name: "Show more sessions" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show more" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Show fewer sessions" })).toBeVisible();
     await expect(canvasElement.querySelector('[data-project-state="removed"]')).not.toBeNull();
     await expect(canvasElement.querySelector(".project-session-wrap.current.nested")).not.toBeNull();

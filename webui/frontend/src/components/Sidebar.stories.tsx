@@ -183,7 +183,7 @@ const meta = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("navigation", { name: "Primary" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "AgentRunner home" }))
+    await expect(canvas.getByRole("button", { name: "Orca home" }))
       .toBeVisible();
     await expect(canvas.getByRole("button", { name: "Projects" }))
       .toHaveAttribute("aria-expanded", "true");
@@ -586,7 +586,7 @@ export const OverflowKeepsCurrentAnchor: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Current session beyond cap")).toBeVisible();
     await expect(canvasElement.querySelector(".project-session-wrap.current")).not.toBeNull();
-    await expect(canvas.getByRole("button", { name: "Show more sessions" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Show more" })).toBeVisible();
   },
 };
 
