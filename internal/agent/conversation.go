@@ -329,6 +329,30 @@ func (l *Loop) drainRevokes() {
 	}
 }
 
+// drainPromotes non-blockingly folds pending queued→steer upgrades (G47)
+// into the promoted-target set. Same channel doctrine as drainRevokes: the
+// durable promote command was logged after its target, so folding the set
+// before the steer split suffices.
+func (l *Loop) drainPromotes() {
+	if l.Promotes == nil {
+		return
+	}
+	for {
+		select {
+		case p, ok := <-l.Promotes:
+			if !ok {
+				return
+			}
+			if l.promotedTargets == nil {
+				l.promotedTargets = map[string]bool{}
+			}
+			l.promotedTargets[p.TargetCommandID] = true
+		default:
+			return
+		}
+	}
+}
+
 // up while a turn ran all enter the next turn's context together. Stops at
 // the first empty read; a close seen here is remembered for the idle.
 func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
@@ -372,6 +396,10 @@ func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 //
 // Drive-goroutine only. A pure append — it never cancels the in-flight step.
 func (l *Loop) drainSteer(ds *driveState, appendE AppendFunc) error {
+	l.drainPromotes()
+	promoted := func(in protocol.UserInput) bool {
+		return in.CommandID != "" && l.promotedTargets[in.CommandID]
+	}
 	var batch []protocol.UserInput
 	hasSteer := false
 drain:
@@ -383,12 +411,20 @@ drain:
 				l.UserInputs = nil
 				break drain
 			}
-			if in.Delivery == protocol.DeliverySteer {
+			if in.Delivery == protocol.DeliverySteer || promoted(in) {
 				hasSteer = true
 			}
 			batch = append(batch, in)
 		default:
 			break drain
+		}
+	}
+	// A promote may target an input already set aside on deferredInputs by an
+	// earlier boundary — it fires now (G47).
+	for _, in := range ds.deferredInputs {
+		if promoted(in) {
+			hasSteer = true
+			break
 		}
 	}
 	if !hasSteer {
@@ -398,6 +434,9 @@ drain:
 	flush := append(ds.deferredInputs, batch...)
 	ds.deferredInputs = nil
 	for _, in := range flush {
+		if in.CommandID != "" {
+			delete(l.promotedTargets, in.CommandID) // consumed: promotion spent
+		}
 		if err := l.journalInput(ds, appendE, in); err != nil {
 			return err
 		}

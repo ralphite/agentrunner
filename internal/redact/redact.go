@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Suffixes marks env vars whose values must never be persisted.
@@ -42,6 +43,41 @@ func Plausible(v string) bool {
 	return !placeholders[strings.ToLower(v)]
 }
 
+// registered are workspace-discovered credential values (G60): secrets the
+// process does NOT hold in its own environment — the .env of a daemon-hosted
+// session's workspace — registered at session start so `cat .env` output is
+// redacted in the journal exactly like an env-known value. Process-local and
+// rebuilt from the workspace on every session start/resume.
+var (
+	regMu         sync.RWMutex
+	registered    = map[string]string{} // value -> replacement
+	maxRegistered = 4096
+)
+
+// RegisterSecret adds a workspace-discovered credential value to every
+// redactor built after this call. Implausible values (short / placeholder)
+// are ignored; re-registration is idempotent (first label wins).
+func RegisterSecret(label, value string) {
+	if !Plausible(value) {
+		return
+	}
+	regMu.Lock()
+	defer regMu.Unlock()
+	if len(registered) >= maxRegistered {
+		return
+	}
+	if _, ok := registered[value]; !ok {
+		registered[value] = "[REDACTED:" + label + "]"
+	}
+}
+
+// ResetRegistered clears the workspace-secret registry (tests).
+func ResetRegistered() {
+	regMu.Lock()
+	defer regMu.Unlock()
+	registered = map[string]string{}
+}
+
 type Redactor struct {
 	replacer *strings.Replacer
 	empty    bool
@@ -62,6 +98,11 @@ func FromEnv() *Redactor {
 			}
 		}
 	}
+	regMu.RLock()
+	for v, repl := range registered {
+		pairs = append(pairs, v, repl)
+	}
+	regMu.RUnlock()
 	return &Redactor{replacer: strings.NewReplacer(pairs...), empty: len(pairs) == 0}
 }
 

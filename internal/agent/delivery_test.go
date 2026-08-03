@@ -187,3 +187,89 @@ func TestSteerFlushesQueuedBacklog(t *testing.T) {
 		t.Fatalf("steer landed after the final generation (%d > %d): not mid-turn", sSeq, finalSeq)
 	}
 }
+
+// G47: a durable promote atomically upgrades an already-QUEUED input to
+// steer delivery — same command identity and seq, earlier timing. The
+// promoted message lands mid-turn (before the turn's final generation) and
+// no second turn runs for it.
+func TestPromoteDeliversQueuedInputMidTurn(t *testing.T) {
+	root := t.TempDir()
+	gate := filepath.Join(root, "release")
+	l := testLoop(t, gatedTurn(gate, "turn over", "second turn"), root)
+	inputs := make(chan protocol.UserInput, 2)
+	promotes := make(chan protocol.Promote, 1)
+	l.UserInputs = inputs
+	l.Promotes = promotes
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		waitForEvent(t, l.Store, event.TypeActivityStarted, 1)
+		// A plain queue-mode message… then the user clicks Steer on its row.
+		inputs <- protocol.UserInput{Text: "PROMOTE_ME", CommandID: "c-promote", DeliverySeq: 1,
+			Delivery: protocol.DeliveryQueue}
+		promotes <- protocol.Promote{TargetCommandID: "c-promote"}
+		if err := os.WriteFile(gate, []byte("go"), 0o644); err != nil {
+			t.Error(err)
+		}
+		waitAnswers(t, l.Store.Dir(), 1)
+		close(inputs)
+	}()
+	if _, err := l.Run(context.Background(), "do multi-step work"); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+
+	pSeq := seqOf(t, l.Store.Dir(), event.TypeInputReceived, "PROMOTE_ME")
+	finalSeq := seqOf(t, l.Store.Dir(), event.TypeAssistantMessage, "turn over")
+	if pSeq == 0 || finalSeq == 0 {
+		t.Fatalf("missing anchors: promoted=%d final=%d", pSeq, finalSeq)
+	}
+	if pSeq > finalSeq {
+		t.Fatalf("promoted input landed at seq %d, AFTER the final generation %d — promotion did not steer it",
+			pSeq, finalSeq)
+	}
+	if s := seqOf(t, l.Store.Dir(), event.TypeAssistantMessage, "second turn"); s != 0 {
+		t.Fatalf("a second turn ran at seq %d — the promoted input should fold into the current turn", s)
+	}
+}
+
+// G47: a promote for an unknown/already-consumed target changes nothing —
+// queue-mode messages still defer to the turn end (late-promote no-op).
+func TestPromoteUnknownTargetIsNoop(t *testing.T) {
+	root := t.TempDir()
+	gate := filepath.Join(root, "release")
+	l := testLoop(t, gatedTurn(gate, "turn over", "queued reply"), root)
+	inputs := make(chan protocol.UserInput, 2)
+	promotes := make(chan protocol.Promote, 1)
+	l.UserInputs = inputs
+	l.Promotes = promotes
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		waitForEvent(t, l.Store, event.TypeActivityStarted, 1)
+		inputs <- protocol.UserInput{Text: "STAY_QUEUED", CommandID: "c-stay", DeliverySeq: 1,
+			Delivery: protocol.DeliveryQueue}
+		promotes <- protocol.Promote{TargetCommandID: "c-never-existed"}
+		if err := os.WriteFile(gate, []byte("go"), 0o644); err != nil {
+			t.Error(err)
+		}
+		waitAnswers(t, l.Store.Dir(), 2)
+		close(inputs)
+	}()
+	if _, err := l.Run(context.Background(), "do multi-step work"); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+
+	qSeq := seqOf(t, l.Store.Dir(), event.TypeInputReceived, "STAY_QUEUED")
+	finalSeq := seqOf(t, l.Store.Dir(), event.TypeAssistantMessage, "turn over")
+	if qSeq == 0 || finalSeq == 0 {
+		t.Fatalf("missing anchors: queue=%d final=%d", qSeq, finalSeq)
+	}
+	if qSeq < finalSeq {
+		t.Fatalf("queue landed mid-turn (%d < %d) despite promoting an unrelated target", qSeq, finalSeq)
+	}
+	if s := seqOf(t, l.Store.Dir(), event.TypeAssistantMessage, "queued reply"); s == 0 {
+		t.Fatal("queued message never got its own turn")
+	}
+}

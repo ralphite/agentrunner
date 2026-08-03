@@ -396,6 +396,10 @@ func validateCommand(cmd protocol.SessionCommand) error {
 		if cmd.Revoke == nil || cmd.Revoke.TargetCommandID == "" {
 			return fmt.Errorf("inbox: revoke command missing target_command_id")
 		}
+	case protocol.CommandPromote:
+		if cmd.Promote == nil || cmd.Promote.TargetCommandID == "" {
+			return fmt.Errorf("inbox: promote command missing target_command_id")
+		}
 	case protocol.CommandAnswer:
 		if cmd.Answer == nil || (len(cmd.Answer.Answers) == 0 && !cmd.Answer.Cancelled) {
 			return fmt.Errorf("inbox: answer command needs answers or cancelled")

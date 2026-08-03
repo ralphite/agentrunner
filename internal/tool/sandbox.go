@@ -271,7 +271,9 @@ func credentialPaths(root string) []sandboxDeny {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if name == ".ssh" || name == ".aws" {
+			// The full credential-store list (G59 split it out of SkipDir):
+			// deny each such dir wholesale — previously only .ssh/.aws were.
+			if index.CredentialDir(name) {
 				denied = append(denied, sandboxDeny{Path: path, Subpath: true})
 				return fs.SkipDir
 			}

@@ -412,9 +412,14 @@ export interface QueuedMessage {
 export function QueuedMessageItem({
   message,
   onWithdraw,
+  onSteer,
 }: {
   message: QueuedMessage;
   onWithdraw: (commandID: string) => void;
+  /** When set (a turn is running), the row offers atomic queued→steer
+   *  promotion (G47): same message identity, it just enters the running
+   *  turn at the next safe boundary. */
+  onSteer?: (commandID: string) => void;
 }) {
   const framed = /^\[message from ([^\s(]+)[^\]]*\]\s*/.exec(message.text);
   const body = framed
@@ -433,6 +438,17 @@ export function QueuedMessageItem({
       <span className="queued-text" title={message.text}>
         {body}
       </span>
+      {onSteer && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="queued-drop"
+          onClick={() => onSteer(message.command_id)}
+          title="Deliver this queued message into the running turn now"
+        >
+          Steer
+        </Button>
+      )}
       <Button
         size="sm"
         variant="ghost"
@@ -449,9 +465,11 @@ export function QueuedMessageItem({
 export function QueuedMessageList({
   messages,
   onWithdraw,
+  onSteer,
 }: {
   messages: QueuedMessage[];
   onWithdraw: (commandID: string) => void;
+  onSteer?: (commandID: string) => void;
 }) {
   const visible = messages.filter((message) => !message.revoked);
   if (visible.length === 0) return null;
@@ -462,6 +480,7 @@ export function QueuedMessageList({
           key={message.command_id}
           message={message}
           onWithdraw={onWithdraw}
+          onSteer={onSteer}
         />
       ))}
     </div>

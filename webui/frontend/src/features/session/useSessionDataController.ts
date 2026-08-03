@@ -300,6 +300,20 @@ export function useSessionDataController({
     }
   }, [api, poll, sid, toast]);
 
+  const steerQueued = useCallback(
+    async (commandId: string) => {
+      try {
+        await api.steerQueued(sid, commandId);
+        // The row stays visible until the journal receipt lands: promotion
+        // changes timing, not identity — the durable projection is truth.
+        poll();
+      } catch (error: any) {
+        toast(error.message);
+      }
+    },
+    [api, poll, sid, toast],
+  );
+
   const withdrawQueued = useCallback(
     async (commandId: string) => {
       try {
@@ -428,6 +442,7 @@ export function useSessionDataController({
     answerAsk,
     skipAsk,
     withdrawQueued,
+    steerQueued,
     send,
     continueFromMessage,
     decideApproval,

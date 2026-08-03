@@ -3,6 +3,7 @@ package tool
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -285,5 +286,49 @@ func TestGrepGlobRegistered(t *testing.T) {
 		if _, err := ProviderDefs([]string{name}); err != nil {
 			t.Fatalf("%s provider def: %v", name, err)
 		}
+	}
+}
+
+// G59: grep/glob reach ordinary dotdirs (.github/.claude) while the narrow
+// credential-store list stays excluded — and exclusion is REPORTED via the
+// `excluded` count, never silent.
+func TestGrepGlobReachDotdirsAndReportExcluded(t *testing.T) {
+	e, root := newExec(t)
+	mkfile(t, root, ".github/workflows/qa-blackbox.yml", "name: qa-blackbox\n")
+	mkfile(t, root, ".ssh/config", "Host secret-host\n")
+	mkfile(t, root, ".env", "TOKEN=secretsecret\n")
+	mkfile(t, root, "src/main.go", "package main\n")
+
+	m, isErr := run(t, e, "grep", `{"pattern":"qa-blackbox"}`)
+	if isErr {
+		t.Fatalf("grep errored: %v", m)
+	}
+	found := false
+	for _, match := range grepMatches(t, m) {
+		p, _ := match["path"].(string)
+		if strings.Contains(p, ".github") {
+			found = true
+		}
+		if strings.Contains(p, ".ssh") {
+			t.Fatalf("credential dir surfaced in grep: %v", match)
+		}
+	}
+	if !found {
+		t.Fatalf("grep cannot see .github — G59 regression: %v", m["matches"])
+	}
+	if n, _ := m["excluded"].(float64); n < 2 { // .ssh dir + .env file
+		t.Errorf("grep excluded = %v, want >= 2 (exclusion must be reported)", m["excluded"])
+	}
+
+	m, isErr = run(t, e, "glob", `{"pattern":".github/workflows/*.yml"}`)
+	if isErr {
+		t.Fatalf("glob errored: %v", m)
+	}
+	paths, _ := m["paths"].([]any)
+	if len(paths) != 1 || !strings.Contains(paths[0].(string), "qa-blackbox.yml") {
+		t.Fatalf("glob paths = %v, want the workflow file", paths)
+	}
+	if n, _ := m["excluded"].(float64); n < 2 {
+		t.Errorf("glob excluded = %v, want >= 2", m["excluded"])
 	}
 }

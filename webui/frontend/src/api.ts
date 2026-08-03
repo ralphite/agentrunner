@@ -272,6 +272,7 @@ export const AR = {
   // Queued-message management (INC-46/47.2).
   queue: (sid: string) => api<{ command_id: string; text: string; revoked: boolean }[]>(`/sessions/${sid}/queue`),
   unqueue: (sid: string, commandId: string) => post(`/sessions/${sid}/unqueue`, { commandId }),
+  steerQueued: (sid: string, commandId: string) => post(`/sessions/${sid}/steer-queued`, { commandId }),
   // stopSession is the series-cancel transport (INC-83): the running series
   // lands its own SeriesEnded{cancelled} terminal; no session lifecycle verb.
   stopSession: (sid: string) => post(`/sessions/${sid}/stop`),

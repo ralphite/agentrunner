@@ -91,6 +91,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return queueCmd(args[1:], stdout, stderr)
 	case "unqueue":
 		return unqueueCmd(args[1:], stdout, stderr)
+	case "steer-queued":
+		return steerQueuedCmd(args[1:], stdout, stderr)
 	case "hook":
 		return hookCmd(args[1:], stdout, stderr)
 	case "answer":
@@ -238,6 +240,7 @@ Conversations (need the daemon):
   retry <session>             re-send the session's last user message as a new turn
   queue <session>             list queued (not yet consumed) messages
   unqueue <session> <cmd-id>  withdraw a queued message before it runs
+  steer-queued <session> <cmd-id>  deliver a queued message into the running turn now
   answer <session> <q>:<n>... answer a structured question (--skip to decline)
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
                               the session keeps running; --replay-only prints history and exits)

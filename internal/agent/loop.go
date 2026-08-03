@@ -106,6 +106,15 @@ type Loop struct {
 	// drainRevokes. Not journaled: the durable truths are the revoke command
 	// in the inbox and the InputRevoked event once consumed.
 	revokedTargets map[string]bool
+	// Promotes delivers queued→steer upgrades (G47, mirror of Revokes): the
+	// loop keeps a promoted-target set; drainSteer treats a matching queued
+	// input as steer delivery — same identity, same seq, earlier timing.
+	// nil = no promote source wired.
+	Promotes <-chan protocol.Promote
+	// promotedTargets is the live promoted set, fed by drainPromotes. Not
+	// journaled: the durable truth is the promote command in the inbox; the
+	// consumed input keeps its own identity.
+	promotedTargets map[string]bool
 	// Answers delivers structured ask replies (INC-47): awaitAnswer pairs a
 	// valid one as the parked call's tool result. nil = no source wired.
 	Answers <-chan protocol.AnswerCommand
@@ -471,6 +480,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	l.ensureRouter() // before any input lands: a Target forward needs the fabric
 	l.ensureApprovals()
 	l.applySandbox()
+	l.registerWorkspaceCredentials() // G60: workspace .env values into the redactor
 	l.applySkills()
 	ownedMCP, err := l.ensureMCP(ctx)
 	if err != nil {
@@ -833,6 +843,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	l.ensureRouter() // before any input lands: a Target forward needs the fabric
 	l.ensureApprovals()
 	l.applySandbox()
+	l.registerWorkspaceCredentials() // G60: workspace .env values into the redactor
 	l.applySkills()
 	ownedMCP, err := l.ensureMCP(ctx)
 	if err != nil {
@@ -1048,6 +1059,16 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	for _, c := range replayCmds {
 		if c.Kind == protocol.CommandRevoke && c.Revoke != nil {
 			replayRevoked[c.Revoke.TargetCommandID] = true
+		}
+		// A replayed promote (G47) seeds the live promoted set. After a
+		// restart every pending input flushes into the next turn regardless,
+		// so the only effect is that a matching input never LOSES its
+		// promotion if the session parks mid-turn again before consuming it.
+		if c.Kind == protocol.CommandPromote && c.Promote != nil {
+			if l.promotedTargets == nil {
+				l.promotedTargets = map[string]bool{}
+			}
+			l.promotedTargets[c.Promote.TargetCommandID] = true
 		}
 	}
 	for _, c := range replayCmds {

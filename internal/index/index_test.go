@@ -171,3 +171,32 @@ func TestExcludesWidenedLockstep(t *testing.T) {
 		t.Errorf("hits=%v files=%d — credential store content indexed", hits, files)
 	}
 }
+
+// G59: ordinary dotdirs are searchable — only the narrow credential-store
+// list is excluded, and exclusion is counted, never silent.
+func TestDotdirsSearchableCredentialDirsExcluded(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".github/workflows/qa.yml", "name: qa-blackbox pipeline\n")
+	write(t, root, ".claude/skills/demo.md", "demo skill body qa-blackbox\n")
+	write(t, root, ".ssh/config", "Host qa-blackbox secret\n")
+	write(t, root, ".env", "TOKEN=qa-blackbox\n")
+	ix := New(root)
+	hits, files, err := ix.Search("qa-blackbox", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files != 2 {
+		t.Errorf("indexed_files = %d, want 2 (.github + .claude files)", files)
+	}
+	for _, h := range hits {
+		if strings.HasPrefix(h.Path, ".ssh") {
+			t.Errorf("credential dir surfaced: %+v", h)
+		}
+	}
+	if len(hits) == 0 {
+		t.Fatalf("dotdir content not searchable — G59 regression")
+	}
+	if got := ix.Excluded(); got < 2 { // .ssh dir + .env file
+		t.Errorf("Excluded() = %d, want >= 2 — exclusion must be counted", got)
+	}
+}

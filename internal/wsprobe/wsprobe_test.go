@@ -42,7 +42,7 @@ func TestProbeSaturatesAtThreshold(t *testing.T) {
 func TestProbeSkipsWhatTheIndexSkips(t *testing.T) {
 	root := t.TempDir()
 	tree(t, root, 3)
-	for _, skipped := range []string{"node_modules", ".git", "dist", ".hidden"} {
+	for _, skipped := range []string{"node_modules", ".git", "dist", ".ssh"} {
 		if !index.SkipDir(skipped) {
 			t.Fatalf("precondition: index.SkipDir(%q) must be true", skipped)
 		}

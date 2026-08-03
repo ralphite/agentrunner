@@ -93,6 +93,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/answer", s.handleAnswer)
 	mux.HandleFunc("GET /api/sessions/{sid}/queue", s.handleQueue)
 	mux.HandleFunc("POST /api/sessions/{sid}/unqueue", s.handleUnqueue)
+	mux.HandleFunc("POST /api/sessions/{sid}/steer-queued", s.handleSteerQueued)
 	// INC-83: /stop is the series-cancel transport; /close and /kill died
 	// with the lifecycle-verb face.
 	mux.HandleFunc("POST /api/sessions/{sid}/stop", s.handleStop)
@@ -1990,6 +1991,32 @@ func (s *server) handleUnqueue(w http.ResponseWriter, r *http.Request) {
 	res := s.runAR(r.Context(), oneShotTimeout, "unqueue", id, req.CommandID)
 	if res.Err != nil {
 		arFail(w, "ar unqueue", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// handleSteerQueued atomically promotes one queued message to steer
+// delivery (G47 → `ar steer-queued`): same identity and order, earlier
+// consumption — the running turn sees it at the next safe boundary.
+func (s *server) handleSteerQueued(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		CommandID string `json:"commandId"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	if !validCommandID(req.CommandID) {
+		badRequest(w, "need a valid commandId")
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "steer-queued", id, req.CommandID)
+	if res.Err != nil {
+		arFail(w, "ar steer-queued", res)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})

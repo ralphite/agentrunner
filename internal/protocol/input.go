@@ -158,6 +158,7 @@ type SessionCommand struct {
 	Control            *Control         `json:"control,omitempty"`
 	Approval           *ApprovalCommand `json:"approval,omitempty"`
 	Revoke             *Revoke          `json:"revoke,omitempty"`
+	Promote            *Promote         `json:"promote,omitempty"`
 	Answer             *AnswerCommand   `json:"answer,omitempty"`
 	Handle             string           `json:"handle,omitempty"`
 }
@@ -170,6 +171,7 @@ const (
 	CommandKill      = "kill"
 	CommandApproval  = "approval"
 	CommandRevoke    = "revoke"
+	CommandPromote   = "promote"
 	CommandAnswer    = "answer"
 )
 
@@ -190,6 +192,18 @@ type AnswerCommand struct {
 // is a no-op — the late-approval precedent. Only CommandInput targets are
 // revocable; interrupt/approval/close/kill/control never are.
 type Revoke struct {
+	CommandRef
+	TargetCommandID string `json:"target_command_id"`
+}
+
+// Promote atomically upgrades a QUEUED conversational input to steer
+// delivery (G47, mirror of Revoke): the target keeps its command identity,
+// delivery seq and relative order — only its consumption timing changes.
+// The consume side treats the target as steer at the next safe boundary
+// (flushing the earlier queue backlog with it, INC-43 seq monotonicity). A
+// promote that arrives after the target was consumed is a no-op — the
+// late-approval precedent. Only CommandInput targets are promotable.
+type Promote struct {
 	CommandRef
 	TargetCommandID string `json:"target_command_id"`
 }

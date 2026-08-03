@@ -34,7 +34,18 @@ const (
 var skipDirs = map[string]bool{
 	".git": true, "node_modules": true, "vendor": true, ".venv": true,
 	"venv": true, "dist": true, "build": true, "target": true,
-	"__pycache__": true, ".ssh": true, ".aws": true,
+	"__pycache__": true,
+}
+
+// credentialDirs harbor secrets and are excluded from every
+// content-surfacing walk. This is deliberately a NARROW list of real
+// credential stores — NOT "every dotdir": blanket dot-exclusion silently
+// hid `.github/`, `.claude/`, `.vscode/` from grep/glob/keyword_search
+// while the results claimed nothing was truncated (G59). Ordinary dotdirs
+// are searchable; only these are not.
+var credentialDirs = map[string]bool{
+	".ssh": true, ".aws": true, ".gnupg": true, ".gcloud": true,
+	".azure": true, ".kube": true, ".docker": true, ".password-store": true,
 }
 
 // skipFiles are credential-shaped paths (kept in LOCKSTEP with the
@@ -64,9 +75,19 @@ func skipFile(name string) bool {
 func SkipFile(name string) bool { return skipFile(name) }
 
 // SkipDir reports whether a directory should be excluded from a
-// content-surfacing walk: derived/vendored trees and dotdirs (which harbor
-// credential stores like .ssh/.aws). Shared with the grep/glob tools.
-func SkipDir(name string) bool { return skipDirs[name] || strings.HasPrefix(name, ".") }
+// content-surfacing walk: derived/vendored trees plus the narrow credential
+// store list (G59: ordinary dotdirs like .github ARE searchable). Shared
+// with the grep/glob tools; callers should COUNT exclusions and report them
+// (silent exclusion was the core harm of G59).
+func SkipDir(name string) bool { return skipDirs[name] || credentialDirs[name] }
+
+// VendoredDir reports only the derived/vendored half of SkipDir — walks that
+// HARVEST credentials (the G60 redactor scan) prune these but deliberately
+// enter credential dirs to read key files.
+func VendoredDir(name string) bool { return skipDirs[name] }
+
+// CredentialDir reports the credential-store half of SkipDir.
+func CredentialDir(name string) bool { return credentialDirs[name] }
 
 // Hit is one search result. Line is the 1-based first line of the chunk.
 type Hit struct {
@@ -93,9 +114,10 @@ type fileEntry struct {
 // Indexer is the resident indexer actor for one workspace: an incremental,
 // in-memory index refreshed against file fingerprints on every query.
 type Indexer struct {
-	root  string
-	mu    sync.Mutex
-	files map[string]*fileEntry
+	root     string
+	mu       sync.Mutex
+	files    map[string]*fileEntry
+	excluded int // entries the last refresh skipped (SkipDir/SkipFile), G59
 }
 
 // New builds an (empty) indexer over a workspace root; the first query
@@ -180,6 +202,7 @@ func (ix *Indexer) Search(query string, k int) ([]Hit, int, error) {
 // deleted files drop out. Symlinks are never followed.
 func (ix *Indexer) refresh() error {
 	seen := map[string]bool{}
+	excluded := 0
 	err := filepath.WalkDir(ix.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // unreadable subtree: index what we can
@@ -187,11 +210,16 @@ func (ix *Indexer) refresh() error {
 		name := d.Name()
 		if d.IsDir() {
 			if path != ix.root && SkipDir(name) {
+				excluded++
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || SkipFile(name) {
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		if SkipFile(name) {
+			excluded++
 			return nil
 		}
 		info, err := d.Info()
@@ -222,7 +250,17 @@ func (ix *Indexer) refresh() error {
 			delete(ix.files, rel)
 		}
 	}
+	ix.excluded = excluded
 	return err
+}
+
+// Excluded reports how many entries (credential/vendored dirs and
+// credential-shaped files) the last refresh skipped. Surfaced in the
+// keyword_search result so exclusion is never silent (G59).
+func (ix *Indexer) Excluded() int {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	return ix.excluded
 }
 
 func chunkFile(rel, content string) []chunk {

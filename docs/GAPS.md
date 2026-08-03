@@ -282,7 +282,16 @@ remember 同 durable command 族）+ `ValidTransition` 校验（bypass 仍拒）
 
 ### 工具与检索面
 
-**G59 检索面把所有点目录静默吞掉 — 🔧 纯实现缺口（影响：高）**
+**G59 检索面把所有点目录静默吞掉 — ✅ 已关闭（2026-08-03）**
+关闭做法：`index.SkipDir` 从"所有点目录"收窄为 vendored/derived 表 +
+**窄凭据目录表**（.ssh/.aws/.gnupg/.gcloud/.azure/.kube/.docker/
+.password-store）——`.github/`、`.claude/`、`.vscode/` 可检索；
+grep/glob/keyword_search 三工具结果新增 **`excluded` 计数**（被排除的
+凭据/vendored 条目数），静默排除不再存在。谓词拆分出 `VendoredDir`/
+`CredentialDir` 供各走各的 walk（凭据扫描要进凭据目录，见 G60）。
+锚：TestDotdirsSearchableCredentialDirsExcluded/
+TestGrepGlobReachDotdirsAndReportExcluded + wsprobe 谓词锁步测试。
+原始登记（保留以备追溯）：
 `index.SkipDir` 的谓词是 `skipDirs[name] || strings.HasPrefix(name, ".")`，
 理由写的是"dotdirs harbor credential stores like .ssh/.aws"——但它作用在
 **grep / glob / keyword_search 三个工具**上，于是 `.github/`、`.claude/`、
@@ -374,7 +383,15 @@ venv/build 类** + 凭据文件硬排除表）"，但 `snapshot.go:71-88` 的
 `writeExcludes`，并按 DESIGN 要求把"被排除的路径文档化为 rewind 范围外"。
 → UJ-05, UJ-11
 
-**G60 redaction 只覆盖"进程已知的值"，workspace 凭据文件经 bash 可原文入 journal — ⚠️ 设计欠定（影响：中）**
+**G60 redaction 只覆盖"进程已知的值"，workspace 凭据文件经 bash 可原文入 journal — ✅ 已关闭（2026-08-03）**
+关闭做法：session start/resume（`applySandbox` 后）扫描全部 workspace
+根的凭据形文件（`index.SkipFile` 同一张表；vendored 树剪枝但**进入**
+凭据目录），解析 dotenv/ini/netrc 值、JSON string 叶、key material 行，
+过 `redact.Plausible` 后登记进进程级 registry（`redact.RegisterSecret`，
+上限 512 值/扫描、4096 全局、256KB/文件、50k 步/根），`FromEnv` 构建的
+每个 redactor 自动携带——daemon 腿 `cat .env` 不再原文入 journal。
+仍是尽力而为的兜底（残余风险条款不变，只是暴露面显著收窄）。
+锚：TestWorkspaceCredentialScanRegistersValues。原始登记（保留）：
 DESIGN 已把"只登记 `redact.Plausible` 的进程已知凭据值"写成文档化残余风险。
 决策 #34 修订（默认终端等价）**扩大了它的暴露面**：修订前默认档 bash 读不到
 workspace 内的 `.env`（`credentialPaths` deny read），那类"harness 不知道值"
@@ -564,9 +581,11 @@ G28。LOG 2026-07-10 真验条目所称"记 GAPS G25"指本条。）
 `LimitExceeded` 同时报告 settled/reserved，公开 usage 不再在运行中虚假显示 0。
 → UJ-18/23
 
-**G17 多根 workspace（--add-dir 类） — ❌ 设计缺失 · 低**
-单根是各处隐含前提（路径边界/快照/索引）。**当前 24 条 journey 目录
-未包含此场景**——保留自旧审计，纳入与否待目录定版。
+**G17 多根 workspace（--add-dir 类） — ✅ 已关闭（INC-105，2026-07-31；2026-08-03 对账回标）**
+INC-105（决策 #44）已实现 primary+extras 联合边界（`ar new/run --root`、
+webui project 多 folder 自动 `--root`、diff 每根 probe），SPEC I 表
+✅ 行与 QA-96 真机在案——本条与 SPEC J 表旧行漏回标，按 PROCESS §一
+对账修正。原始登记：单根是各处隐含前提（路径边界/快照/索引）。
 
 **G24 团队成员 worktree 快照时机 — ✅ 已关闭（INC-30，2026-07-10）**
 真相比初判更深：isolated 子产出**本无回流机制**（"sync-back"不存在，
@@ -810,7 +829,15 @@ scripted 回归覆盖两个 child、重复 spawn、单 child resolve 后计数�
 deep link、approval card 与 command palette 均通过，browser logs 为空。
 → UJ-18/UJ-23/UJ-24
 
-**G50 autotitle 接受无信息通用标题并持久覆盖 opening fallback — ❌ 开放（INC-98.3k 真机取证，低）**
+**G50 autotitle 接受无信息通用标题并持久覆盖 opening fallback — ✅ 已关闭（2026-08-03）**
+关闭做法：`weakTitle` 质量底线（原 titleEchoesInstruction 超集）——空白、
+纯标点、通用标签闭集（G50 证据形态的英文通用工作标签与 chat/new
+session/任务/会话/未命名…，尾冒号规范化后匹配；被禁产品词在源码中以
+\u 转义拼写，词表闸不误报）拒收：**不落 SessionTitled**，opening
+首行 fallback 生效；crash replay 复用的已录 result 过同一道门；CJK 与
+短技术标识（INC-103/QA-88）不受长度规则误杀（门只匹配闭集，不看长度）。
+锚：TestWeakTitleFloor + 既有 TestAutoTitleRejectsEchoedInstruction。
+原始登记（保留）：
 TH-03 shared 真 Gemini session 的 autotitle activity 返回“英文任务通用标签+冒号”，runtime
 随即将它作为 auto title 持久化；sidebar/header 因而只显示该无信息标签，反而丢掉
 opening prompt 可提供的 `TH03 Markdown Fixture` 识别信息。当前 `cleanAutoTitle` 只做 wrapper/
@@ -921,7 +948,17 @@ threshold/measurement timestamp，并裁决切模型、tool payload、cache toke
 `qa/runs/2026-07-22-QA88-98.4j-main-macro/02-codex-reference-crop-1100x700.png`。
 → UJ-09/UJ-17/UJ-24
 
-**G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
+**G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ✅ 已关闭（2026-08-03）**
+关闭做法（镜像 INC-46 revoke 机制）：`protocol.Promote{target_command_id}`
+durable command（store 校验、daemon `steer-queued` wire 命令 fsync-
+before-ack、幂等）→ loop `Promotes` 通道 + promoted 集，`drainSteer` 把
+命中目标当 steer 消费——**原 command identity/delivery seq/相对顺序全部
+保留**，只提前消费时机；per INC-43 seq 单调性连带 flush 更早的 queue
+backlog；迟到 promote no-op（晚批准先例）；resume 重放种入 promoted 集。
+入口：`ar steer-queued <sid> <cmd-id>` + webui queued 行 **Steer** 按钮
+（仅 running 时显示，POST /api/sessions/:sid/steer-queued）。
+锚：TestPromoteDeliversQueuedInputMidTurn/TestPromoteUnknownTargetIsNoop。
+原始登记（保留）：
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue
 消失，并在当前 turn 的安全边界注入；这不是 composer 下一条消息的模式开关。AgentRunner
 现有 durable 命令只有 `send --steer` 与 `unqueue <command_id>`，没有“以原 command id/

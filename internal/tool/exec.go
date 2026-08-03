@@ -546,6 +546,7 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 	fileCounts := map[string]int{} // rel path -> match count (files_with_matches / count modes)
 	filesScanned := 0
 	truncated := false
+	excluded := 0 // pruned credential/vendored entries — reported, never silent (G59)
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // unreadable subtree: search what we can
@@ -553,11 +554,16 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		name := d.Name()
 		if d.IsDir() {
 			if path != root && index.SkipDir(name) {
+				excluded++
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || index.SkipFile(name) {
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		if index.SkipFile(name) {
+			excluded++
 			return nil
 		}
 		// Filename glob filter (INC-22): skip files whose basename doesn't match.
@@ -665,7 +671,7 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 			files = append(files, p)
 		}
 		sort.Strings(files)
-		return okResult(map[string]any{"files": files, "files_scanned": filesScanned})
+		return okResult(map[string]any{"files": files, "files_scanned": filesScanned, "excluded": excluded})
 	case "count":
 		type fc struct {
 			Path  string `json:"path"`
@@ -676,9 +682,9 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 			counts = append(counts, fc{Path: p, Count: c})
 		}
 		sort.Slice(counts, func(i, j int) bool { return counts[i].Path < counts[j].Path })
-		return okResult(map[string]any{"counts": counts, "files_scanned": filesScanned})
+		return okResult(map[string]any{"counts": counts, "files_scanned": filesScanned, "excluded": excluded})
 	default:
-		return okResult(map[string]any{"matches": matches, "files_scanned": filesScanned, "truncated": truncated})
+		return okResult(map[string]any{"matches": matches, "files_scanned": filesScanned, "truncated": truncated, "excluded": excluded})
 	}
 }
 
@@ -707,6 +713,7 @@ func (e *Executor) glob(rawArgs json.RawMessage) Result {
 	}
 	paths := []string{}
 	truncated := false
+	excluded := 0 // pruned credential/vendored entries — reported, never silent (G59)
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -714,11 +721,16 @@ func (e *Executor) glob(rawArgs json.RawMessage) Result {
 		name := d.Name()
 		if d.IsDir() {
 			if path != root && index.SkipDir(name) {
+				excluded++
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || index.SkipFile(name) {
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		if index.SkipFile(name) {
+			excluded++
 			return nil
 		}
 		relToRoot, err := filepath.Rel(root, path)
@@ -737,7 +749,7 @@ func (e *Executor) glob(rawArgs json.RawMessage) Result {
 		return errResult("glob: %v", walkErr)
 	}
 	sort.Strings(paths)
-	return okResult(map[string]any{"paths": paths, "truncated": truncated})
+	return okResult(map[string]any{"paths": paths, "truncated": truncated, "excluded": excluded})
 }
 
 // globToRegexp translates a shell-style glob into an anchored RE2 pattern.
@@ -812,7 +824,7 @@ func (e *Executor) keywordSearch(args json.RawMessage) Result {
 	if hits == nil {
 		hits = []index.Hit{}
 	}
-	return okResult(map[string]any{"hits": hits, "indexed_files": files})
+	return okResult(map[string]any{"hits": hits, "indexed_files": files, "excluded": e.index.Excluded()})
 }
 
 // scheduleNext and finishSeries are pure data-definition tools (S6 loop

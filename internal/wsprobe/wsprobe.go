@@ -80,7 +80,8 @@ func Resolve(root string, threshold int, mode string) Verdict {
 
 // Probe counts regular files under root, stopping as soon as the count
 // exceeds threshold. The return therefore saturates at threshold+1. Skipped
-// directories match index.SkipDir (vendored/derived trees and every dotdir),
+// directories match index.SkipDir (vendored/derived trees and the narrow
+// credential-store list — ordinary dotdirs are countable, G59),
 // and symlinks are never followed — WalkDir does not descend them.
 func Probe(root string, threshold int) int {
 	n := 0

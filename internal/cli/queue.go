@@ -160,3 +160,58 @@ func unqueueCmd(args []string, stdout, stderr io.Writer) int {
 		Principal: "local-user", Source: "cli", Trust: "local"}
 	return oneShot(stderr, cmd, stdout)
 }
+
+// steerQueuedCmd atomically promotes one QUEUED message to steer delivery
+// (G47): the message keeps its command identity and order — it just enters
+// the running turn at the next safe boundary instead of waiting for the
+// idle. Same precheck courtesy as unqueueCmd; the loop decides, a late
+// promote is a no-op.
+func steerQueuedCmd(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("steer-queued", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
+	}
+	rest := fs.Args()
+	if len(rest) != 2 {
+		fmt.Fprintln(stderr, `usage: agentrunner steer-queued <session-id-or-prefix> <command-id>`)
+		return ExitUsage
+	}
+	dir, err := resolveSessionDir(rest[0])
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	target := rest[1]
+	cmds, err := store.ReadCommands(dir, 0)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitRun
+	}
+	var found *protocol.SessionCommand
+	for i := range cmds {
+		if cmds[i].CommandID == target {
+			found = &cmds[i]
+			break
+		}
+	}
+	if found == nil {
+		fmt.Fprintf(stderr, "agentrunner: no command %s in this session (agentrunner queue lists them)\n", target)
+		return ExitUsage
+	}
+	if found.Kind != protocol.CommandInput {
+		fmt.Fprintf(stderr, "agentrunner: only queued conversational inputs are promotable (%s is %s)\n", target, found.Kind)
+		return ExitUsage
+	}
+	if events, rerr := store.ReadEvents(dir); rerr == nil {
+		if s, ferr := state.Fold(events); ferr == nil && found.Input != nil &&
+			found.Input.DeliverySeq > 0 && found.Input.DeliverySeq <= s.Session.ConsumedInputSeq {
+			fmt.Fprintf(stderr, "agentrunner: %s was already consumed — nothing to steer\n", target)
+			return ExitUsage
+		}
+	}
+	cmd := daemon.Command{Cmd: "steer-queued", Session: resolvePrefixLenient(rest[0]),
+		TargetCommandID: target, CommandID: event.NewCommandID(),
+		Principal: "local-user", Source: "cli", Trust: "local"}
+	return oneShot(stderr, cmd, stdout)
+}

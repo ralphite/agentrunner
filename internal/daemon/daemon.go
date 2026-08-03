@@ -159,6 +159,7 @@ type RunRequest struct {
 	CommandInterrupts <-chan protocol.CommandRef
 	CommandCancels    <-chan protocol.CancelCommand
 	Revokes           <-chan protocol.Revoke
+	Promotes          <-chan protocol.Promote
 	Answers           <-chan protocol.AnswerCommand
 	// Kills is the tree's live cancel table, wired onto the Loop so its
 	// in-flight work is reachable by the kill handler.
@@ -181,6 +182,7 @@ type ResumeRequest struct {
 	CommandInterrupts <-chan protocol.CommandRef
 	CommandCancels    <-chan protocol.CancelCommand
 	Revokes           <-chan protocol.Revoke
+	Promotes          <-chan protocol.Promote
 	Answers           <-chan protocol.AnswerCommand
 	Kills             *kill.Registry
 }
@@ -365,6 +367,8 @@ type hostedRun struct {
 	// revokes delivers queued-input withdrawals (INC-46): the loop keeps a
 	// revoked-target set and consumes matching inputs as InputRevoked.
 	revokes chan protocol.Revoke
+	// promotes delivers queued→steer upgrades (G47), mirror of revokes.
+	promotes chan protocol.Promote
 	// answers delivers structured ask replies (INC-47) to the parked loop.
 	answers         chan protocol.AnswerCommand
 	pendingCommands []protocol.SessionCommand
@@ -400,6 +404,7 @@ func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hos
 	h.commandInterrupts = make(chan protocol.CommandRef, 1)
 	h.commandCancels = make(chan protocol.CancelCommand, 8)
 	h.revokes = make(chan protocol.Revoke, 8)
+	h.promotes = make(chan protocol.Promote, 8)
 	h.answers = make(chan protocol.AnswerCommand, 4)
 	h.commandWake = make(chan struct{}, 1)
 	h.commandStop = make(chan struct{})
@@ -451,6 +456,7 @@ func (h *hostedRun) pumpCommands() {
 		interrupts := h.commandInterrupts
 		cancels := h.commandCancels
 		revokes := h.revokes
+		promotes := h.promotes
 		answers := h.answers
 		answerApproval := h.answerApproval
 		h.mu.Unlock()
@@ -492,6 +498,17 @@ func (h *hostedRun) pumpCommands() {
 			}
 			select {
 			case revokes <- *cmd.Revoke:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandPromote:
+			if cmd.Promote == nil {
+				delivered = true
+				break
+			}
+			select {
+			case promotes <- *cmd.Promote:
 				delivered = true
 			case <-stop:
 				return
@@ -1050,6 +1067,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleSeriesConfigUpdate(ctx, cmd, enc)
 	case "unqueue":
 		s.handleUnqueue(ctx, cmd, enc)
+	case "steer-queued":
+		s.handlePromote(ctx, cmd, enc)
 	case "answer":
 		s.handleAnswer(ctx, cmd, enc)
 	case "agent":
@@ -1320,6 +1339,30 @@ func (s *Server) acceptedDelivery(ctx context.Context, session string, hub *host
 // the journal like pendingApproval does and can race an in-flight consume):
 // the loop's consume-side guard is what actually decides, and a late revoke
 // is a no-op there.
+// handlePromote atomically upgrades a QUEUED input to steer delivery (G47).
+// Same shape as handleUnqueue: the durable promote command is the atomic
+// truth; the loop's consume side decides, and a late promote is a no-op.
+func (s *Server) handlePromote(ctx context.Context, cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" || cmd.TargetCommandID == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "steer-queued needs session and target_command_id"})
+		return
+	}
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
+		Kind: protocol.CommandPromote, Promote: &protocol.Promote{TargetCommandID: cmd.TargetCommandID},
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "steer-queued not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: "steer-queued recorded; it applies when the session next runs"})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+		Text: "steer-queued delivered for " + cmd.TargetCommandID + " (a no-op if already consumed)"})
+}
+
 func (s *Server) handleUnqueue(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" || cmd.TargetCommandID == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "unqueue needs session and target_command_id"})
@@ -1949,7 +1992,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			Images: cmd.Images, Files: cmd.Files,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
-			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Answers: hub.answers,
+			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Promotes: hub.promotes, Answers: hub.answers,
 			Kills: hub.kills,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})

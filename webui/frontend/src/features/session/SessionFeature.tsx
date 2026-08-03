@@ -133,6 +133,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
     answerAsk,
     skipAsk,
     withdrawQueued,
+    steerQueued,
     send: doSend,
     continueFromMessage,
     decideApproval,
@@ -1077,6 +1078,7 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                 <QueuedMessageList
                   messages={queued}
                   onWithdraw={withdrawQueued}
+                  onSteer={running ? steerQueued : undefined}
                 />
               )}
           {!isSub && !isDriver && (

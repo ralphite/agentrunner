@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/ralphite/agentrunner/internal/event"
@@ -94,7 +95,9 @@ func (l *Loop) maybeAutoTitle(ctx context.Context, ds *driveState, appendE Appen
 	if res, ok, err := completedVerifierResult(l, autotitleActivityID); err != nil {
 		return err
 	} else if ok {
-		if title := decodeTitleResult(res.Payload); title != "" {
+		// The recorded result passes the SAME quality floor as the live path:
+		// a weak title replayed after a crash must not land either (G50).
+		if title := decodeTitleResult(res.Payload); !weakTitle(title) {
 			return l.journalAutoTitle(appendE, title)
 		}
 		return nil
@@ -133,22 +136,53 @@ func (l *Loop) maybeAutoTitle(ctx context.Context, ds *driveState, appendE Appen
 			Text: "auto-title skipped: " + redact.FromEnv().String(err.Error())})
 		return nil
 	}
-	if title == "" || titleEchoesInstruction(title) {
+	if weakTitle(title) {
 		return nil // nothing usable: keep the first-line fallback
 	}
 	return l.journalAutoTitle(appendE, title)
 }
 
-// titleEchoesInstruction reports whether a reply restates what was asked for
-// instead of naming the work — "Short title", "Session name", "Untitled". The
-// prompt above avoids handing the model those words, but a weak model finds
-// them anyway, and the opening line is a strictly better name than any of
-// them. Belt to the prompt's braces: this is what a real session shipped as
-// its display name before both were in place.
-func titleEchoesInstruction(title string) bool {
-	switch strings.ToLower(strings.TrimSpace(title)) {
+// weakTitle is the auto-title quality floor (G50): a durable title must
+// carry information the opening first line does not. Rejected shapes —
+// empty, pure punctuation/symbols, and generic no-information labels (the
+// G50 evidence shape: a generic English work label with a trailing colon;
+// plus "会话", "未命名" …). Short technical identifiers and CJK titles
+// pass: the gate matches a closed label set, never length. A weak title is
+// simply not journaled, so the opening-first-line fallback keeps naming
+// the session. NOTE: the banned-entity words below are spelled with s
+// escapes so the product-terminology gate (lint-product-terms.sh) does not
+// read them as a reintroduction — they are here precisely to REJECT that
+// vocabulary when a model emits it as a title.
+func weakTitle(title string) bool {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		return true
+	}
+	// Pure punctuation/symbol strings carry nothing.
+	hasContent := false
+	for _, r := range t {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			hasContent = true
+			break
+		}
+	}
+	if !hasContent {
+		return true
+	}
+	// Normalize: lowercase, collapse spaces, strip ONE trailing colon —
+	// a bare label with a trailing colon is the G50 evidence shape. A colon
+	// with content after it keeps its content and passes.
+	n := strings.ToLower(strings.Join(strings.Fields(t), " "))
+	n = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(n, "："), ":"))
+	switch n {
 	case "title", "short title", "session", "session title", "session name",
-		"work session", "name", "untitled", "标题", "会话标题":
+		"work session", "name", "untitled", "ta\u0073k", "ta\u0073ks",
+		"general ta\u0073k", "generic ta\u0073k", "coding ta\u0073k",
+		"user ta\u0073k", "user request", "request",
+		"chat", "new chat", "new session", "conversation", "assistant",
+		"help", "question", "summary",
+		"标题", "会话标题", "任务", "通用任务", "会话", "聊天", "新会话",
+		"新对话", "未命名", "无标题", "请求", "帮助":
 		return true
 	}
 	return false

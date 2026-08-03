@@ -14,3 +14,5 @@ internal/provider/scripted/router.go NewRouter
 internal/provider/scripted/scripted.go New
 # [staged-wiring] INC-77.2 series runner(E1③ 合流引擎):生产接线在
 # 77.3(daemon 宿主),接线后本组整体删除(LOG 2026-07-18 INC-77.2 条)。
+# [test-infra] G60: agent/credscan 跨包测试重置 workspace-secret registry,生产无调用方(设计如此)
+internal/redact/redact.go ResetRegistered

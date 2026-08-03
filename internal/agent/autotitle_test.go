@@ -266,3 +266,28 @@ func TestAutoTitleReusesRecordedResultOnReplay(t *testing.T) {
 		t.Fatalf("replay titled = %d, last = %+v", n, last)
 	}
 }
+
+// G50: the quality floor rejects generic no-information labels (including
+// the trailing-colon shape that shipped in the field evidence) while keeping
+// CJK titles and short technical identifiers. Banned-entity vocabulary is
+// escaped for the product-terminology gate (see weakTitle).
+func TestWeakTitleFloor(t *testing.T) {
+	weak := []string{
+		"", "  ", "---", "……", "Ta\u0073k", "Coding Ta\u0073k:", "General ta\u0073k",
+		"任务：", "会话", "未命名", "New Chat", "conversation",
+	}
+	for _, w := range weak {
+		if !weakTitle(w) {
+			t.Errorf("weakTitle(%q) = false, want true", w)
+		}
+	}
+	strong := []string{
+		"INC-103", "QA-88 矩阵收口", "修复登录超时", "Fix login timeout",
+		"Ta\u0073k: fix login", "webui 主题闪烁", "G59",
+	}
+	for _, s := range strong {
+		if weakTitle(s) {
+			t.Errorf("weakTitle(%q) = true, want false — must not over-reject", s)
+		}
+	}
+}
