@@ -1650,7 +1650,17 @@
   .approval-heading, .ask-form-head, .daemon-alert, .turn-error, .terminal-alert, .gbar {
     @apply flex items-start gap-3;
   }
-  .approval-icon, .daemon-alert-ic, .turn-error-ic, .terminal-alert-ic, .gbar-ico { @apply shrink-0 text-blue; }
+  /* Blue is the INFORMATIONAL accent (approvals, goals, tone-carrying alerts).
+     The two always-failure cards are excluded so their icon inherits the err
+     tone's red from the card instead of being repainted blue. */
+  .approval-icon, .terminal-alert-ic, .gbar-ico { @apply shrink-0 text-blue; }
+  .daemon-alert-ic, .turn-error-ic { @apply shrink-0; }
+  /* daemon-alert and turn-error are ALWAYS failures, so they take the existing
+     err tone rather than a bespoke look — before this they used the neutral
+     panel style with a blue icon, indistinguishable from an approval prompt.
+     Placed AFTER the shared card rule above: that one sets bg-panel/border-line,
+     and same-specificity selectors are decided by source order. */
+  .daemon-alert, .turn-error { @apply border-red bg-red-soft text-red; }
   .daemon-alert-main { @apply flex min-w-0 flex-1 items-start gap-3; }
   .daemon-alert-text { @apply flex min-w-0 flex-1 flex-col gap-1; }
   .daemon-alert-text b { @apply leading-5; }
@@ -2152,10 +2162,13 @@
   }
   .schedule-detail-actions button { @apply min-h-9; }
   .schedule-detail-loading,
-  .schedule-detail-error { @apply m-6 text-[13px] text-dim; }
+  /* Was text-dim: an error rendered in the same grey as ordinary secondary
+     copy, so nothing about it read as a failure. */
+  .schedule-detail-error { @apply m-6 text-[13px] text-red; }
   .schedule-detail-loading { @apply animate-pulse; }
-  .schedule-detail-error { @apply grid justify-items-start gap-2 rounded-[var(--radius-menu)] border border-line bg-bg p-4; }
-  .schedule-detail-error b { @apply text-[14px] text-ink; }
+  /* Same err tone as every other error box, instead of a neutral-bordered card. */
+  .schedule-detail-error { @apply grid justify-items-start gap-2 rounded-[var(--radius-menu)] border border-red bg-red-soft p-4; }
+  .schedule-detail-error b { @apply text-[14px]; }
   @container scheduled-shell (max-width: 760px) {
     .scheduled-shell.has-detail > .scheduled-page { @apply hidden; }
     .schedule-detail { @apply border-l-0; }
