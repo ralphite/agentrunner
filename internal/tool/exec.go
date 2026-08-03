@@ -1169,7 +1169,10 @@ func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte
 				timedOut = true
 			} else {
 				canceled = true
-				if errors.Is(context.Cause(ctx), errs.ErrUserInterrupt) {
+				if errors.Is(context.Cause(ctx), errs.ErrUserInterrupt) ||
+					errors.Is(context.Cause(ctx), errs.ErrKilled) {
+					// A targeted kill is as interactive as a steer — the user
+					// is waiting on the click, so it gets the short grace too.
 					grace = bashInterruptGrace
 				}
 			}

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 
@@ -26,6 +27,10 @@ type bgOutcome struct {
 	isError    bool
 	err        error
 	canceled   bool
+	// killed narrows canceled to "the user cut this one unit out of band",
+	// so the terminal says killed rather than borrowing the interrupt's
+	// wording.
+	killed bool
 	// subagent is set for a BACKGROUND SPAWN (v2 M3.1): settling it journals
 	// SubagentCompleted (provenance + tree-budget usage) alongside the
 	// activity terminal that renders the child's report as a user message.
@@ -114,6 +119,7 @@ func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 	l.bg.cancel[callID] = cancel
 	l.bg.logs[callID] = log
 	l.bg.mu.Unlock()
+	unregisterKill := l.registerKill(callID, "tool", name, cancel)
 
 	// Progress tail (B9): chunks land in the bounded live log for `output`
 	// and mirror to the surface as ephemeral bg_output events — the same
@@ -126,11 +132,13 @@ func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 	})
 
 	go func() {
+		defer unregisterKill()
 		res := l.Exec.Execute(workCtx, name, args)
 		l.bg.done <- bgOutcome{
 			handle: callID, activityID: activityID,
 			result: res.Payload, isError: res.IsError,
 			canceled: workCtx.Err() != nil,
+			killed:   errors.Is(context.Cause(workCtx), errs.ErrKilled),
 		}
 	}()
 	return nil
@@ -197,10 +205,15 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 
 	switch {
 	case out.canceled:
+		reason := ""
+		if out.killed {
+			reason = "killed"
+		}
 		_, err := appendE(event.TypeActivityCancelled, &event.ActivityCancelled{
 			ActivityID:    out.activityID,
 			PartialOutput: string(redact.FromEnv().JSON(out.result)),
 			Usage:         out.usage,
+			Reason:        reason,
 		})
 		return err
 	case out.err != nil:

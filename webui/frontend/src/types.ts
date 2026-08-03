@@ -145,6 +145,15 @@ export interface BackgroundWork {
   detail: string;
 }
 
+// One thing the session is running right now that the user can stop, read
+// from the runtime's live cancel table rather than a journal fold.
+export interface Killable {
+  id: string;
+  kind: "tool" | "agent";
+  name: string;
+  session: string;
+}
+
 export interface Run extends Cadence {
   id: string;
   kind: "submit" | "drive";

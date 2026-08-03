@@ -22,6 +22,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/kill"
 	"github.com/ralphite/agentrunner/internal/modelconfig"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -98,7 +99,10 @@ type Command struct {
 	ReplayOnly bool `json:"replay_only,omitempty"`
 
 	// kill
-	Handle string `json:"handle,omitempty"` // a child/work handle to cancel
+	Handle string `json:"handle,omitempty"` // a call id / work handle to cut
+	// Target names a TREE MEMBER instead of one unit: kill everything that
+	// subagent is doing, including the tool call it is parked in.
+	Target string `json:"target,omitempty"`
 
 	// compact (G7): an optional focus for the manual summarizer.
 	Directive string `json:"directive,omitempty"`
@@ -156,6 +160,9 @@ type RunRequest struct {
 	CommandCancels    <-chan protocol.CancelCommand
 	Revokes           <-chan protocol.Revoke
 	Answers           <-chan protocol.AnswerCommand
+	// Kills is the tree's live cancel table, wired onto the Loop so its
+	// in-flight work is reachable by the kill handler.
+	Kills *kill.Registry
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -175,6 +182,7 @@ type ResumeRequest struct {
 	CommandCancels    <-chan protocol.CancelCommand
 	Revokes           <-chan protocol.Revoke
 	Answers           <-chan protocol.AnswerCommand
+	Kills             *kill.Registry
 }
 
 // DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
@@ -368,6 +376,11 @@ type hostedRun struct {
 	// approvalGiveUp caps delivery attempts per approval answer before the
 	// pump drops it (0 = the ~10s default); tests shrink it.
 	approvalGiveUp int
+	// kills is the tree's live cancel table (the user's kill gesture): the
+	// hosted loop publishes every in-flight tool call, background command and
+	// child into it, and the kill handler fires straight from here — no
+	// queue, no journal, nothing left behind.
+	kills *kill.Registry
 	// stop tears the hosted loop down (决策 #32 agent switch): a cancel cause
 	// that lets the loop journal a restartable stopped mark; the next send
 	// revives it (with whatever spec the journal then names).
@@ -375,7 +388,8 @@ type hostedRun struct {
 }
 
 func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hostedRun {
-	h := &hostedRun{id: id, notify: notify, subs: map[chan protocol.Event]struct{}{}}
+	h := &hostedRun{id: id, notify: notify, subs: map[chan protocol.Event]struct{}{},
+		kills: kill.NewRegistry()}
 	if !interactive {
 		return h
 	}
@@ -991,6 +1005,10 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleInterrupt(ctx, cmd, enc)
 	case "stop":
 		s.handleStop(cmd, enc)
+	case "kill":
+		s.handleKill(cmd, enc)
+	case "killable":
+		s.handleKillList(cmd, enc)
 	case "compact":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compact requested — the journal records the outcome", enc)
 	case "clear":
@@ -1408,6 +1426,86 @@ func (s *Server) handleInterrupt(ctx context.Context, cmd Command, enc *json.Enc
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupt delivered — cancels in-flight work or a pending ask; a no-op when the session is idle", Session: cmd.Session})
+}
+
+// handleKill cuts ONE running unit — a tool call, a background command, a
+// subagent — out of band, and does it on this goroutine: the cancel fires
+// before the ack is written. That immediacy is the whole point. The durable
+// command path deliberately is NOT used: it would queue the kill behind the
+// drive loop's next safe point, and the loop is parked inside a tool batch
+// exactly when a user wants out.
+//
+// Nothing durable is written. A kill leaves no mark and gates nothing, so a
+// killed scheduled session still runs on its next tick — pausing the
+// schedule is how you stop that. The only record is the work's own
+// ActivityCancelled terminal, journaled by the unit as it unwinds.
+//
+// cmd.Handle names a call id / handle; cmd.Target names a tree member, and
+// kills everything that member is doing.
+func (s *Server) handleKill(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs session"})
+		return
+	}
+	if cmd.Handle == "" && cmd.Target == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs a handle or target"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live hosted run %s", cmd.Session)})
+		return
+	}
+	if cmd.Target != "" {
+		hits := hub.kills.KillSession(cmd.Target)
+		if len(hits) == 0 {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: fmt.Sprintf("nothing running for %s", cmd.Target), Session: cmd.Session})
+			return
+		}
+		names := make([]string, 0, len(hits))
+		for _, t := range hits {
+			names = append(names, t.Name)
+		}
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: fmt.Sprintf("killed %d running in %s: %s", len(hits), cmd.Target, strings.Join(names, ", "))})
+		return
+	}
+	t, hit := hub.kills.Kill(cmd.Handle)
+	if !hit {
+		// Not an error worth shouting about: the work may have finished
+		// between the render and the click.
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: fmt.Sprintf("%s is not running (already finished?)", cmd.Handle)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+		Text: fmt.Sprintf("killed %s %s", t.Kind, t.Name)})
+}
+
+// handleKillList answers "what can I stop right now" from the live table —
+// no journal fold, so it reflects the instant, not the last safe point.
+func (s *Server) handleKillList(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "killable needs session"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	var targets []kill.Target
+	if ok {
+		targets = hub.kills.List()
+	}
+	payload, err := json.Marshal(targets)
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "killable: " + err.Error()})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session, Text: string(payload)})
 }
 
 // handleStop is the remote hard-cancel (G12): it tears the hosted run down
@@ -1852,6 +1950,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
 			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Answers: hub.answers,
+			Kills: hub.kills,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

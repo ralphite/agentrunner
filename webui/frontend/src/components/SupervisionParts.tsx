@@ -4,6 +4,7 @@ import {
   CaretRight,
   FileText,
   Info,
+  StopCircle,
   Terminal,
   X,
 } from "@phosphor-icons/react";
@@ -104,29 +105,45 @@ export function SupervisionCloseButton({
 
 export function BackgroundProcessRow({
   work,
+  onKill,
 }: {
   work: BackgroundWork;
+  onKill?: (handle: string) => void;
 }) {
   return (
-    <div className="background-row">
+    <div className="background-row group">
       <Terminal size={14} />
       <span className="min-w-0 flex-1 truncate" title={work.detail || work.handle}>
         {backgroundLabel(work)}
       </span>
+      {onKill && (
+        <IconButton
+          size="sm"
+          variant="ghost"
+          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          onClick={() => onKill(work.handle)}
+          title="Stop this — the session keeps going"
+          aria-label={`Stop ${backgroundLabel(work)}`}
+        >
+          <StopCircle size={14} />
+        </IconButton>
+      )}
     </div>
   );
 }
 
 export function BackgroundProcessesSection({
   work,
+  onKill,
 }: {
   work: BackgroundWork[];
+  onKill?: (handle: string) => void;
 }) {
   if (work.length === 0) return null;
   return (
     <section className="supervision-section">
       <div className="supervision-label">Background processes</div>
-      {work.map((item) => <BackgroundProcessRow key={item.handle} work={item} />)}
+      {work.map((item) => <BackgroundProcessRow key={item.handle} work={item} onKill={onKill} />)}
     </section>
   );
 }
@@ -327,10 +344,12 @@ export function SupervisionAgentsSection({
   children,
   delegations = [],
   onOpen,
+  onKill,
 }: {
   children: InspectNode[];
   delegations?: InspectDelegation[];
   onOpen: (sid: string) => void;
+  onKill?: (childSession: string) => void;
 }) {
   if (children.length === 0) return null;
   return (
@@ -343,6 +362,7 @@ export function SupervisionAgentsSection({
         nodes={children}
         delegations={delegations}
         onOpen={onOpen}
+        onKill={onKill}
       />
     </section>
   );

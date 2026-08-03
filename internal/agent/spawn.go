@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/kill"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -602,6 +604,15 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.bg.mu.Lock()
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()
+	// Killable by handle from any member of the tree. The entry is stamped
+	// with the CHILD's session id, not the parent's, so "stop that subagent"
+	// aimed at the child also reaches the calls it is running.
+	unregisterKill := func() {}
+	if l.Kills != nil {
+		unregisterKill = l.Kills.Register(kill.Target{
+			ID: call.CallID, Kind: "agent", Name: agentName, Session: childSession,
+		}, cancel)
+	}
 
 	// The Loop is built HERE, on the drive goroutine (it reads parent
 	// state); only the run itself moves to the background goroutine.
@@ -609,6 +620,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	child.Inputs = inputs
 	go func() {
 		defer cr.Close()
+		defer unregisterKill()
 		cres, spent, cerr := cr.Run(workCtx, child, isolatedPrompt(workspaceAssignment, prompt))
 		reason := cres.Reason
 		canceled := workCtx.Err() != nil
@@ -633,7 +645,8 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		l.bg.done <- bgOutcome{
 			handle: call.CallID, activityID: activityID,
 			result: payload, isError: reason == "error" || reason == "contract_violation",
-			canceled: canceled, usage: &usage,
+			canceled: canceled, killed: errors.Is(context.Cause(workCtx), errs.ErrKilled),
+			usage: &usage,
 			subagent: &event.SubagentCompleted{
 				CallID: call.CallID, Agent: agentName, ChildSession: childSession,
 				Reason: reason, GenSteps: cres.GenSteps, Usage: spent,
@@ -748,7 +761,10 @@ func (l *Loop) childLoopWithExec(childSpec *AgentSpec, childStore *store.EventSt
 		Board:     l.Board,     // the collaboration blackboard is tree-shared (S5.4)
 		Artifacts: l.Artifacts, // the deliverable CAS is tree-shared too (S5.5)
 		Router:    l.Router,    // the tree message fabric is tree-shared (INC-12)
-		Out:       l.Out,       // live events share the root sink, tagged per member (INC-12.6)
+		Kills:     l.Kills,     // one live cancel table for the whole tree, so a
+		//                        kill aimed at a grandchild's tool call is
+		//                        reachable from the session the user is watching
+		Out:       l.Out, // live events share the root sink, tagged per member (INC-12.6)
 		Snapshots: childSnapshots,
 	}
 }

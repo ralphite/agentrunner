@@ -101,6 +101,10 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return closeCmd(args[1:], stdout, stderr)
 	case "interrupt":
 		return interruptCmd(args[1:], stdout, stderr)
+	case "kill":
+		return killCmd(args[1:], stdout, stderr)
+	case "killable":
+		return killableCmd(args[1:], stdout, stderr)
 	case "stop":
 		// Undocumented transport for cancelling a running series (INC-83):
 		// the domain terminal is SeriesEnded{cancelled}, not a session mark.
@@ -165,6 +169,10 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner resume <session-id-or-prefix>\n\nResume an interrupted or crashed session in the foreground.\n"
 	case "interrupt":
 		return "usage: agentrunner interrupt <session-id-or-prefix>\n\nStop what the session is doing right now (a no-op at idle).\nNothing is ever \"closed\": the conversation stays continuable —\njust send the next message when you want more.\n"
+	case "kill":
+		return "usage: agentrunner kill <session-id-or-prefix> <call-id-or-handle>\n       agentrunner kill <session-id-or-prefix> --agent <child-session-id>\n\nStop ONE thing that is running right now — a tool call, a background\ncommand, or a subagent — without touching the rest of the turn. Takes\neffect immediately.\n\nThe session itself is not affected and nothing is marked: a killed\nscheduled session still runs on its next tick. Pause the schedule if\nyou want it to stop.\n\nSee `agentrunner killable <session>` for what can be killed.\n"
+	case "killable":
+		return "usage: agentrunner killable <session-id-or-prefix>\n\nList what the session is running right now and can be asked to kill\n(JSON: id, kind, name, session).\n"
 	case "close":
 		return "usage: agentrunner close <session-id-or-prefix>\n\n(internal web-UI transport — not part of the command set)\n"
 	case "stop":
@@ -234,6 +242,11 @@ Conversations (need the daemon):
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
                               the session keeps running; --replay-only prints history and exits)
   interrupt <session>         stop what it's doing now (a no-op at idle)
+  killable <session>          list what's running right now and can be killed
+  kill <session> <id>         kill ONE running thing — a tool call, a background
+                              command, a subagent (--agent <child> for all of one
+                              subagent's work); takes effect immediately, leaves
+                              the session and its schedule untouched
   compact <session> [focus]   summarize the context now (optional focus directive)
   clear <session>             drop the context prefix (keep the full journal)
   remember <session> "note"   save a durable note to the project CLAUDE.md

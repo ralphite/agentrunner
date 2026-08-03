@@ -55,6 +55,15 @@ var ErrSessionStopped = errors.New("session stopped")
 // user stop (ErrSessionStopped) still writes the stopped terminal.
 var ErrHostShutdown = errors.New("host shutting down")
 
+// ErrKilled is the cancellation CAUSE of a USER kill aimed at ONE running
+// unit — a tool call, a background command, a subagent. Deliberately NOT a
+// KilledError: a user kill leaves no durable mark and gates nothing, so a
+// scheduled session killed mid-run still starts on its next tick (pausing
+// the schedule is how you stop that). The work-level terminal —
+// ActivityCancelled — is the entire record. Effect implementations give it
+// the same short kill grace as a steering interrupt: it must feel instant.
+var ErrKilled = New(Canceled, "killed")
+
 // KilledError is the cancellation CAUSE of an explicit kill (决策 #30): it
 // records WHO asked ("user" via ar kill / the surface, "parent" via the
 // parent model's kill tool), so the dying child journals a

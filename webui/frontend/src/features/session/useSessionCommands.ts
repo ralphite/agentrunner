@@ -18,6 +18,10 @@ export function useSessionCommands(sid: string) {
         api.goal(sid, { action: "update", goal }),
       goal: (action: SessionGoalAction) => api.goal(sid, { action }),
       interrupt: () => api.interrupt(sid),
+      // Stop ONE running thing — a background command by handle, or
+      // everything one subagent is doing by its session id. The session and
+      // its schedule are untouched.
+      kill: (target: { id?: string; agent?: string }) => api.kill(sid, target),
       resume: () => api.resume(sid),
       retry: () => api.retry(sid),
       schedule: (action: "pause" | "resume") => api.schedule(sid, action),

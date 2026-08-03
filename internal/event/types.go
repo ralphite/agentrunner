@@ -392,6 +392,13 @@ type ActivityFailed struct {
 type ActivityCancelled struct {
 	ActivityID    string `json:"activity_id"`
 	PartialOutput string `json:"partial_output,omitempty"`
+	// Reason distinguishes a per-unit user KILL from the batch-wide steering
+	// interrupt that shares this event. "killed" renders a different result
+	// to the model, and the difference is not cosmetic: a steer means "stop
+	// everything you were doing", a kill means "this one call is gone, carry
+	// on with the rest". Empty (older journals, steer path) reads as the
+	// interrupt wording it always did.
+	Reason string `json:"reason,omitempty"`
 	// Usage settles tokens the cancelled activity ALREADY spent (S5 review):
 	// a steered/aborted child run burned real budget — losing it would let a
 	// re-spawn over-grant against the tree cap.

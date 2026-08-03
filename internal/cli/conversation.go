@@ -588,6 +588,41 @@ func interruptCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
+// killCmd cuts ONE running unit out of a live session:
+// `agentrunner kill <session> <call-id-or-handle>`, or `--agent <session-id>`
+// to stop everything a subagent is doing. It is not a lifecycle verb — the
+// session is untouched, nothing is marked, and a scheduled session killed
+// mid-run still starts on its next tick (pause the schedule to stop that).
+// `agentrunner killable <session>` lists what is running right now.
+func killCmd(args []string, stdout, stderr io.Writer) int {
+	usage := "usage: agentrunner kill <session-id-or-prefix> <call-id-or-handle>\n       agentrunner kill <session-id-or-prefix> --agent <child-session-id>"
+	if len(args) == 3 && args[1] == "--agent" {
+		return oneShot(stderr, daemon.Command{
+			Cmd: "kill", Session: resolvePrefixLenient(args[0]), Target: args[2],
+		}, stdout)
+	}
+	if len(args) != 2 {
+		fmt.Fprintln(stderr, usage)
+		return ExitUsage
+	}
+	return oneShot(stderr, daemon.Command{
+		Cmd: "kill", Session: resolvePrefixLenient(args[0]), Handle: args[1],
+	}, stdout)
+}
+
+// killableCmd lists what a live session can be asked to kill right now,
+// read straight from the runtime's cancel table (JSON): the surface uses it
+// to render stop affordances without folding a journal.
+func killableCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: agentrunner killable <session-id-or-prefix>")
+		return ExitUsage
+	}
+	return oneShot(stderr, daemon.Command{
+		Cmd: "killable", Session: resolvePrefixLenient(args[0]),
+	}, stdout)
+}
+
 // stopCmd remotely tears down a hosted run (G12): graceful cancel with a
 // restartable stopped mark — `send` revives it.
 // Distinct from interrupt (turn-level) and close (a mark).

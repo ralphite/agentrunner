@@ -1369,13 +1369,25 @@ resume 永不重读 live default。
   topic。CLI 先做 turn 粒度渲染，token streaming 是纯增量，协议不变。
 - `ApprovalRequested` 携带 `payload_ref` 时，frontend 渲染对应 artifact
   ——审批对象是一份版本化文档，不只是 tool call 参数。
-- **停止面（INC-83 收敛）**：用户手势只有 **Stop**（`interrupt`——
-  取消当前 turn 的活动、无标记、待命处 no-op）。运行中的 loop/
-  best-of-N 系列由**系列自己的域内终态**取消（`SeriesEnded{cancelled}`,
-  经内部 stop transport 触达）;goal/schedule/hook 各用自己的领域动词
-  （cancel/revoke）。close/stop/kill 生命周期动词已从 CLI/webui 用户面
-  拆除（wire close 暂留为托管 run 的内部 unhost 机制,挂账 idle 驱逐
-  设计;wire stop=series cancel transport;kill 全删,模型工具除外）。
+- **停止面（INC-83 收敛;2026-08-02 补 kill 一档）**：用户手势有两个,
+  按**作用域**分,都不是生命周期动词:
+  - **Stop**（`interrupt`）——停当前这一步:取消 turn 在飞的活动、无
+    标记、待命处 no-op。
+  - **Kill**（`ar kill` / webui 停止按钮）——停**一个在跑的单元**:一次
+    工具调用、一条后台命令、一个子 agent(`--agent <child>` 连它正卡着
+    的调用一起切)。同批的兄弟调用继续跑,turn 不结束,模型把它当一条
+    普通工具结果(`[killed by user]`)接着推进。
+    **立即**:取消开关由 runtime 活注册表直接持有(`internal/kill`),wire
+    handler 当场扳,不排队等 drive loop 的安全点——用户想杀的时刻,循环
+    恰恰正卡在工具批次里。
+    **无状态**:不写标记、不设门、不留回执。唯一记录是这份工作自己的
+    `ActivityCancelled{reason:killed}`。所以被杀的 scheduled session
+    下一 tick 照常起——要它别再起,用 schedule 自己的 pause。
+  运行中的 loop/best-of-N 系列由**系列自己的域内终态**取消
+  （`SeriesEnded{cancelled}`,经内部 stop transport 触达）;goal/schedule/
+  hook 各用自己的领域动词（cancel/revoke）。**会话级** close/stop 生命
+  周期动词仍从 CLI/webui 用户面拆除（wire close 暂留为托管 run 的内部
+  unhost 机制,挂账 idle 驱逐设计;wire stop=series cancel transport）。
   内部 teardown 仍落 `SessionClosed{stopped}` 标记——投影 idle、除
   kill 纪律外无门、仅 `GenerationStarted` 清,是实现细节不是概念。
 - 协议预留（尚未实现）：slash command 调用（GAPS G21）。
@@ -1917,7 +1929,7 @@ resume 永不重读 live default。
 | 27 | 子 agent（v2） | 递归 Session；background spawn 拿 handle 即返回，完成回执是父 inbox 输入；杀死 = control 输入 | 一套机制取代三套"子执行"；编排智能在模型，runtime 只供原语。 |
 | 28 | 多模态（v2） | 消息 = parts（含 image/file）；字节走 CAS、journal 只存 ref、组装时 inflate；长贴超阈值折叠为 file part | fold 永不读 store 的纪律下引入多模态；上下文不被长贴撑爆。 |
 | 29 | 恢复语义（2026-07-05 单一化） | 一切 session 崩溃自愈：in-doubt 按类别处置后渲染 [interrupted by crash]，session 回到待命/继续；无第二种恢复形态 | 只有一种 session（决策 #31），恢复自然只有一种。 |
-| 30 | 标记+检查（2026-07-05;INC-83 重裁 2026-07-19） | `SessionClosed` 是**内部标记**（仅 agent kill 工具/托管 teardown/legacy journal 写入,含来源 user/parent），唯一有门的检查是 kill 纪律（用户 kill 的子仅用户可复活）;投影一律 "idle",不挡 send。无终止状态、无 session-completed 事件;**用户面无任何生命周期动词**（唯一手势 Stop=打断;自动源用各自领域动词终止） | "终止"无真实需求;生命周期概念族更无真实需求——每个"停"的需求都有域内归属（INC-83 工作纸对照表）。 |
+| 30 | 标记+检查（2026-07-05;INC-83 重裁 2026-07-19;2026-08-02 补 kill 一档） | `SessionClosed` 是**内部标记**（仅 agent kill 工具/托管 teardown/legacy journal 写入,含来源 user/parent），唯一有门的检查是 kill 纪律（用户 kill 的子仅用户可复活）;投影一律 "idle",不挡 send。无终止状态、无 session-completed 事件;**用户面无任何会话级生命周期动词**（会话级手势只有 Stop=打断;自动源用各自领域动词终止）。**用户面的 kill 是工作级的**:切一个在跑的单元(工具调用/后台命令/子 agent),立即生效,**不写任何标记、不设任何门**——它不进这张表,唯一记录是该工作的 `ActivityCancelled{reason:killed}` | "终止"无真实需求;生命周期概念族更无真实需求——每个"停"的需求都有域内归属（INC-83 工作纸对照表）。"停掉这件在跑的活"的归属就是**这件活**,不是会话:所以它既不该盖章,也不该挡住 schedule 的下一 tick（2026-08-02 用户裁决）。 |
 | 31 | 静止模型（2026-07-05） | 只有一种 durable session，不存在第二种会话实体。静止=形状（无在飞工作+无定时自触发+turn 已收尾）；静止时 outputs→barrier→parent 回执（既有子回执）；`ar run` = 开 session+发消息+等静止+读结果 | 双实体模型与 session/turn 大量重复且定义不清（开发者裁定）；driver/headless 的需求由"静止+回执"完全覆盖。 |
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
 | 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |

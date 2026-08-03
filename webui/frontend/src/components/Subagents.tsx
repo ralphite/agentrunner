@@ -1,6 +1,7 @@
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
-import { ArrowSquareOut } from "@phosphor-icons/react";
+import { ArrowSquareOut, StopCircle } from "@phosphor-icons/react";
+import { IconButton } from "../ui/IconButton";
 import {
   LifecycleStatus,
   lifecycleStateFromStatusClass,
@@ -162,11 +163,15 @@ export function Subagents({
   nodes,
   delegations = [],
   onOpen,
+  onKill,
   depth = 0,
 }: {
   nodes: InspectNode[];
   delegations?: InspectDelegation[];
   onOpen: (sid: string) => void;
+  // onKill stops everything a running child is doing — including the tool
+  // call it is parked in. Omitted where the surface is read-only.
+  onKill?: (childSession: string) => void;
   depth?: number;
 }) {
   if (!nodes?.length) return null;
@@ -190,6 +195,7 @@ export function Subagents({
             node={node}
             delegation={delegation}
             onOpen={onOpen}
+            onKill={onKill}
             depth={depth}
           />
         );
@@ -202,11 +208,13 @@ export function SubagentItem({
   node,
   delegation,
   onOpen,
+  onKill,
   depth = 0,
 }: {
   node: InspectNode;
   delegation?: InspectDelegation;
   onOpen: (sid: string) => void;
+  onKill?: (childSession: string) => void;
   depth?: number;
 }) {
   const report = node.report || node;
@@ -267,30 +275,49 @@ export function SubagentItem({
       </span>
     </>
   );
+  // Only a child that is actually working can be stopped. The button sits
+  // OUTSIDE the row button — a button inside a button is invalid markup and
+  // the click would be ambiguous between "open" and "stop".
+  const killable = !!onKill && !!node.session && status.cls === "run";
   return (
     <div
       className={depth ? `${indent} border-l border-line pl-2` : ""}
       data-depth={depth}
     >
-      {clickable ? (
-        <button
-          className="sa-row clickable"
-          type="button"
-          onClick={() => onOpen(node.session!)}
-          title={`${identity} · ${secondary}`}
-        >
-          {row}
-        </button>
-      ) : (
-        <div className="sa-row">
-          {row}
-        </div>
-      )}
+      <div className="group flex min-w-0 items-start">
+        {clickable ? (
+          <button
+            className="sa-row clickable min-w-0 flex-1"
+            type="button"
+            onClick={() => onOpen(node.session!)}
+            title={`${identity} · ${secondary}`}
+          >
+            {row}
+          </button>
+        ) : (
+          <div className="sa-row min-w-0 flex-1">
+            {row}
+          </div>
+        )}
+        {killable && (
+          <IconButton
+            size="sm"
+            variant="ghost"
+            className="mt-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={() => onKill!(node.session!)}
+            title="Stop this agent — your session keeps going"
+            aria-label={`Stop agent ${identity}`}
+          >
+            <StopCircle size={14} />
+          </IconButton>
+        )}
+      </div>
       {children.length > 0 && (
         <Subagents
           nodes={children}
           delegations={report.delegations || []}
           onOpen={onOpen}
+          onKill={onKill}
           depth={depth + 1}
         />
       )}

@@ -1177,6 +1177,10 @@ export function SessionFeature({ sid, mobileNavigationOpen = false }: { sid: str
                 .catch((error) => toast(error.message))}
             onGoalAction={(action) => commands.goal(action).then(() => pollInspect()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
+            onKillWork={(target) =>
+              commands.kill(target)
+                .then(() => { pollInspect(); })
+                .catch((error) => toast(error.message))}
             onInspect={() => commands.inspect().then((data) => openModal({
               kind: "inspect",
               data,

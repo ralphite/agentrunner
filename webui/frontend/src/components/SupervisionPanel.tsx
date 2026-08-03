@@ -172,6 +172,7 @@ export function SupervisionPanel({
   onGoalAction,
   onOpenArtifact,
   onOpenChild,
+  onKillWork,
   onInspect,
   onClose,
 }: {
@@ -213,6 +214,9 @@ export function SupervisionPanel({
   onGoalAction: (action: "pause" | "resume" | "cancel") => void;
   onOpenArtifact: (stream: string, version: number) => void;
   onOpenChild: (sid: string) => void;
+  // Stop ONE running thing without touching the session: a background
+  // command by handle, or everything a subagent is doing by its session id.
+  onKillWork?: (target: { id?: string; agent?: string }) => void;
   onInspect: () => void;
   onClose: () => void;
 }) {
@@ -282,7 +286,10 @@ export function SupervisionPanel({
           scrolling past five quieter ones. Codex puts `Background processes`
           second, right beneath the Environment rows, for the same reason: what's
           running *right now* outranks the standing description of the run. */}
-      <BackgroundProcessesSection work={backgroundWork} />
+      <BackgroundProcessesSection
+        work={backgroundWork}
+        onKill={onKillWork && ((handle) => onKillWork({ id: handle }))}
+      />
 
       {/* One indeterminate line while inspect is in flight — not three titled
           "Checking…" blocks that then collapse into nothing (TH-3): the panel
@@ -315,6 +322,7 @@ export function SupervisionPanel({
           children={children}
           delegations={delegations}
           onOpen={onOpenChild}
+          onKill={onKillWork && ((childSession) => onKillWork({ agent: childSession }))}
         />
       )}
 

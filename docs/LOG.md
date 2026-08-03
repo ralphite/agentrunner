@@ -8481,3 +8481,61 @@ final 为 0**（每一次都被等了出来），9 次 provider_server 里 2 次
 5.00–6.21s、attempt-2 散在 10.10–12.37s、attempt-3 散在 20.23–24.92s。
 run 退出码 0、`DONE 8`。同一场景在修 OTHER 误判前两次都以假"blocked"
 收场。旧策略下这 66 次里的每一次都会在 5 秒后杀死自己那条 turn。
+## 2026-08-02 工作级 kill:切在跑的单元,立即、无状态（决策 #30 补档）
+
+**用户裁决**（原话三句）:"we should allow user to kill any running
+subagent, tool"、"there is no state for stop"、"allow start again with
+scheduled session. user can pause it. kill should be instant."
+
+**旧不变量原文**（DESIGN §12 停止面 / 决策 #30,INC-83 2026-07-19 立）:
+"close/stop/kill 生命周期动词已从 CLI/webui 用户面拆除（…kill 全删,
+模型工具除外）"、"**用户面无任何生命周期动词**（唯一手势 Stop=打断）";
+且 `SessionClosed{killed}` 是"唯一有门的检查"(kill 纪律,挡 timer sweep /
+drive resume / hook ingress 三条自动路径)。
+
+**为什么必须动**:INC-83 拆的是**会话级**生死章,它的原则是"每个'停'的
+需求都有域内归属"。而"停掉这件正在跑的活"的归属就是**这件活**——不是
+会话。DESIGN 自己一直不自洽:§7 至今写着"或用户投一条
+`control{cancel, handle}`…杀死不是特例,是给子 session 投了一条 control
+输入"。缺的从来不是概念,是用户够得着的入口:PLAN 6.2/6.5 删掉 `ar kill`
+与 wire kill 后,2026-07-24 加过一次 webui 停止按钮(203c7da8),8 分钟后
+自己 revert(29a2ed46)——底下 transport 已不存在,按钮是空炮。
+
+**新表述**:用户面有两个停止手势,按**作用域**分,都不写生命周期状态。
+Stop(interrupt)=停当前这一步;Kill=停**一个在跑的单元**(工具调用/后台
+命令/子 agent)。Kill 的两条性质是硬的:
+- **立即**——取消开关由 `internal/kill` 活注册表直接持有,daemon wire
+  handler 在自己的 goroutine 上当场扳,**不走 durable 命令队列**。旧的
+  `CommandKill`→inbox→`drainCancels` 路径要等 drive loop 的安全点,而
+  安全点在两次生成之间:用户想杀的那一刻,循环恰恰正卡在工具批次里。
+- **无状态**——不写标记、不设门、不留回执。取消 cause 是新的
+  `errs.ErrKilled`(**不是** `KilledError`,所以 `abort` 不落
+  `SessionClosed{killed}`),唯一记录是该工作自己的
+  `ActivityCancelled{reason:"killed"}`。因此被杀的 scheduled session
+  下一 tick 照常起——**要它别再起,用 schedule 自己的 pause**(用户明确
+  否掉了"kill 时连定时器一起剪断"的方案)。决策 #30 的 kill 纪律与
+  `sessionMarked` 门原样保留:它们只认 `KilledError`(模型 kill 工具的
+  parent-kill、legacy journal),用户面的 kill 不再产生输入。
+
+**两条实现上的坑**（都在测试里钉住了）:
+- 单杀一个调用**不能拖垮整个 turn**。`doTools` 的结果循环原本把任何
+  `Canceled` 类错误直接 `abort`(只有批级 steer 例外),照搬会让"杀一个"
+  等于"杀全部"。现在 `errors.Is(err, errs.ErrKilled)` 与 steer 走同一
+  分支:发出已配对的结果,继续循环,turn 不结束。
+- 前台调用原本**没有自己的 cancel**:一个批次共享 `actCtx`,per-attempt
+  的 cancel 只在 `Timeout > 0` 时建、且不对外发布。现在每个调用在
+  `doTools` 里派生自己的 `WithCancelCause` 并登记;S6.2 转后台时
+  `HandOff` 以同一 call id **替换**注册项(Register 的 replace-by-id 契约
+  让前台 goroutine 那条迟到的 unregister 变成 no-op——否则交接窗口正好
+  让工作变得杀不掉)。
+
+**波及面**:新包 `internal/kill`(Registry/Target,tree-shared,子 Loop 经
+`childLoopWithExec` 继承,故孙子层也够得着);`errs.ErrKilled`;
+`ActivityCancelled.Reason`(additive,空值=旧 interrupt 措辞);fold 渲染
+`[killed by user]`;`tool/exec.go` 给 kill 与 steer 同档 500ms 短 grace;
+daemon `kill`/`killable` 两个 wire 动词 + `Command.Target`;
+`ar kill`/`ar killable`;webui `POST /kill`+`GET /killable`,
+`BackgroundProcessRow` 与 `SubagentItem` 的 hover 停止按钮(子 agent 行
+只在 status=run 时出现,且按钮在行按钮**之外**——button 套 button 是非法
+标记)。DESIGN §12 停止面条款 + 决策 #30 同 commit 改写;SPEC 停止面行
+拆为会话级/工作级两行。

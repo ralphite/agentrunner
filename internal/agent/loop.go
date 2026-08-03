@@ -24,6 +24,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/kill"
 	"github.com/ralphite/agentrunner/internal/mcp"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -190,6 +191,14 @@ type Loop struct {
 	// bg is the background-work runtime (S6.1): cancel handles + the done
 	// channel. Ephemeral — the durable truth is the handles sub-state.
 	bg *bgRuntime
+	// Kills is the tree-shared live cancel table backing the user's kill
+	// gesture: every in-flight tool call, background command and child
+	// publishes its cancel there while it runs, so a kill cuts one unit
+	// instantly and leaves nothing behind. Created at the root by the host
+	// and inherited by every member, like Board and Router. nil = no user
+	// kill face (headless one-shots, tests); the model's kill tool and every
+	// other path are unaffected.
+	Kills *kill.Registry
 	// AutoTitle enables the one-shot auto session title (INC-52, HANDA-PARITY
 	// #14): the harness distils the opening message into a SessionTitled{auto}.
 	// It is process wiring (like UserInputs), never journaled — the hosting
@@ -2386,7 +2395,17 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		wg.Add(1)
 		go func(j int) {
 			defer wg.Done()
-			errsOut[actIdx[j]] = execP.Do(actCtx, acts[j])
+			// Every call runs on its OWN cancel derived from the batch's, and
+			// publishes it for the run of the call (S6.2 conversion replaces
+			// the entry with the handed-off cancel under the same id). That is
+			// what makes "kill this one tool call" reachable while its
+			// siblings keep running — the batch ctx alone can only cut all of
+			// them at once.
+			callCtx, cancelCall := context.WithCancelCause(actCtx)
+			defer cancelCall(nil)
+			unregister := l.registerKill(acts[j].CallID, "tool", acts[j].Name, cancelCall)
+			defer unregister()
+			errsOut[actIdx[j]] = execP.Do(callCtx, acts[j])
 		}(j)
 	}
 	wg.Wait()
@@ -2439,10 +2458,14 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				Result: compact(p.res.Payload), IsError: p.res.IsError})
 			continue
 		}
-		if interrupted {
-			// A steering interrupt cancelled the whole batch: each cancelled
-			// call already rendered [interrupted by user] in the fold. Emit it
-			// and continue — the interrupt itself is journaled once, below.
+		if interrupted || errors.Is(err, errs.ErrKilled) {
+			// Either the whole batch was steered, or THIS call was killed on
+			// its own — both already rendered a model-visible result in the
+			// fold ([interrupted by user] / [killed by user]). Emit it and
+			// continue. A targeted kill deliberately does NOT end the turn:
+			// its siblings are still running and the model reacts to the
+			// cancelled result like any other tool outcome. The batch-wide
+			// interrupt still ends the turn at the seam below.
 			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
 				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 					Tool: p.call.Name, CallID: p.call.CallID,
@@ -3581,7 +3604,7 @@ func bashWindowArg(rawArgs json.RawMessage) time.Duration {
 // registration races otherwise).
 func (l *Loop) armConvert(base context.Context, a *Activity, window time.Duration) {
 	l.ensureBackground()
-	callID, activityID := a.CallID, a.ID
+	callID, activityID, name := a.CallID, a.ID, a.Name
 	log := &bgLog{}
 	l.bg.mu.Lock()
 	l.bg.logs[callID] = log
@@ -3605,6 +3628,11 @@ func (l *Loop) armConvert(base context.Context, a *Activity, window time.Duratio
 			l.bg.mu.Lock()
 			l.bg.cancel[callID] = cancel
 			l.bg.mu.Unlock()
+			// The call keeps its id but changes hands: republish under the
+			// handed-off cancel, so a kill aimed at it still lands after the
+			// window fired. Register's replace-by-id contract makes the
+			// foreground goroutine's unregister a no-op from here on.
+			l.registerKill(callID, "tool", name, cancel)
 			go func() {
 				o := <-outcome
 				l.bg.done <- bgOutcome{handle: callID, activityID: activityID,

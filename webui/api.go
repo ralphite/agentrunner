@@ -85,6 +85,8 @@ func (s *server) routes() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
+	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
+	mux.HandleFunc("GET /api/sessions/{sid}/killable", s.handleKillable)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
 	mux.HandleFunc("POST /api/sessions/{sid}/retry", s.handleRetry)
 	mux.HandleFunc("POST /api/sessions/{sid}/schedule", s.handleScheduleControl)
@@ -1492,6 +1494,69 @@ func (s *server) oneShotHandler(what string, argsFor func(id string) []string) h
 
 func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar interrupt", func(id string) []string { return []string{"interrupt", id} })(w, r)
+}
+
+// handleKill cuts one running unit — a tool call, a background command, a
+// subagent — out of a live session. Body: {"id": "<call-id-or-handle>"} or
+// {"agent": "<child-session-id>"} to stop everything one subagent is doing.
+// The session itself is untouched and nothing is marked, so a killed
+// scheduled session still runs on its next tick.
+func (s *server) handleKill(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		ID    string `json:"id"`
+		Agent string `json:"agent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		badRequest(w, "kill needs an id or agent")
+		return
+	}
+	args := []string{"kill", id, body.ID}
+	if body.Agent != "" {
+		args = []string{"kill", id, "--agent", body.Agent}
+	} else if body.ID == "" {
+		badRequest(w, "kill needs an id or agent")
+		return
+	}
+	res := s.runAR(r.Context(), 15*time.Second, args...)
+	if res.Err != nil {
+		arFail(w, "ar kill", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// handleKillable lists what the session is running RIGHT NOW and can be
+// asked to kill — read from the runtime's live cancel table, not a journal
+// fold, so it never lags behind what the user is looking at.
+func (s *server) handleKillable(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	res := s.runAR(r.Context(), 15*time.Second, "killable", id)
+	if res.Err != nil {
+		arFail(w, "ar killable", res)
+		return
+	}
+	type killable struct {
+		ID      string `json:"id"`
+		Kind    string `json:"kind"`
+		Name    string `json:"name"`
+		Session string `json:"session"`
+	}
+	out := []killable{}
+	if trimmed := strings.TrimSpace(res.Stdout); trimmed != "" {
+		if err := json.Unmarshal([]byte(trimmed), &out); err != nil {
+			// A session with no live host answers with a plain message
+			// rather than JSON; that is "nothing killable", not a failure.
+			out = []killable{}
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {

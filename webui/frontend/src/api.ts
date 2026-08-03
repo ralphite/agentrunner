@@ -1,4 +1,4 @@
-import type { AgentCatalogEntry, BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectDef, ProjectsPayload, Run, ScheduleDetail, Session, SpecFile } from "./types";
+import type { AgentCatalogEntry, BackgroundWork, DiffResp, DiffScope, Envelope, Health, Killable, LauncherApp, ProjectDef, ProjectsPayload, Run, ScheduleDetail, Session, SpecFile } from "./types";
 
 // ApiError carries the HTTP status and the server's machine-readable `code`
 // (e.g. 404 / "session_not_found") next to the human message, so callers branch
@@ -246,6 +246,13 @@ export const AR = {
       ...(draft ? { draft_id: draft.draftId, send_request_id: draft.sendRequestId,
         draft_parts: draft.parts, replay_original: draft.replayOriginal } : {}) }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
+  // Kill ONE running thing without touching the rest of the turn: a tool
+  // call, a background command, or (with agent) everything one subagent is
+  // doing. The session and its schedule are untouched — pause the schedule
+  // to stop a scheduled session for good.
+  kill: (sid: string, target: { id?: string; agent?: string }) =>
+    post<{ status: string }>(`/sessions/${sid}/kill`, target),
+  killable: (sid: string) => api<Killable[]>(`/sessions/${sid}/killable`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   retry: (sid: string) => post(`/sessions/${sid}/retry`),
   scheduleDetail: (sid: string) => api<ScheduleDetail>(`/sessions/${sid}/schedule`),

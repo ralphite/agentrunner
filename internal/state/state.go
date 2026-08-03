@@ -1083,8 +1083,15 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
 				started.CallID, "canceled", p.PartialOutput))
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
+			rendered := "[interrupted by user]"
+			if p.Reason == "killed" {
+				// One call was killed, not the batch steered: say so, or the
+				// model reads a targeted kill as "the user stopped me" and
+				// abandons the sibling calls that are still running fine.
+				rendered = "[killed by user]"
+			}
 			result, _ := json.Marshal(map[string]string{
-				"error":          "[interrupted by user]",
+				"error":          rendered,
 				"partial_output": p.PartialOutput,
 			})
 			s.Conversation = s.Conversation.withToolResult(started.CallID,

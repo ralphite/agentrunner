@@ -58,6 +58,17 @@ type Activity struct {
 	Convert *ConvertSpec
 }
 
+// cancelReason names WHY a context died, for the terminal event: "killed"
+// when the user cut this one unit out of band, "" for every other
+// cancellation (a steering interrupt, a dying batch, teardown), which keeps
+// the wording those paths always had.
+func cancelReason(ctx context.Context) string {
+	if errors.Is(context.Cause(ctx), errs.ErrKilled) {
+		return "killed"
+	}
+	return ""
+}
+
 // ErrBackgrounded is Do's report that the attempt converted to background
 // work instead of finishing (S6.2 timeout-to-background): no terminal event
 // was journaled — the background settle path owns that — and the call is
@@ -239,6 +250,7 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 				ActivityID:    act.ID,
 				PartialOutput: string(x.Redact.JSON(result)),
 				Usage:         usage,
+				Reason:        cancelReason(ctx),
 			}); aerr != nil {
 				return aerr
 			}

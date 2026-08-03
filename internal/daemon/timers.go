@@ -120,6 +120,7 @@ func (s *Server) hostResumeCommandLocked(ctx context.Context, id string, explici
 			SessionID: id, Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
 			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Answers: hub.answers,
+			Kills: hub.kills,
 		}, hub); err != nil {
 			slog.Warn("daemon: hosted resume failed", "session", id, "err", err)
 			s.markResumeFailed(id)

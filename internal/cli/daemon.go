@@ -456,6 +456,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			CommandCancels:    req.CommandCancels,
 			Revokes:           req.Revokes,
 			Answers:           req.Answers,
+			Kills:             req.Kills,
 			OpeningImages:     req.Images,
 			OpeningFiles:      req.Files,
 			DurableOpening:    true,
@@ -841,6 +842,7 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop.CommandCancels = req.CommandCancels
 		loop.Revokes = req.Revokes
 		loop.Answers = req.Answers
+		loop.Kills = req.Kills
 		// A revived top-level session still auto-titles if not yet titled (INC-52).
 		loop.AutoTitle = true
 		loop.SpecPath = specPath
