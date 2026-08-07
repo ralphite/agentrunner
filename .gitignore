@@ -23,3 +23,9 @@ webui/frontend/test-results/
 # the ephemeral qa/runs/ and qa/blackbox-out/ captures are the ignored ones).
 !qa/codex-reference/*.jpg
 !qa/codex-reference/*.png
+
+# Stray compiled binaries (build artifacts, never committed). arwebui built
+# in-place lands here; the canonical build output is bin/arwebui (already
+# gitignored via /bin/ above).
+webui/webui
+webui/arwebui
