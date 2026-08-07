@@ -1019,7 +1019,27 @@ profile、tier/预算持久化、mid-session 生效边界、错误/降级和 usa
 真实 provider QA。证据：`qa/runs/2026-07-22-QA88-98.2d-model-access/32..34`。
 → UJ-24
 
-**G44 会话全文搜索 backend/index 缺失 — ❌ 开放（INC-98.2 实窗取证，中）**
+**G44 会话全文搜索 backend — ✅ 后端已关闭（2026-07-21），余 webui palette 接线**
+关闭做法:`ar search [--json] [--limit N] [--max-sessions N] [--include-tools]
+<query>`(`internal/cli/search.go`)。四条裁决,每条都有个诱人的错答案:
+
+- **扫描,不建索引。** 常驻索引拿速度换正确性:它需要失效策略,而一毫秒前
+  刚写的会话恰恰是用户要搜的那个。扫描**天然新鲜**,于是"新 journal 可见性"
+  不是一条要做对的策略——它不可能做错(与 G57 同一手法)。成本改由边界约束。
+- **子串,不做分词。** `internal/index` 的 BM25 按词边界分词,对中文/日文
+  **一个都匹配不上**(没有空格)。大小写折叠的子串匹配在英文排序上更差,却是
+  CJK 唯一能工作的选择;本仓库的会话是双语的。锚
+  `TestSearchMatchesCJKWithoutWordBoundaries` 钉死这条。
+- **tool payload 默认不搜。** 工具参数/结果携带文件内容与命令输出;默认搜它
+  等于把一次随手查询变成用户并没在看的数据的披露。`--include-tools` 是显式
+  opt-in(锚 `TestSearchExcludesToolPayloadsUnlessAskedFor`)。
+- **按最近排序,不编相关度分。** 子串匹配给不出诚实的相关度信号,编一个会在
+  看起来权威的同时任意排序。"最近的会话在前"是我们能辩护的断言。
+
+**边界即答案的一部分**:`sessions_scanned`/`sessions_skipped`/`truncated`
+随结果返回并在人类输出里打印——没报出来的上限会被读成"东西不在那儿"
+(锚 `TestSearchReportsItsOwnBounds`)。**余项**:webui command palette 接线
+(后端已可供数)。原始登记(保留):
 Codex command palette 搜索 `QA-87` 可命中消息正文并展示结果 snippet；
 AgentRunner 当前 command palette/sidebar 只在已加载 session 的 title、id、workspace
 上做客户端 substring filter，无法查消息/tool result，也无法在大历史尚未

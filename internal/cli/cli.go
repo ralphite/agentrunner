@@ -141,6 +141,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return barrierCmd(args[1:], stdout, stderr)
 	case "sessions":
 		return sessionsCmd(args[1:], stdout, stderr)
+	case "search":
+		return searchCmd(args[1:], stdout, stderr)
 	case "trust":
 		return trustCmd(args[1:], stdout, stderr)
 	case "doctor":
@@ -201,6 +203,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner barrier <session-id-or-prefix>\n\nRecord a barrier (a fork point) in the session's journal;\n`fork --list` shows them, `fork` branches from one.\n"
 	case "sessions":
 		return "usage: agentrunner sessions [list] [--json] [--limit N] [--offset N]\n\nList sessions and their status. JSON includes workspace and title.\n"
+	case "search":
+		return "usage: agentrunner search [--json] [--limit N] [--max-sessions N] [--include-tools] <query>\n\nFind a message across sessions. Case-insensitive substring (works for\nCJK, which word-tokenized search cannot match); scans the newest\nsessions live, so a session written a moment ago is searchable.\nTool arguments and results are NOT searched unless --include-tools —\nthey can carry file contents and command output.\n"
 	case "trust":
 		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
 	case "doctor":
@@ -275,6 +279,7 @@ Observe:
   doctor                      preflight this machine: is the OS sandbox that
                               bash/command tools require actually available?
   sessions                    list sessions and their status
+  search <query>              find a message across sessions (newest first)
   agents                      list the effective shared Agent catalog
   ps <session>                in-flight background work of a session
   inspect <session>           session facts: status, turns, token usage, budget

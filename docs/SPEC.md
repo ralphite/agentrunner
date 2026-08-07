@@ -178,6 +178,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
 | events / inspect（时间线、判定、子树、用量；**stats**：per-tool calls/success/fail/duration_ms、files lines_added/removed（自 write/edit result 载荷求和）、active_seconds（活动区间合并的墙钟，待命/审批挂起不计）——envelope TS 报表投影非核心 fold，文本+--json 两面） | ✅ | UJ-17 | S3/S6;INC-43（HANDA #31,TestBuildStatsAggregates/TestLineDeltaAccounting,真验 qa/runs/2026-07-11-INC43:+6/−1 与实际操作吻合）;INC-11.1 按 stream header 分派 run fold / driver fold，旧 goal/loop journal 可读并展开 iteration 子树；子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
+| 会话全文搜索（`ar search [--json] [--limit N] [--max-sessions N] [--include-tools] <query>`：**扫描不建索引**（天然新鲜，"新 journal 可见性"不可能做错）· **子串不分词**（BM25 分词对 CJK 一个都匹配不上）· tool payload **默认不搜**（携带文件内容/命令输出，`--include-tools` 显式 opt-in）· 按会话最近排序（子串给不出诚实相关度，不编分数）· scanned/skipped/truncated **随结果返回**——没报出的上限会被读成"东西不在那儿"） | ✅ | UJ-01/24 | G44 后端已闭（2026-07-21），余 webui palette 接线 · TestSearchFindsMessageText/TestSearchMatchesCJKWithoutWordBoundaries/TestSearchExcludesToolPayloadsUnlessAskedFor/TestSearchReportsItsOwnBounds/TestSearchToleratesMissingAndUnreadable |
 | `ar ps`（fold 的在飞 background work 列表，无 daemon 可用） | ✅ | UJ-18 | QA-05/09 实测 |
 | attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 · TestDaemonAttachReplaysFinishedSession/TestDaemonAttachFollowsLiveRun（G30 还锚 audit-0717 C1） |
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 · TestDaemonApprovalRoundTrip/TestApproveRevivesApprovalLostToRestart（G30 还锚 audit-0717 C1） |

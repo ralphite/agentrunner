@@ -268,9 +268,11 @@
       父子各算各的。顺带修 Linux 侧 check.sh 长期 RED(orphan parsePSTable
       平台性不可达,登记 baseline)。7 组锚全绿,check.sh all green。
       **余**:webui composer indicator 接线(GAPS G57 转 🟡)。
-- [ ] 7.E2 **G44 会话全文搜索 backend**(中)——daemon 端有界 query API,
-      定索引/扫描策略、CJK 匹配、snippet/排序、scope、资源上限、敏感
-      tool payload 披露边界。
+- [x] 7.E2 **G44 会话全文搜索 backend**——2026-07-21 落 `ar search`:
+      扫描不建索引(天然新鲜)、子串不分词(BM25 对 CJK 零命中)、tool
+      payload 默认不搜(`--include-tools` opt-in)、按最近排序不编分数、
+      scanned/skipped/truncated 随结果返回。5 组锚绿。**余**:webui
+      command palette 接线。
 - [ ] 7.E3 **G54 archived session 永久删除/批量删除 contract**(低)。
 - [ ] 7.E4 **G53 worktree registry + 自动清理/逐项删除 contract**(中)。
 - [ ] 7.E5 **G52 Settings 快捷键重绑/冲突校验/持久化**(低,前端为主)。
