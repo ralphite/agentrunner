@@ -1019,7 +1019,7 @@ profile、tier/预算持久化、mid-session 生效边界、错误/降级和 usa
 真实 provider QA。证据：`qa/runs/2026-07-22-QA88-98.2d-model-access/32..34`。
 → UJ-24
 
-**G44 会话全文搜索 backend — ✅ 后端已关闭（2026-07-21），余 webui palette 接线**
+**G44 会话全文搜索 — ✅ 后端 + webui API 已关闭（2026-07-21），余 palette 前端接线**
 关闭做法:`ar search [--json] [--limit N] [--max-sessions N] [--include-tools]
 <query>`(`internal/cli/search.go`)。四条裁决,每条都有个诱人的错答案:
 
@@ -1038,8 +1038,14 @@ profile、tier/预算持久化、mid-session 生效边界、错误/降级和 usa
 
 **边界即答案的一部分**:`sessions_scanned`/`sessions_skipped`/`truncated`
 随结果返回并在人类输出里打印——没报出来的上限会被读成"东西不在那儿"
-(锚 `TestSearchReportsItsOwnBounds`)。**余项**:webui command palette 接线
-(后端已可供数)。原始登记(保留):
+(锚 `TestSearchReportsItsOwnBounds`)。
+
+webui 侧 `GET /api/search?q=&limit=`(薄壳转 `ar search --json`,双 key
+snake+camel 同 handleSessions)。**`--include-tools` 刻意不上 web 面**:
+够得着文件内容/命令输出的开关,该属于一个能说清自己要披露什么的界面,
+不属于任何人都能填的 URL query(锚
+`TestHandleSearchForwardsQueryAndKeepsBounds` 反向断言)。
+**余项**:command palette 前端接线。原始登记(保留):
 Codex command palette 搜索 `QA-87` 可命中消息正文并展示结果 snippet；
 AgentRunner 当前 command palette/sidebar 只在已加载 session 的 title、id、workspace
 上做客户端 substring filter，无法查消息/tool result，也无法在大历史尚未

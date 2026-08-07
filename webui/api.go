@@ -39,6 +39,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/slash", s.handleSlash)
 	mux.HandleFunc("POST /api/daemon/start", s.handleDaemonStart)
 	mux.HandleFunc("GET /api/sessions", s.handleSessions)
+	mux.HandleFunc("GET /api/search", s.handleSearch)
 	mux.HandleFunc("POST /api/sessions", s.handleNewSession)
 	mux.HandleFunc("POST /api/workspace", s.handleWorkspace)
 	mux.HandleFunc("POST /api/worktree", s.handleWorktree)

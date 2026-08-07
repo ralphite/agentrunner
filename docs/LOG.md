@@ -8651,3 +8651,13 @@ agent 日志才看清真因:**本环境的 permission handler 把每一次子 ag
 实现细节值得记一笔:tool **结果**折在 `Conversation.ToolResults` 侧表里(按
 call id 键),不在 message parts 上;只搜 parts 会静默漏掉几乎全部工具输出
 ——正是 `--include-tools` 想要的那部分。测试先红后绿抓到了这点。
+
+## 2026-07-21 · G44 续:webui `GET /api/search`
+
+薄壳转 `ar search --json`,bounds 双 key(snake + camel)随 payload 走,
+与 handleSessions 同契约。
+
+**`--include-tools` 刻意不上 web 面。** 够得着文件内容与命令输出的开关,
+该属于一个能说清自己正要披露什么的界面,不属于任何人都能填的 URL query
+参数。测试里用**反向断言**钉住(转出去的 argv 里不得出现该 flag)——正向
+测"它工作"抓不到"它被悄悄暴露了"。
