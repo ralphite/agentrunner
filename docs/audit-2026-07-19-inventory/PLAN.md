@@ -193,3 +193,58 @@
 - phone-webui cron 移除（用户在用）。
 - webhook ingress 重构（冻结即可）。
 - QA 共享 store 政策调整（维持现状）。
+
+---
+
+## Phase 7 · 全量收口:找齐问题 + 实现规划功能（2026-07-21 起,长跑自驱）
+
+**用户指令**:仔细审核项目、把所有问题/不一致全部找到,把规划过但未
+实现的功能全部实现;可长跑,不确定的跳过做别的,不要被 block 住。
+
+**现状判断**:代码极成熟,绝大多数规划功能已落地。剩余未实现项多为
+(a) 刻意推迟决策 或 (b) 设计欠定需产品决策。下表把全部盘点分三档。
+
+### 7.A 找齐问题/不一致（goal #1）
+- [x] 7.A1 doc→code 一致性审计——2026-07-21 workflow w0gcqg5ny:11 处
+      确认全修(3 代码 bug + 8 文档过时),1 正确驳回。
+- [ ] 7.A2 SPEC 锚验证:每个 ✅ 行的 Test* 锚是否**真的证明**该断言
+      (非仅存在)——lint 只查存在,语义证明需读测试体。workflow。
+- [ ] 7.A3 code→doc 反向覆盖:代码里有用户可感功能但文档完全没提的
+      (undocumented)——反向扫描。workflow。
+
+### 7.B UNBLOCKED（设计已定,可直接实现）
+- [ ] 7.B1 TestSteerChangesOrchestration flake 根因修复（同 UserKill flake
+      套路:定位竞态、坐实、修死、连跑绿;LOG 有立项挂账）。
+- [ ] 7.B2 webui markdown LaTeX 数学公式渲染（G38 开放;需 CSP-safe 方案
+      ——KaTeX 内联 或 MathML,不走外部 CDN）。
+- [ ] 7.B3 闸门 B 真机 QA 轮(验证已实现功能):G39/INC-81 子审批可见性、
+      QA-77/INC-80 series 五场景、G3/INC-70 park 转向拒批、QA-33 结构化
+      fallback——经 GitHub Actions qa-blackbox / 专用 QA workflow 跑,证据
+      归档 qa/runs/。
+- [ ] 7.B4 driver.go:226 陈旧注释("loop mode not yet implemented"——实为
+      legacy Run() 路径,RunSeries 已实现 loop mode)清理为准确表述。
+
+### 7.C BLOCKED（设计欠定/需产品决策——记问题,跳过）
+- [ ] 7.C1 web search（G18）：**需选后端**。建议走 provider-native
+      (Gemini google_search grounding / Anthropic web_search server-tool)
+      作为 execute-class 例外工具。**待决**:走 provider-native 还是独立
+      搜索 API?后者需 API key 配置面。
+- [ ] 7.C2 云 workspace 生命周期（G11,高）：**待决**——云形态 journey
+      未定版(S7 曾预授权裁掉,重启走新增量)。需先定义云 journey。
+- [ ] 7.C3 SCM/PR 一等公民化（G13,中）：worktree 子面 INC-49 已闭;
+      **待决**——diff 审阅门→PR 创建/更新工作流语义未定。
+- [ ] 7.C4 多根 workspace `--add-dir`（G17）：**待决**——需 journey 目录
+      模型定版(多根的路径归一/权限/快照语义)。
+- [ ] 7.C5 scratchpad 辅助草稿目录（对标 Claude Code）：**待决**——是否
+      纳入模型?workspace 外草稿区与静止/快照/凭据边界如何交互未定。
+- [ ] 7.C6 HTTP/WS 全 API 壳（backlog）：窄切片 webhook ingress 已由
+      INC-50 兑现;全 API 面是大件,**待决**优先级与形态。
+- [ ] 7.C7 close wire 全删（INC-83 6.5 挂账）：需先设计 hosted-run idle
+      驱逐机制,才能删 wire close transport。**待决**驱逐语义。
+- [ ] 7.C8 G32 Xcode-only 机器 OS 沙箱 git 不可用（中）：**环境特定**,
+      本容器无法复现/验证,跳过待真机。
+
+### 7.D WONTDO（前置决策已裁,除非用户翻案）
+- finish 工具(🧊 待命本身就是待命)、overlap:interrupt(🧊 推迟)、
+  MCP 交互 OAuth/refresh-token 持久化(🧊 runtime 不持久化 secret)、
+  IDE 集成(🧊)。用户要做需显式翻案。
