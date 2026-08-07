@@ -213,8 +213,9 @@
       (undocumented)——反向扫描。workflow。
 
 ### 7.B UNBLOCKED（设计已定,可直接实现）
-- [ ] 7.B1 TestSteerChangesOrchestration flake 根因修复（同 UserKill flake
-      套路:定位竞态、坐实、修死、连跑绿;LOG 有立项挂账）。
+- [x] 7.B1 TestSteerChangesOrchestration flake——2026-07-21 销案:根因与
+      UserKill 同源(worker 子 spec 缺 bash 致 OLD 瞬时自完成×kill 竞速),
+      UserKill 修复已顺带消除;125 次全绿,清父 spec 冗余 bash+补注释。
 - [ ] 7.B2 webui markdown LaTeX 数学公式渲染（G38 开放;需 CSP-safe 方案
       ——KaTeX 内联 或 MathML,不走外部 CDN）。
 - [ ] 7.B3 闸门 B 真机 QA 轮(验证已实现功能):G39/INC-81 子审批可见性、

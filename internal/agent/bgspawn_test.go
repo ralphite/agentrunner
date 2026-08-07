@@ -460,8 +460,13 @@ func TestSteerChangesOrchestration(t *testing.T) {
 			{Respond: []scripted.Event{{Text: "NEW report: ok"}, {Finish: "end_turn"}}},
 		}}},
 	)
+	// bash lives on the WORKER child spec (bgSpawnLoop), not the parent — the
+	// parent only spawns/kills. Before that was fixed the child's `sleep 30`
+	// bash was refused by the allowlist and OLD self-completed INSTANTLY,
+	// racing the steer's kill (the recurring flake, root-caused 2026-07-21:
+	// same cause as TestBackgroundSpawnUserKill). With the worker genuinely
+	// blocking on sleep, the kill reliably lands mid-run.
 	l := bgSpawnLoop(t, router, []string{"worker"})
-	l.Spec.Tools = []string{"read_file", "bash"}
 	inputs := make(chan protocol.UserInput, 1)
 	l.UserInputs = inputs
 	go func() {

@@ -8554,3 +8554,14 @@ daemon `kill`/`killable` 两个 wire 动词 + `Command.Target`;
 只在 status=run 时出现,且按钮在行按钮**之外**——button 套 button 是非法
 标记)。DESIGN §12 停止面条款 + 决策 #30 同 commit 改写;SPEC 停止面行
 拆为会话级/工作级两行。
+
+## PLAN 7.B1 · TestSteerChangesOrchestration flake 销案（2026-07-21）
+
+复现:125 次(110 隔离 + 15 -race+负载)全绿,无竞态。根因与
+TestBackgroundSpawnUserKill 同源——bgSpawnLoop 的 worker 子 spec 此前
+缺 bash,OLD 的 `sleep 30` 被 allowlist 瞬拒、OLD 立即自完成,与 steer
+触发的 kill 竞速(负载下时序漂移即红)。UserKill 修复(bash 移入 worker
+子 spec)已顺带消除本 flake 源:OLD 真阻塞,kill 稳定落在 mid-run。清掉
+本测试里同样误导的父 spec 冗余 `l.Spec.Tools=[read_file,bash]`(父从不
+跑 bash;kill/spawn_agent 因 Agents 非空已自动 advertise),补根因注释。
+LOG 挂账的 TestSteerChangesOrchestration flake 立项就此关闭。
