@@ -227,8 +227,10 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 	return appendE, nil
 }
 
-// Run drives goal mode from scratch to a terminal DriverCompleted. Loop mode
-// (schedules other than immediate) is not yet implemented and is refused.
+// Run drives a driver from scratch to its terminal DriverCompleted. Goal mode
+// (immediate) folds iterations until satisfied/stalled/limit; loop mode
+// (interval/cron/self_paced) runs a recurring series gated by awaitTick;
+// parallel routes to driveParallel. prepare() refuses any unknown schedule.
 func (d *Driver) Run(ctx context.Context) (Result, error) {
 	st := &State{Status: StatusRunning, DriverID: d.DriverID}
 	appendE, err := d.prepare(st)

@@ -222,8 +222,11 @@
       QA-77/INC-80 series 五场景、G3/INC-70 park 转向拒批、QA-33 结构化
       fallback——经 GitHub Actions qa-blackbox / 专用 QA workflow 跑,证据
       归档 qa/runs/。
-- [ ] 7.B4 driver.go:226 陈旧注释("loop mode not yet implemented"——实为
-      legacy Run() 路径,RunSeries 已实现 loop mode)清理为准确表述。
+- [x] 7.B4 driver.go 陈旧注释销案——2026-07-21:Run() 的 doc 注释曾称
+      "loop mode not yet implemented and is refused",实则 Run 对所有非
+      parallel 调度均入 drive(),loop mode(interval/cron/self_paced)由
+      awaitTick 全量兑现。改为准确表述(goal/loop/parallel 三路 + prepare
+      拒未知调度)。纯注释,build 绿。
 
 ### 7.C BLOCKED（设计欠定/需产品决策——记问题,跳过）
 - [ ] 7.C1 web search（G18）：**需选后端**。建议走 provider-native

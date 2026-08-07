@@ -8565,3 +8565,14 @@ TestBackgroundSpawnUserKill 同源——bgSpawnLoop 的 worker 子 spec 此前
 本测试里同样误导的父 spec 冗余 `l.Spec.Tools=[read_file,bash]`(父从不
 跑 bash;kill/spawn_agent 因 Agents 非空已自动 advertise),补根因注释。
 LOG 挂账的 TestSteerChangesOrchestration flake 立项就此关闭。
+
+## PLAN 7.B4 · driver.go Run() 陈旧注释销案（2026-07-21）
+
+`Run` 的 doc 注释长期写着 "Loop mode (schedules other than immediate) is
+not yet implemented and is refused" —— 已过时。实测:`Run` 对所有非
+parallel 调度统一进入 `drive()`,其 `loopMode := schedule() != immediate`
+分支经 `awaitTick`(interval/cron/self_paced)完整兑现 loop 系列;parallel
+路由至 `driveParallel`;唯一"拒绝"发生在 `prepare()` 对未知 schedule 报
+`schedule %q not implemented`。改注释为准确三路表述(goal 折叠至
+satisfied/stalled/limit · loop 由 awaitTick 门控的 recurring series ·
+parallel→driveParallel;prepare 拒未知)。纯注释,`go build ./...` 绿。
