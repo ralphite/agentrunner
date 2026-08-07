@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -97,7 +98,11 @@ type inspectReport struct {
 	Turns                int                          `json:"turns,omitempty"`
 	Items                int                          `json:"items,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
-	Delegations          []state.Delegation           `json:"delegations,omitempty"`
+	// ContextWindow answers "how full is the context?" — derived on read, and
+	// deliberately NOT computed from Usage above: Usage is cumulative billed
+	// history, this is the size of the NEXT assembled request (G57).
+	ContextWindow *agent.ContextWindow `json:"context_window,omitempty"`
+	Delegations   []state.Delegation   `json:"delegations,omitempty"`
 	// Waiting names what an idle session is waiting FOR — for an approval
 	// that includes the id and the answer command (QA Round2 F-E4: `approve
 	// -h` says "inspect shows the id", and it used to show only "waiting").
@@ -514,6 +519,13 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		Turns:    len(s.Interactions.Turns), Items: len(s.Interactions.Items),
 		ProviderCapabilities: s.Session.ProviderCapabilities,
 	}
+	// A journal without a decodable spec still gets a projection: the estimate
+	// and the frozen provider limit are both real, only the thresholds are
+	// unknown — reporting nothing at all would be a bigger loss than reporting
+	// the part we can prove.
+	spec, _ := agent.SpecFromEvents(events)
+	cw := agent.ProjectContextWindow(s, spec)
+	report.ContextWindow = &cw
 	for _, delegation := range s.Team {
 		report.Delegations = append(report.Delegations, delegation)
 	}

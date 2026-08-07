@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"strings"
 )
 
 // Role is a normalized message role.
@@ -198,6 +199,13 @@ type CapabilityEnvelope struct {
 	ToolCalls       bool         `json:"tool_calls"`
 	InputModalities []PartKind   `json:"input_modalities"`
 	Capabilities    Capabilities `json:"capabilities"`
+	// ContextLimitTokens is the model's INPUT context window — the ceiling on
+	// one assembled request. ZERO MEANS UNKNOWN, and unknown must stay
+	// unknown: a consumer renders "used" with no ratio rather than invent a
+	// denominator (G57). It is emphatically NOT ModelSpec.MaxTokens (an OUTPUT
+	// cap) and NOT any cumulative billed total — conflating either would make
+	// the number a lie in exactly the place a user trusts it.
+	ContextLimitTokens int `json:"context_limit_tokens,omitempty"`
 }
 
 // Envelope freezes one provider/model's normalized capability contract.
@@ -211,6 +219,35 @@ func NativeStructuredOutput(providerName string) bool {
 	return providerName == "gemini"
 }
 
+// ContextLimitTokens resolves a model's input context window, or 0 when this
+// binary does not KNOW it (G57). The table is deliberately small and keyed by
+// published families rather than exact build ids, because the failure mode we
+// refuse is a confident wrong number: an unrecognized model returns 0 and the
+// context indicator degrades to a bare "used" count. Widen the table only
+// against a provider's published figure.
+func ContextLimitTokens(providerName, model string) int {
+	switch providerName {
+	case "gemini":
+		switch {
+		case strings.HasPrefix(model, "gemini-1.5-pro"):
+			return 2_097_152
+		case strings.HasPrefix(model, "gemini-1.5-"),
+			strings.HasPrefix(model, "gemini-2.0-"),
+			strings.HasPrefix(model, "gemini-2.5-"),
+			model == "gemini-flash-latest", model == "gemini-pro-latest":
+			return 1_048_576
+		}
+	case "anthropic":
+		// Every currently published Claude model defaults to a 200k input
+		// window. The 1M-token beta is opt-in per request and is NOT what a
+		// default session gets, so claiming it here would overstate headroom.
+		if strings.HasPrefix(model, "claude-") {
+			return 200_000
+		}
+	}
+	return 0
+}
+
 func Envelope(providerName, model string, caps Capabilities) CapabilityEnvelope {
 	modalities := []PartKind{PartText}
 	if caps.Images {
@@ -222,7 +259,8 @@ func Envelope(providerName, model string, caps Capabilities) CapabilityEnvelope 
 	return CapabilityEnvelope{
 		SchemaVersion: 1, Provider: providerName, Model: model,
 		Streaming: true, ToolCalls: true, InputModalities: modalities,
-		Capabilities: caps,
+		Capabilities:       caps,
+		ContextLimitTokens: ContextLimitTokens(providerName, model),
 	}
 }
 

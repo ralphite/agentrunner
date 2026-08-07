@@ -16,3 +16,9 @@ internal/provider/scripted/scripted.go New
 # 77.3(daemon 宿主),接线后本组整体删除(LOG 2026-07-18 INC-77.2 条)。
 # [test-infra] G60: agent/credscan 跨包测试重置 workspace-secret registry,生产无调用方(设计如此)
 internal/redact/redact.go ResetRegistered
+# [platform] parsePSTable 只被 orphan_darwin.go 调用(macOS 无 procfs,走 ps);
+# Linux 走 orphan_linux.go 的 procfs 路径。deadcode 只分析宿主平台的构建,
+# 故在 Linux 上跑 lint 时它必然"不可达"——check.sh 因此在 Linux RED、在 macOS
+# GREEN。解析器刻意留在无 build tag 的 orphan.go 里,好让纯函数测试在所有平台
+# 都跑(orphan_test.go 亦无 tag,移走会直接编译失败)。登记而非删除。
+internal/tool/orphan.go parsePSTable

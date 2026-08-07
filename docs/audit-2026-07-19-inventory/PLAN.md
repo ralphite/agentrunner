@@ -216,8 +216,10 @@
 - [x] 7.B1 TestSteerChangesOrchestration flake——2026-07-21 销案:根因与
       UserKill 同源(worker 子 spec 缺 bash 致 OLD 瞬时自完成×kill 竞速),
       UserKill 修复已顺带消除;125 次全绿,清父 spec 冗余 bash+补注释。
-- [ ] 7.B2 webui markdown LaTeX 数学公式渲染（G38 开放;需 CSP-safe 方案
-      ——KaTeX 内联 或 MathML,不走外部 CDN）。
+- [x] 7.B2 webui markdown LaTeX（G38）——2026-07-21 复核:**已由并发
+      session 关闭**(INC-98.3k)。同轮对账发现 7.B 立项时的 GAPS 快照已
+      陈旧:G17 多根(INC-105)、G39 子审批(INC-81+98.3g)、G59/G60/G61/G62
+      亦均已关闭。据 live GAPS 重建 backlog 见 7.E。
 - [ ] 7.B3 闸门 B 真机 QA 轮(验证已实现功能):G39/INC-81 子审批可见性、
       QA-77/INC-80 series 五场景、G3/INC-70 park 转向拒批、QA-33 结构化
       fallback——经 GitHub Actions qa-blackbox / 专用 QA workflow 跑,证据
@@ -252,3 +254,28 @@
 - finish 工具(🧊 待命本身就是待命)、overlap:interrupt(🧊 推迟)、
   MCP 交互 OAuth/refresh-token 持久化(🧊 runtime 不持久化 secret)、
   IDE 集成(🧊)。用户要做需显式翻案。
+
+### 7.E 据 live GAPS 重建的实现队列（2026-07-21 对账）
+
+7.B 立项用的 GAPS 快照已过期。按当前 `docs/GAPS.md` 未闭条目重排,
+**可实现**(设计可在现有不变量内自洽裁决)优先:
+
+- [x] 7.E1 **G57 context window backend projection**——2026-07-21 落地:
+      `agent.ContextWindow`/`ProjectContextWindow` 经 `ar inspect --json`
+      的 `context_window` 出面;**派生不入 journal**(读时算,恒新鲜,
+      "测量时刻"要求自然消解);**未知恒为未知**(不认识的 model 返回 0,
+      只画 used 不画比率);作用域裁决:cache 不扣减、tool payload 计入、
+      父子各算各的。顺带修 Linux 侧 check.sh 长期 RED(orphan parsePSTable
+      平台性不可达,登记 baseline)。7 组锚全绿,check.sh all green。
+      **余**:webui composer indicator 接线(GAPS G57 转 🟡)。
+- [ ] 7.E2 **G44 会话全文搜索 backend**(中)——daemon 端有界 query API,
+      定索引/扫描策略、CJK 匹配、snippet/排序、scope、资源上限、敏感
+      tool payload 披露边界。
+- [ ] 7.E3 **G54 archived session 永久删除/批量删除 contract**(低)。
+- [ ] 7.E4 **G53 worktree registry + 自动清理/逐项删除 contract**(中)。
+- [ ] 7.E5 **G52 Settings 快捷键重绑/冲突校验/持久化**(低,前端为主)。
+
+**仍 BLOCKED**(需产品裁决,不动):G11 云 workspace(高)、G13 SCM/PR(中)、
+G18 web search 后端选型、G43 Plugins 产品面(需 UJ-19 delta)、G45 执行
+tier(需 provider capability profile)、G46 反馈(需 telemetry/归属裁决)、
+G32(环境特定)。**待真机验**:G55/G56(闸门 B)、G42/G36(持续 QA 覆盖)。

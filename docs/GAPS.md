@@ -934,7 +934,31 @@ Composer stories 40/40。顺带修 `deploy.sh` daemon env 事故（起 daemon �
 source ENV_FILE，LOG 2026-07-24 记档的 GEMINI_API_KEY 丢失）。
 → UJ-22/UJ-24
 
-**G57 当前 context window/compaction 状态的 backend projection 缺失 — ❌ 开放（INC-98.4k 主界面对照，中）**
+**G57 当前 context window/compaction 状态的 backend projection 缺失 — 🟡 backend 已关闭（2026-07-21），余 composer indicator 接线**
+关闭做法：`agent.ContextWindow` 投影(`ProjectContextWindow`)——`estimated_tokens`
+量的是 **assembled 视图**(post-compact/post-micro,即下一次请求真正会带的东西),
+`limit_tokens` 取 SessionStarted 冻结的 capability envelope 新增的
+`ContextLimitTokens`,`compact_at_tokens`/`microcompact_at_tokens` 报**生效后**
+阈值(micro 缺省 3/4、-1 停用均已解析),`estimator` 自报测量法
+(`assembled-bytes/4`,非 provider tokenizer)。经 `ar inspect --json` 的
+`context_window` 出面。
+
+**三条刻意的设计选择**:(a) **不进 journal**——估算是 fold+spec 的纯函数,
+读时算既省掉热路径上的每轮事件,又比任何盖章快照都新鲜,于是"measurement
+timestamp/新鲜度"这个要求自然消解(值就是被问的那一刻测的);(b) **未知恒为
+未知**——不认识的 model 返回 0,消费方必须只画 used 不画比率,`TestContextLimit
+UnknownStaysZero` 钉住这条(它才是整个缺口的要害:宁可不画,不可编分母);
+(c) 作用域裁决:切模型(当前不存在)→ 跟随冻结 envelope;tool payload → 计入
+(它正是驱动 compaction 的增长);cache token → **不扣减**(缓存改变的是花多少
+钱,不是占多少窗口);subagent/driver → 按 session 各算各的,父子从不相加。
+
+锚:TestContextWindowTracksAssembledViewNotCumulativeUsage(microcompact 后
+估算**变小**——累计计费只增不减,这条正是两者不可互相冒充的证明)/
+TestContextWindowNeverReportsOutputCapAsLimit/TestContextWindowReadsLimitFrom
+FrozenEnvelope/TestContextWindowReportsEffectiveThresholds/TestContextLimit
+{UnknownStaysZero,KnownFamilies}/TestEnvelopeCarriesContextLimit/
+TestInspectContextWindowIsDistinctFromCumulativeUsage。**余项**:webui composer
+轻量 indicator 尚未接线(后端已可诚实供数)。原始登记(保留):
 Codex 主 composer 的 context tooltip 会给当前上下文 `used / limit / remaining`；用户提供的
 reference 为 `72k / 258k tokens used`。AgentRunner journal/inspect 目前只有每次 generation
 及 session 累计的 input/output/cache/billed usage；这些是计费/历史事实，不等于下一次请求

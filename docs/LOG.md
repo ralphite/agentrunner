@@ -8576,3 +8576,50 @@ parallel 调度统一进入 `drive()`,其 `loopMode := schedule() != immediate`
 `schedule %q not implemented`。改注释为准确三路表述(goal 折叠至
 satisfied/stalled/limit · loop 由 awaitTick 门控的 recurring series ·
 parallel→driveParallel;prepare 拒未知)。纯注释,`go build ./...` 绿。
+
+## 2026-07-21 · G57 context window 投影（backend 关闭）+ Linux 侧 check.sh 转绿
+
+**G57**:主界面要画 `used / limit` 的 context tooltip,但会话手上没有任何
+能诚实回答"上下文多满"的数——`Session.Usage` 是**累计计费**史(只增不减,
+且每次重发的前缀都被重复计入),`ModelSpec.MaxTokens` 是**输出**上限。两者
+都不是下一次 assembled 请求的大小,而后者才是 tooltip 唯一可以声称在显示的量。
+
+落地 `agent.ContextWindow` / `ProjectContextWindow`,经 `ar inspect --json`
+的 `context_window` 出面。三条值得记的选择:
+
+1. **派生,不入 journal。** 估算是 fold+spec 的纯函数,读时算既省掉系统最热
+   路径上的每轮事件,又比任何盖章快照都新鲜——G57 原案要求的 "measurement
+   timestamp / 新鲜度披露"因此**自然消解**:值就是被问的那一刻测的,没有
+   需要披露的陈旧窗口。
+2. **未知恒为未知。** `provider.ContextLimitTokens` 是一张**刻意小**的、
+   按已发布 family 键入的表,不认识的 model 返回 0,消费方只画 used 不画
+   比率。整个缺口的要害不是"少一个数",而是"别编一个分母";
+   `TestContextLimitUnknownStaysZero` 钉的就是这条——若哪天它开始返回兜底
+   值,诚实的"limit 未知"渲染会**无声**变成一个自信的谎。
+3. **作用域裁决**(G57 点名要的):切模型——当前不存在,故取 SessionStarted
+   冻结的 envelope(真加了切模型,limit 就得变成 per-turn 事实随之移动);
+   tool payload——**计入**(它正是驱动 compaction 的那部分增长,剔掉就是自欺);
+   cache token——**不扣减**(缓存改变的是花多少钱,不是占多少窗口);
+   subagent/driver——按 session 各算各的,父子从不相加。
+
+主锚 `TestContextWindowTracksAssembledViewNotCumulativeUsage`:microcompact
+之后估算**变小**。这条不是在测算术,是在证明"累计计费不可冒充上下文占用"
+——只增不减的量做不出这个下降。
+
+**顺带修:check.sh 在 Linux 上一直是 RED。** `lint-wiring` 报
+`internal/tool/orphan.go parsePSTable` main 不可达。复核:该解析器只被
+`orphan_darwin.go` 调用(macOS 无 procfs 走 `ps`),Linux 走
+`orphan_linux.go` 的 procfs 路径;deadcode 只分析**宿主平台**的构建,故在
+Linux 上它必然不可达——即 gate 在 macOS 绿、在 Linux 红,一直没人看见。
+解析器刻意留在无 build tag 的 `orphan.go` 以便纯函数测试在所有平台都跑
+(`orphan_test.go` 同样无 tag,移走会直接编译失败),故按 lint 自己指定的
+出口登记进 `scripts/deadcode-baseline.txt`(`[platform]` 类)。
+
+**方法论记档(值得记的失败)**:本轮先试图用 10 路并行 subagent 做 SPEC
+锚语义审计,10 路**全部失败**。表面症状是 StructuredOutput 校验不过,读
+agent 日志才看清真因:**本环境的 permission handler 把每一次子 agent 工具
+调用的参数都剥空了**(`The required parameter 'pattern' is missing` 等),
+子 agent 一个文件都没读到,只好交空结果。若只看汇总,会得到"9/10 section
+全清"的结论——那是**完全虚假的绿**。教训:委派结果在采信前必须核对它
+到底做没做事(看工具调用与其返回),空结果尤其可疑。审计改由本 session
+自己动手做。

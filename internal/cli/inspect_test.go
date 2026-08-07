@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -415,5 +416,62 @@ func TestSettleChildReportRemovesRunningProjection(t *testing.T) {
 	}
 	if report.Progress[1].Status != "failed" || report.Progress[2].Status != "failed" {
 		t.Fatalf("terminal progress = %+v", report.Progress)
+	}
+}
+
+// G57: inspect must expose a context-window projection that is NOT the usage
+// block. The two are easy to conflate — both are token counts on the same
+// report — so this pins that a session whose billed usage is large still
+// reports its own, independently-derived assembled-context estimate, and that
+// an unmodelled provider yields no limit rather than a fabricated one.
+func TestInspectContextWindowIsDistinctFromCumulativeUsage(t *testing.T) {
+	// Marshal a REAL spec rather than hand-rolling JSON: the journal stores
+	// whatever json.Marshal produces for AgentSpec (modelconfig.Spec carries
+	// yaml tags only, so the keys are Go field names), and a hand-written
+	// fixture silently drifts from that.
+	spec, err := json.Marshal(agent.AgentSpec{Name: "demo", Model: agent.ModelSpec{
+		Provider: "scripted", ID: "m", MaxTokens: 100, CompactAtTokens: 12000}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{
+			SpecName: "demo", Model: "m", Spec: spec,
+			SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"}),
+		mkEnv(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}),
+		mkEnv(t, event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: "llm-t1", Kind: event.KindLLM, Name: "complete", Attempt: 1}),
+		// A big BILLED history — the number that must NOT be reused as "context used".
+		mkEnv(t, event.TypeActivityCompleted, &event.ActivityCompleted{
+			ActivityID: "llm-t1", Usage: &provider.Usage{InputTokens: 900000, OutputTokens: 40}}),
+	}
+	s, foldErr := state.Fold(events)
+	if foldErr != nil {
+		t.Fatal(foldErr)
+	}
+	r := buildInspectReport(events, s)
+
+	if r.ContextWindow == nil {
+		t.Fatal("inspect report carries no context_window projection")
+	}
+	if r.ContextWindow.EstimatedTokens == r.Usage.InputTokens {
+		t.Errorf("context estimate (%d) equals cumulative billed input — the projection "+
+			"is reusing usage history instead of measuring the assembled request",
+			r.ContextWindow.EstimatedTokens)
+	}
+	if r.ContextWindow.LimitTokens != 0 {
+		t.Errorf("LimitTokens = %d for an unmodelled provider, want 0 (unknown stays unknown)",
+			r.ContextWindow.LimitTokens)
+	}
+	// The spec's thresholds must survive the journal round-trip, or a consumer
+	// cannot say "next compaction at …".
+	if r.ContextWindow.CompactAtTokens != 12000 {
+		t.Errorf("CompactAtTokens = %d, want 12000 recovered from the frozen spec",
+			r.ContextWindow.CompactAtTokens)
+	}
+	if r.ContextWindow.MicrocompactAtTokens != 9000 {
+		t.Errorf("MicrocompactAtTokens = %d, want 9000 (effective 3/4 default)",
+			r.ContextWindow.MicrocompactAtTokens)
 	}
 }

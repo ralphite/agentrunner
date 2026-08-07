@@ -363,6 +363,14 @@ func childSpecFromJournal(dir string) (*AgentSpec, error) {
 	if err != nil {
 		return nil, err
 	}
+	return SpecFromEvents(events)
+}
+
+// SpecFromEvents recovers the spec frozen in a session's SessionStarted —
+// the truth for static AND dynamic (inline-role) sessions. Exported because
+// read-only observers (inspect) need the spec's context-management thresholds
+// without reconstructing a Loop.
+func SpecFromEvents(events []event.Envelope) (*AgentSpec, error) {
 	for _, e := range events {
 		if e.Type != event.TypeSessionStarted {
 			continue
@@ -373,15 +381,15 @@ func childSpecFromJournal(dir string) (*AgentSpec, error) {
 		}
 		started := decoded.(*event.SessionStarted)
 		if len(started.Spec) == 0 {
-			return nil, fmt.Errorf("child SessionStarted carries no spec")
+			return nil, fmt.Errorf("SessionStarted carries no spec")
 		}
 		var spec AgentSpec
 		if err := json.Unmarshal(started.Spec, &spec); err != nil {
-			return nil, fmt.Errorf("child spec unmarshal: %w", err)
+			return nil, fmt.Errorf("spec unmarshal: %w", err)
 		}
 		return &spec, nil
 	}
-	return nil, fmt.Errorf("child journal has no SessionStarted")
+	return nil, fmt.Errorf("journal has no SessionStarted")
 }
 
 func (l *Loop) childExecutorFromJournal(dir, session string) (*tool.Executor, error) {
