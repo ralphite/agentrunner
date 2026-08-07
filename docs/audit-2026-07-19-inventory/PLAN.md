@@ -273,11 +273,35 @@
       payload 默认不搜(`--include-tools` opt-in)、按最近排序不编分数、
       scanned/skipped/truncated 随结果返回。5 组锚绿。**余**:webui
       command palette 接线。
-- [ ] 7.E3 **G54 archived session 永久删除/批量删除 contract**(低)。
-- [ ] 7.E4 **G53 worktree registry + 自动清理/逐项删除 contract**(中)。
+- [ ] 7.E3 **G54 archived session 永久删除/批量删除**——2026-07-21 **转
+      BLOCKED,需用户裁决**。不是设计做不出,是它要的裁决**只能由数据主人
+      来做**:blob 是 CAS **共享**的(删一个会话的 blob 可能抽掉另一个会话
+      仍在引用的内容)、fork/child 有血统引用(删祖先会让 fork 悬空)、
+      workspace/worktree 是会话外的真实目录。再叠上批量 partial-failure
+      与"审计/恢复窗口留多久",每一条的错答案都是**不可逆的数据丢失**。
+      按"破坏性动作先确认"的纪律不擅自实现;GAPS 原条目已写明"设计完成前
+      不提供假 delete control",本轮遵守。**待问用户**:恢复窗口(软删多久
+      才真删)?blob 引用计数 vs 只删 journal?有 fork 后代时拒删还是级联?
+- [ ] 7.E4 **G53 worktree registry + 自动清理/逐项删除 contract**(中)
+      ——同为删除类,自动清理策略需用户定"多旧算旧",与 7.E3 一起问。
 - [ ] 7.E5 **G52 Settings 快捷键重绑/冲突校验/持久化**(低,前端为主)。
+- [ ] 7.E6 **G44 余项**:command palette 前端接线(后端 + `/api/search` 已就绪)。
+- [ ] 7.E7 **G57 余项**:composer context indicator 接线(`context_window`
+      已可供数;limit 为 0 时**只画 used 不画比率**是硬要求)。
 
 **仍 BLOCKED**(需产品裁决,不动):G11 云 workspace(高)、G13 SCM/PR(中)、
 G18 web search 后端选型、G43 Plugins 产品面(需 UJ-19 delta)、G45 执行
 tier(需 provider capability profile)、G46 反馈(需 telemetry/归属裁决)、
 G32(环境特定)。**待真机验**:G55/G56(闸门 B)、G42/G36(持续 QA 覆盖)。
+
+### 7.F 本轮方法论记档:委派在本环境不可用（2026-07-21）
+
+7.A2(SPEC 锚语义审计)曾以 10 路并行 subagent 跑,**10 路全失败**。表面
+症状是 StructuredOutput 校验不过;读 agent 日志才见真因:**本环境的
+permission handler 把每一次子 agent 工具调用的参数都剥空了**
+(`The required parameter 'pattern' is missing` 等),子 agent 一个文件
+都没读到,只好交空结果。
+
+**若只看汇总,会得到"9/10 section 全清"——完全虚假的绿。** 教训:委派
+结果在采信前必须核对它到底做没做事(看工具调用及其返回),空结果尤其
+可疑。7.A2/7.A3 因此改由主 session 自己动手,或等环境修复。
