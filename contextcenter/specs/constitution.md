@@ -21,10 +21,16 @@ Coding Agent，不借助任何 API，就能读懂项目结构、任务状态与�
 
 ## C2. 一切皆文档（Document-first）
 
-产品里没有"模块"，只有文档。Bug、Workstream、Plan、Backlog 等都不是预
-设类型，而是用户随手创建的普通文档；任何文档可在任何位置创建、任意嵌套。
-所谓"特殊文档" = 普通文档 + 一点可选的 frontmatter metadata（如 Project
-绑定 workspace 路径与 agent）。Icon 只是按名字/kind 预设的默认装饰。
+产品里没有"模块"，也没有**目录**：树里的每个节点都是文档（文件）。
+Bug、Workstream、Plan、Backlog 等都不是独立对象，而是用户随手创建的普
+通文档；任何文档可在任何位置创建、任意嵌套——嵌套在磁盘上如何落地只是
+存储细节，目录永远不是产品对象，不会作为节点出现在树或正文里。
+
+所谓"特殊文档" = 普通文档 + 可选 frontmatter：`type`、`tags`，以及某些
+type 的附加字段（如 project 绑定 workspace 路径与 agent）。`type` 命中
+预定义集合（project / workstream / task / bug / loop / lesson / plan /
+backlog / research …）时换预设 icon、默认字段与可用 Action；未知或缺省
+的 type 不改变任何行为。Icon 解析：手动设置 > type 预设 > 默认页面 icon。
 
 ## C3. 永远可编辑（Always editable）
 
@@ -82,3 +88,6 @@ Action）。每种 Widget 在原始 Markdown 里必须有人类可读的降级�
 - 2026-08-15：初版（C1–C9）。来源：ChatGPT 设计 session 的 16 轮决策
   （见 `../reference/product-record.html`）+ 本仓库 session 追加的两项
   决策：任务即文档（task-as-document）、文件即真相升格为第一不变量。
+- 2026-08-15 (2)：C2 增补（用户裁决）：明确**没有目录**——一切皆文件，
+  目录仅为嵌套的落盘形式；icon 改由可选 frontmatter `type`（预定义集
+  合）驱动，辅以 `tags`，手动可覆盖；删除"按名字猜 icon"。

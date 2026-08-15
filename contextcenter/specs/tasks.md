@@ -22,11 +22,14 @@
 
 ## F2. 应用壳与树
 
-- [ ] 三栏布局 + 顶部面包屑（Notion 基准，见 plan §4）
-- [ ] 文档树：多 Project、展开/折叠、选中态（验收 1）
-- [ ] hover `+`/`⋯`：新建子文档、重命名、移动、删除（验收 2）
+- [ ] 三栏布局（树 / 画布 / 右栏双区）+ 顶部面包屑（Notion 基准，见
+      plan §4）
+- [ ] 文档树：多 Project、展开/折叠、选中态；**无目录节点**（验收 1、18）
+- [ ] hover `+`/`⋯`：新建子文档、重命名、移动、删除；无独立 create 按
+      钮（验收 2、19）
 - [ ] 行级 Task 文档隐藏规则（验收 16）
-- [ ] 搜索与快速创建
+- [ ] type/tags → icon 解析（手动 > type 预设 > 默认）
+- [ ] 搜索
 
 ## F3. 文档画布
 
@@ -35,17 +38,21 @@
 - [ ] 一行式子文档链接块（验收 4）
 - [ ] 未物化 to-do 行（勾选即改父文档源码）
 
-## F4. 选区 → Composer（核心交互）
+## F4. 右栏：Page Info + Chat（核心交互）
 
-- [ ] 任意文本/Block/Task 行/Widget 选区捕捉 + 浮动入口（验收 5）
-- [ ] Composer：引用 Chip、Agent 选择、发送；线程锚定展示
-- [ ] Agent 回复 + Proposed update 预览 + Apply 到原位置（验收 6）
+- [ ] 右栏常驻双区；切换页面即切换内容（验收 17）
+- [ ] Page Info：当前文档 frontmatter 的人性化渲染（project/task/loop/
+      bug/普通文档各一套字段模板）
+- [ ] Chat：线程展示、输入框、Agent 选择、发送
+- [ ] 任意文本/Block/Task 行选区捕捉 + 浮动入口 → blockquote 文字引用
+      插入 Chat 输入框（验收 5）
+- [ ] Agent 回复 + Proposed update 预览 + Apply 到当前页（验收 6）
 - [ ] "Agent 将看到什么" Context 预览（可增删引用）
 
-## F5. Task Widget 与 Inspector
+## F5. Task 行与 Task 页
 
-- [ ] Task 行 Widget：状态 pill、id、点击选中
-- [ ] Task Inspector：状态/Attempts/关联文档/Actions
+- [ ] Task 镜像行：状态 pill、id、点击打开 Task 文档页
+- [ ] Task 页 Page Info：状态/Attempts/关联文档/Actions
 - [ ] 从选中文本生成 Task；委派入口
 
 ## F6. Attempt 与 Lesson
@@ -73,7 +80,7 @@
 
 ## F10. 移动端
 
-- [ ] 树 → 抽屉；Inspector → 底部 Sheet；Composer 固定底部
+- [ ] 树 → 抽屉；右栏（Page Info + Chat）→ 底部 Sheet
 - [ ] 选区引用在触屏可用
 
 ## F11. 收口验证

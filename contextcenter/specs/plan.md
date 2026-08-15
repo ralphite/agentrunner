@@ -8,9 +8,12 @@
 ### Stage 0 — 高保真 HTML mock（已交付，`../mock/index.html`）
 
 纯 HTML/CSS/原生 JS 单文件、零外部依赖。目的：钉死视觉与布局基线，让
-后续所有 UI 讨论有共同参照。覆盖四个关键屏（对齐 `../reference/` 四张
-参考图）+ 树展开折叠、文档切换、Task/Attempt/Bug/Loop → Inspector、真
-实文本选区 → 浮动入口 → Composer 引用 Chip 等演示级交互。
+后续所有 UI 讨论有共同参照。覆盖两个 Project 的文档树（无目录节点）、
+七个手工页面（workstream/plan/task/loop/backlog/bug/project）+ 生成的
+stub 页、右栏 Page Info + Chat 双区、真实文本选区 → 浮动入口 →
+blockquote 文字引用进 Chat、Proposed update → Apply 等演示级交互。
+（v0.8 重构前的四屏版对齐 `../reference/` 参考图；重构后布局以 v0.8
+spec 为准，Journey 覆盖不变。）
 
 ### Stage 1 — 可交互 Web 原型
 
@@ -47,56 +50,64 @@
 
 ## 3. 文件格式约定 v0.1
 
-### 3.1 目录结构
+### 3.1 落盘结构（没有目录对象）
 
-一个 Project = 一个目录；文档 = 单文件，或（拥有子文档时）目录 +
-`index.md`。文件→目录的升级由应用自动完成（与惰性物化同思路）。
+**每个文档永远是一个 `.md` 文件。** 拥有子文档时，子文档放进与该文件同
+名（去扩展名）的同级目录里；这个目录纯粹是嵌套的落盘形式，不是产品对
+象，树里永远不出现"目录节点"。规则全树统一，Project 也不例外（根就是
+vault 顶层的一个 `type: project` 文件）。目录的创建/清理由应用自动完成
+（与惰性物化同思路）。
 
 ```
-aurora-ide/                          # Project 根目录
-  project.md                         # 根文档（kind: project）
-  overview.md
-  workstreams/
-    index.md                         # "Workstreams" 文档本体
-    editor-performance.md
+<vault>/
+  aurora-ide.md                      # Project 根文档（type: project）
+  aurora-ide/                        # ↑ 的子文档目录（仅落盘形式）
+    overview.md
+    editor-performance.md            # type: workstream
+    ai-assistant.md                  # type: workstream
+    session-recovery.md              # type: workstream，正文含任务镜像行（见 3.4）
     session-recovery/
-      index.md                       # 正文含任务镜像行（见 3.4）
-      tasks/
-        implement-automatic-recovery.md    # 行级 Task 文档（物化产物）
-      implementation-plan.md
+      implement-automatic-recovery.md   # type: task（物化产物，不进树）
+      implementation-plan.md            # type: plan
+      implementation-plan/
+        recovery-mvp-loop.md            # type: loop，队列在正文
       research-notes.md
       recovery-ux.md
-  bugs.md
-  notes.md
-  plans.md
+    bugs.md
+    notes.md
+    plans.md
+  atlas-deploy.md
+  atlas-deploy/
+    ...
 ```
 
-约定（非强制）：物化的行级 Task 文档放在父文档同级的 `tasks/` 下；文件
-名 = 标题 slug。行级 Task 文档不进左侧树（spec §4.1）。
+物化的行级 Task/Bug 文档就是普通子文档（文件名 = 标题 slug），只是默认
+不进左侧树（spec §4.1）；不再有 `tasks/` 之类的专用目录约定。
 
 ### 3.2 通用 frontmatter
 
 ```yaml
 ---
-id: t-43            # 稳定 id，project 内唯一；创建时按 kind 前缀递增
+id: t-43            # 稳定 id，project 内唯一；创建时按 type 前缀递增
                     # d-/t-/bug-/loop-/les-；引用兜底锚
-kind: task          # 可选；无 kind = 普通文档
-icon: "🐛"          # 可选，覆盖 kind/名字预设
+type: task          # 可选；命中预定义集合才有预设 icon/字段/Action
+tags: [reliability] # 可选；自由分类与检索，不影响 icon
+icon: "🐛"          # 可选，手动覆盖 type 预设
 created: 2025-05-12 # 可选，应用维护
 updated: 2025-05-12
 ---
 ```
 
-### 3.3 各 kind 的附加字段（全部可选，能省则省）
+### 3.3 各 type 的附加字段（全部可选，能省则省）
 
 ```yaml
-# kind: project（project.md）
+# type: project（vault 顶层的根文档）
 name: Aurora IDE
 workspace: ~/dev/aurora-ide          # 代码仓路径
 agents: [codex, claude-code]
 default_agent: codex
 
-# kind: task（bug 同，外加 priority / found_in / environment）
+# type: task（bug 同，外加 priority / found_in / environment）
 status: in_progress                  # todo | in_progress | done | blocked
 depends_on: [t-42]
 attempts:                            # 追加式列表，一次委派一条
@@ -113,7 +124,7 @@ attempts:                            # 追加式列表，一次委派一条
     best: true                       # 当前采用结果，至多一条
 lessons: [les-7]                     # 或相对路径链接
 
-# kind: loop
+# type: loop
 loop:
   status: running                    # idle | running | paused | done
   current: t-43                      # 队列位置
@@ -122,19 +133,21 @@ loop:
   save_lessons: true
 # 队列本体 = 正文里的有序 Task 链接列表（见 3.4），不在 frontmatter 重复
 
-# kind: lesson
+# type: lesson
 sources: [codex:s-091, codex:s-097]  # 来源 session/attempt 引用
 ```
 
 ### 3.4 正文中的结构降级表示（C8）
 
 - **未物化 to-do**：`- [ ] 修掉 flaky test`（纯 Markdown，无 id 无文件）。
-- **物化 Task 镜像行**：`- [ ] [Implement automatic recovery](tasks/implement-automatic-recovery.md)`
+- **物化 Task 镜像行**：`- [ ] [Implement automatic recovery](session-recovery/implement-automatic-recovery.md)`
   ——checkbox 状态由应用与 Task 文档 frontmatter 同步（文档为准）。
-- **子文档链接**：`[Implementation Plan](implementation-plan.md)`，一行
-  一个。
+- **子文档链接**：`[Implementation Plan](session-recovery/implementation-plan.md)`，
+  一行一个。
 - **Loop 队列**：Loop 文档正文中的有序列表，每项一个 Task 链接；重排 =
   挪行。
+- **Chat 引用**：选区以 Markdown blockquote（`> …`）出现在消息文字里，
+  没有专用引用结构。
 - **Lesson 引用**：普通链接，或带 💡 前缀的引用块。
 
 ### 3.5 链接与移动规则
@@ -166,9 +179,10 @@ sources: [codex:s-091, codex:s-097]  # 来源 session/attempt 引用
 
 以 Notion 为直接参照，细节对齐 `../reference/mock-*.png`：
 
-- **布局**：左树 260px（#f7f7f5，可折叠）；中间画布白底，正文列
-  max-width ≈ 720px 居中，页首大标题 + 灰色摘要行；右 Inspector 340px，
-  按需出现；顶部面包屑栏 45px。
+- **布局**：左树 ~280px（#f7f7f5，可折叠）；中间画布白底，正文列
+  max-width ≈ 720px 居中，页首大标题 + 灰色摘要行；右栏 ~360px **常驻
+  双区**——上 Page Info（当前页 frontmatter 渲染），下 Chat（线程 +
+  输入框）；顶部面包屑栏 45px。没有文档底部 Composer dock。
 - **字体**：系统栈（-apple-system, "Segoe UI", "PingFang SC" …）；正文
   15px/1.6，页标题 38–40px/700，节标题 20px/600；树行 13.5px，行高
   28px。
@@ -182,16 +196,19 @@ sources: [codex:s-091, codex:s-097]  # 来源 session/attempt 引用
 - 交互密度、留白、图标风格"几乎照抄 Notion"，禁止 SaaS Dashboard 化
   （阴影卡片堆、大色块统计）。
 
-## 5. 样例数据集（两个 Project，对齐参考图）
+## 5. 样例数据集（两个 Project，无目录节点）
 
-- **Aurora IDE**：Overview；Workstreams{Editor Performance、AI
-  Assistant、Session Recovery}；Bugs；Notes；Plans。Session Recovery
-  含 Goal/Current Understanding/Linked docs/Tasks(#42 done、#43 in
-  progress、#44 todo)/Open Questions，t-43 带 3 次 Attempt
-  （failed→partial→promising+best）与 1 条 Lesson；子文档
-  Implementation Plan 含 Milestones + "Recovery MVP Loop"（4 项，
-  Run sequentially / Pause on failure / Save lessons）。
-- **Atlas Deploy**：Overview；Workstreams{Deployment Pipeline、
-  Infrastructure}；Bugs{Bug Backlog}；Notes；Plans。Bug Backlog 含
-  Active(5, BUG-142 P1 in progress 3 attempts)/Resolved(3)/Codex Bug
-  Fix Loop(running, 1 of 5)/Learnings(2 lessons)。
+- **Aurora IDE**（type: project）：Overview、Editor Performance
+  (workstream)、AI Assistant (workstream)、Session Recovery
+  (workstream)、Bugs、Notes、Plans 全部直接挂在 project 下。
+  Session Recovery 含 Goal/Current Understanding/Linked docs/Tasks
+  (#42 done、#43 in progress、#44 todo)/Open Questions；#43 是物化的
+  task 文档（不进树），页内含 Scope/Acceptance Criteria/3 次 Attempt
+  （failed→partial→promising+best）/Lesson；子文档 Implementation
+  Plan (plan) 含 Milestones + 嵌入的 "Recovery MVP Loop"（type: loop
+  文档，4 项队列，Run sequentially / Pause on failure / Save lessons）。
+- **Atlas Deploy**（type: project）：Overview、Deployment Pipeline
+  (workstream)、Infrastructure (workstream)、Bug Backlog (backlog)、
+  Notes、Plans。Bug Backlog 含 Active(5, BUG-142 P1 in progress 3
+  attempts)/Resolved(3)/Codex Bug Fix Loop(type: loop, running, 1 of
+  5)/Learnings(2 lessons)；BUG-142 是物化的 bug 文档（不进树）。

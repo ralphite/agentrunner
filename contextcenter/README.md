@@ -14,10 +14,10 @@ Document-first、Agent-aware 的项目工作空间原型。人和 AI 在同一�
 | 路径 | 内容 |
 |------|------|
 | `specs/constitution.md` | 产品不变量（第一原则，改它要走修宪流程） |
-| `specs/spec.md` | 产品 Spec v0.7（功能、模型、交互、验收标准） |
+| `specs/spec.md` | 产品 Spec v0.8（功能、模型、交互、验收标准） |
 | `specs/plan.md` | 技术方案：文件格式约定、原型分期、UI 基准 |
 | `specs/tasks.md` | Stage 1 可交互原型的实施拆解 |
-| `mock/index.html` | Stage 0 高保真 HTML mock（Notion 风格，四屏可切换，浏览器直接打开） |
+| `mock/index.html` | Stage 0 高保真 HTML mock（Notion 风格：无目录文档树 + 画布 + 右栏 Page Info/Chat，浏览器直接打开） |
 | `reference/product-record.html` | 源头：ChatGPT session 的完整产品记录（v0.6 Spec + 需求归纳 + 16 轮决策） |
 | `reference/product-record.md` | 上面的纯文本提取版，便于 grep 与 agent 阅读 |
 | `reference/mock-*.png` | 设计讨论阶段的 4 张 UI 参考图 |
