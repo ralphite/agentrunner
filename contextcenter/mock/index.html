@@ -131,6 +131,11 @@ h2.sec:first-of-type{margin-top:24px}
 .radio.on::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .donec{width:17px;height:17px;flex:none;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center}
 .donec .ic{width:10px;height:10px}
+/* in-progress 状态指示器：loading spinner（替代实心 radio） */
+.spinner{width:15px;height:15px;flex:none;border-radius:50%;border:2px solid #e6e3f9;
+  border-top-color:var(--accent);animation:rot 1s linear infinite;margin:1px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.spin{animation:rot 1.4s linear infinite}
 .addrow{display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;color:var(--faint);font-size:14.5px;cursor:pointer;border-radius:6px}
 .addrow:hover{background:var(--hover);color:var(--muted)}
 
@@ -348,7 +353,7 @@ h2.sec:first-of-type{margin-top:24px}
     <div class="tree">
       <!-- Aurora IDE -->
       <div class="trow proj" data-doc="aurora-ide" data-kids="k-aurora">
-        <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><span class="pic aurora"><svg><use href="#i-layers"/></svg></span></span>
+        <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><svg class="ic ticon"><use href="#i-layers"/></svg></span>
         <span class="label">Aurora IDE</span>
         <span class="actions"><button class="iconbtn" title="More"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn" title="Add a page inside"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
       </div>
@@ -401,7 +406,7 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Atlas Deploy -->
       <div class="trow proj" data-doc="atlas-deploy" data-kids="k-atlas">
-        <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><span class="pic atlas"><svg><use href="#i-cube"/></svg></span></span>
+        <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><svg class="ic ticon"><use href="#i-cube"/></svg></span>
         <span class="label">Atlas Deploy</span>
         <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
       </div>
@@ -502,8 +507,8 @@ h2.sec:first-of-type{margin-top:24px}
               <span class="radio"></span><span class="t">Define recovery data model</span>
               <span class="tid">#42</span><span class="pill done">Done</span>
             </div>
-            <div class="task-row sel" data-open="task-43">
-              <span class="radio on"></span><span class="t">Implement automatic recovery</span>
+            <div class="task-row" data-open="task-43">
+              <span class="spinner"></span><span class="t">Implement automatic recovery</span>
               <span class="tid">#43</span><span class="pill prog">In progress</span>
             </div>
             <div class="task-row">
@@ -581,7 +586,7 @@ h2.sec:first-of-type{margin-top:24px}
 
           <div class="widget">
             <div class="widget-head" data-open="loop-mvp">
-              <svg class="ic ticon"><use href="#i-loop"/></svg><span class="label">Recovery MVP Loop</span>
+              <svg class="ic ticon spin"><use href="#i-loop"/></svg><span class="label">Recovery MVP Loop</span>
               <button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button>
             </div>
             <div class="widget-row">
@@ -589,7 +594,7 @@ h2.sec:first-of-type{margin-top:24px}
               <span class="t">Design recovery state model</span><span class="pill done">Done</span>
             </div>
             <div class="widget-row">
-              <span class="num">2</span><span class="radio on"></span>
+              <span class="num">2</span><span class="spinner"></span>
               <span class="t" data-open="task-43">Implement automatic recovery</span><span class="pill prog">In progress</span>
             </div>
             <div class="widget-row">
@@ -619,7 +624,7 @@ h2.sec:first-of-type{margin-top:24px}
           <h2 class="sec" contenteditable="true" spellcheck="false">Queue</h2>
           <div class="task-list">
             <div class="task-row"><span class="tid" style="margin:0">1</span><span class="donec"><svg class="ic"><use href="#i-check"/></svg></span><span class="t">Design recovery state model</span><span class="tid">#42</span><span class="pill done">Done</span></div>
-            <div class="task-row sel" data-open="task-43"><span class="tid" style="margin:0">2</span><span class="radio on"></span><span class="t">Implement automatic recovery</span><span class="tid">#43</span><span class="pill prog">In progress</span></div>
+            <div class="task-row" data-open="task-43"><span class="tid" style="margin:0">2</span><span class="spinner"></span><span class="t">Implement automatic recovery</span><span class="tid">#43</span><span class="pill prog">In progress</span></div>
             <div class="task-row"><span class="tid" style="margin:0">3</span><span class="radio"></span><span class="t">Add end-to-end tests</span><span class="tid">#45</span><span class="pill queued">Queued</span></div>
             <div class="task-row"><span class="tid" style="margin:0">4</span><span class="radio"></span><span class="t">Update docs</span><span class="tid">#46</span><span class="pill queued">Queued</span></div>
           </div>
@@ -643,8 +648,8 @@ h2.sec:first-of-type{margin-top:24px}
 
           <h2 class="sec" contenteditable="true" spellcheck="false">Active Bugs</h2>
           <div class="task-list">
-            <div class="task-row sel" data-open="bug-142">
-              <span class="radio on"></span><span class="t">Recovery sometimes restores stale context after reconnect</span>
+            <div class="task-row" data-open="bug-142">
+              <span class="spinner"></span><span class="t">Recovery sometimes restores stale context after reconnect</span>
               <span class="tid"></span><span class="pill p1">P1</span><span class="tid">#BUG-142</span>
             </div>
             <div class="task-row">
@@ -689,7 +694,7 @@ h2.sec:first-of-type{margin-top:24px}
           <h2 class="sec" contenteditable="true" spellcheck="false">Codex Bug Fix Loop</h2>
           <div class="loopcard">
             <div class="lc-head">
-              <svg class="ic ticon"><use href="#i-loop"/></svg>
+              <svg class="ic ticon spin"><use href="#i-loop"/></svg>
               <span class="lc-desc"><span class="label" data-open="loop-bugfix">Codex Bug Fix Loop</span> — continuously working through active bugs one by one and writing results back to this page.</span>
               <span class="pill running">Running</span>
             </div>
@@ -764,7 +769,7 @@ h2.sec:first-of-type{margin-top:24px}
 
           <h2 class="sec" contenteditable="true" spellcheck="false">Queue</h2>
           <div class="task-list">
-            <div class="task-row sel" data-open="bug-142"><span class="tid" style="margin:0">1</span><span class="radio on"></span><span class="t">Recovery sometimes restores stale context after reconnect</span><span class="tid">#BUG-142</span><span class="pill prog">In progress</span></div>
+            <div class="task-row" data-open="bug-142"><span class="tid" style="margin:0">1</span><span class="spinner"></span><span class="t">Recovery sometimes restores stale context after reconnect</span><span class="tid">#BUG-142</span><span class="pill prog">In progress</span></div>
             <div class="task-row"><span class="tid" style="margin:0">2</span><span class="radio"></span><span class="t">Deployment pipeline fails on large monorepos</span><span class="tid">#BUG-139</span><span class="pill queued">Queued</span></div>
             <div class="task-row"><span class="tid" style="margin:0">3</span><span class="radio"></span><span class="t">Agent logs missing for cancelled runs</span><span class="tid">#BUG-137</span><span class="pill queued">Queued</span></div>
             <div class="task-row"><span class="tid" style="margin:0">4</span><span class="radio"></span><span class="t">Rollback leaves orphaned resources in rare cases</span><span class="tid">#BUG-131</span><span class="pill queued">Queued</span></div>
@@ -820,7 +825,7 @@ h2.sec:first-of-type{margin-top:24px}
         <div class="isec">Tasks</div>
         <div class="stack">
           <div class="srow"><span class="donec" style="width:14px;height:14px"><svg class="ic" style="width:8px;height:8px"><use href="#i-check"/></svg></span>Define recovery data model<span class="right" style="color:var(--faint);font-size:12px">#42</span></div>
-          <div class="srow sel" data-open="task-43"><span class="radio on" style="width:14px;height:14px"></span>Implement automatic recovery<span class="right" style="color:var(--faint);font-size:12px">#43</span></div>
+          <div class="srow" data-open="task-43"><span class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>Implement automatic recovery<span class="right" style="color:var(--faint);font-size:12px">#43</span></div>
           <div class="srow"><span class="radio" style="width:14px;height:14px"></span>Handle multi-window sessions<span class="right" style="color:var(--faint);font-size:12px">#44</span></div>
         </div>
         <div class="isec">Actions</div>
@@ -862,7 +867,7 @@ h2.sec:first-of-type{margin-top:24px}
         <div class="field"><span class="fname">Updated</span><span class="fval">May 12, 2025</span></div>
         <div class="isec">Loops</div>
         <div class="stack">
-          <div class="srow" data-open="loop-mvp"><svg class="ic ticon"><use href="#i-loop"/></svg>Recovery MVP Loop<span class="right"><span class="pill running">Running</span></span></div>
+          <div class="srow" data-open="loop-mvp"><svg class="ic ticon spin"><use href="#i-loop"/></svg>Recovery MVP Loop<span class="right"><span class="pill running">Running</span></span></div>
         </div>
         <div class="isec">Actions</div>
         <div class="action"><svg class="ic ticon"><use href="#i-send"/></svg>Delegate to Codex</div>
@@ -896,7 +901,7 @@ h2.sec:first-of-type{margin-top:24px}
         <div class="field"><span class="fname">Updated</span><span class="fval">May 12, 2025</span></div>
         <div class="isec">Loops</div>
         <div class="stack">
-          <div class="srow" data-open="loop-bugfix"><svg class="ic ticon"><use href="#i-loop"/></svg>Codex Bug Fix Loop<span class="right"><span class="pill running">Running</span></span></div>
+          <div class="srow" data-open="loop-bugfix"><svg class="ic ticon spin"><use href="#i-loop"/></svg>Codex Bug Fix Loop<span class="right"><span class="pill running">Running</span></span></div>
         </div>
         <div class="isec">Actions</div>
         <div class="action"><svg class="ic ticon"><use href="#i-plus"/></svg>Add bug</div>
@@ -1169,7 +1174,7 @@ function openDoc(id){
 }
 function renderCrumbs(list){
   $('#crumbs').innerHTML = list.map((c,i)=>{
-    const icon = c.icon ? `<span class="pic ${c.icon}" style="width:16px;height:16px;border-radius:4px"><svg style="width:9px;height:9px"><use href="#${c.icon==='aurora'?'i-layers':'i-cube'}"/></svg></span>` : '';
+    const icon = c.icon ? `<svg class="ic ic14" style="color:var(--faint)"><use href="#${c.icon==='aurora'?'i-layers':'i-cube'}"/></svg>` : '';
     const here = i===list.length-1 ? ' here' : '';
     return `<span class="seg${here}" ${c.doc?`data-open="${c.doc}"`:''}>${icon}${c.label}</span>`;
   }).join('<span class="sep">/</span>');
