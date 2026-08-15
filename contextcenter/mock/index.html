@@ -38,10 +38,13 @@ input,textarea{font-family:inherit;color:inherit}
 .app.rail-hidden .rail{display:none}
 
 /* ── Sidebar ───────────────────────────────────────────── */
-.side-top{display:flex;align-items:center;gap:2px;padding:10px 12px 6px}
+.side-top{display:flex;align-items:center;gap:2px;padding:10px 10px 6px 12px}
 .iconbtn{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:var(--muted)}
 .iconbtn:hover{background:var(--hover);color:var(--ink)}
 .side-top .spacer{flex:1}
+.brand{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:650;color:var(--ink);padding:2px 2px}
+.brandmark{width:22px;height:22px;flex:none;border-radius:6px;background:linear-gradient(135deg,#8a7bf7,#5646d6);display:grid;place-items:center;color:#fff}
+.brandmark svg{width:13px;height:13px}
 .tree{flex:1;overflow-y:auto;padding:4px 8px 12px}
 .tsec{height:8px}
 .trow{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;
@@ -52,10 +55,16 @@ input,textarea{font-family:inherit;color:inherit}
 .trow .ticon{color:var(--faint);flex:none}
 .trow.proj{font-weight:600;color:var(--ink)}
 .chev{width:18px;height:18px;flex:none;border-radius:4px;display:grid;place-items:center;color:var(--faint)}
-.chev:hover{background:rgba(0,0,0,.07)}
+.chev:hover{background:rgba(0,0,0,.07);color:var(--ink)}
 .chev .ic{transition:transform .12s}
 .chev.open .ic{transform:rotate(90deg)}
-.chev.leaf{visibility:hidden}
+/* Notion 式：默认显示文档 icon，hover 时原位切换为展开/折叠箭头 */
+.flip{width:18px;height:18px;flex:none;position:relative}
+.flip .chev{position:absolute;inset:0;display:none}
+.flip .ticon,.flip .pic{position:absolute;inset:0;margin:auto}
+.trow:hover .flip .ticon,.trow:hover .flip .pic{display:none}
+.trow:hover .flip .chev{display:grid}
+.trow > svg.ticon{margin:0 1px}
 .trow .actions{display:none;margin-left:auto;gap:1px}
 .trow:hover .actions{display:flex}
 .trow .actions .iconbtn{width:22px;height:22px}
@@ -189,7 +198,7 @@ h2.sec:first-of-type{margin-top:24px}
 .btn.sm{padding:3px 9px;font-size:12.5px}
 
 /* ── Right rail: page info ─────────────────────────────── */
-.rail-info{flex:0 1 auto;max-height:58%;overflow-y:auto;padding:16px 20px 14px}
+.rail-info{flex:0 1 auto;max-height:56%;overflow-y:auto;padding:12px 20px 14px}
 .pi{display:none}
 .pi.show{display:block}
 .pi-head{display:flex;gap:9px;align-items:flex-start;font-size:15.5px;font-weight:650;line-height:1.35}
@@ -220,8 +229,7 @@ h2.sec:first-of-type{margin-top:24px}
 
 /* ── Right rail: chat ──────────────────────────────────── */
 .rail-chat{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line)}
-.chat-head{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;font-size:13px;font-weight:600;border-bottom:1px solid var(--line)}
-.chat-head .right{margin-left:auto}
+.rail-head{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;font-size:13px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line)}
 .agentsel{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);padding:3px 7px;border-radius:5px;cursor:pointer;font-weight:400}
 .agentsel:hover{background:var(--hover)}
 .agentsel b{color:var(--ink);font-weight:500}
@@ -242,11 +250,17 @@ h2.sec:first-of-type{margin-top:24px}
 .msg .text li{font-size:13px;line-height:1.55}
 .quote{border-left:3px solid var(--line2);padding:1px 0 1px 10px;margin:3px 0 5px;color:var(--muted);font-size:12.8px;line-height:1.5;white-space:pre-wrap}
 .chat-empty{margin:auto;color:var(--faint);font-size:12.8px;text-align:center;padding:24px 30px;line-height:1.6}
-.chat-input{flex:none;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;align-items:flex-end}
-.chat-input textarea{flex:1;border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font-size:13.5px;
-  line-height:1.5;resize:none;outline:none;min-height:36px;max-height:130px;background:#fff}
-.chat-input textarea:focus{border-color:var(--accent-line);box-shadow:0 0 0 2px var(--accent-weak)}
-.chat-input .iconbtn{color:var(--faint)}
+.chat-input{flex:none;border-top:1px solid var(--line);padding:10px 12px 12px}
+.composer-box{border:1px solid var(--line2);border-radius:16px;background:#fff;padding:9px 12px 7px}
+.composer-box:focus-within{border-color:var(--accent-line);box-shadow:0 0 0 2px var(--accent-weak)}
+.composer-box textarea{display:block;width:100%;border:none;outline:none;resize:none;font-size:13.5px;
+  line-height:1.5;max-height:130px;background:transparent;padding:1px 2px}
+.composer-row{display:flex;align-items:center;gap:2px;margin-top:5px}
+.composer-row .iconbtn{width:26px;height:26px;color:var(--faint)}
+.composer-row .spacer{flex:1}
+.sendbtn{width:28px;height:28px;flex:none;border-radius:50%;background:#1f1e1d;color:#fff;display:grid;place-items:center}
+.sendbtn:hover{background:#000}
+.sendbtn.empty{background:#ececea;color:#a6a49f;cursor:default}
 
 /* proposed update (in chat) */
 .proposed{border:1px solid var(--line2);border-radius:8px;margin-top:8px;overflow:hidden;background:#fff}
@@ -315,6 +329,8 @@ h2.sec:first-of-type{margin-top:24px}
     <symbol id="i-knot" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2.4v11.2M3.15 5.2l9.7 5.6M12.85 5.2l-9.7 5.6"/></g></symbol>
     <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5.5 3.5v9M10.5 3.5v9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
     <symbol id="i-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-arrowup" viewBox="0 0 16 16"><path d="M8 13V3.4M3.9 7.5L8 3.4l4.1 4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-target" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.3"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></g></symbol>
   </defs>
 </svg>
 
@@ -323,69 +339,59 @@ h2.sec:first-of-type{margin-top:24px}
   <!-- ═══ Sidebar ═══ -->
   <nav class="sidebar" id="sidebar">
     <div class="side-top">
-      <button class="iconbtn" id="closeSide" title="Close sidebar"><svg class="ic"><use href="#i-panel"/></svg></button>
+      <span class="brand"><span class="brandmark"><svg><use href="#i-target"/></svg></span>Context Center</span>
       <span class="spacer"></span>
       <button class="iconbtn" title="Search"><svg class="ic"><use href="#i-search"/></svg></button>
+      <button class="iconbtn" id="closeSide" title="Close sidebar"><svg class="ic"><use href="#i-panel"/></svg></button>
     </div>
 
     <div class="tree">
       <!-- Aurora IDE -->
       <div class="trow proj" data-doc="aurora-ide" data-kids="k-aurora">
-        <button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
-        <span class="pic aurora"><svg><use href="#i-layers"/></svg></span>
+        <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><span class="pic aurora"><svg><use href="#i-layers"/></svg></span></span>
         <span class="label">Aurora IDE</span>
         <span class="actions"><button class="iconbtn" title="More"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn" title="Add a page inside"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
       </div>
       <div class="kids" id="k-aurora">
         <div class="trow" style="padding-left:26px" data-doc="aurora-overview">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Overview</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="editor-performance">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-zap"/></svg><span class="label">Editor Performance</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="ai-assistant">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-zap"/></svg><span class="label">AI Assistant</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="session-recovery" data-kids="k-sr">
-          <button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
-          <svg class="ic ticon"><use href="#i-zap"/></svg><span class="label">Session Recovery</span>
+          <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><svg class="ic ticon"><use href="#i-zap"/></svg></span><span class="label">Session Recovery</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="kids" id="k-sr">
           <div class="trow" style="padding-left:44px" data-doc="impl-plan">
-            <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
             <svg class="ic ticon"><use href="#i-list"/></svg><span class="label">Implementation Plan</span>
             <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
           </div>
           <div class="trow" style="padding-left:44px" data-doc="research-notes">
-            <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
             <svg class="ic ticon"><use href="#i-book"/></svg><span class="label">Research Notes</span>
             <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
           </div>
           <div class="trow" style="padding-left:44px" data-doc="recovery-ux">
-            <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
             <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Recovery UX</span>
             <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
           </div>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="aurora-bugs">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Bugs</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="aurora-notes">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Notes</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="aurora-plans">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Plans</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
@@ -395,39 +401,32 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Atlas Deploy -->
       <div class="trow proj" data-doc="atlas-deploy" data-kids="k-atlas">
-        <button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
-        <span class="pic atlas"><svg><use href="#i-cube"/></svg></span>
+        <span class="flip"><button class="chev open"><svg class="ic ic12"><use href="#i-chev"/></svg></button><span class="pic atlas"><svg><use href="#i-cube"/></svg></span></span>
         <span class="label">Atlas Deploy</span>
         <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
       </div>
       <div class="kids" id="k-atlas">
         <div class="trow" style="padding-left:26px" data-doc="atlas-overview">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Overview</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="deployment-pipeline">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-zap"/></svg><span class="label">Deployment Pipeline</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="infrastructure">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-zap"/></svg><span class="label">Infrastructure</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="bug-backlog">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-history"/></svg><span class="label">Bug Backlog</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="atlas-notes">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Notes</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
         <div class="trow" style="padding-left:26px" data-doc="atlas-plans">
-          <button class="chev leaf"><svg class="ic ic12"><use href="#i-chev"/></svg></button>
           <svg class="ic ticon"><use href="#i-page"/></svg><span class="label">Plans</span>
           <span class="actions"><button class="iconbtn"><svg class="ic ic14"><use href="#i-dots"/></svg></button><button class="iconbtn"><svg class="ic ic14"><use href="#i-plus"/></svg></button></span>
         </div>
@@ -794,12 +793,12 @@ h2.sec:first-of-type{margin-top:24px}
 
   <!-- ═══ Right rail: Page info + Chat ═══ -->
   <aside class="rail" id="rail">
+    <div class="rail-head">Metadata</div>
     <div class="rail-info" id="railInfo">
 
       <!-- Aurora IDE -->
       <div class="pi" id="pi-aurora-ide">
-        <div class="pi-head"><span class="pic aurora"><svg><use href="#i-layers"/></svg></span>Aurora IDE</div>
-        <div class="pi-pad"></div>
+        <div class="field"><span class="fname">Name</span><span class="fval">Aurora IDE</span></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Project</span></span></div>
         <div class="field"><span class="fname">Workspace</span><span class="fval mono">~/dev/aurora-ide</span></div>
         <div class="field"><span class="fname">Agents</span><span class="fval">Codex · Claude Code</span></div>
@@ -813,8 +812,6 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Session Recovery -->
       <div class="pi" id="pi-session-recovery">
-        <div class="pi-head"><svg class="ic ic18 ticon"><use href="#i-zap"/></svg>Session Recovery</div>
-        <div class="pi-pad"></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Workstream</span></span></div>
         <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog">Active</span></span></div>
         <div class="field"><span class="fname">Tags</span><span class="fval"><span class="pill plain">reliability</span><span class="pill plain">recovery</span></span></div>
@@ -833,8 +830,7 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Task 43 -->
       <div class="pi" id="pi-task-43">
-        <div class="pi-head"><svg class="ic ic18 ticon" style="color:var(--accent)"><use href="#i-checkc"/></svg>Implement automatic recovery</div>
-        <div class="pi-id">#43</div>
+        <div class="field"><span class="fname">ID</span><span class="fval">#43</span></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Task</span></span></div>
         <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog dd">In progress <svg class="ic"><use href="#i-chev"/></svg></span></span></div>
         <div class="field"><span class="fname">Attempts</span><span class="fval">3</span></div>
@@ -860,8 +856,6 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Implementation Plan -->
       <div class="pi" id="pi-impl-plan">
-        <div class="pi-head"><svg class="ic ic18 ticon"><use href="#i-list"/></svg>Implementation Plan</div>
-        <div class="pi-pad"></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Plan</span></span></div>
         <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog">Active</span></span></div>
         <div class="field"><span class="fname">Created</span><span class="fval">May 6, 2025</span></div>
@@ -877,8 +871,6 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Recovery MVP Loop -->
       <div class="pi" id="pi-loop-mvp">
-        <div class="pi-head"><svg class="ic ic18 ticon" style="color:var(--accent)"><use href="#i-loop"/></svg>Recovery MVP Loop</div>
-        <div class="pi-pad"></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Loop</span></span></div>
         <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill running">Running</span></span></div>
         <div class="field"><span class="fname">Current</span><span class="fval"><span class="linky" data-open="task-43" style="cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px">#43 Implement automatic recovery</span></span></div>
@@ -897,8 +889,6 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Bug Backlog -->
       <div class="pi" id="pi-bug-backlog">
-        <div class="pi-head"><svg class="ic ic18 ticon"><use href="#i-history"/></svg>Bug Backlog</div>
-        <div class="pi-pad"></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Backlog</span></span></div>
         <div class="field"><span class="fname">Bugs</span><span class="fval">5 active · 3 resolved</span></div>
         <div class="field"><span class="fname">Tags</span><span class="fval"><span class="pill plain">quality</span></span></div>
@@ -915,8 +905,7 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- BUG-142 -->
       <div class="pi" id="pi-bug-142">
-        <div class="pi-head"><svg class="ic ic18 ticon" style="color:#c25d7b"><use href="#i-bug"/></svg>Recovery sometimes restores stale context after reconnect</div>
-        <div class="pi-id">#BUG-142</div>
+        <div class="field"><span class="fname">ID</span><span class="fval">#BUG-142</span></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Bug</span></span></div>
         <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog dd">In progress <svg class="ic"><use href="#i-chev"/></svg></span></span></div>
         <div class="field"><span class="fname">Priority</span><span class="fval"><span class="pill p1">P1 · High</span></span></div>
@@ -935,8 +924,6 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- Codex Bug Fix Loop -->
       <div class="pi" id="pi-loop-bugfix">
-        <div class="pi-head"><svg class="ic ic18 ticon" style="color:var(--accent)"><use href="#i-loop"/></svg>Codex Bug Fix Loop</div>
-        <div class="pi-pad"></div>
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Loop</span></span></div>
         <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill running">Running</span></span></div>
         <div class="field"><span class="fname">Current</span><span class="fval"><span data-open="bug-142" style="cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px">#BUG-142</span></span></div>
@@ -951,17 +938,13 @@ h2.sec:first-of-type{margin-top:24px}
 
       <!-- generated stub info -->
       <div class="pi" id="pi-stub">
-        <div class="pi-head"><svg class="ic ic18 ticon" id="stubPiIcon"><use href="#i-page"/></svg><span id="stubPiTitle"></span></div>
-        <div class="pi-pad"></div>
         <div id="stubPiFields"></div>
       </div>
     </div>
 
     <!-- Chat -->
     <div class="rail-chat">
-      <div class="chat-head">Chat
-        <span class="right agentsel">Agent: <b>Codex</b> <svg class="ic"><use href="#i-chev"/></svg></span>
-      </div>
+      <div class="rail-head">Chat</div>
       <div class="chat-thread" id="chatThread">
 
         <div class="ch" id="ch-aurora-ide">
@@ -1072,8 +1055,15 @@ Acceptance Criteria:
       </div>
 
       <div class="chat-input">
-        <textarea id="chatInput" rows="1" placeholder="Ask, or select text to quote..."></textarea>
-        <button class="iconbtn" title="Send"><svg class="ic"><use href="#i-send"/></svg></button>
+        <div class="composer-box">
+          <textarea id="chatInput" rows="1" placeholder="Ask, or select text to quote..."></textarea>
+          <div class="composer-row">
+            <button class="iconbtn" title="Attach"><svg class="ic"><use href="#i-clip"/></svg></button>
+            <span class="agentsel"><b>Codex</b> <svg class="ic"><use href="#i-chev"/></svg></span>
+            <span class="spacer"></span>
+            <button class="sendbtn empty" id="sendBtn" title="Send"><svg class="ic ic14"><use href="#i-arrowup"/></svg></button>
+          </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -1163,11 +1153,6 @@ function openDoc(id){
     $('#stubLinks').innerHTML = s.links.map(([d,l,i])=>
       `<div class="doclink" data-open="${d}"><svg class="ic ticon"><use href="#${i}"/></svg><span class="label">${l}</span></div>`).join('');
     $('#doc-stub').classList.add('show');
-    // stub page info
-    $('#stubPiTitle').textContent = s.t;
-    const iconUse = s.icon === 'proj-atlas' ? null : s.icon;
-    $('#stubPiIcon').innerHTML = iconUse ? `<use href="#${iconUse}"/>` : '';
-    $('#stubPiIcon').style.display = iconUse ? '' : 'none';
     $('#stubPiFields').innerHTML = s.fields.map(([k,v])=>{
       const val = (k==='Type' && v!=='—') ? `<span class="pill plain">${v}</span>`
                 : (k==='Tags') ? v.split(',').map(t=>`<span class="pill plain">${t.trim()}</span>`).join(' ')
@@ -1243,6 +1228,7 @@ pill.onclick = ()=>{
     const ta = $('#chatInput');
     ta.value = quoted + '\n' + ta.value;
     autoGrow(ta);
+    sendBtn.classList.remove('empty');
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
   }
@@ -1255,7 +1241,11 @@ function autoGrow(ta){
   ta.style.height = 'auto';
   ta.style.height = Math.min(130, ta.scrollHeight) + 'px';
 }
-$('#chatInput').addEventListener('input', e=>autoGrow(e.target));
+const sendBtn = $('#sendBtn');
+$('#chatInput').addEventListener('input', e=>{
+  autoGrow(e.target);
+  sendBtn.classList.toggle('empty', !e.target.value.trim());
+});
 
 /* deep link: #doc (+ @nohint) */
 const hashParts = location.hash.slice(1).split('@');

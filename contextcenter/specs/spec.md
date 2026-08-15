@@ -1,9 +1,10 @@
-# Context Center — 产品 Spec v0.8
+# Context Center — 产品 Spec v0.9
 
 上承 `../reference/product-record.html` 中的 v0.6 Spec。v0.7 并入两项结
 构性决策（任务即文档、文件即真相）；v0.8 并入第二轮用户裁决：没有目录、
-type/tags 驱动 icon、右栏改为常驻"Page Info + Chat"双区、选区引用改为纯
-文字。与 `constitution.md` 冲突时以 constitution 为准。文末附变更清单。
+type/tags 驱动 icon、右栏改为常驻"Metadata + Chat"双区、选区引用改为纯
+文字；v0.9 并入第三轮：SQLite 伴随库与两储分工。与 `constitution.md`
+冲突时以 constitution 为准。文末附变更清单。
 
 ## 1. 产品定义
 
@@ -106,26 +107,48 @@ Task、Loop、委派可显式引用 Lesson 进入 Context。
 - **队列即文档**：Loop 的执行队列就是 Loop 文档正文里的有序 Task 链接
   列表；重排队列 = 挪动行。被引用的 Task 不必是 Loop 的子文档（Bug
   Fix Loop 引用住在 Backlog 下的 bug）。
-- Loop 自身状态（running/paused、当前项、stop condition、retry 策略、
-  是否自动存 Lesson）是 Loop 文档自己的 metadata。
+- Loop 的**配置**（strategy、on_failure、save_lessons、stop
+  condition）是 Loop 文档自己的 frontmatter；**运行态**（running/
+  paused、当前项、进度、session 引用）属于 runtime，住 SQLite
+  （§3.8），结束后的结果写回文件。
 - V1 行为：顺序执行；单 Task 可多次 Retry；失败或需要澄清时暂停；用户
   可 Stop；完成后继续下一项；状态、结果、Lesson 持续写回。
 - 明确不是 DAG、不是 Workflow Builder（C9）。
 
 ### 3.7 Comment / Message
 
-Message 不是独立导航对象。它永远锚定到：一段选中文字 / 一个 Block /
-一个 Task 行 / 一个 Attempt / 一个 Loop / 整个当前页面。线程展示在锚点
-附近（文档内联卡片或底部 Composer 区）。
+Message 不是独立导航对象。它永远锚定到当前页面（可携带对页内选区的文
+字引用）。线程与消息存放在 SQLite（§3.8），在右栏 Chat 区展示；对话中
+值得沉淀的结论经由 Agent 更新或 Apply 回流成文档内容——知识在文件，对
+话在库。
+
+### 3.8 存储分工（文件 vs SQLite）
+
+取舍规则（C1）：**能放文件的放文件；放不进文件的进 SQLite。**
+
+- **文件（项目知识的唯一真相）**：正文、frontmatter（id/type/tags/
+  icon/状态/task 字段/attempts 结果/lessons/loop 配置与队列）、相对链
+  接与镜像行。
+- **SQLite 伴随库**：对话线程与消息；子文档在树中的显示顺序；节点级应
+  用状态（展开/折叠、最近访问）；运行时状态（进行中的委派/Loop 进度、
+  外部 session 引用、预估时间）；created/updated 时间戳；display id 计
+  数器；派生索引（id→path、反向链接）。
+- 运行结束后的**持久结果**必须写回文件：Attempt 结果条目、Lesson、任务
+  状态变化。SQLite 里只留过程态。
+- 删除 SQLite 不损失项目知识；索引可重建（C1 检验）。
+
+细节 schema 见 `plan.md` §3.7。
 
 ## 4. 信息架构与主界面
 
 ### 4.1 左侧：Document Tree
 
 只有一棵多 Project 文档树，没有 Tasks/Sessions/Runs/Workflows 等独立主
-导航，也没有目录节点——每一行都是文档。紧凑、接近 Notion：展开/折叠、
-hover 出现 `+`（新建子文档）与 `⋯`（context menu）、移动、重命名、删
-除、切换 Project、搜索。创建一律经由 hover `+`，无独立 create 按钮。
+导航，也没有目录节点——每一行都是文档。紧凑、接近 Notion：hover 时文
+档 icon 原位变为展开/折叠箭头（不设常驻 chevron 列），同时行尾浮现
+`+`（新建子文档）与 `⋯`（context menu）；移动、重命名、删除、切换
+Project、搜索。创建一律经由 hover `+`，无独立 create 按钮。侧栏顶部
+展示 Context Center branding。
 
 **树只显示章节级文档**：物化出来的行级 Task/Bug 文档默认不出现在树里
 （防止几百个微文档把树炸掉），它们经由父页列表、Loop 引用和搜索到达。
@@ -138,16 +161,18 @@ hover 出现 `+`（新建子文档）与 `⋯`（context menu）、移动、重�
 - 只有 Task、Attempt、Loop 等需要交互的内容用 Widget；
 - 面包屑显示 Project / 祖先 / 当前文档。
 
-### 4.3 右侧：常驻双区栏（Page Info + Chat）
+### 4.3 右侧：常驻双区栏（Metadata + Chat）
 
 右栏常驻，上下两区，始终围绕**当前页面**：
 
-- **上：Page Info**——当前文档的结构化数据（frontmatter 的人性化渲
-  染）。在 project 页显示 name/workspace/agents；在 task 页显示
-  status/attempts/关联文档与 Action；在 loop 页显示当前项/队列/stop
-  condition/retry 策略；普通文档显示 type/tags/created 等基本项。不重
-  复正文内容，不承担 Session/Diff 管理。
-- **下：Chat**——当前页面的对话线程与输入框（见 4.4）。
+- **上：Metadata**——当前文档的结构化数据（frontmatter + 伴随库信息的
+  人性化渲染），区头固定标注 "Metadata"，不重复页面标题。在 project
+  页显示 name/workspace/agents；在 task 页显示 status/attempts/关联文
+  档与 Action；在 loop 页显示当前项/队列/stop condition/retry 策略；
+  普通文档显示 type/tags/created 等基本项。不重复正文内容，不承担
+  Session/Diff 管理。
+- **下：Chat**——当前页面的对话线程与输入框（见 4.4）；输入框采用
+  ChatGPT 式圆角容器（内嵌多行输入 + 附件/Agent 选择 + 圆形发送钮）。
 
 点开哪个文档，右栏就换成谁的信息与对话；Task/Bug/Loop 都是文档，打开
 它们的页面即看到各自的结构化数据——不再有"点击行才出现的对象
@@ -240,15 +265,28 @@ v0.6 的 12 条全部保留，新增/改写以 ★ 标注：
 
 ## 10. Open Questions
 
-- **Comment 线程的文件表示**：候选——文档内联降级块 / 伴生
-  `<doc>.comments.md` / 仅存应用侧（违 C1，倾向排除）。Stage 1 用内存
-  模拟，落盘格式在 Stage 2 前定。
+- ~~Comment 线程的文件表示~~ → 已裁决（v0.9）：对话线程住 SQLite
+  （§3.8）；需要沉淀的结论回流成文档。
 - **并发写**：应用与外部 Agent 同时改同一文件的对账策略（MVP 单人场
   景：last-write-wins + 依赖 git 兜底；是否够用待验证）。
 - **Attempt 摘要的生成方**：委派结束时由被委派 Agent 按约定自行写回，
   还是产品内置模型读外部 session 产物后代写？MVP 先取前者。
+- **外部 Agent 是否需要读 Chat**：当前设计外部 Agent 只读文件；若日后
+  需要引用对话史，再定只读接口（导出或查询），不破坏两储分工。
 
 ## 11. 变更清单
+
+### v0.8 → v0.9（第三轮用户裁决）
+
+1. **SQLite 伴随库**：新增 §3.8 存储分工——能放文件的放文件，放不进文
+   件的（对话线程、子文档顺序、节点级应用状态、运行态、时间戳、计数
+   器、索引）进 SQLite；constitution C1 修宪 2026-08-15 (3)。
+2. Chat 线程存储的 open question 就此裁决（§3.7/§10）；新增"外部
+   Agent 是否读 Chat"为新 open question。
+3. Loop frontmatter 只留配置，运行态移入 SQLite（§3.6）。
+4. UI 精修：侧栏 Context Center branding；右栏上区固定标注
+   "Metadata"（不重复页面标题）；树中 hover 时 icon 原位变展开箭头；
+   Chat 输入框 ChatGPT 式（§4.1/§4.3）。
 
 ### v0.7 → v0.8（第二轮用户裁决）
 

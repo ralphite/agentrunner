@@ -41,6 +41,9 @@ spec 为准，Journey 覆盖不变。）
   解析与序列化、链接解析（相对路径 + id 兜底）、物化/镜像行改写、索引
   （id → path、task 列表、反向链接）。**这一层不依赖 React**，未来直接
   移植 Stage 2 后端。
+- `store/`：SQLite 伴随库存取层，schema 见 §3.6。Stage 1 用内存实现
+  （接口按 schema 设计，可选 sql.js 落 IndexedDB）；Stage 2 换真
+  SQLite，接口不变。
 - `ui/`：树、画布（contenteditable 起步，不引重编辑器框架）、Widget 渲
   染、Inspector、Composer、选区管理。
 - `agents/`：`AgentAdapter` 接口 + `MockAgent` 实现（延迟、流式假输
@@ -93,9 +96,8 @@ id: t-43            # 稳定 id，project 内唯一；创建时按 type 前缀�
 type: task          # 可选；命中预定义集合才有预设 icon/字段/Action
 tags: [reliability] # 可选；自由分类与检索，不影响 icon
 icon: "🐛"          # 可选，手动覆盖 type 预设
-created: 2025-05-12 # 可选，应用维护
-updated: 2025-05-12
 ---
+# created/updated 时间戳由 SQLite 伴随库维护（§3.7），不进 frontmatter
 ```
 
 ### 3.3 各 type 的附加字段（全部可选，能省则省）
@@ -124,13 +126,13 @@ attempts:                            # 追加式列表，一次委派一条
     best: true                       # 当前采用结果，至多一条
 lessons: [les-7]                     # 或相对路径链接
 
-# type: loop
+# type: loop —— frontmatter 只放配置；运行态(status/current/进度/
+# session 引用)住 SQLite(§3.7)，结束后的结果写回相关文档
 loop:
-  status: running                    # idle | running | paused | done
-  current: t-43                      # 队列位置
   strategy: sequential
-  on_failure: pause
+  on_failure: pause                  # pause | record_lesson_continue
   save_lessons: true
+  stop_when: all_tasks_done
 # 队列本体 = 正文里的有序 Task 链接列表（见 3.4），不在 frontmatter 重复
 
 # type: lesson
@@ -159,7 +161,36 @@ sources: [codex:s-091, codex:s-097]  # 来源 session/attempt 引用
   link 露出给用户。
 - 冲突策略（MVP）：文件即真相，last-write-wins，git 兜底。
 
-### 3.6 外部 Agent 读写契约（Stage 2 落地，格式即契约）
+### 3.6 SQLite 伴随库 v0.1
+
+位置：`<vault>/.contextcenter/state.db`（gitignore；删库不失项目知识，
+索引可重建——C1）。取舍速查：
+
+| 信息 | 归属 |
+|------|------|
+| 正文、frontmatter（id/type/tags/status/task 字段/attempts 结果/lessons/loop 配置）、链接/镜像行、loop 队列（正文列表） | **文件** |
+| Chat 线程与消息（含文字引用、proposed update 及其 apply 记录） | SQLite |
+| 子文档在树中的显示顺序 | SQLite |
+| 节点级应用状态（树展开/折叠、最近访问、上次滚动位置） | SQLite |
+| 运行态（进行中委派/Loop 的 status/current/进度/外部 session 引用/预估） | SQLite（结束后结果写回文件） |
+| created/updated 时间戳、display id 计数器 | SQLite |
+| 派生索引（id→path、反向链接、任务清单） | SQLite（可重建 cache） |
+
+表（草案）：
+
+```sql
+docs        (id PK, path, created_at, updated_at)            -- 节点信息+时间戳
+child_order (parent_id, child_id, rank)                      -- 树内显示顺序
+ui_state    (doc_id PK, collapsed, last_visited_at)          -- 节点级应用状态
+counters    (scope PK, next)                                 -- display id 分配
+threads     (id PK, doc_id, created_at)                      -- 每文档聊天线程
+messages    (id PK, thread_id, author, agent, body_md,       -- 引用即 body 里的
+             proposal_md, applied_at, created_at)            --   blockquote 文字
+runtime_runs(id PK, kind, doc_id, status, current_ref,       -- 进行中委派/Loop
+             progress, session_ref, started_at, est)
+```
+
+### 3.7 外部 Agent 读写契约（Stage 2 落地，格式即契约）
 
 外部 Coding Agent 对 Project 目录可做的事及其"API"：
 
@@ -179,10 +210,14 @@ sources: [codex:s-091, codex:s-097]  # 来源 session/attempt 引用
 
 以 Notion 为直接参照，细节对齐 `../reference/mock-*.png`：
 
-- **布局**：左树 ~280px（#f7f7f5，可折叠）；中间画布白底，正文列
-  max-width ≈ 720px 居中，页首大标题 + 灰色摘要行；右栏 ~360px **常驻
-  双区**——上 Page Info（当前页 frontmatter 渲染），下 Chat（线程 +
-  输入框）；顶部面包屑栏 45px。没有文档底部 Composer dock。
+- **布局**：左树 ~280px（#f7f7f5，可折叠，顶部 Context Center
+  branding）；中间画布白底，正文列 max-width ≈ 720px 居中，页首大标题
+  + 灰色摘要行；右栏 ~360px **常驻双区**——上 Metadata（区头固定标注
+  "Metadata"，渲染当前页 frontmatter + 伴随库信息，不重复页面标题），
+  下 Chat（线程 + ChatGPT 式输入框：圆角容器内嵌多行输入、附件/Agent
+  选择、圆形发送钮）；顶部面包屑栏 45px。没有文档底部 Composer dock。
+- **树行为**：不设常驻 chevron 列；hover 时文档 icon 原位变为展开/折叠
+  箭头（Notion 式），行尾浮现 `+`/`⋯`。
 - **字体**：系统栈（-apple-system, "Segoe UI", "PingFang SC" …）；正文
   15px/1.6，页标题 38–40px/700，节标题 20px/600；树行 13.5px，行高
   28px。

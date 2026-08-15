@@ -14,6 +14,8 @@
 
 - [ ] frontmatter + Markdown 解析/序列化（round-trip 无损）
 - [ ] 文件树内存模型 + 单一写入口 + 变更订阅
+- [ ] `store/` 伴随库存取层（plan §3.6 schema；Stage 1 内存实现：
+      threads/messages、child_order、ui_state、runtime_runs、时间戳）
 - [ ] 链接解析：相对路径 → 文档；id 兜底；broken link 标记（验收 15）
 - [ ] 索引：id→path、每文档 task 列表、反向链接
 - [ ] 物化：to-do 行 → Task 文档 + 镜像行改写（验收 13）
