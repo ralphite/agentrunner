@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Context Center — 完整产品记录</title>
+<style>
+:root { --ink:#242423; --muted:#73736f; --line:#e6e6e2; --paper:#fff; --ground:#f7f7f5; --accent:#6759dc; }
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans CJK SC",sans-serif; background:var(--ground); color:var(--ink); line-height:1.62; }
+header { position:sticky; top:0; z-index:20; background:rgba(247,247,245,.94); backdrop-filter:blur(16px); border-bottom:1px solid var(--line); padding:14px max(16px,env(safe-area-inset-left)); }
+.header-inner { max-width:1180px; margin:auto; display:flex; gap:18px; align-items:center; justify-content:space-between; }
+h1.brand { font-size:18px; margin:0; white-space:nowrap; }
+nav { display:flex; gap:6px; overflow:auto; scrollbar-width:none; }
+nav a { color:var(--muted); text-decoration:none; font-size:13px; padding:7px 10px; border-radius:7px; white-space:nowrap; }
+nav a:hover { background:#ecebea; color:var(--ink); }
+main { max-width:1180px; margin:auto; padding:28px 18px 70px; }
+.hero { padding:18px 0 20px; border-bottom:1px solid var(--line); margin-bottom:24px; }
+.hero h1 { font-size:34px; margin:0 0 8px; letter-spacing:-.02em; }
+.hero p { margin:0; color:var(--muted); max-width:780px; }
+.doc-section { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:34px clamp(20px,4vw,54px); margin:20px 0; }
+.doc-section h1 { font-size:30px; margin:0 0 22px; }
+.doc-section h2 { font-size:21px; margin-top:34px; padding-top:6px; }
+.doc-section h3 { font-size:17px; margin-top:24px; }
+.doc-section p,.doc-section li { font-size:15px; }
+.doc-section code { background:#f1f0ee; padding:2px 5px; border-radius:4px; }
+.doc-section pre { overflow:auto; background:#f5f4f2; border:1px solid var(--line); padding:14px; border-radius:8px; }
+.doc-section blockquote { margin-left:0; border-left:3px solid var(--accent); padding-left:15px; color:#555550; }
+.doc-section table { width:100%; border-collapse:collapse; overflow:auto; display:block; }
+.doc-section th,.doc-section td { border-bottom:1px solid var(--line); padding:9px 12px; text-align:left; min-width:120px; }
+.mock-title { margin:44px 0 12px; font-size:28px; }
+figure { margin:18px 0 30px; }
+figcaption { font-weight:650; font-size:15px; margin:0 4px 9px; }
+figure a { display:block; background:white; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+figure img { display:block; width:100%; height:auto; }
+@media (max-width:700px) {
+  header { padding-top:calc(12px + env(safe-area-inset-top)); }
+  .header-inner { align-items:flex-start; flex-direction:column; gap:8px; }
+  main { padding:18px 8px 50px; }
+  .hero { padding-left:8px; padding-right:8px; }
+  .hero h1 { font-size:27px; }
+  .doc-section { border-radius:9px; padding:23px 18px; }
+  .doc-section h1 { font-size:25px; }
+  .doc-section h2 { font-size:19px; }
+  figure a { border-radius:8px; }
+}
+</style>
+</head>
+<body>
+<header><div class="header-inner"><h1 class="brand">Context Center</h1><nav><a href="#spec">Spec</a><a href="#requirements">原始需求</a><a href="#history">关键轮次</a><a href="#mocks">Mock</a></nav></div></header>
+<main>
+<section class="hero"><h1>完整产品记录</h1><p>包含最终 Product Spec、用户原始需求归纳、关键设计轮次，以及当前 UI Mock。内部推理过程未包含。</p></section>
+<section id="spec" class="doc-section"><h1>Context Center v0.6 — 最终产品 Spec</h1>
+<h2>1. 产品定义</h2>
+<p>Context Center 是一个 <strong>Document-first、Agent-aware 的项目工作空间</strong>。</p>
+<p>用户和 AI 在同一棵可编辑的文档树中维护项目背景、Workstream、计划、Task、Bug、结果和经验；需要执行代码工作时，再把选中的 Task 或内容委派给 Codex、Claude Code 等 Coding Agent。</p>
+<p>Context Center 本身不是新的 Coding Agent，也不是通用项目管理系统或 Workflow Builder。</p>
+<h2>2. 设计原则</h2>
+<ol>
+<li><strong>文档优先</strong>：默认内容是自由编辑的 Markdown；结构只在需要状态、查询或 Action 时局部出现。</li>
+<li><strong>Project 也是文档体验</strong>：Project 是特殊根文档，同时绑定 Workspace 路径和 Agent 配置。</li>
+<li><strong>选择就是 Context</strong>：任何文字、Block 或 Widget 都可以被引用到 Composer。</li>
+<li><strong>外部 Agent 负责执行</strong>：复杂代码与研究交给 Codex/Claude Code；产品负责上下文、Task、Attempt 与知识回流。</li>
+<li><strong>结果回到文档</strong>：Task 状态、结果、Lesson 和新 Context 都写回当前文档树。</li>
+<li><strong>渐进披露</strong>：Agent 从根文档开始，按相对链接和显式引用逐步读取子文档。</li>
+<li><strong>少而稳的 Widget</strong>：不把所有内容数据库化。</li>
+</ol>
+<h2>3. 核心内容模型</h2>
+<h3>Project</h3>
+<p>Project 是左侧树中的顶层节点，表现为特殊根文档。</p>
+<p>它额外绑定：</p>
+<ul>
+<li>项目名称；</li>
+<li>代码 Workspace/Repository 路径；</li>
+<li>默认或可用 Coding Agent；</li>
+<li>根文档位置；</li>
+<li>少量项目配置。</li>
+</ul>
+<p>用户打开 Project 时，看到的仍然是一篇可自由编辑的根页面。</p>
+<h3>Document</h3>
+<p>所有长期内容都以 Document 表达：</p>
+<ul>
+<li>Product Definition；</li>
+<li>Architecture；</li>
+<li>Workstream；</li>
+<li>Plan；</li>
+<li>Research Notes；</li>
+<li>Bug Backlog；</li>
+<li>Lessons；</li>
+<li>Task 说明；</li>
+<li>Context 文件。</li>
+</ul>
+<p>Document 支持任意 Markdown、嵌套子文档和相对链接。Workstream 不是独立对象，只是具有 Workstream 语义和 Icon 的 Document。</p>
+<h3>Widget</h3>
+<p>Widget 是文档中的局部增强块。首版只需要：</p>
+<ul>
+<li><strong>Task / Task List</strong>；</li>
+<li><strong>Session Attempt</strong>；</li>
+<li><strong>Execution Loop</strong>；</li>
+<li>必要的轻量 Project/Agent Action。</li>
+</ul>
+<p>Widget 可以引用外部结构化记录，但在文档中必须有可读的降级表示。普通用户不需要直接操作 YAML/JSON。</p>
+<h3>Comment / Message</h3>
+<p>Message 不作为独立导航对象。它始终锚定到：</p>
+<ul>
+<li>一段选中文字；</li>
+<li>一个 Block；</li>
+<li>一个 Task 行；</li>
+<li>一个 Attempt；</li>
+<li>一个 Loop；</li>
+<li>或整个当前页面。</li>
+</ul>
+<h3>Lesson</h3>
+<p>Lesson 是从一次或多次 Attempt 中得到的可复用认识。它可以是普通文档段落，也可以是带来源引用的轻量块。</p>
+<h2>4. 信息架构</h2>
+<p>左侧只是一棵多 Project 文档树：</p>
+<pre><code class="language-text">Aurora IDE
+  Overview
+  Architecture
+  Session Recovery
+    Implementation Plan
+    Research Notes
+    Recovery UX
+  Bugs
+
+Atlas Deploy
+  Overview
+  Deployment Pipeline
+  Infrastructure
+  Bug Backlog
+</code></pre>
+<p>要求：</p>
+<ul>
+<li>Project 为顶层节点；</li>
+<li>文档可以任意嵌套；</li>
+<li>hover 时出现新增子文档和更多操作；</li>
+<li>不设置 Tasks、Sessions、Runs、Workflows 等独立主导航；</li>
+<li>用 Icon 表达 Project、Workstream、Bug、Plan 等语义；</li>
+<li>支持文档搜索和快速创建。</li>
+</ul>
+<h2>5. 主界面</h2>
+<h3>左侧：Document Tree</h3>
+<p>紧凑、接近 Notion。支持展开、折叠、新增、移动、重命名、删除和切换 Project。</p>
+<h3>中间：Editable Document Canvas</h3>
+<ul>
+<li>页面始终处于可编辑状态；</li>
+<li>不显示 Edit 按钮；</li>
+<li>普通内容保持正文、标题、列表、引用和代码块；</li>
+<li>子文档默认以一行链接呈现；</li>
+<li>只有 Task、Attempt、Loop 等需要交互的内容使用 Widget。</li>
+</ul>
+<h3>右侧：Contextual Inspector</h3>
+<p>Inspector 默认关闭，只在选中 Widget 或结构化内容时出现。</p>
+<p>它显示该对象必要的状态、关联和 Action，不重复展示整个文档，也不承担复杂 Session 或 Diff 管理。</p>
+<h3>Composer / Artifact Comment</h3>
+<p>用户选择任意文本或 Block 后：</p>
+<ol>
+<li>选择内容成为 Composer 中的引用 Chip；</li>
+<li>用户添加 Comment 或 Instruction；</li>
+<li>选择绑定的 Agent；</li>
+<li>消息携带 Project、文档路径、选中内容和周边上下文；</li>
+<li>Agent 回复，或对原位置提出/执行局部更新。</li>
+</ol>
+<p>同一套交互适用于正文、Task、Attempt、Loop 和整个页面。</p>
+<h2>6. Task 能力</h2>
+<p>Task 采用渐进结构：</p>
+<ol>
+<li>普通 Markdown checkbox；</li>
+<li>需要状态或 Action 时升级为 Task Widget；</li>
+<li>内容复杂时可以拥有独立子文档。</li>
+</ol>
+<p>Task Widget 的字段尽量可选，首版只保留实际需要的状态、依赖、关联文档、Agent 与 Action。</p>
+<p>用户可以：</p>
+<ul>
+<li>从选中文本生成 Task；</li>
+<li>在文档内新增或调整 Task；</li>
+<li>用 Comment 让 Agent 改写 Task；</li>
+<li>委派给 Codex/Claude Code；</li>
+<li>查看多次 Attempt；</li>
+<li>选择最好结果；</li>
+<li>将结果和 Lesson 写回文档。</li>
+</ul>
+<h2>7. Session Attempt</h2>
+<p>一次 Task 委派产生一个 Attempt，Attempt 对应一个外部 Coding Agent Session 的结果记录。</p>
+<p>Context Center 只关注：</p>
+<ul>
+<li>当前状态；</li>
+<li>结果摘要；</li>
+<li>关联 Task；</li>
+<li>使用的关键文档；</li>
+<li>失败/部分成功原因；</li>
+<li>提取出的 Lesson；</li>
+<li>是否被选为当前最佳结果。</li>
+</ul>
+<p>不展示完整 Transcript、Tool Calls、代码 Diff 或执行 Timeline。</p>
+<p>一个 Task 可以：</p>
+<ul>
+<li>Retry；</li>
+<li>创建新的 Attempt；</li>
+<li>比较多个结果摘要；</li>
+<li>选择一个结果继续；</li>
+<li>从失败 Attempt 中保存 Lesson。</li>
+</ul>
+<h2>8. Execution Loop</h2>
+<p>Loop 是文档中的轻量 Widget，用于把当前文档中的一组 Task 或 Bug 按顺序委派给 Coding Agent。</p>
+<p>V1 支持：</p>
+<ul>
+<li>顺序执行；</li>
+<li>显示当前 Task 与后续队列；</li>
+<li>单 Task 多次 Retry；</li>
+<li>失败或需要澄清时暂停；</li>
+<li>用户 Stop；</li>
+<li>完成后继续下一项；</li>
+<li>将状态、结果和 Lesson 写回文档。</li>
+</ul>
+<p>Loop 不是 DAG，也不是通用 Workflow Builder。</p>
+<h3>Bug Fix Loop</h3>
+<p>Bug Backlog 本身是一篇普通文档。Bug 可以是简单行或 Widget。Loop 持续选择下一条 Bug，委派给 Codex，记录 Attempt，成功后标记完成，失败后保留结果并提取经验。</p>
+<h2>9. Context 组合</h2>
+<p>默认 Context 来自：</p>
+<ul>
+<li>当前 Project 根文档；</li>
+<li>当前页面与祖先页面；</li>
+<li>选中内容；</li>
+<li>当前 Task/Loop；</li>
+<li>显式引用的子文档或 Section；</li>
+<li>已关联的 Lesson。</li>
+</ul>
+<p>系统不提供复杂 Context Pack 管理页面。启动 Agent 前只显示紧凑的“Agent 将看到什么”预览，并允许添加或移除引用。</p>
+<h2>10. Coding Agent 集成</h2>
+<p>Context Center 提供两种方向：</p>
+<h3>从 Context Center 委派</h3>
+<p>用户从 Task、选择内容或 Loop 启动 Codex/Claude Code。产品提供上下文、接收结果，并把结果写回文档。</p>
+<h3>Coding Agent 反向更新</h3>
+<p>通过 Skill/Plugin/API，Coding Agent 可以：</p>
+<ul>
+<li>找到 Project 根文档；</li>
+<li>沿相对路径读取子文档；</li>
+<li>读取指定 Task 或选中内容；</li>
+<li>更新 Markdown Section；</li>
+<li>新增或更新 Widget；</li>
+<li>写入 Attempt 结果；</li>
+<li>保存 Lesson；</li>
+<li>创建子文档。</li>
+</ul>
+<p>产品内置模型只承担局部、简单和可控的内容操作；复杂工作始终委派给外部 Agent。</p>
+<h2>11. 关键 User Journeys</h2>
+<h3>A. 选中内容并让 Agent 更新</h3>
+<pre><code class="language-text">选择一段文字或 Task 行
+→ 在 Composer 中加入引用
+→ 输入修改要求
+→ Agent 回复或更新原位置
+</code></pre>
+<h3>B. 一个 Task 多次尝试</h3>
+<pre><code class="language-text">委派 Task
+→ Attempt 1 失败
+→ Retry / 调整上下文
+→ Attempt 2 部分成功
+→ Attempt 3 最佳
+→ 选择结果
+→ 保存 Lesson
+→ 更新 Task 与文档
+</code></pre>
+<h3>C. 多 Task 自动执行</h3>
+<pre><code class="language-text">文档内整理 Task 顺序
+→ 插入 Loop Widget
+→ 启动
+→ 逐项委派
+→ 失败暂停、重试或澄清
+→ 状态和结果持续写回
+</code></pre>
+<h3>D. 持续修复 Bug</h3>
+<pre><code class="language-text">在 Bug Backlog 文档增加 Bug
+→ Bug Fix Loop 选择下一项
+→ Codex 尝试修复
+→ 写回结果与 Attempt
+→ 成功则完成，失败则保留 Lesson
+</code></pre>
+<h2>12. Responsive 要求</h2>
+<ul>
+<li>桌面：文档树 + 文档画布 + 按需 Inspector。</li>
+<li>移动：文档树变为抽屉；Inspector 变为底部 Sheet；Composer 固定底部；正文保持全宽可读。</li>
+<li>选择引用与 Comment 在移动端仍然是一等交互。</li>
+</ul>
+<h2>13. MVP 范围</h2>
+<h3>必须包含</h3>
+<ul>
+<li>多 Project；</li>
+<li>Notion 式嵌套文档树；</li>
+<li>始终可编辑的 Markdown 页面；</li>
+<li>一行式子文档链接；</li>
+<li>任意选择引用与 Agent Comment；</li>
+<li>Task Widget 与 Task List；</li>
+<li>Codex/Claude Code 委派；</li>
+<li>Task 多 Attempt；</li>
+<li>Lesson 保存；</li>
+<li>顺序 Loop；</li>
+<li>Bug Fix Loop；</li>
+<li>Coding Agent 反向更新文档的接口；</li>
+<li>移动端基本可用。</li>
+</ul>
+<h3>不在当前范围</h3>
+<ul>
+<li>用户、团队、权限、Share；</li>
+<li>Diff 管理和代码审查；</li>
+<li>Session 内部执行浏览器；</li>
+<li>通用 Workflow Builder；</li>
+<li>复杂 Dashboard；</li>
+<li>强制完整 Task Schema；</li>
+<li>所有内容 Widget 化。</li>
+</ul>
+<h2>14. 验收标准</h2>
+<ol>
+<li>左侧可以同时展示两个 Project 及其嵌套文档。</li>
+<li>每个文档节点 hover 可新增子文档或打开更多操作。</li>
+<li>页面无需进入 Edit 模式即可直接修改。</li>
+<li>子文档可作为紧凑的一行链接插入正文。</li>
+<li>用户可选择任意文字、Block 或 Task 行，并在 Composer 中引用。</li>
+<li>Agent 回复与局部更新始终保留选择位置和文档上下文。</li>
+<li>一个 Task 可拥有多个 Attempt，并可标记当前采用结果。</li>
+<li>用户可从 Attempt 保存 Lesson，并在后续 Task 中引用。</li>
+<li>一个文档中的多 Task 可组成顺序 Loop。</li>
+<li>Bug Backlog 可由持续 Loop 逐项处理并写回结果。</li>
+<li>Context Center 不要求用户查看 Diff、Tool Call 或完整 Session Transcript。</li>
+<li>Codex/Claude Code 可以通过集成读取并更新同一套 Project 文档。</li>
+</ol>
+</section><section id="requirements" class="doc-section"><h1>Context Center — 用户原始需求归纳</h1>
+<blockquote>
+<p>本文归纳本次 Session 中用户反复提出、补充和纠正的需求。它保留用户意图，但不包含模型的内部推理过程，也不把已经被否定的方案写成最终产品能力。</p>
+</blockquote>
+<h2>1. 产品目标</h2>
+<p>Context Center 是一个面向软件项目的 <strong>Project Memory、Context Management、Task Coordination 与 Coding Agent 使用界面</strong>。</p>
+<p>它不是新的 Coding Agent，也不是复杂的 Workflow Builder。它负责让人和 AI 共同维护项目内容，并把合适的任务与上下文委派给 Codex、Claude Code 等现有 Coding Agent。</p>
+<p>产品需要极其容易使用。日常体验应当更接近 Notion：打开项目文档、编辑内容、选择一段内容并和 AI 讨论；而不是进入多个结构化管理页面填写表单。</p>
+<h2>2. 项目与文档</h2>
+<ul>
+<li>支持多个 Project。</li>
+<li>左侧最顶层节点是 Project。</li>
+<li>Project 可以理解为一种特殊的根文档，但额外绑定项目名称、代码 Workspace 目录、Agent 等结构化信息。</li>
+<li>除 Project 外，Workstream、Context、Plan、Bug Backlog、Research、Knowledge 等都应当是普通文档，而不是独立产品模块。</li>
+<li>文档采用类似 Notion 的嵌套树结构，并始终可以直接编辑。</li>
+<li>子文档应当以紧凑的一行文档链接嵌入，而不是大卡片。</li>
+<li>文档内容以 Markdown/freeform 内容为主；只有需要状态、聚合或 Action 时才使用 Widget。</li>
+<li>文档与子文档最好能够映射到文件系统和相对路径，便于 portability、reuse 和 progressive context disclosure。</li>
+</ul>
+<h2>3. 左侧导航</h2>
+<ul>
+<li>左侧只显示 Project 与嵌套文档树，不需要 Home、Tasks、Sessions、Runs、Workflows 等独立主导航。</li>
+<li>交互应参考 Notion：展开/折叠、hover 出现 <code>+</code> 和更多菜单、快速新增子文档、移动、删除等。</li>
+<li>不同用途可以用不同 Icon 表达，例如 Project、Workstream、Bug、Plan，但不要依赖额外目录名或类型标签制造结构。</li>
+<li>Mock 中至少展示两个 Project。</li>
+</ul>
+<h2>4. 文档编辑与 AI 评论</h2>
+<ul>
+<li>文档永远可编辑，不显示显式 Edit 按钮。</li>
+<li>页面上的任何内容都可以被选择：几个单词、一段文字、一个 Paragraph、一个 Block、一个 Task 行、一个 Session/Attempt Widget。</li>
+<li>选中内容后，可以像普通聊天引用文本一样，把选择加入 Composer，再附加 Comment/Instruction 并发送给绑定的 Coding Agent。</li>
+<li>消息必须携带当前 Project、文件路径、选择内容和必要的周边上下文。</li>
+<li>Agent 可以回复，也可以对选择位置或当前文档进行局部更新。</li>
+<li>这种交互不是“Task Discussion”专用功能，而是适用于任意文档内容的通用 Artifact Comment 模式。</li>
+</ul>
+<h2>5. Task</h2>
+<ul>
+<li>Task 不必强制成为复杂结构化对象。</li>
+<li>最轻形式可以是 Markdown checkbox。</li>
+<li>需要状态和 Action 时可以是 Task Widget。</li>
+<li>较复杂的 Task 也可以直接成为一个子文档。</li>
+<li>Task Widget 可在右侧展开少量结构化详情，例如状态、依赖、关联文档和可执行 Action。</li>
+<li>用户可以从当前内容生成 Task，也可以把 Task 委派给 Codex 或 Claude Code。</li>
+</ul>
+<h2>6. Coding Agent Session 与 Attempt</h2>
+<ul>
+<li>Session 指外部 Coding Agent 的 Session，而不是 Context Center 自己实现的复杂 Agent Runtime。</li>
+<li>用户不需要查看 Session 内部 Tool Calls、完整 Transcript、文件 Diff 或执行 Timeline。</li>
+<li>一个 Task 可以尝试多次；每次委派形成一个 Attempt/Session 结果。</li>
+<li>Attempt 可以失败、部分成功、较有希望或成功。</li>
+<li>用户可以继续重试，也可以在多个 Attempt 中选择最好的结果。</li>
+<li>系统需要读取结果摘要，并允许 Agent 把结果写回 Task、当前文档或新的子文档。</li>
+</ul>
+<h2>7. Lesson 与 Project Knowledge</h2>
+<ul>
+<li>失败或部分成功的 Attempt 不是废品。</li>
+<li>用户或 Agent 可以从 Attempt 中提取 Lesson、Constraint、Discovery 或可复用 Knowledge。</li>
+<li>Lesson 应当写入项目文档或 Knowledge 文档，并保留来源引用。</li>
+<li>后续 Task、Loop 或 Agent Session 可以复用这些知识，避免重复失败。</li>
+<li>产品重点是 Session 结果如何进入 Project Memory，而不是管理 Session 的内部执行细节。</li>
+</ul>
+<h2>8. 多 Task Loop</h2>
+<ul>
+<li>一个文档可以包含多个 Task。</li>
+<li>用户可以把这些 Task 组织成一个轻量 Loop，让 Coding Agent 按顺序逐个执行。</li>
+<li>Loop 是文档内的 Widget，不是通用 Workflow Builder。</li>
+<li>首版重点是顺序执行、失败暂停、需要澄清时暂停、可重试、结果写回、Lesson 捕获。</li>
+<li>Bug Backlog 可以使用类似机制：文档持续新增 Bug，Codex Loop 不断处理下一项并把结果与经验写回。</li>
+</ul>
+<h2>9. Context 管理</h2>
+<ul>
+<li>Context 不应当成为复杂的结构化数据录入页面。</li>
+<li>Context 主要来自当前文档、祖先文档、选中内容、显式引用的子文档以及 Task/Widget 关联。</li>
+<li>文档树和相对路径支持 progressive disclosure：Agent 先读根文档，再按需要读取相关子文档。</li>
+<li>运行 Task 时可以有一个轻量预览，说明 Agent 将看到哪些页面或引用，但不需要复杂 Context Pack 管理界面。</li>
+</ul>
+<h2>10. Agent 能力边界</h2>
+<ul>
+<li>Context Center 内部可以使用轻量模型完成局部编辑、总结、提取 Task 或 Context 等简单操作。</li>
+<li>复杂研究、代码实现和长期执行应委派给 Codex、Claude Code 等外部 Coding Agent。</li>
+<li>还需要提供 Skill/Plugin/API，使 Coding Agent 能反向操作 Context Center：找到 Project 根文档、读取相对路径文档、更新内容、更新 Widget 状态、写入 Attempt 结果与 Lesson。</li>
+</ul>
+<h2>11. 明确不做或暂不做</h2>
+<ul>
+<li>不做用户、团队、权限、Share 系统。</li>
+<li>不做代码 Diff 管理。</li>
+<li>不做完整 Session Transcript、Tool Call 或 Run Timeline 浏览器。</li>
+<li>不做复杂 Dashboard。</li>
+<li>不做独立的 Message、Run、Workflow、Proposal Inbox 主页面。</li>
+<li>不做通用 DAG/Workflow Builder。</li>
+<li>不要求所有内容都结构化。</li>
+<li>不要求用户直接编辑 YAML/JSON。</li>
+</ul>
+<h2>12. UI 与交付</h2>
+<ul>
+<li>UI 要紧凑、安静、接近 Notion，而不是 SaaS Dashboard。</li>
+<li>主布局是左侧文档树、中间文档画布、按需出现的右侧 Inspector，以及和选择内容绑定的 Composer/Comment Thread。</li>
+<li>移动端至少要能清晰查看：文档树可变为抽屉，Inspector 可变为底部 Sheet，Composer 固定在底部。</li>
+<li>交付需要包含完整 Mock、最终 Product Spec、用户需求归纳以及关键设计轮次记录，并打包成一个可分享 ZIP 或单文件 HTML。</li>
+</ul>
+</section><section id="history" class="doc-section"><h1>Context Center — 关键轮次与最终设计决策</h1>
+<blockquote>
+<p>本记录保留本次 Session 的关键转折：每一项包含用户提出的主要问题，以及最终沉淀到当前产品定义中的答案。它不是完整逐字 Transcript，也不包含模型内部推理。</p>
+</blockquote>
+<h2>01. 最初的 Context Center</h2>
+<p><strong>用户要求</strong>：管理 Project、Document、Message、Task；可与 Codex/Claude Code 讨论、形成计划、生成 Task、委派执行、添加 Verifier，并考虑复杂 Workflow。</p>
+<p><strong>最终结论</strong>：确认产品是 Coding Agent 的高层 Context/Task 控制面，但后续 Workflow、Message 等不再作为一级产品对象。</p>
+<h2>02. 去掉 Workflow</h2>
+<p><strong>用户纠正</strong>：Workflow 不重要，产品必须更简单、更好用，并重新审核整体设计。</p>
+<p><strong>最终结论</strong>：删除 Workflow Builder、DAG、自动步骤链；把重点转向 Context、Task、Session 结果与 Agent 委派。</p>
+<h2>03. Nimbalyst 与主循环</h2>
+<p><strong>用户补充</strong>：真正核心是 Session 产生经验，自动挖掘 Context，从 Context 生成 Task，再将 Task 与合适 Context 委派给 Agent，结果重新回流。</p>
+<p><strong>最终结论</strong>：确立 <code>Session → Project Memory → Task → Agent → Result → Project Memory</code> 的闭环。</p>
+<h2>04. Chat/Composer-first 简化</h2>
+<p><strong>用户要求</strong>：像 ChatGPT/Codex 一样，通过一个 Composer、自然语言和 Slash Command 完成常见动作，不要复杂操作面板。</p>
+<p><strong>最终结论</strong>：Composer 成为通用入口；结构化结果只在必要时出现。</p>
+<h2>05. 不管理 Diff 和 Session 内部细节</h2>
+<p><strong>用户纠正</strong>：产品不需要关注代码 Diff，也不需要看 Session 的内部过程，更关心 Context 和 Task。</p>
+<p><strong>最终结论</strong>：删除 Diff、Tool Calls、Session Timeline 和运行细节；Session 只保留结果、状态、Attempt 与 Lesson。</p>
+<h2>06. 从结构化管理系统转向 Notion-like 文档</h2>
+<p><strong>用户设想</strong>：如果用 Notion 来做，一个 Project 是根页面，Workstream 是子文档，Task 可以是 checkbox、Widget 或文档；Markdown + 特殊 Widget 更灵活。</p>
+<p><strong>最终结论</strong>：采用 Document-first、局部结构化模型；普通内容是 Markdown，Task/Session/Loop 才使用 Widget。</p>
+<h2>07. Project 是特殊根文档</h2>
+<p><strong>用户补充</strong>：Project 有名称、Workspace 目录等结构化数据，不完全等于普通文档；但使用体验上可以是根文档。</p>
+<p><strong>最终结论</strong>：Project 是特殊根文档，额外绑定 Workspace 和 Agent 元数据；其余 Workstream、Context、Plan 都是文档。</p>
+<h2>08. Coding Agent 可直接维护内容</h2>
+<p><strong>用户要求</strong>：文档和 Context 可由 Context Center Agent 或 Codex 等外部 Agent 生成；通过 Skill/Plugin 让 Codex 使用同一套内容。</p>
+<p><strong>最终结论</strong>：设计双向集成：Context Center 可以委派，外部 Agent 也可以反向读取和更新文档、Widget、Attempt 与 Lesson。</p>
+<h2>09. 任意 Selection 的 Artifact Comment</h2>
+<p><strong>用户纠正</strong>：不是“Task Discussion”。页面任何几个单词、段落、Block 或 Task 行都可以被选择、引用、评论，并让 Agent 更新相应位置。</p>
+<p><strong>最终结论</strong>：选择引用成为最核心的 AI 协作方式；Comment 始终绑定文档路径和选中内容，而不是绑定某种对象类型。</p>
+<h2>10. Notion 式导航与紧凑文档</h2>
+<p><strong>用户要求</strong>：左侧只显示文档树；hover 有新增与更多操作；子文档一行一个，不使用大卡片；支持多个 Project，并用 Icon 区分语义。</p>
+<p><strong>最终结论</strong>：主 IA 收敛成多 Project 的 Notion 式文档树，取消额外模块导航。</p>
+<h2>11. 文档始终可编辑</h2>
+<p><strong>用户纠正</strong>：不需要 Edit 按钮，所有文档都应像 Notion 一样始终 editable。</p>
+<p><strong>最终结论</strong>：文档画布默认编辑态；AI 更新通过选择与 Comment 进入，不设计编辑模式切换。</p>
+<h2>12. 单 Task 多次 Attempt</h2>
+<p><strong>用户要求</strong>：Task 的 Codex 结果可能失败，需要尝试多次、选择最好结果，并从失败 Session 中记录 Lesson。</p>
+<p><strong>最终结论</strong>：一个 Task 可以拥有多个 Attempt；支持 Retry、结果选择、Lesson 提取和结果写回。</p>
+<h2>13. 多 Task Loop</h2>
+<p><strong>用户要求</strong>：文档中的多个 Task 可以组成 Loop，依次执行，支持自动开发较大功能。</p>
+<p><strong>最终结论</strong>：增加轻量顺序 Loop Widget；失败或需要澄清时暂停；不是通用 Workflow Builder。</p>
+<h2>14. Bug Backlog 持续修复</h2>
+<p><strong>用户要求</strong>：Bug 文档可以持续新增 Bug，Codex Session/Loop 不断修复，并读取结果、更新页面。</p>
+<p><strong>最终结论</strong>：Bug Backlog 仍是普通文档；Bug Fix Loop 逐项产生 Attempt，把状态、结果和 Lesson 写回。</p>
+<h2>15. 删除用户与 Share 系统</h2>
+<p><strong>用户要求</strong>：当前无需用户、团队、Share 等能力，它们只会分散注意力。</p>
+<p><strong>最终结论</strong>：MVP 明确排除用户、权限和 Share，集中完成文档、Context、Task 与 Agent 闭环。</p>
+<h2>16. 当前 Mock 基线</h2>
+<p><strong>最终 Mock 表达</strong>：</p>
+<ul>
+<li>两个 Project 的紧凑文档树；</li>
+<li>Workstream/Plan/Bug 等作为文档；</li>
+<li>任意内容选择与 Agent Comment；</li>
+<li>Task 右侧 Inspector；</li>
+<li>多 Attempt 与 Lesson；</li>
+<li>多 Task Loop；</li>
+<li>Bug Fix Loop。</li>
+</ul>
+<p>这些屏幕构成 v0.6 Spec 的 UI 基线。</p>
+</section>
+<section id="mocks"><h2 class="mock-title">当前 UI Mock</h2><figure><figcaption>任意文本或 Block 选择、引用评论、Task 详情</figcaption><a href="mock-1-selection-comment-task.png" target="_blank"><img loading="lazy" src="mock-1-selection-comment-task.png" alt="任意文本或 Block 选择、引用评论、Task 详情"></a></figure><figure><figcaption>Task 多次 Attempt、选择结果、提取 Lesson</figcaption><a href="mock-2-attempts-lessons.png" target="_blank"><img loading="lazy" src="mock-2-attempts-lessons.png" alt="Task 多次 Attempt、选择结果、提取 Lesson"></a></figure><figure><figcaption>文档中的多 Task 顺序执行 Loop</figcaption><a href="mock-3-execution-loop.png" target="_blank"><img loading="lazy" src="mock-3-execution-loop.png" alt="文档中的多 Task 顺序执行 Loop"></a></figure><figure><figcaption>Bug Backlog 文档与持续修复 Loop</figcaption><a href="mock-4-bug-backlog-loop.png" target="_blank"><img loading="lazy" src="mock-4-bug-backlog-loop.png" alt="Bug Backlog 文档与持续修复 Loop"></a></figure></section>
+</main>
+</body>
+</html>
