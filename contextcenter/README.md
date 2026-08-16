@@ -14,9 +14,10 @@ Document-first、Agent-aware 的项目工作空间原型。人和 AI 在同一�
 | 路径 | 内容 |
 |------|------|
 | `specs/constitution.md` | 产品不变量（第一原则，改它要走修宪流程） |
-| `specs/spec.md` | 产品 Spec v0.8（功能、模型、交互、验收标准） |
+| `specs/spec.md` | 产品 Spec（功能、模型、交互、验收标准；版本号见文件头） |
 | `specs/plan.md` | 技术方案：文件格式约定、原型分期、UI 基准 |
 | `specs/tasks.md` | Stage 1 可交互原型的实施拆解 |
+| `specs/gaps.md` | 未定义清单（Gap Audit）：P0 裁决完之前 Stage 1 冻结 |
 | `mock/index.html` | Stage 0 高保真 HTML mock（Notion 风格：无目录文档树 + 画布 + 右栏 Page Info/Chat，浏览器直接打开） |
 | `reference/product-record.html` | 源头：ChatGPT session 的完整产品记录（v0.6 Spec + 需求归纳 + 16 轮决策） |
 | `reference/product-record.md` | 上面的纯文本提取版，便于 grep 与 agent 阅读 |
@@ -27,10 +28,11 @@ constitution / spec / plan / tasks；只取其文档形态，不引入其 CLI �
 
 ## 当前状态
 
-- **Stage 0（本目录当前内容）**：Spec v0.7 定稿 + 静态高保真 mock。
-- **Stage 1（下一步）**：可交互 Web 原型——真实现文档树/编辑/选择引用/
-  Widget/Inspector，agent 响应用 mock 模拟，数据层直接采用
-  `specs/plan.md` 定义的文件格式。
+- **Stage 0（本目录当前内容）**：Spec v0.9 + 静态高保真 mock。
+- **⚠️ Stage 1 冻结中**：行为层定义大面积缺失（编辑器模型、Agent 协议、
+  对象生命周期），见 `specs/gaps.md`；P0 项裁决完成前不开发。
+- **Stage 1（裁决后）**：可交互 Web 原型——数据层直接采用
+  `specs/plan.md` 的文件格式 + SQLite 伴随库。
 - **Stage 2（后续）**：真文件系统落盘 + 真 Coding Agent 适配。
 
 ## 设计基准
