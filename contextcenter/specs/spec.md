@@ -141,6 +141,9 @@ Message 不是独立导航对象。它永远锚定到当前页面（可携带对
 
 ## 4. 信息架构与主界面
 
+**UX 默认规则（用户裁决 2026-08-16）**：凡本 spec 未特别定义的 UI 行
+为，默认继承 **Notion** 的对应交互；逐项落定见 `gaps.md` 的标注。
+
 ### 4.1 左侧：Document Tree
 
 只有一棵多 Project 文档树，没有 Tasks/Sessions/Runs/Workflows 等独立主
@@ -155,10 +158,19 @@ Project、搜索。创建一律经由 hover `+`，无独立 create 按钮。侧�
 
 ### 4.2 中间：Editable Document Canvas
 
-- 始终可编辑（C3），无 Edit 按钮；
-- 普通内容就是正文、标题、列表、引用、代码块；
-- 子文档 = 一行链接；
-- 只有 Task、Attempt、Loop 等需要交互的内容用 Widget；
+- **编辑模型 = Notion 式 block 编辑器**（gaps A1–A4/A8 已裁决）：每块
+  一个 block、拖拽 handle、块类型转换；块集合白名单 = paragraph、
+  H1–H3、列表、to-do、quote、code、divider、GFM table、image、子文档
+  链接、callout、Task/Loop Widget——硬约束：**全部可无损写回
+  Markdown**（C1/C8）。
+- 输入行为照 Notion：markdown 快捷输入（`# ` `- ` `[] ` …）、`/`
+  slash 菜单、回车分块、Tab 缩进、多块选择；**to-do 由输入产生，不设
+  "Add task" 按钮**。粘贴 markdown/富文本解析成块；图片落盘文档同级
+  `assets/`。
+- 始终可编辑（C3），无 Edit 按钮；自动保存、统一 undo 栈；
+- 子文档 = 一行链接；只有 Task、Attempt、Loop 等需要交互的内容用
+  Widget；
+- 空文档：标题占位 "Untitled"，正文占位 "Type '/' for commands…"；
 - 面包屑显示 Project / 祖先 / 当前文档。
 
 ### 4.3 右侧：常驻双区栏（Metadata + Chat）

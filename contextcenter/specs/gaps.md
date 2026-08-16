@@ -1,179 +1,188 @@
-# Context Center — 未定义清单（Gap Audit v1）
+# Context Center — 未定义清单（Gap Audit v2，Notion 基准裁决后）
 
-对 spec v0.9 + plan + mock 的全面审核：产品**行为层**的定义远落后于**结
-构层**（内容模型/存储已定，"人和 Agent 具体怎么操作"大面积真空）。在
-P0 项裁决之前，Stage 1 开发冻结。
+v1 登记了 52 项行为层未定义。2026-08-16 用户裁决：**UX 基准 = Notion，
+凡 Notion 有对应交互的一律照抄其体验**。据此逐项标注：
 
-标记：▷ = 我的倾向（仅供裁决参考，未裁决前不是决定）；【P0】= 不定就
-不能开工。
+- ✅(Notion) = 按 Notion 对应交互解决，答案已写死在本项下
+- ✅(自决) = 非 Notion 覆盖但足够明确，按"明确可自行确认"规则定案
+- 🟡 = Notion/自决覆盖一部分，**残留**部分仍待裁决（残留已写明）
+- ⬜ = Notion 不涉及，仍开放
 
-审核发现的元问题：mock 在真空处自行发明了交互（如 "Add task" 按钮），
-这类失真已登记在 §H2，待对应 gap 裁决后统一清理——**mock 不是规范，
-以 spec 为准**。
+统计：✅ 28 · 🟡 9 · ⬜ 15。P0 剩余见文末新表。
+mock/app 与已解项不符的地方随 Stage 1 编辑器落地时统一清理（H2）。
 
 ---
 
-## A. 编辑器——用户怎么编辑文档（最大的洞）
+## A. 编辑器
 
-- **A1【P0】编辑模型未定**：Notion 式 block 编辑器 / Typora 式所见即所
-  得 Markdown / 源码+预览？决定整个前端架构与序列化方案。
-  ▷ block 编辑器，但 block 集合以"可无损写回 Markdown"为硬约束（C1/C8）。
-- **A2 Block 类型清单**与 Markdown 映射白名单：heading/list/todo/
-  quote/code/divider/table?/image?/子文档链接/Widget，各自的降级表示。
-- **A3【P0】输入行为**：markdown 快捷输入（`# `、`- `、`[] `）、`/`
-  slash 菜单项清单、回车/缩进/块转换/拖拽 handle。**to-do 由编辑器输入
-  产生，不是 "Add task" 按钮**（用户已裁决方向；按钮是 mock 失真）。
-- **A4 粘贴/复制语义**：markdown/富文本/图片粘贴（图片落盘位置约定，如
-  `assets/`）、外链。
-- **A5 保存与冲突**：写盘时机（debounce？）、编辑期间文件被外部（agent）
-  修改的合并与提示、undo/redo 的边界（跨保存？跨 agent 改动？）。
-- **A6【P0】标题与文件名**：title 的真相来源（文件名 slug / 首行 H1 /
-  frontmatter title？）、rename 联动改名规则、中文与特殊字符的 slug 化。
-  当前落盘格式里根本没有 title 字段——mock 页面标题的来源其实未定义。
-- **A7【P0】选区引用的锚定**：纯 Markdown 无 block id，引用发出后文档被
-  编辑，Apply 时"原位置"如何定位（文字匹配容错？段落指纹？失配降级？）。
-- **A8 空文档初始态**与 placeholder（新建后光标落哪，"Type '/' for
-  commands…"？）。
+- **A1 编辑模型 ✅(Notion)**：block 编辑器——每行/每块一个 block，拖拽
+  handle、块类型转换，硬约束：块集合必须能**无损写回 Markdown**
+  （C1/C8）。编辑器库选型（TipTap/Lexical/自研）属工程决策，plan 定。
+- **A2 Block 类型清单 ✅(Notion 裁剪)**：paragraph、H1–H3、bulleted /
+  numbered list、to-do、quote、code(带语言)、divider、GFM table、
+  image、子文档链接、callout(→ blockquote+emoji 降级)、Task/Loop
+  Widget（降级表示已定）。超出此白名单的 Notion 块不引入。
+- **A3 输入行为 ✅(Notion)**：markdown 快捷输入（`# ` `- ` `1. `
+  `[] ` `> ` ```` ``` ````）、`/` slash 菜单（插入 A2 全部块型）、回车
+  分块、Tab 缩进、拖拽 handle、多块选择。**to-do 由输入产生**；
+  "Add task" 类按钮废弃（H2 清理）。
+- **A4 粘贴/复制 ✅(Notion + 自决落盘)**：粘贴 markdown 解析成块、富文
+  本转块、图片粘贴自动落盘到文档同级 `assets/` 并插入相对链接。
+- **A5 保存与冲突 🟡**：已解——自动保存、无保存按钮、统一 undo 栈
+  （Notion）。**残留**：写盘 debounce 参数与外部并发改动的合并策略
+  （关联 C9，文件系统特有，Notion 云端无此问题）。
+- **A6 标题↔文件名 🟡**：已解——标题即页首大字、直接编辑、树与面包屑
+  实时跟随、无独立 rename 弹窗（Notion）。**残留**：落盘 slug 规则
+  （▷ 文件名 = title 的 slug 化，中文保留原文；rename 即改文件名并改
+  写全部入链；frontmatter 不设 title 字段）。
+- **A7 引用锚定 ⬜【P0】**：纯 Markdown 无 block id，Notion 方案（块
+  id 锚定）不可直接抄，除非向文件注入 id（污染，倾向拒绝）。候选：
+  文字匹配 + 容错 + 失配降级为"追加到文末并提示"。
+- **A8 空文档初始态 ✅(Notion)**：新页聚焦标题，标题占位 "Untitled"，
+  正文占位 "Type '/' for commands…"。
 
-## B. Frontmatter / Metadata 编辑（明确是独立问题）
+## B. Frontmatter / Metadata 编辑
 
-- **B1【P0】Metadata 面板的编辑能力**：哪些字段可改、控件形态（status
-  下拉、tags token 输入、type picker、icon picker、workspace 路径选择、
-  agent 绑定）。当前 mock 全部只读 + 假下拉箭头。
-- **B2 type 的赋予与变更**：入口在哪；变更副作用（doc→task 获得哪些默
-  认字段；task→doc 时 attempts/lessons 何去何从）。
-- **B3 自定义 frontmatter 字段**：允许用户加任意 key 吗？未知字段在面板
-  怎么显示/编辑？
-- **B4 原始 frontmatter 视图**（view raw）：给不给 power user/排错入口。
+- **B1 Metadata 编辑 ✅(Notion 属性面板)**：字段点击即变控件——status/
+  type→下拉（Radix Select/DropdownMenu）、tags→multi-select token 输
+  入、日期→只读（DB 维护）、文本→行内输入、icon→emoji picker、
+  workspace→路径输入。字段清单 = plan §3.3 各 type 字段。
+- **B2 type 赋予/变更 🟡**：已解——入口 = Metadata Type 字段下拉 +
+  ⋯ 菜单 "Turn into"（Notion 模式）。**残留**：降级副作用（task→doc
+  时 attempts/lessons 字段何去何从；▷ 保留 frontmatter 不删，UI 不再
+  渲染）。
+- **B3 自定义字段 ✅(Notion properties)**：允许任意自定义 frontmatter
+  key；Metadata 面板底部 "+ Add a property"；未知字段按文本渲染可编辑。
+- **B4 view raw ✅(自决)**：⋯ 菜单 "View frontmatter"，只读抽屉起步
+  （app topbar 菜单已放入口）。
 
-## C. Agent 协议——Agent 怎么创建/修改内容
+## C. Agent 协议
 
-- **C1【P0】提议式 vs 直改式的边界**：Proposed update+Apply 与"直接落
-  盘+可撤销"各适用于什么（按 agent 类型？改动大小？用户设置？）。mock
-  里两种叙事并存但无规则。
-- **C2【P0】Agent 创建文档的流程**：建在哪个父节点下、命名、type 赋予、
-  创建后如何呈现给用户（树上出现？chat 里给链接？需要确认吗？）。
-- **C3 Proposed update 的作用域模型**：目标=选区/块/Section/整页/多文
-  件，各自允许吗；预览形态（不做 diff 的前提下：只展示新文本？新旧上下
-  对照？）。
-- **C4 Apply 的事务与撤销**：目标漂移时失败处理；Apply 后 undo；改动在
-  chat 中的留痕格式。
-- **C5 Chat 动作清单与 slash command**：/task /delegate /new-doc /loop
-  …（原始需求提过 slash）——定义哪些、参数、是否需确认。
-- **C6 内置轻模型 vs 外部 agent 的 UI 分工**：agent 选择器有哪些选项、
-  quote 小改写默认给谁、切换粒度。
-- **C7【P0】委派生命周期**：Delegate 点击后的完整链路——Context 预览
-  （spec 承诺的"Agent 将看到什么"，UI 从未设计）→ 确认 → 运行中状态呈
-  现在哪 → 完成通知 → Attempt 落地方式。目前完全未定义。
-- **C8 外部 session 引用与 "View run"**：跳转外部（Codex web/终端）还是
-  仅显示 id？与 C9"不做 session 浏览器"的边界写清。
-- **C9 外部 agent 改盘的感知**：file watcher？UI 提示（"Codex updated
-  this page"）？正在编辑的页被改怎么办（关联 A5）。
-- **C10 Chat 文本中实体引用的链接化**：#43、文档名如何变成可点链接（渲
-  染端识别 or agent 输出约定）。
+- **C1 提议 vs 直改 🟡【P0】**：已解——**内置轻模型**对选区/局部的小改
+  用 Notion AI 形态：结果内联预览 + Accept/Discard。**残留**：外部
+  coding agent 改动走提议还是直改、按什么分界。
+- **C2 Agent 建文档 ⬜【P0】**：位置/命名/type/呈现/确认，Notion 不涉及。
+- **C3 Proposed update 作用域 🟡**：已解——预览形态 = 原位内联新文本 +
+  Accept/Discard（Notion AI），不做 diff 视图。**残留**：允许的作用域
+  清单（选区/块/Section/整页/多文件）。
+- **C4 Apply 事务/撤销 🟡**：已解——Apply 后可 cmd+Z（进统一 undo 栈，
+  Notion）。**残留**：目标漂移失败的处理（关联 A7）；chat 留痕格式。
+- **C5 slash command（chat 动作）⬜**：块插入类已归 A3；chat 里的
+  /task /delegate /new-doc 等动作命令集仍开放。
+- **C6 内置 vs 外部 agent 分工 ⬜**。
+- **C7 委派生命周期 ⬜【P0】**：Context 预览→确认→运行中→结果落地。
+- **C8 View run 目标 ⬜**。
+- **C9 外部改盘感知 🟡**：已解——体验照 Notion 协同：外部改动实时反映
+  + 短暂高亮闪现，无弹窗打断。**残留**：机制（watcher/轮询）与正在编
+  辑块被外部改动的合并（并 A5）。
+- **C10 实体链接化 ✅(Notion mention)**：`@` 呼出页面 mention（插入普
+  通链接文本，不引入特殊 widget，符合"文字引用"裁决）；渲染端自动
+  linkify `#43` / `#BUG-142` 到对应文档。
 
-## D. 树与文档管理操作
+## D. 树与文档管理
 
-- **D1【P0】新建文档流程**：hover `+` 之后——立即创建 Untitled 并聚焦
-  重命名？quick input？type 默认无、何时设？
-- **D2 context menu（⋯）完整清单**：rename/move/duplicate/delete/copy
-  link/change icon/change type…各项行为。
-- **D3【P0】删除语义**：软删（trash+可恢复）vs 硬删；被 loop/链接引用时
-  的警示与断链处理。（agentrunner 有"删除语义不可逆需用户裁决"的前车之鉴）
-- **D4 移动/重排交互**：树内拖拽改父级+改顺序；跨 project 移动允许吗
-  （id/display id 冲突怎么办）。
-- **D5 New project 流程**：表单（name/workspace 路径/agents/默认 agent）
-  与初始文档模板。
-- **D6 搜索**：范围（标题/全文/跨 project）、入口与快捷键（cmd+k quick
-  switcher？）、结果 UI。mock 只有一个放大镜图标。
-- **D7 树的 active 高亮与行级 task 页**：打开 task-43 时树上高亮谁（最
-  近可见祖先？）。mock 当前无高亮。
-- **D8 icon 手动设置入口**（C2 定了优先级"手动>type 预设"，但设置 UI 不
-  存在——emoji picker？）。
-- **D9 project 折叠记忆与多 project 排序**。
+- **D1 新建流程 ✅(Notion)**：hover `+` → 立即创建 Untitled 子页并打
+  开、光标落标题；type 默认无、事后在 Metadata 设。
+- **D2 ⋯ 菜单 ✅(Notion + 两项自有)**：Rename、Change icon、
+  Duplicate、Move to…、Copy link、Delete（红）；自有追加：Turn
+  into（B2）、View frontmatter（B4）。
+- **D3 删除语义 ✅(Notion)**：软删进 Trash（侧栏底部入口，可恢复/永久
+  删）；指向已删页的链接标记 broken；落盘 ▷ 移入
+  `<vault>/.contextcenter/trash/`。被 Loop 引用时删除弹确认并从队列
+  移除。
+- **D4 移动/重排 ✅(Notion)**：树内拖拽改父级+顺序（蓝线指示落点），
+  顺序入 SQLite child_order；跨 project 拖拽允许（display id 迁移规则
+  归 E6）。
+- **D5 New project ✅(Notion 渐进式)**：即建即配——先创建空 project
+  页，workspace/agents 在 Metadata 面板补全；未绑 workspace 时委派动
+  作禁用并提示（G2）。
+- **D6 搜索 ✅(Notion Quick Find)**：cmd+K 面板：标题+全文、最近访问、
+  跨 project；行级 task 文档可被搜到。
+- **D7 树高亮 ✅(自决)**：打开不在树中的行级文档时，高亮其最近可见祖
+  先；面包屑给出精确位置。
+- **D8 icon 设置 ✅(Notion)**：点击页 icon 或菜单 Change icon → emoji
+  picker；写 frontmatter `icon`。
+- **D9 折叠记忆/排序 ✅(Notion)**：折叠态与 project 顺序记忆
+  （SQLite ui_state）；project 拖拽排序。
 
-## E. Task / Loop / Bug 语义细节
+## E. Task / Loop / Bug 语义
 
-- **E1【P0】物化的用户入口**：自动触发之外，用户如何手动"把这行变成
-  task"（hover 菜单/选中操作/slash 转换？）；物化瞬间的 UI 反馈（行尾出
-  现 #id？）。
-- **E2【P0】镜像行的编辑冲突**：直接改镜像行文字=rename task？勾
-  checkbox=改 status（要确认吗）？删除镜像行=删 task 还是仅移出列表？
-- **E3 状态机与副作用**：blocked 状态（spec 有、mock 从未出现）；loop
-  运行中手动改 task 状态；done 任务重开。
-- **E4 Loop 控制细节**：启动前校验（队列含未物化行？）、Pause/Stop 对进
-  行中 session 的处理（中断/等完）、失败暂停的呈现与恢复路径。
-- **E5 并发与互斥**：同一 task 同时被 loop 与手动委派；两个 loop 引用同
-  一 task；运行中 task 被编辑。
-- **E6【P0】display id 规则成文**：task=#N、bug=#BUG-N 是 mock 暗含的，
-  plan 只定义了内部 id（t-43/bug-142）；两者映射与计数器规则要写进 plan。
-- **E7 Lesson 工作流**：Save as lesson 的落点与命名、与来源 attempt 的
-  双向引用、后续委派时 lesson 如何进 context（自动带关联？手动勾选？）。
+- **E1 物化入口 ✅(Notion "Turn into")**：行 hover ⋯/拖柄菜单 →
+  "Turn into task"；自动触发（点开/委派/被 Loop 引用）保留；物化反馈
+  = 行尾浮现 #id。
+- **E2 镜像行冲突 ✅(Notion 类比)**：改镜像行文字 = rename task（同步
+  title，synced 语义）；勾选 checkbox = 改 status，即点即改无确认
+  （Notion to-do）；删除镜像行 = 仅断开列表引用，task 文档仍在原处
+  （经搜索/其他引用可达），不删除文档。
+- **E3 状态机副作用 ⬜**：blocked 的呈现可照 pill 体系，但 loop 中改状
+  态的副作用、done 重开语义仍开放。
+- **E4 Loop 控制 ⬜**：启动校验、Pause/Stop 对进行中 session 的处理、
+  失败暂停呈现。
+- **E5 并发互斥 ⬜**。
+- **E6 display id ✅(自决)**：task/普通条目 `#N`（project 内全局连续计
+  数）；bug `#BUG-N`（独立计数）；id 一经分配永不复用；跨 project 移
+  动时在目标 project 重新分配并在 frontmatter 记 `moved_from`。落
+  plan §3.2。
+- **E7 Lesson 工作流 ⬜**：落点/命名可类比（▷ 子文档 + type:
+  lesson），但"后续委派如何选入 context"仍开放。
 
 ## F. Chat
 
-- **F1 线程模型**：每文档单线程够吗；历史分页/折叠。
-- **F2 消息操作**：编辑/删除/重发、复制引用、proposed 卡片折叠。
-- **F3 Agent 选择器作用域**：per-message / per-thread / project 默认。
-- **F4 跨页引用**：quote 其他文档内容（@page）允许吗。
-- **F5【P0】非当前页的动静感知**：C9 禁了全局 inbox，但"别的页有新回复
-  /loop 完成"用户如何知道（树行 dot？项目根聚合？完全不提示？）——真空。
+- **F1 线程模型 ✅(Notion comments 裁剪)**：每文档单线程 + 滚动加载历
+  史；不引入 resolve/多线程。
+- **F2 消息操作 ✅(Notion)**：hover ⋯ → Edit / Delete / Copy text。
+- **F3 agent 选择器作用域 ✅(自决)**：默认 = project 的 default_agent；
+  thread 内记忆上次选择；每条消息可临时切换。
+- **F4 跨页引用 ✅(Notion mention)**：`@page` 插入链接；选区 quote 仍
+  限当前页，跨页内容以链接指入。
+- **F5 跨页动静感知 🟡【P0 确认】**：▷ 借 Notion Updates 铃铛形态：顶
+  栏铃铛 + popover 列表（loop 完成/失败、agent 回复、外部改动），树行
+  小蓝点标未读——popover 不是独立主页面，判断不违 C9，**请确认**。
 
 ## G. 系统级
 
-- **G1 vault 选择与多 vault**（onboarding 第一屏是什么）。
-- **G2 错误/空态**：未绑 workspace 时的委派按钮、agent 不可用（无 CLI/
-  key）、frontmatter 解析失败的呈现。
-- **G3 快捷键体系**（cmd+k / cmd+n / cmd+enter / esc…）。
-- **G4 多窗口同 vault**：内存态与 SQLite 的并发同步。
-- **G5 后台活动指示**：别的项目有 loop 在跑，全局哪里看得出"有东西在跑"。
-- **G6 移动端逐交互适配**：hover 依赖（树箭头/行操作）、拖拽、选区引用
-  的触屏替代方案。
-- **G7 主题外观**：dark mode 做不做、密度。
+- **G1 vault 选择/onboarding ⬜**：桌面/本地特有，Notion 不涉及。
+- **G2 错误/空态 🟡**：已解——空态文案风格照 Notion（轻、灰、带一个动
+  作）；未绑 workspace 委派禁用+提示（D5）。**残留**：agent 不可用
+  （无 CLI/key）与坏 frontmatter 的呈现。
+- **G3 快捷键 ✅(Notion 子集)**：cmd+K Quick Find、cmd+N 新页、
+  cmd+Shift+H 返回、cmd+\\ 收侧栏、esc 关面板；编辑器内快捷键随 A3。
+  清单落 plan 附录。
+- **G4 多窗口同步 ⬜**：实现层（SQLite 并发 + 内存态失效）。
+- **G5 后台活动指示 🟡**：并入 F5 铃铛方案（全局"有东西在跑"= 铃铛处
+  转圈计数）。
+- **G6 移动端 🟡**：形态照 Notion mobile（抽屉树、底部工具条、选区评
+  论工具条）；逐交互适配清单仍要产出。
+- **G7 主题 ✅(自决)**：MVP light-only；dark 后置（token 体系已预留）。
 
 ## H. 交付流程
 
-- **H1 验收标准 ↔ Stage 1 任务映射**：19 条验收哪些 mock 可见、哪些只能
-  Stage 1 验证——建立对照，避免 mock 与 spec 再脱节。
-- **H2 mock 已知失真登记**（待对应 gap 裁决后统一清理）：
-  - "Add task / Add bug / Add resolved bug / Add learning" 按钮行——应
-    由编辑器输入行为替代（A3）；
-  - 假 contenteditable（无 block 行为、不落盘）；
-  - Metadata 面板只读 + 假下拉箭头（B1）；
-  - Chat 发送无后果、Apply 只变按钮文案（C4）；
-  - "View run" 无目标（C8）；
-  - 树 active 高亮在 task 页缺失（D7）。
+- **H1 验收标准↔Stage 1 映射 ⬜**：工作项，裁决后我产出对照表。
+- **H2 mock/app 失真清理 ⬜→工作项**：A3/B1/D2 等已解项落地时，废弃
+  "Add task" 按钮系列、假 contenteditable、只读 Metadata 等（清单见
+  v1）。
 
 ---
 
-## P0 短名单（裁决完才能开 Stage 1）
+## P0 剩余（裁决完才能全面开工）
 
-| # | 项 | 一句话问题 |
-|---|----|-----------|
-| A1 | 编辑模型 | block 编辑器还是 WYSIWYG Markdown？ |
-| A3 | 输入行为 | markdown 快捷输入 + slash 菜单定义（to-do 从这来） |
-| A6 | 标题↔文件名 | title 真相来源与 rename 联动 |
-| A7 | 引用锚定 | 无 block id 时 Apply 如何定位原位置 |
-| B1 | Metadata 编辑 | 面板哪些字段可编辑、控件形态 |
-| C1 | 提议 vs 直改 | Agent 改动两种模式的适用边界 |
-| C2 | Agent 建文档 | 位置/命名/type/呈现/确认 |
-| C7 | 委派生命周期 | Context 预览→确认→运行中→结果落地全链路 |
-| D1 | 新建文档流程 | hover + 之后发生什么 |
-| D3 | 删除语义 | 软删 vs 硬删 + 被引用时的处理 |
-| E1 | 物化入口 | 用户手动把一行变成 task 的方式 |
-| E2 | 镜像行冲突 | 改文字/勾选/删行的语义 |
-| E6 | display id | #N 与 #BUG-N 规则成文 |
-| F5 | 跨页动静感知 | 无 inbox 前提下的轻量提示方案 |
+| # | 项 | 状态 | 剩余问题 |
+|---|----|------|---------|
+| A7 | 引用锚定 | ⬜ | 无 block id 的定位方案（▷ 文字匹配+容错+失配降级） |
+| C1 | 提议 vs 直改 | 🟡 | 外部 coding agent 的边界 |
+| C2 | Agent 建文档 | ⬜ | 位置/命名/呈现/确认 |
+| C7 | 委派生命周期 | ⬜ | 预览→确认→运行中→落地全链路 |
+| A6 | slug 规则 | 🟡 | ▷ 已给，确认即关 |
+| F5 | 动静感知 | 🟡 | ▷ 铃铛方案是否违 C9，确认即关 |
 
-裁决方式建议：逐项拍板或批量圈掉"按我的 ▷ 倾向执行"的子集；每次裁决
-写回本文件并同步 spec/plan 对应章节。
+原 P0 中已关闭：A1、A3、B1、D1、D3、E1、E2、E6（Notion/自决）。
 
 ---
 
 ## 裁决记录
 
-- **2026-08-16（用户）**：Stage 1 组件底座 = **shadcn/ui + Radix UI，
-  能用则用**（落于 plan §1/§2/§4）。影响：B1/D2/D6/C7 等涉及下拉、
-  菜单、弹层、对话框、toast 的项，其**实现底座已定**，待裁决的只剩字段
-  与行为本身；F5 的提示载体多一个现成选项（Radix Toast）。**不因此关
-  闭任何 gap**——A1 编辑器不在 shadcn/Radix 覆盖范围，仍是 P0。
+- **2026-08-16（用户）**：Stage 1 组件底座 = shadcn/ui + Radix UI。
+- **2026-08-16 (2)（用户）**：**UX 基准 = Notion**——凡 Notion 有对应交
+  互的 gap 照抄其体验，逐项标注如上（✅28 / 🟡9 / ⬜15）；连带自决项
+  一并定案（A4 assets、B4、D7、E6、F3、G7）。已同步 spec §4 与 plan
+  §3。

@@ -95,12 +95,23 @@ vault 顶层的一个 `type: project` 文件）。目录的创建/清理由应�
 物化的行级 Task/Bug 文档就是普通子文档（文件名 = 标题 slug），只是默认
 不进左侧树（spec §4.1）；不再有 `tasks/` 之类的专用目录约定。
 
+补充约定（gaps 裁决 2026-08-16）：
+
+- **图片/附件**：粘贴时落盘到文档同级 `assets/`，正文插相对链接。
+- **Trash**：软删移入 `<vault>/.contextcenter/trash/`（保留原相对路
+  径），Trash 内永久删除才真删；指向已删文档的链接标 broken。
+- **slug（待用户确认 ▷）**：文件名 = title 的 slug 化（中文保留原
+  文）；rename 即改文件名并改写全部入链；frontmatter 不设 title 字段。
+
 ### 3.2 通用 frontmatter
 
 ```yaml
 ---
 id: t-43            # 稳定 id，project 内唯一；创建时按 type 前缀递增
                     # d-/t-/bug-/loop-/les-；引用兜底锚
+                    # display id（gaps E6 裁决）：task/普通条目 #N（
+                    # project 内连续计数）、bug #BUG-N（独立计数）；
+                    # 永不复用；跨 project 移动时重新分配并记 moved_from
 type: task          # 可选；命中预定义集合才有预设 icon/字段/Action
 tags: [reliability] # 可选；自由分类与检索，不影响 icon
 icon: "🐛"          # 可选，手动覆盖 type 预设
@@ -241,6 +252,8 @@ runtime_runs(id PK, kind, doc_id, status, current_ref,       -- 进行中委派/
 - **组件实现**：弹层/菜单/表单控件一律以 shadcn/ui（Radix）为底、用上
   述 token 定制；自研部分（编辑器/树/画布）与 shadcn 部分共享同一套
   token，肉眼不可区分出处。
+- **快捷键（Notion 子集，gaps G3）**：cmd+K Quick Find、cmd+N 新页、
+  cmd+\\ 收放侧栏、esc 关面板；编辑器内快捷键随 spec §4.2 输入行为。
 
 ## 5. 样例数据集（两个 Project，无目录节点）
 
