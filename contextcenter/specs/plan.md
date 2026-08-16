@@ -18,6 +18,13 @@ spec 为准，Journey 覆盖不变。）
 ### Stage 1 — 可交互 Web 原型
 
 - 栈：React + Vite + TypeScript + Tailwind，纯前端。
+- **组件底座（用户裁决 2026-08-16）：优先 shadcn/ui + Radix UI**。
+  shadcn 组件源码拷入仓库、按 §4 的 Notion 基准 token 换肤（不保留其
+  默认观感）；Radix primitives 提供弹层/菜单/焦点/键盘可达性语义。
+  覆盖范围：下拉、context menu、select、popover、dialog、tooltip、
+  toast、tabs、sheet（移动端右栏/树抽屉）等应用壳控件。
+  **不覆盖**：块编辑器（gaps A1，另行选型）、文档树、画布渲染、选区
+  引用——这些自研，行为按 spec。
 - **数据层直接采用 §3 文件格式**：样例数据就是一棵真实的 `.md` 文件树
   （构建时打包/fetch 进浏览器），前端解析 frontmatter + Markdown 渲染；
   编辑写回内存文件树，可整树导出。从第一天起 C1 可验证——把样例目录丢
@@ -44,8 +51,9 @@ spec 为准，Journey 覆盖不变。）
 - `store/`：SQLite 伴随库存取层，schema 见 §3.6。Stage 1 用内存实现
   （接口按 schema 设计，可选 sql.js 落 IndexedDB）；Stage 2 换真
   SQLite，接口不变。
-- `ui/`：树、画布（contenteditable 起步，不引重编辑器框架）、Widget 渲
-  染、Inspector、Composer、选区管理。
+- `ui/`：应用壳与控件优先 shadcn/ui + Radix（见 §1 裁决）；树、画布编
+  辑器（技术选型待 gaps A1 裁决）、右栏 Metadata/Chat 双区、Widget 渲
+  染、选区管理为自研组件。
 - `agents/`：`AgentAdapter` 接口 + `MockAgent` 实现（延迟、流式假输
   出、提议更新、Attempt 写回）。
 - 所有变更走 `core` 的单一写入口（改文件树 → 派生索引 → UI 响应），保
@@ -230,6 +238,9 @@ runtime_runs(id PK, kind, doc_id, status, current_ref,       -- 进行中委派/
   为"标签 + 值"两列的松散表单，Action 列表带图标。
 - 交互密度、留白、图标风格"几乎照抄 Notion"，禁止 SaaS Dashboard 化
   （阴影卡片堆、大色块统计）。
+- **组件实现**：弹层/菜单/表单控件一律以 shadcn/ui（Radix）为底、用上
+  述 token 定制；自研部分（编辑器/树/画布）与 shadcn 部分共享同一套
+  token，肉眼不可区分出处。
 
 ## 5. 样例数据集（两个 Project，无目录节点）
 
