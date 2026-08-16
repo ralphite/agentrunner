@@ -117,11 +117,12 @@ h2.sec:first-of-type{margin-top:24px}
 
 /* task rows */
 .task-list{margin:2px 0}
-.task-row{display:flex;align-items:center;gap:11px;height:37px;padding:0 10px;border-radius:6px;cursor:pointer}
+.task-row{display:flex;align-items:center;gap:11px;height:37px;padding:0 10px;border-radius:6px}
+.task-row[data-open]{cursor:pointer}
 .task-row:hover{background:var(--hover)}
 .task-row.sel{background:var(--accent-weak)}
 .task-row .t{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.task-row[data-open] .t{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.t.done{color:var(--muted)}
 .task-row .tid{margin-left:auto;font-size:13px;color:var(--faint);flex:none}
 .task-row .actions{display:none;gap:1px;flex:none}
 .task-row:hover .actions{display:flex}
@@ -179,7 +180,7 @@ h2.sec:first-of-type{margin-top:24px}
 .widget-row:last-of-type{border-bottom:none}
 .widget-row .num{width:14px;font-size:13px;color:var(--faint);flex:none}
 .widget-row .t{font-size:14.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.widget-row .t[data-open]{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.widget-row .t[data-open]{cursor:pointer}
 .widget-foot{display:flex;align-items:center;gap:20px;padding:9px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 .widget-foot span{display:flex;align-items:center;gap:6px}
 .widget-foot .ticon{color:var(--faint)}
@@ -218,7 +219,8 @@ h2.sec:first-of-type{margin-top:24px}
 .isec{font-size:12.5px;font-weight:600;margin:16px 0 6px;color:var(--ink)}
 .stack{border:1px solid var(--line2);border-radius:8px;overflow:hidden}
 .stack .srow{display:flex;align-items:center;gap:9px;padding:8px 12px;border-bottom:1px solid var(--line);
-  font-size:13px;background:#fbfbfa;cursor:pointer}
+  font-size:13px;background:#fbfbfa}
+.stack .srow[data-open]{cursor:pointer}
 .stack .srow:last-child{border-bottom:none}
 .stack .srow:hover{background:#f4f4f2}
 .stack .srow .ticon{color:var(--faint)}
@@ -504,7 +506,7 @@ h2.sec:first-of-type{margin-top:24px}
           <h2 class="sec" contenteditable="true" spellcheck="false">Tasks</h2>
           <div class="task-list">
             <div class="task-row">
-              <span class="radio"></span><span class="t">Define recovery data model</span>
+              <span class="donec"><svg class="ic"><use href="#i-check"/></svg></span><span class="t done">Define recovery data model</span>
               <span class="tid">#42</span><span class="pill done">Done</span>
             </div>
             <div class="task-row" data-open="task-43">
@@ -550,7 +552,7 @@ h2.sec:first-of-type{margin-top:24px}
               <span class="as">Restores small files; large files exceed timeout.</span>
             </div>
             <div class="attempt-row sel">
-              <span class="an"><svg class="ic ic14"><use href="#i-spark"/></svg>Attempt 3</span><span class="pill promising">Promising</span>
+              <span class="an">Attempt 3</span><span class="pill promising">Promising</span>
               <span class="ad">May 12, 2025</span>
               <span class="as">Handles large files via streaming; minor gaps remain.</span>
               <span class="pill best">Best</span>
@@ -575,10 +577,10 @@ h2.sec:first-of-type{margin-top:24px}
 
           <h2 class="sec" contenteditable="true" spellcheck="false">Milestones</h2>
           <ul>
-            <li contenteditable="true" spellcheck="false"><span class="mlabel">M1:</span> Define recovery state model</li>
+            <li contenteditable="true" spellcheck="false"><span class="mlabel">M1:</span> Define recovery data model</li>
             <li contenteditable="true" spellcheck="false"><span class="mlabel">M2:</span> Implement automatic recovery</li>
             <li contenteditable="true" spellcheck="false"><span class="mlabel">M3:</span> Add end-to-end tests</li>
-            <li contenteditable="true" spellcheck="false"><span class="mlabel">M4:</span> Update documentation</li>
+            <li contenteditable="true" spellcheck="false"><span class="mlabel">M4:</span> Update docs</li>
           </ul>
 
           <h2 class="sec" contenteditable="true" spellcheck="false">Execution Loop</h2>
@@ -591,7 +593,7 @@ h2.sec:first-of-type{margin-top:24px}
             </div>
             <div class="widget-row">
               <span class="num">1</span><span class="donec"><svg class="ic"><use href="#i-check"/></svg></span>
-              <span class="t">Design recovery state model</span><span class="pill done">Done</span>
+              <span class="t done">Define recovery data model</span><span class="pill done">Done</span>
             </div>
             <div class="widget-row">
               <span class="num">2</span><span class="spinner"></span>
@@ -623,7 +625,7 @@ h2.sec:first-of-type{margin-top:24px}
 
           <h2 class="sec" contenteditable="true" spellcheck="false">Queue</h2>
           <div class="task-list">
-            <div class="task-row"><span class="tid" style="margin:0">1</span><span class="donec"><svg class="ic"><use href="#i-check"/></svg></span><span class="t">Design recovery state model</span><span class="tid">#42</span><span class="pill done">Done</span></div>
+            <div class="task-row"><span class="tid" style="margin:0">1</span><span class="donec"><svg class="ic"><use href="#i-check"/></svg></span><span class="t done">Define recovery data model</span><span class="tid">#42</span><span class="pill done">Done</span></div>
             <div class="task-row" data-open="task-43"><span class="tid" style="margin:0">2</span><span class="spinner"></span><span class="t">Implement automatic recovery</span><span class="tid">#43</span><span class="pill prog">In progress</span></div>
             <div class="task-row"><span class="tid" style="margin:0">3</span><span class="radio"></span><span class="t">Add end-to-end tests</span><span class="tid">#45</span><span class="pill queued">Queued</span></div>
             <div class="task-row"><span class="tid" style="margin:0">4</span><span class="radio"></span><span class="t">Update docs</span><span class="tid">#46</span><span class="pill queued">Queued</span></div>
@@ -675,17 +677,17 @@ h2.sec:first-of-type{margin-top:24px}
           <div class="task-list">
             <div class="task-row">
               <span class="donec"><svg class="ic"><use href="#i-check"/></svg></span>
-              <span class="t" style="color:var(--muted)">Intermittent auth errors during deploy</span>
+              <span class="t done">Intermittent auth errors during deploy</span>
               <span class="tid">#BUG-136</span>
             </div>
             <div class="task-row">
               <span class="donec"><svg class="ic"><use href="#i-check"/></svg></span>
-              <span class="t" style="color:var(--muted)">Webhook delivery duplicates under load</span>
+              <span class="t done">Webhook delivery duplicates under load</span>
               <span class="tid">#BUG-128</span>
             </div>
             <div class="task-row">
               <span class="donec"><svg class="ic"><use href="#i-check"/></svg></span>
-              <span class="t" style="color:var(--muted)">CLI hangs on large plan outputs</span>
+              <span class="t done">CLI hangs on large plan outputs</span>
               <span class="tid">#BUG-124</span>
             </div>
             <div class="addrow"><svg class="ic ic14"><use href="#i-plus"/></svg>Add resolved bug</div>
@@ -742,7 +744,7 @@ h2.sec:first-of-type{margin-top:24px}
               <span class="as">Invalidation worked; reconnect race remained.</span>
             </div>
             <div class="attempt-row sel">
-              <span class="an"><svg class="ic ic14"><use href="#i-spark"/></svg>Attempt 3</span><span class="pill promising">Promising</span>
+              <span class="an">Attempt 3</span><span class="pill promising">Promising</span>
               <span class="ad">May 12, 2025</span>
               <span class="as">Stricter freshness checks; stale restores −94% locally.</span>
               <span class="pill best">Best</span>
@@ -818,7 +820,7 @@ h2.sec:first-of-type{margin-top:24px}
       <!-- Session Recovery -->
       <div class="pi" id="pi-session-recovery">
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Workstream</span></span></div>
-        <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog">Active</span></span></div>
+        <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog dd">Active <svg class="ic"><use href="#i-chev"/></svg></span></span></div>
         <div class="field"><span class="fname">Tags</span><span class="fval"><span class="pill plain">reliability</span><span class="pill plain">recovery</span></span></div>
         <div class="field"><span class="fname">Created</span><span class="fval">May 2, 2025</span></div>
         <div class="field"><span class="fname">Updated</span><span class="fval">May 12, 2025</span></div>
@@ -862,12 +864,12 @@ h2.sec:first-of-type{margin-top:24px}
       <!-- Implementation Plan -->
       <div class="pi" id="pi-impl-plan">
         <div class="field"><span class="fname">Type</span><span class="fval"><span class="pill plain">Plan</span></span></div>
-        <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog">Active</span></span></div>
+        <div class="field"><span class="fname">Status</span><span class="fval"><span class="pill prog dd">Active <svg class="ic"><use href="#i-chev"/></svg></span></span></div>
         <div class="field"><span class="fname">Created</span><span class="fval">May 6, 2025</span></div>
         <div class="field"><span class="fname">Updated</span><span class="fval">May 12, 2025</span></div>
         <div class="isec">Loops</div>
         <div class="stack">
-          <div class="srow" data-open="loop-mvp"><svg class="ic ticon spin"><use href="#i-loop"/></svg>Recovery MVP Loop<span class="right"><span class="pill running">Running</span></span></div>
+          <div class="srow" data-open="loop-mvp"><svg class="ic ticon spin" style="color:var(--accent)"><use href="#i-loop"/></svg>Recovery MVP Loop<span class="right"><span class="pill running">Running</span></span></div>
         </div>
         <div class="isec">Actions</div>
         <div class="action"><svg class="ic ticon"><use href="#i-send"/></svg>Delegate to Codex</div>
@@ -885,7 +887,7 @@ h2.sec:first-of-type{margin-top:24px}
         <div class="field"><span class="fname">Stop when</span><span class="fval">All tasks completed</span></div>
         <div class="isec">Lessons</div>
         <div class="stack">
-          <div class="srow"><svg class="ic ticon"><use href="#i-bulb"/></svg>Session Recovery Lessons</div>
+          <div class="srow"><svg class="ic ticon" style="color:var(--amber-ink)"><use href="#i-bulb"/></svg>Session Recovery Lessons</div>
         </div>
         <div class="isec">Actions</div>
         <div class="action"><svg class="ic ticon"><use href="#i-pause"/></svg>Pause loop</div>
@@ -901,7 +903,7 @@ h2.sec:first-of-type{margin-top:24px}
         <div class="field"><span class="fname">Updated</span><span class="fval">May 12, 2025</span></div>
         <div class="isec">Loops</div>
         <div class="stack">
-          <div class="srow" data-open="loop-bugfix"><svg class="ic ticon spin"><use href="#i-loop"/></svg>Codex Bug Fix Loop<span class="right"><span class="pill running">Running</span></span></div>
+          <div class="srow" data-open="loop-bugfix"><svg class="ic ticon spin" style="color:var(--accent)"><use href="#i-loop"/></svg>Codex Bug Fix Loop<span class="right"><span class="pill running">Running</span></span></div>
         </div>
         <div class="isec">Actions</div>
         <div class="action"><svg class="ic ticon"><use href="#i-plus"/></svg>Add bug</div>
@@ -916,11 +918,12 @@ h2.sec:first-of-type{margin-top:24px}
         <div class="field"><span class="fname">Priority</span><span class="fval"><span class="pill p1">P1 · High</span></span></div>
         <div class="field"><span class="fname">Found in</span><span class="fval">Session Recovery</span></div>
         <div class="field"><span class="fname">Environment</span><span class="fval">All (Cloud, Self-hosted)</span></div>
-        <div class="field"><span class="fname">Attempts</span><span class="fval">3 · best <span class="pill best" style="margin-left:2px">Attempt #3</span></span></div>
+        <div class="field"><span class="fname">Attempts</span><span class="fval">3</span></div>
+        <div class="field"><span class="fname">Best attempt</span><span class="fval"><span class="pill promising">Attempt 3 · Promising</span></span></div>
         <div class="field"><span class="fname">Created</span><span class="fval">May 10, 2025</span></div>
         <div class="field"><span class="fname">Updated</span><span class="fval">May 12, 2025</span></div>
         <div class="isec">Actions</div>
-        <div class="action"><svg class="ic ticon"><use href="#i-send"/></svg>Send to Codex</div>
+        <div class="action"><svg class="ic ticon"><use href="#i-send"/></svg>Delegate to Codex</div>
         <div class="action"><svg class="ic ticon"><use href="#i-checkc"/></svg>Mark fixed</div>
         <div class="action"><svg class="ic ticon"><use href="#i-bulb"/></svg>Create lesson</div>
         <div class="action"><svg class="ic ticon"><use href="#i-copy"/></svg>Duplicate bug</div>
@@ -959,18 +962,18 @@ h2.sec:first-of-type{margin-top:24px}
           </div>
           <div class="msg"><span class="avatar codex"><svg class="ic"><use href="#i-knot"/></svg></span>
             <div class="body"><div class="who">Codex <span class="ago">1h ago</span></div>
-              <div class="text">Session Recovery advanced: attempt 3 restores large files via streaming. Verification before completion is the remaining gap — I saved the lesson and queued a verification subtask under task #43.</div></div>
+              <div class="text">Session Recovery advanced: attempt 3 restores large files via streaming. Verification before completion is the remaining gap — I captured it as a lesson on task #43.</div></div>
           </div>
         </div>
 
         <div class="ch" id="ch-session-recovery">
           <div class="msg"><span class="avatar you">You</span>
             <div class="body"><div class="who">You <span class="ago">2m ago</span></div>
-              <div class="text"><div class="quote">Gaps remain around multi-window scenarios, extension state, and large file recovery.</div>Turn the large-file gap into a task with clear acceptance criteria.</div></div>
+              <div class="text"><div class="quote">Gaps remain around multi-window scenarios, extension state, and large file recovery.</div>What's left before we can close the large-file gap?</div></div>
           </div>
           <div class="msg"><span class="avatar codex"><svg class="ic"><use href="#i-knot"/></svg></span>
             <div class="body"><div class="who">Codex <span class="ago">1m ago</span></div>
-              <div class="text">Done — created <b>#43 Implement automatic recovery</b> under Tasks, with acceptance criteria covering restore triggers, data integrity and safe fallback. Say the word and I'll start on it.</div></div>
+              <div class="text">Attempt 3 on <b>#43</b> restores large files via streaming. The remaining gap is verification before marking restore complete — it's captured as a lesson and noted on the task.</div></div>
           </div>
         </div>
 
@@ -1160,6 +1163,7 @@ function openDoc(id){
     $('#doc-stub').classList.add('show');
     $('#stubPiFields').innerHTML = s.fields.map(([k,v])=>{
       const val = (k==='Type' && v!=='—') ? `<span class="pill plain">${v}</span>`
+                : (k==='Status') ? `<span class="pill ${v==='Active'?'prog':'plain'}">${v}</span>`
                 : (k==='Tags') ? v.split(',').map(t=>`<span class="pill plain">${t.trim()}</span>`).join(' ')
                 : (k==='Workspace') ? `<span class="fval mono" style="padding:0">${v}</span>` : v;
       return `<div class="field"><span class="fname">${k}</span><span class="fval">${val}</span></div>`;
