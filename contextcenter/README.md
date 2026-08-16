@@ -29,11 +29,14 @@ constitution / spec / plan / tasks；只取其文档形态，不引入其 CLI �
 
 ## 当前状态
 
-- **Stage 0（本目录当前内容）**：Spec v0.9 + 静态高保真 mock。
-- **⚠️ Stage 1 冻结中**：行为层定义大面积缺失（编辑器模型、Agent 协议、
-  对象生命周期），见 `specs/gaps.md`；P0 项裁决完成前不开发。
-- **Stage 1（裁决后）**：可交互 Web 原型——数据层直接采用
-  `specs/plan.md` 的文件格式 + SQLite 伴随库。
+- **Stage 0**：Spec v0.9 + 静态高保真 mock（历史基线）。
+- **app/ 壳已启动（用户指示 2026-08-16）**：mock 迁移到正式栈
+  （shadcn/ui + Radix），视觉 1:1、控件真实（下拉/右键菜单/tooltip/
+  状态单源联动）；行为层 gaps 未裁决的部分仍是演示级。
+- **⚠️ 行为层开发仍冻结**：编辑器模型、Agent 协议、对象生命周期见
+  `specs/gaps.md`；P0 项裁决完成前不实现。
+- **Stage 1（裁决后）**：在 app/ 上落数据层（`specs/plan.md` 文件格式
+  + SQLite 伴随库）与真实行为。
 - **Stage 2（后续）**：真文件系统落盘 + 真 Coding Agent 适配。
 
 ## 设计基准
