@@ -199,8 +199,13 @@ Inspector"。
 3. 用户附加 Comment/Instruction，选择绑定 Agent（Codex/Claude Code/内
    置轻量模型）；
 4. 消息携带 Project、文档路径、引用文字与必要的周边上下文；
-5. Agent 回复，或对当前页面**提议局部更新**（Proposed update 预览 +
-   Copy / Apply update to document 一键应用）。
+5. **内置轻模型**：对选区/局部的小改，结果内联预览 + Accept/Discard
+   （Notion AI 形态）；**外部 Coding Agent**：直改 + 事后可撤（见
+   §6.2）。
+
+引用锚定（gaps A7 裁决）：锚 = 引用文字 + 就近标题路径，应用改动时模
+糊匹配定位；置信不足不硬改，提示用户手动放置。不向 Markdown 注入
+block id。
 
 同一套交互适用于任何页面：正文、Task 页、Loop 页、Bug 页。
 
@@ -219,14 +224,23 @@ Inspector"。
 从 Task、选区或 Loop 启动 Codex/Claude Code。产品负责组装 Context、发
 起外部 session、接收结果摘要、把 Attempt/结果/Lesson 写回文档。
 
+**委派流程 = 轻确认**（gaps C7 裁决）：点 Delegate 弹紧凑卡片，列出将
+携带的上下文（Project 根文档、当前页、选区引用、关联 Lesson），可增
+删；点 Start 开跑；运行中来源行 spinner、Metadata 显示 Running；完成
+后通知 + Attempt/结果写回。
+
 ### 6.2 入：文件约定即 API
 
 因为 C1（文件即真相），反向集成的第一形态就是**直接读写 Project 目录**：
 外部 Agent 找到根文档 → 沿相对路径读子文档 → 更新 Markdown Section →
 新增/更新 Widget 数据 → 追加 Attempt 结果 → 保存 Lesson → 创建子文档。
 文件格式约定见 `plan.md` §3；配套提供说明文件（如项目目录内的
-AGENTS.md/skill），让 Codex/Claude Code 开箱即会。应用对外部改动的态度：
-文件就是真相，重建索引即可。
+AGENTS.md/skill），让 Codex/Claude Code 开箱即会。
+
+**外部改动 = 直改 + 事后可撤**（gaps C1/C2 裁决）：外部 Agent 的修改
+与新建直接生效，不设提议缓冲；应用侧实时反映并高亮改动、chat 留痕、
+可撤销、通知提醒。Agent 建文档默认落在其正在工作的文档之下，树上即时
+出现并给出链接。
 
 ## 7. Responsive
 
