@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Center 决策地图</title>
+<style>
+:root{
+  --ink:#37352f; --muted:rgba(55,53,47,.65); --faint:rgba(55,53,47,.45);
+  --line:rgba(55,53,47,.12); --line2:rgba(55,53,47,.18);
+  --paper:#fff; --ground:#f7f7f5; --hover:rgba(0,0,0,.045);
+  --accent:#6759dc; --accent-ink:#4a3fb5; --accent-weak:#f1efff;
+  --amber-bg:#fdecc8; --amber-ink:#976d26; --amber-line:#e8cf9a;
+  --red-ink:#c4554d; --red-bg:#fbe4e4;
+  --green-ink:#1c3829; --green-bg:#dbeddb;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans CJK SC",sans-serif;
+  background:var(--ground);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+main{max-width:1400px;margin:0 auto;padding:36px 24px 90px}
+h1{font-size:30px;letter-spacing:-.02em;margin-bottom:6px}
+.sub{color:var(--muted);max-width:860px;font-size:14.5px}
+.howto{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0 6px;font-size:13px;color:var(--muted)}
+.howto b{color:var(--ink);font-weight:600}
+section.panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;
+  padding:26px clamp(18px,3vw,40px);margin:22px 0}
+h2.pt{font-size:20px;margin-bottom:4px}
+.pt-sub{color:var(--muted);font-size:13.5px;margin-bottom:16px}
+figure{margin:0}
+.figwrap{overflow-x:auto}
+figure svg{min-width:1280px;max-width:100%;height:auto;display:block}
+figcaption{color:var(--muted);font-size:12.5px;margin-top:10px}
+.legend{display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:12px;align-items:center}
+.legend .sw{display:inline-block;width:26px;height:0;border-top:2.5px solid;vertical-align:middle;margin-right:6px}
+.legend .box{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid}
+
+/* cards */
+.cluster-h{font-size:13px;font-weight:700;color:var(--accent-ink);letter-spacing:.04em;margin:26px 0 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);
+  border-radius:10px;padding:16px 18px;scroll-margin-top:16px}
+.card h3{font-size:15.5px;margin-bottom:2px}
+.card .pick{font-size:13px;color:var(--ink);margin:4px 0 10px}
+.card .pick b{color:var(--accent-ink)}
+.klabel{font-size:11.5px;font-weight:700;letter-spacing:.05em;color:var(--faint);margin:10px 0 4px;text-transform:uppercase}
+.cost{font-size:12.8px;color:var(--ink)}
+.cost li{margin:3px 0 3px 16px}
+.cost .accepted{color:var(--muted)}
+.cost a{color:var(--accent-ink);text-decoration:none}
+.cost a:hover{text-decoration:underline}
+table.alts{width:100%;border-collapse:collapse;font-size:12.3px;margin-top:2px}
+table.alts th{ text-align:left;color:var(--faint);font-weight:600;padding:3px 8px 3px 0;border-bottom:1px solid var(--line)}
+table.alts td{padding:4px 8px 4px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.alts tr:last-child td{border-bottom:none}
+.chip{display:inline-block;background:var(--ground);border:1px solid var(--line);border-radius:5px;
+  padding:1px 7px;font-size:11.5px;color:var(--muted);margin:1px 2px 1px 0;white-space:nowrap}
+.chip.us{background:var(--accent-weak);border-color:#d6d1f4;color:var(--accent-ink);font-weight:600}
+
+/* matrix */
+.mwrap{overflow-x:auto}
+table.matrix{border-collapse:collapse;font-size:12.5px;min-width:1240px;width:100%}
+table.matrix th,table.matrix td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+table.matrix thead th{background:var(--ground);font-size:12.5px;position:sticky;top:0}
+table.matrix td:first-child,table.matrix th:first-child{font-weight:600;white-space:nowrap;background:var(--ground)}
+table.matrix td.us{background:var(--accent-weak)}
+table.matrix td .n{color:var(--faint)}
+.foot{color:var(--faint);font-size:12px;margin-top:26px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Context Center 决策地图</h1>
+  <p class="sub">把到目前为止的<b>全部设计点</b>放进一张可对照的图里：每个决策——我们选了什么、付出什么代价（引入了哪些新问题）、替代方案是什么、哪些产品选了那些替代方案。数据来源：constitution / spec v0.9 / plan / gaps / pending-decisions 的全部裁决。</p>
+  <div class="howto">
+    <span><b>① 因果图</b>：决策如何级联出问题、问题由哪个下游决策接住（点节点跳到卡片）</span>
+    <span><b>② 决策卡片</b>：逐项的选择 / 代价 / 替代方案 / 产品先例</span>
+    <span><b>③ 对照矩阵</b>：同一决策维度上，各产品分别怎么选</span>
+  </div>
+
+  <!-- ═══════════ ① 因果图 ═══════════ -->
+  <section class="panel">
+    <h2 class="pt">① 决策因果图</h2>
+    <p class="pt-sub">读法：白盒 = 已定决策；琥珀盒 = 该决策<b>引入的问题</b>；虚线箭头 = "引入"，实线箭头 = "由此解决/支撑"。链条读作：<i>决策 → 引入问题 → 下游决策接住 →（可能再引入新问题）</i>。</p>
+    <div class="figwrap">
+    <figure>
+    <svg viewBox="0 0 1360 680" role="img" aria-label="Context Center 决策因果图：四列（哲学、结构与存储、编辑与交互、Agent 执行）之间，决策引入问题、问题由下游决策解决的链条">
+      <defs>
+        <marker id="aA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" fill="#b98a2b"/></marker>
+        <marker id="aV" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" fill="#6759dc"/></marker>
+      </defs>
+      <style>
+        .colh{font:700 13px sans-serif;fill:#37352f}
+        .nd{fill:#fff;stroke:rgba(55,53,47,.22);rx:8}
+        .nq{fill:#fdecc8;stroke:#e8cf9a}
+        .nt{font:12px sans-serif;fill:#37352f}
+        .ns{font:10.5px sans-serif;fill:rgba(55,53,47,.5)}
+        .eI{stroke:#b98a2b;stroke-width:1.6;fill:none;stroke-dasharray:5 4}
+        .eS{stroke:#6759dc;stroke-width:1.6;fill:none}
+        .el{font:10.5px sans-serif;fill:#7a6a3a;paint-order:stroke;stroke:#fff;stroke-width:3px}
+        .elv{font:10.5px sans-serif;fill:#4a3fb5;paint-order:stroke;stroke:#fff;stroke-width:3px}
+        a rect:hover{stroke:#6759dc;stroke-width:1.6}
+      </style>
+
+      <text class="colh" x="30" y="26">哲学（constitution）</text>
+      <text class="colh" x="370" y="26">结构与存储</text>
+      <text class="colh" x="710" y="26">编辑与交互</text>
+      <text class="colh" x="1050" y="26">Agent 执行</text>
+
+      <!-- ── 哲学列 ── -->
+      <a href="#c-p1"><rect class="nd" x="30" y="44" width="260" height="44" rx="8"/>
+        <text class="nt" x="42" y="62">定位：Coding Agent 之上的</text><text class="nt" x="42" y="78">项目记忆层（非 runtime）</text></a>
+      <a href="#c-p2"><rect class="nd" x="30" y="128" width="260" height="44" rx="8"/>
+        <text class="nt" x="42" y="146">文件即真相</text><text class="ns" x="42" y="162">Markdown+frontmatter = 唯一真相 C1</text></a>
+      <a href="#c-p3"><rect class="nd" x="30" y="232" width="260" height="44" rx="8"/>
+        <text class="nt" x="42" y="250">一切皆文档 · 没有目录</text><text class="ns" x="42" y="266">type 只是可选 frontmatter C2</text></a>
+      <a href="#c-p4"><rect class="nd" x="30" y="336" width="260" height="44" rx="8"/>
+        <text class="nt" x="42" y="354">结果回流闭环</text><text class="ns" x="42" y="370">session→memory→task→agent→memory C6</text></a>
+      <a href="#c-p5"><rect class="nd" x="30" y="440" width="260" height="44" rx="8"/>
+        <text class="nt" x="42" y="458">负空间：不做 diff / Inbox /</text><text class="nt" x="42" y="474">DAG / Session 浏览器 C9</text></a>
+
+      <!-- ── 结构列 ── -->
+      <a href="#c-s1"><rect class="nd" x="370" y="44" width="260" height="40" rx="8"/>
+        <text class="nt" x="382" y="61">任务即文档</text><text class="ns" x="382" y="76">每个 task 的身份是一个 .md</text></a>
+      <a href="#c-s1"><rect class="nq" x="370" y="112" width="260" height="30" rx="8"/>
+        <text class="nt" x="382" y="131">⚠ 轻任务被迫变重？</text></a>
+      <a href="#c-s1"><rect class="nd" x="370" y="170" width="260" height="30" rx="8"/>
+        <text class="nt" x="382" y="189">惰性物化：需要身份时才成文件</text></a>
+      <a href="#c-s1"><rect class="nq" x="370" y="228" width="260" height="30" rx="8"/>
+        <text class="nt" x="382" y="247">⚠ 镜像行 vs 文档：双真相？</text></a>
+      <a href="#c-s1"><rect class="nd" x="370" y="286" width="260" height="30" rx="8"/>
+        <text class="nt" x="382" y="305">task 文档为准，父行只是镜像</text></a>
+      <a href="#c-s4"><rect class="nd" x="370" y="344" width="260" height="40" rx="8"/>
+        <text class="nt" x="382" y="361">同名同级目录落盘 · 文件名=标题</text><text class="ns" x="382" y="376">目录只是嵌套形式，不是对象</text></a>
+      <a href="#c-s5"><rect class="nd" x="370" y="412" width="260" height="40" rx="8"/>
+        <text class="nt" x="382" y="429">SQLite 伴随库</text><text class="ns" x="382" y="444">chat/顺序/运行态/索引，可删不失知识</text></a>
+      <a href="#c-g5"><rect class="nq" x="370" y="480" width="260" height="30" rx="8"/>
+        <text class="nt" x="382" y="499">⚠ 纯 Markdown 没有 block id</text></a>
+      <a href="#c-s6"><rect class="nd" x="370" y="548" width="260" height="40" rx="8"/>
+        <text class="nt" x="382" y="565">Attempt = 结果摘要</text><text class="ns" x="382" y="580">不含 diff / transcript / tool calls</text></a>
+
+      <!-- ── 交互列 ── -->
+      <a href="#c-u1"><rect class="nd" x="710" y="44" width="260" height="40" rx="8"/>
+        <text class="nt" x="722" y="61">Notion 式 block 编辑器</text><text class="ns" x="722" y="76">UX 基准=Notion，to-do 由输入产生</text></a>
+      <a href="#c-u1"><rect class="nq" x="710" y="112" width="260" height="30" rx="8"/>
+        <text class="nt" x="722" y="131">⚠ 每种块都要无损写回 MD</text></a>
+      <a href="#c-u1"><rect class="nd" x="710" y="170" width="260" height="30" rx="8"/>
+        <text class="nt" x="722" y="189">块类型白名单（MD 可表达子集）</text></a>
+      <a href="#c-u3"><rect class="nd" x="710" y="238" width="260" height="40" rx="8"/>
+        <text class="nt" x="722" y="255">Chat 引用 = 纯文字 blockquote</text><text class="ns" x="722" y="270">不用引用 widget，灵活可编辑</text></a>
+      <a href="#c-u6"><rect class="nd" x="710" y="306" width="260" height="40" rx="8"/>
+        <text class="nt" x="722" y="323">右栏常驻：Metadata + Chat</text><text class="ns" x="722" y="338">frontmatter 的人性化渲染</text></a>
+      <a href="#c-u4"><rect class="nd" x="710" y="374" width="260" height="40" rx="8"/>
+        <text class="nt" x="722" y="391">Notion UX 批量继承（28 项）</text><text class="ns" x="722" y="406">树/菜单/拖拽/搜索/Trash/快捷键…</text></a>
+      <a href="#c-u5"><rect class="nq" x="710" y="442" width="260" height="30" rx="8"/>
+        <text class="nt" x="722" y="461">⚠ 禁 Inbox → 动静感知真空</text></a>
+      <a href="#c-u5"><rect class="nd" x="710" y="510" width="260" height="40" rx="8"/>
+        <text class="nt" x="722" y="527">铃铛 + popover + 树行蓝点</text><text class="ns" x="722" y="542">浮层非页面，不违 C9</text></a>
+
+      <!-- ── Agent 列 ── -->
+      <a href="#c-g1"><rect class="nd" x="1050" y="44" width="260" height="40" rx="8"/>
+        <text class="nt" x="1062" y="61">文件即 API：双向集成</text><text class="ns" x="1062" y="76">外部 agent 直接读写项目目录</text></a>
+      <a href="#c-g2"><rect class="nd" x="1050" y="112" width="260" height="40" rx="8"/>
+        <text class="nt" x="1062" y="129">外部 agent 直改 + 事后可撤</text><text class="ns" x="1062" y="144">内置 Assistant 才走内联 Accept</text></a>
+      <a href="#c-g2"><rect class="nq" x="1050" y="180" width="260" height="30" rx="8"/>
+        <text class="nt" x="1062" y="199">⚠ 人机同时改一个文件？</text></a>
+      <a href="#c-g2"><rect class="nd" x="1050" y="248" width="260" height="30" rx="8"/>
+        <text class="nt" x="1062" y="267">块级合并 + 高亮 + 不弹窗 D1</text></a>
+      <a href="#c-g4"><rect class="nd" x="1050" y="316" width="260" height="40" rx="8"/>
+        <text class="nt" x="1062" y="333">委派 = 轻确认卡</text><text class="ns" x="1062" y="348">上下文可见可增删 → Start C7</text></a>
+      <a href="#c-g5"><rect class="nd" x="1050" y="384" width="260" height="40" rx="8"/>
+        <text class="nt" x="1062" y="401">锚定 = 智能匹配 + 降级 A7</text><text class="ns" x="1062" y="416">引用文字+标题路径，失配提示手动</text></a>
+      <a href="#c-g5"><rect class="nq" x="1050" y="452" width="260" height="30" rx="8"/>
+        <text class="nt" x="1062" y="471">⚠ 偶发失配（接受，有降级）</text></a>
+      <a href="#c-g6"><rect class="nd" x="1050" y="520" width="260" height="40" rx="8"/>
+        <text class="nt" x="1062" y="537">顺序 Loop（非 DAG）</text><text class="ns" x="1062" y="552">失败暂停/跳过，单 attempt 互斥</text></a>
+
+      <!-- ── 边 ── -->
+      <!-- 哲学 → 结构 -->
+      <path class="eI" d="M290 150 C330 150 330 495 366 495" marker-end="url(#aA)"/>
+      <text class="el" x="318" y="330">无 id</text>
+      <path class="eS" d="M290 160 C336 170 336 420 366 428" marker-end="url(#aV)"/>
+      <text class="elv" x="300" y="402">放不下的信息</text>
+      <path class="eS" d="M290 254 C330 254 330 360 366 362" marker-end="url(#aV)"/>
+      <text class="elv" x="314" y="312">嵌套落盘</text>
+      <path class="eS" d="M290 462 C336 470 336 560 366 566" marker-end="url(#aV)"/>
+      <text class="elv" x="308" y="530">只留结果</text>
+      <!-- 结构链 -->
+      <path class="eI" d="M500 84 L500 108" marker-end="url(#aA)"/>
+      <path class="eS" d="M500 142 L500 166" marker-end="url(#aV)"/>
+      <path class="eI" d="M500 200 L500 224" marker-end="url(#aA)"/>
+      <path class="eS" d="M500 258 L500 282" marker-end="url(#aV)"/>
+      <!-- 哲学 → 交互 -->
+      <path class="eI" d="M290 472 C540 466 600 460 706 460" marker-end="url(#aA)"/>
+      <text class="el" x="560" y="474">禁 Inbox</text>
+      <path class="eS" d="M290 250 C480 268 620 294 706 324" marker-end="url(#aV)"/>
+      <text class="elv" x="470" y="266">frontmatter 渲染</text>
+      <!-- 交互链 -->
+      <path class="eI" d="M840 84 L840 108" marker-end="url(#aA)"/>
+      <path class="eS" d="M840 142 L840 166" marker-end="url(#aV)"/>
+      <path class="eS" d="M840 472 L840 506" marker-end="url(#aV)"/>
+      <!-- 无损写回 双亲：文件即真相 -->
+      <path class="eI" d="M290 138 C480 98 620 102 706 122" marker-end="url(#aA)"/>
+      <text class="el" x="545" y="98">写回约束</text>
+      <!-- 结构 → Agent -->
+      <path class="eS" d="M630 495 C880 495 900 620 990 620 C1030 620 1040 480 1046 420" marker-end="url(#aV)"/>
+      <text class="elv" x="880" y="614">锚定解法</text>
+      <!-- 哲学 → Agent -->
+      <path class="eS" d="M290 132 C420 38 900 34 1046 58" marker-end="url(#aV)"/>
+      <text class="elv" x="500" y="40">文件即 API</text>
+      <path class="eS" d="M290 360 C520 648 880 662 1046 548" marker-end="url(#aV)"/>
+      <text class="elv" x="700" y="654">闭环执行</text>
+      <!-- Agent 链 -->
+      <path class="eS" d="M1180 84 L1180 108" marker-end="url(#aV)"/>
+      <path class="eI" d="M1180 152 L1180 176" marker-end="url(#aA)"/>
+      <path class="eS" d="M1180 210 L1180 244" marker-end="url(#aV)"/>
+      <path class="eI" d="M1180 424 L1180 448" marker-end="url(#aA)"/>
+    </svg>
+    <figcaption>核心链条：文件即真相 → 没有 block id → 锚定只能智能匹配 → 接受偶发失配；任务即文档 → 轻任务变重 → 惰性物化 → 镜像行双真相 → 文档为准；外部直改 → 并发冲突 → 块级合并；禁 Inbox → 感知真空 → 铃铛。</figcaption>
+    </figure>
+    </div>
+    <div class="legend">
+      <span><span class="box" style="background:#fff;border-color:rgba(55,53,47,.25)"></span>已定决策</span>
+      <span><span class="box" style="background:#fdecc8;border-color:#e8cf9a"></span>决策引入的问题</span>
+      <span><span class="sw" style="border-color:#b98a2b;border-top-style:dashed"></span>引入 / 造成约束</span>
+      <span><span class="sw" style="border-color:#6759dc"></span>解决 / 支撑</span>
+    </div>
+  </section>
+
+  <!-- ═══════════ ② 决策卡片 ═══════════ -->
+  <section class="panel">
+    <h2 class="pt">② 决策卡片：选择 · 代价 · 替代方案 · 产品先例</h2>
+    <p class="pt-sub">每张卡：<b>我们的选择</b> → 它的代价（含引入的问题链）→ 替代方案与选它的产品 → 我们没选的原因。紫色徽章 = 与我们同路的产品。</p>
+
+    <div class="cluster-h">哲学层（constitution）</div>
+    <div class="cards">
+      <article class="card" id="c-p1">
+        <h3>产品定位</h3>
+        <p class="pick"><b>选择：</b>Coding Agent 之上的项目记忆 / 上下文 / 任务协调层——自己不做执行 runtime。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>命脉握在外部 agent 手里（能力、接口变动都要跟）。</li>
+          <li>执行过程不可见（被 C9 强化），调试问题要去外部系统。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>自研 agent runtime</td><td>Devin、agentrunner</td><td>重复造轮子，偏离"记忆层"价值</td></tr>
+          <tr><td>纯项目管理（不执行）</td><td>Linear、Jira</td><td>缺了闭环里"委派→回流"的那半环</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=记忆层</span><span class="chip">Devin=自研执行</span><span class="chip">Linear=管理不执行（2025 起也接 agent 委派）</span>
+      </article>
+
+      <article class="card" id="c-p2">
+        <h3>文件即真相</h3>
+        <p class="pick"><b>选择：</b>项目知识全部落盘 Markdown+frontmatter，应用只是视图；不带 DB 也能被人/agent 读懂续作。</p>
+        <div class="klabel">代价（引入的问题链）</div>
+        <ul class="cost">
+          <li>没有 block id → 锚定难 → <a href="#c-g5">智能匹配 A7</a>。</li>
+          <li>外部可绕过应用直接改文件 → 冲突合并 → <a href="#c-g2">D1</a>。</li>
+          <li>查询/聚合慢 → SQLite 索引（可重建）。</li>
+          <li>chat、显示顺序、运行态放不进文件 → <a href="#c-s5">伴随库</a>。</li>
+          <li>无损写回约束限制编辑器块类型 → <a href="#c-u1">白名单</a>。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>云端数据库为真相</td><td>Notion、Linear</td><td>知识被锁进产品，agent 要学 API 才能用</td></tr>
+          <tr><td>本地对象库/CRDT</td><td>Anytype</td><td>同上，且失去 git/grep/编辑器生态</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=纯文件</span><span class="chip us">Obsidian=纯文件（同路）</span><span class="chip">Logseq=文件+DB 索引（近路）</span><span class="chip">Notion=云 DB</span>
+      </article>
+
+      <article class="card" id="c-p3">
+        <h3>一切皆文档 · 没有目录</h3>
+        <p class="pick"><b>选择：</b>树里每个节点都是文档；"特殊类型"= 可选 frontmatter type；没有目录/模块概念。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>嵌套需要落盘表示 → <a href="#c-s4">同名同级目录</a>。</li>
+          <li>行级微文档会炸树 → 不进树 → 到达路径要补（搜索/祖先高亮）。</li>
+          <li>失去强 schema 的批量查询力（"所有 P1 bug"靠索引而非表）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>页面嵌套 + database 两套体系</td><td>Notion</td><td>database 是第二套模型，违"少而稳"</td></tr>
+          <tr><td>文件夹 + 文件</td><td>Obsidian</td><td>目录成为第二种对象，语义分裂</td></tr>
+          <tr><td>强类型对象（issue/epic）</td><td>Linear、Jira</td><td>回到表单式管理系统，被 v0.6 之前的轮次否掉</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=纯文档树</span><span class="chip">Notion=页面+database</span><span class="chip">Workflowy=纯 outline（更极端）</span>
+      </article>
+
+      <article class="card" id="c-p4">
+        <h3>结果回流闭环</h3>
+        <p class="pick"><b>选择：</b>session 产生经验 → 沉淀为文档（Attempt/Lesson/状态）→ 成为下次委派的 context。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>写回格式必须稳定（文件契约就是 API，坏一处 agent 全乱）。</li>
+          <li class="accepted">chat 里的好内容若不回流会流失——靠"沉淀成文档"纪律兜底（接受）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>对话历史即记忆</td><td>ChatGPT memory</td><td>不可审计、不可编辑、不可移植</td></tr>
+          <tr><td>自动记忆库（向量）</td><td>各类 RAG 产品</td><td>黑盒；与"文档可读可改"的定位冲突</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=显式文档回流</span><span class="chip">Devin=knowledge 条目</span><span class="chip">Claude Code=CLAUDE.md/skill 沉淀（近路）</span>
+      </article>
+
+      <article class="card" id="c-p5">
+        <h3>负空间（刻意不做）</h3>
+        <p class="pick"><b>选择：</b>不做 diff 管理、session 浏览器、Inbox 页、DAG workflow、用户/权限体系。</p>
+        <div class="klabel">代价（引入的问题链）</div>
+        <ul class="cost">
+          <li>不做 Inbox → 动静感知真空 → <a href="#c-u5">铃铛</a>。</li>
+          <li>不看 diff → 改动可见性弱 → 高亮 + git 兜底。</li>
+          <li>顺序 Loop 表达力上限（做不了并行/条件流）——接受。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>全功能平台化</td><td>Jira、Notion（越做越全）</td><td>分散焦点；16 轮决策一路在做减法</td></tr>
+          <tr><td>DAG workflow</td><td>n8n、Zapier、GitHub Actions</td><td>用户明确砍掉（决策 #02）</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=做减法</span><span class="chip">Linear=同样以克制著称</span>
+      </article>
+    </div>
+
+    <div class="cluster-h">结构与存储层</div>
+    <div class="cards">
+      <article class="card" id="c-s1">
+        <h3>任务即文档（含惰性物化、镜像行）</h3>
+        <p class="pick"><b>选择：</b>每个 task 的身份是一个 .md；呈现保持一行 to-do；首次需要身份时才物化；物化后文档为准、父行是镜像。</p>
+        <div class="klabel">代价（引入的问题链）</div>
+        <ul class="cost">
+          <li>轻任务可能变重 → 惰性物化解决。</li>
+          <li>镜像行与文档双真相 → 文档 canonical、应用维护镜像；外部改镜像可能短暂漂移（对账兜底）。</li>
+          <li>微文档数量多 → 不进树 + 搜索到达。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>任务=DB 行/结构化对象</td><td>Notion database、Linear、Jira</td><td>与文档割裂，portability 差</td></tr>
+          <tr><td>任务=纯文本行</td><td>Obsidian Tasks、TaskPaper</td><td>挂不住 attempts/lessons 等历史</td></tr>
+          <tr><td>三级渐进升级（行→widget→文档）</td><td>我们的 v0.6 方案</td><td>升级迁移身份，锚点会断——v0.7 废弃</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=任务即文档</span><span class="chip">GitHub issue=半文档（md body）近路</span><span class="chip">Linear=强 schema</span>
+      </article>
+
+      <article class="card" id="c-s4">
+        <h3>落盘结构与命名</h3>
+        <p class="pick"><b>选择：</b>文档永远是单文件；子文档放同名同级目录；文件名=标题（中文保留，rename 改写入链）；assets/ 图片、.contextcenter/trash 软删。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>rename 要全库改链接（应用负担，外部改名靠 id 对账）。</li>
+          <li>同名冲突要 -2 后缀；跨平台文件名字符集要处理。</li>
+          <li>文件→目录升级由应用自动做（首个子文档出现时）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>id 做文件名，标题存文件内</td><td>部分 Zettelkasten 工具</td><td>目录不可读，违"人能直读"初衷（用户已否）</td></tr>
+          <tr><td>目录+index.md 表示每个文档</td><td>Hugo/docs 站点惯例</td><td>每个文档都成目录，太重（v0.7 曾用，v0.8 废）</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=标题即文件名</span><span class="chip us">Obsidian=同路</span><span class="chip">Notion=无文件概念</span>
+      </article>
+
+      <article class="card" id="c-s5">
+        <h3>SQLite 伴随库</h3>
+        <p class="pick"><b>选择：</b>放不进文件的进 SQLite：chat、树顺序、节点应用态、运行态、时间戳、计数器、可重建索引。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>两储一致性边界要守（知识永远不许只活在库里）。</li>
+          <li class="accepted">删库丢 chat 历史/顺序——接受（知识已回流文档）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>全进文件（chat 伴生 .md）</td><td>部分插件生态做法</td><td>对话噪音污染文件树，git 全是 chat diff</td></tr>
+          <tr><td>全进数据库</td><td>Notion、Linear</td><td>违 C1</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=文件+伴随库</span><span class="chip us">Obsidian=同构（.obsidian/ 存应用态）</span><span class="chip">Logseq=同构</span>
+      </article>
+
+      <article class="card" id="c-s6">
+        <h3>Attempt = 结果摘要（无 diff）</h3>
+        <p class="pick"><b>选择：</b>一次委派记一条 Attempt：状态/outcome/摘要/lesson/best 标记；不存 transcript、tool calls、diff。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>排查"agent 为什么失败"要跳外部系统（View run 外链）。</li>
+          <li>摘要质量依赖写回方（agent 按契约自报）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>全量执行记录+diff</td><td>Cursor、Devin、agentrunner</td><td>用户明确否掉（决策 #05）：关心结果不关心过程</td></tr>
+          <tr><td>PR 为结果载体</td><td>Codex cloud、GitHub</td><td>代码评审自有工具，本品不重复</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=摘要</span><span class="chip">Codex=PR</span><span class="chip">Devin=全过程可看</span>
+      </article>
+
+      <article class="card" id="c-s7">
+        <h3>display id 与 Lesson</h3>
+        <p class="pick"><b>选择：</b>#N（任务）/#BUG-N（缺陷）project 内连续、永不复用；Lesson=来源同级的 type:lesson 子文档，委派时按引用自动携带、卡片内可增删。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>跨 project 移动要重新编号（frontmatter 记 moved_from）。</li>
+          <li>lesson 不做自动相关性检索（Stage 2+），可能漏带——先靠显式引用。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>全局唯一 id（ENG-123）</td><td>Linear、Jira</td><td>我们 project 即边界，够用且短</td></tr>
+          <tr><td>向量检索自动补 lesson</td><td>RAG 类</td><td>黑盒+成本，MVP 显式引用可控</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=项目内编号</span><span class="chip">GitHub=repo 内编号（同路）</span>
+      </article>
+    </div>
+
+    <div class="cluster-h">编辑与交互层</div>
+    <div class="cards">
+      <article class="card" id="c-u1">
+        <h3>Block 编辑器 + 块白名单</h3>
+        <p class="pick"><b>选择：</b>Notion 式 block 编辑（拖拽/转换/slash/markdown 快捷输入），块类型限定为"能无损写回 Markdown"的白名单。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>Notion 的高级块（database view、多列、同步块）做不了——被白名单挡住。</li>
+          <li>编辑器工程量是全项目最大单件；库选型（TipTap/Lexical/自研）待工程决策。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>源码/实时预览混合 MD 编辑</td><td>Obsidian、Typora</td><td>对非程序员不够"Notion 般顺滑"，slash/widget 难嵌</td></tr>
+          <tr><td>富文本（非 MD 语义）</td><td>Google Docs</td><td>写回 Markdown 必然有损，违 C1</td></tr>
+          <tr><td>纯 textarea + 预览</td><td>GitHub issue</td><td>体验与"始终可编辑"矛盾</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=block+MD 白名单</span><span class="chip">Logseq=outliner+文件（近路）</span><span class="chip">Notion=block+云 DB</span>
+      </article>
+
+      <article class="card" id="c-u3">
+        <h3>Chat 文字引用</h3>
+        <p class="pick"><b>选择：</b>选区以 blockquote 纯文字进输入框；可编辑可拼接；不做引用 chip widget。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>引用与原文的绑定变弱（正是 A7 锚定要解的）。</li>
+          <li>长引用占输入框空间（可手动删减——这也是灵活性的一面）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>引用 chip（结构化）</td><td>ChatGPT 选中回复、我们 v0.7 mock</td><td>不可编辑、不可拼接，用户明确否掉</td></tr>
+          <tr><td>锚定评论（挂在原文上）</td><td>Google Docs、Notion 评论</td><td>是"批注"不是"对话"，Chat 已定常驻右栏</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=纯文字 quote</span><span class="chip">ChatGPT=chip</span><span class="chip">Notion=块锚定评论</span>
+      </article>
+
+      <article class="card" id="c-u6">
+        <h3>三栏布局：右栏 Metadata + Chat 常驻</h3>
+        <p class="pick"><b>选择：</b>树 / 画布 / 右栏双区（上=当前页 frontmatter 渲染，下=本页 chat）；点开哪个文档右栏就换谁。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>横向空间紧（内容列被压到 ~708px，小屏右栏要收）。</li>
+          <li>chat 绑定当前页 → 跨页动静要靠铃铛补。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>属性内嵌页顶</td><td>Notion</td><td>结构化字段多时占正文；右栏更稳定</td></tr>
+          <tr><td>点击对象弹 Inspector</td><td>我们 v0.7 mock、设计工具</td><td>用户裁决：右栏应始终显示"当前页面"的信息</td></tr>
+          <tr><td>chat 全局单窗</td><td>Cursor、ChatGPT</td><td>失去"对话跟着文档走"的上下文性</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=页面级右栏</span><span class="chip">Cursor=全局 chat 栏</span><span class="chip">Notion=页顶属性+右滑评论</span>
+      </article>
+
+      <article class="card" id="c-u4">
+        <h3>Notion UX 批量继承（28 项）</h3>
+        <p class="pick"><b>选择：</b>凡 Notion 有对应交互一律照抄：即点即建、hover 菜单、拖拽移动、cmd+K、emoji picker、Trash 软删、Turn into、属性面板、@mention、折叠记忆、快捷键子集、空态占位……</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>被 Notion 的心智绑定：偏离处（右栏、文字引用、无目录）要自己扛认知成本。</li>
+          <li class="accepted">照抄也意味着继承其交互密度的实现成本（hover 态、拖拽是工程大头）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>键盘优先极简 UX</td><td>Linear</td><td>受众是"文档心智"用户，Notion 习惯迁移成本最低</td></tr>
+          <tr><td>逐项自研交互</td><td>—</td><td>52 项 gap 里 28 项白拿，没理由不拿</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=Notion 系</span><span class="chip">Linear=键盘系</span><span class="chip">Obsidian=编辑器系</span>
+      </article>
+
+      <article class="card" id="c-u5">
+        <h3>动静感知：铃铛 + 蓝点</h3>
+        <p class="pick"><b>选择：</b>顶栏铃铛（计数/转圈）+ popover 事件列表 + 树行蓝点；popover 非页面，守 C9。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>事件多了 popover 会挤（无归档/过滤——到那天再议，可能逼近 Inbox 红线）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>独立 Inbox 页</td><td>Notion、Linear、GitHub</td><td>违 C9（用户砍过独立 Message 导航）</td></tr>
+          <tr><td>只有树行蓝点</td><td>Slack 侧栏未读</td><td>树折叠时看不见，无统一时间线</td></tr>
+          <tr><td>不提示</td><td>Obsidian</td><td>loop 跑完无从知晓，违闭环体验</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=铃铛浮层</span><span class="chip">Notion/Linear=Inbox</span>
+      </article>
+
+      <article class="card" id="c-u7">
+        <h3>移动端范围（D15）</h3>
+        <p class="pick"><b>选择：</b>阅读优先 + 四动作（树抽屉 / 阅读 / chat / 长按引用）；编辑纯文本级；hover/拖拽以 ⋯ 菜单替代。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost"><li>移动端不能做结构编辑（挪块/转块）——接受，主场景在桌面。</li></ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>全功能移动编辑</td><td>Notion mobile</td><td>成本极高，V1 不值</td></tr>
+          <tr><td>不做移动端</td><td>多数桌面工具</td><td>"随手看进度/回 chat"是真实场景</td></tr>
+        </table>
+      </article>
+    </div>
+
+    <div class="cluster-h">Agent 执行层</div>
+    <div class="cards">
+      <article class="card" id="c-g1">
+        <h3>文件即 API：双向集成</h3>
+        <p class="pick"><b>选择：</b>外部 agent 直接读写项目目录（AGENTS.md 说明契约）：读根文档渐进披露、追加 attempt、建 lesson/子文档。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>格式即契约：文件约定一变，所有 agent 的"技能"都要跟着改。</li>
+          <li>无法细粒度鉴权（文件系统级全有或全无）——单人 MVP 接受。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>REST/MCP API 集成</td><td>Notion API、Linear API</td><td>agent 要学接口；文件是 coding agent 的母语</td></tr>
+          <tr><td>只出不进（单向）</td><td>多数"AI 增强"工具</td><td>断了回流闭环的后半环</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=文件契约</span><span class="chip us">Claude Code=CLAUDE.md/AGENTS.md 同路</span><span class="chip">Notion=API</span>
+      </article>
+
+      <article class="card" id="c-g2">
+        <h3>外部直改 + 事后可撤（含 D1 合并）</h3>
+        <p class="pick"><b>选择：</b>外部 agent 改动/建档直接生效；应用实时高亮、chat 留痕、undo、铃铛；人机同文档冲突走块级合并（冲突块保本地+外部版可采纳），不弹窗。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>坏改动会先落盘（靠 undo/trash/git 兜底）。</li>
+          <li>块级合并是同步机制里最难写对的部分。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>提议制（accept 后生效）</td><td>Google Docs suggestion、Cursor diff</td><td>Loop 每步等点头，闭环失效；文件层也拦不住</td></tr>
+          <tr><td>PR 制（分支+评审）</td><td>Codex cloud</td><td>面向代码合适；对"项目记忆文档"太重</td></tr>
+          <tr><td>锁文件（编辑期独占）</td><td>传统协同</td><td>阻断 agent 长任务，体验差</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=直改+撤销</span><span class="chip us">Claude Code=同路（git 兜底）</span><span class="chip">Cursor=diff accept</span><span class="chip">Docs=suggestion</span>
+      </article>
+
+      <article class="card" id="c-g4">
+        <h3>委派 = 轻确认卡</h3>
+        <p class="pick"><b>选择：</b>Delegate → 紧凑卡片列出携带上下文（根文档/当前页/引用/lesson，可增删）→ Start → 运行态 → 写回。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost"><li>比零确认多一步（高频时靠"直接回车=默认全带"减负）。</li></ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>零确认直接跑</td><td>Devin 式自治</td><td>看不见 agent 将带走什么，spec 承诺过预览</td></tr>
+          <tr><td>完整向导</td><td>CI/CD 触发配置</td><td>高频操作过重</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=轻确认</span><span class="chip">Cursor=@ 手动圈上下文</span><span class="chip">Codex cloud=零确认（repo 全量）</span>
+      </article>
+
+      <article class="card" id="c-g5">
+        <h3>锚定 = 智能匹配 + 降级</h3>
+        <p class="pick"><b>选择：</b>锚 = 引用文字 + 就近标题路径；Apply 时模糊匹配；置信不足提示手动放置。不注入 block id。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost"><li class="accepted">偶发失配（大改后）→ 降级到"手动放置"，接受。</li><li>匹配器要调（容错阈值、重复文本消歧）。</li></ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>块 id 写入文件</td><td>Notion（内部）、Logseq(id::)、Obsidian(^ref)</td><td>污染每个 .md，外部 agent 还得维护——违"文件纯净"</td></tr>
+          <tr><td>只锚到 Section</td><td>—</td><td>做不了句子级精修</td></tr>
+          <tr><td>CRDT 位置</td><td>Google Docs</td><td>要求富文本内核，违 C1</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=文字匹配</span><span class="chip">VS Code 注释锚/Review 工具=同路（近似匹配）</span><span class="chip">Logseq=id 进文件</span>
+      </article>
+
+      <article class="card" id="c-g6">
+        <h3>顺序 Loop（含 D8/D9/D10 语义）</h3>
+        <p class="pick"><b>选择：</b>Loop=文档，队列=正文链接列表；顺序执行；失败暂停（Retry/Skip/Stop 红条）；Pause=跑完当前项；blocked 跳过并记录；一个 task 同时只一个 attempt。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost">
+          <li>无并行/条件分支（大批量修 bug 吞吐受限）——接受，换可理解性。</li>
+          <li>中断外部 session 不保证成功（标 abandoned）。</li>
+        </ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>DAG/流程画布</td><td>n8n、Zapier、GitHub Actions</td><td>决策 #02 明确砍掉</td></tr>
+          <tr><td>并行 agent 池</td><td>Devin 多 session、agentrunner</td><td>结果冲突与互斥复杂度爆炸，V1 不做</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=顺序队列</span><span class="chip">Actions=DAG</span><span class="chip">Devin=并行自治</span>
+      </article>
+
+      <article class="card" id="c-g8">
+        <h3>Assistant / 外部 agent 分工（D5/D6/D7）</h3>
+        <p class="pick"><b>选择：</b>选择器 = Assistant（内置轻模型：改写/总结/task 描述/页内问答，内联 Accept）/ Codex / Claude Code（一切碰代码的）；Delegate 永远外部；slash 只做 /task /delegate /doc /lesson；View run 纯外链。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost"><li>内置模型有 API 成本与幻觉面；分工线靠 UI 默认引导，用户仍可能用错。</li></ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>全部外部 agent</td><td>—</td><td>改一句话也起 session，太慢太贵</td></tr>
+          <tr><td>全部内置大模型</td><td>Notion AI</td><td>做不了真代码执行，定位如此</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=分层</span><span class="chip">Notion AI=只内置</span><span class="chip">Linear=委外部 agent</span>
+      </article>
+
+      <article class="card" id="c-g9">
+        <h3>运行环境边界（D12/D13/D14）</h3>
+        <p class="pick"><b>选择：</b>V1 单 vault（首启选目录）；允许多窗口——另一窗口按"外部改动来源"处理，复用 D1；agent 未配置/坏 frontmatter 用黄条降级不阻断。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost"><li>多窗口的编辑合并体验依赖 D1 质量；单 vault 不能同时开两套项目库。</li></ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>多 vault 切换器</td><td>Obsidian</td><td>V1 场景单库够用，成本后置</td></tr>
+          <tr><td>禁多窗口</td><td>部分本地应用</td><td>复用 D1 后无必要</td></tr>
+        </table>
+      </article>
+
+      <article class="card" id="c-t1">
+        <h3>技术栈</h3>
+        <p class="pick"><b>选择：</b>React+Vite+TS+Tailwind v4；shadcn/ui + Radix 能用则用（源码拷入换肤）；lucide 图标；Stage 1 内存 store → Stage 2 真 SQLite+watcher。</p>
+        <div class="klabel">代价</div>
+        <ul class="cost"><li>shadcn 拷入即自维护（无 npm 升级路径）；编辑器不在其覆盖内仍需选型。</li></ul>
+        <div class="klabel">替代方案</div>
+        <table class="alts"><tr><th>方案</th><th>产品</th><th>没选的原因</th></tr>
+          <tr><td>MUI/AntD 整套组件库</td><td>企业后台系</td><td>观感强绑定，Notion 风换肤成本反而高</td></tr>
+          <tr><td>Headless UI/自研全部</td><td>—</td><td>Radix 白拿可达性与弹层语义，没理由自研</td></tr>
+        </table>
+        <div class="klabel">先例</div>
+        <span class="chip us">我们=shadcn/Radix</span><span class="chip">Linear=自研设计系统</span>
+      </article>
+    </div>
+  </section>
+
+  <!-- ═══════════ ③ 对照矩阵 ═══════════ -->
+  <section class="panel">
+    <h2 class="pt">③ 产品 × 决策对照矩阵</h2>
+    <p class="pt-sub">同一决策维度上各产品的选择。紫色列 = 我们。空白/— = 该产品无此概念。</p>
+    <div class="mwrap">
+    <table class="matrix">
+      <thead><tr>
+        <th>决策维度</th><th style="background:var(--accent-weak)">Context Center</th><th>Notion</th><th>Obsidian</th><th>Linear</th><th>GitHub</th><th>Cursor</th><th>Codex cloud / Devin</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>真相存储</td><td class="us">本地 Markdown 文件</td><td>云端块 DB</td><td>本地 Markdown 文件</td><td>云端结构化 DB</td><td>git 仓库</td><td>本地代码文件</td><td>云端工作区</td></tr>
+        <tr><td>内容组织</td><td class="us">文档嵌套树（无目录概念）</td><td>页面嵌套 + database</td><td>文件夹 + 文件</td><td>扁平 issue + project</td><td>repo + issue 列表</td><td>目录树</td><td>repo</td></tr>
+        <tr><td>编辑模型</td><td class="us">block 编辑器（MD 白名单）</td><td>block 编辑器</td><td>MD 源码/实时预览</td><td>表单 + md 描述</td><td>textarea + 预览</td><td>代码编辑器</td><td><span class="n">—</span></tr>
+        <tr><td>任务形态</td><td class="us">任务即文档 + 惰性物化</td><td>database 行 / checkbox</td><td>文本行（插件）</td><td>强 schema issue</td><td>issue + tasklist</td><td><span class="n">—</span></td><td>任务描述文本</td></tr>
+        <tr><td>结构化元数据</td><td class="us">frontmatter + 右栏面板</td><td>properties</td><td>frontmatter</td><td>固定字段 schema</td><td>labels/milestone</td><td><span class="n">—</span></td><td><span class="n">—</span></td></tr>
+        <tr><td>引用锚定</td><td class="us">文字+标题路径模糊匹配</td><td>block id（内部）</td><td>^块引用（写入文件）</td><td><span class="n">—</span></td><td>行号（diff 锚）</td><td>行号/选区</td><td><span class="n">—</span></td></tr>
+        <tr><td>AI 改动生效方式</td><td class="us">外部直改+撤销；内置内联 Accept</td><td>Notion AI 内联 Accept</td><td>插件各异</td><td>agent 委派（结果回填）</td><td>Copilot → PR</td><td>diff Accept/Reject</td><td>直接改 → 出 PR / 汇报</td></tr>
+        <tr><td>执行主体</td><td class="us">外部 Codex/Claude Code</td><td>内置 AI（不执行代码）</td><td><span class="n">—</span></td><td>外部 agent（2025 起）</td><td>Copilot/Actions</td><td>内置 agent</td><td>自研自治 agent</td></tr>
+        <tr><td>执行过程可见性</td><td class="us">只留结果摘要（View run 外链）</td><td><span class="n">—</span></td><td><span class="n">—</span></td><td>activity log</td><td>PR diff + CI log</td><td>全过程可见</td><td>全过程可见</td></tr>
+        <tr><td>批量自动化</td><td class="us">顺序 Loop（文档即队列）</td><td>轻量 automations</td><td><span class="n">—</span></td><td>规则自动化</td><td>Actions（DAG）</td><td><span class="n">—</span></td><td>多 session 并行</td></tr>
+        <tr><td>通知</td><td class="us">铃铛 popover + 树行蓝点</td><td>Inbox 页</td><td>无</td><td>Inbox 页</td><td>通知页</td><td><span class="n">—</span></td><td>状态推送</td></tr>
+        <tr><td>chat 选区引用</td><td class="us">blockquote 纯文字</td><td>块锚定评论</td><td>无</td><td>评论</td><td>行内评论</td><td>@ 圈选上下文</td><td><span class="n">—</span></td></tr>
+        <tr><td>删除语义</td><td class="us">Trash 软删（.contextcenter/trash）</td><td>Trash</td><td>系统回收站(可配)</td><td>归档</td><td>close（不删）</td><td><span class="n">—</span></td><td><span class="n">—</span></td></tr>
+        <tr><td>知识沉淀</td><td class="us">Lesson 文档 + 显式引用回流</td><td>页面本身</td><td>笔记本身</td><td><span class="n">—</span></td><td><span class="n">—</span></td><td>rules 文件</td><td>knowledge 条目</td></tr>
+        <tr><td>文件名/标识</td><td class="us">标题即文件名（中文保留）</td><td>无文件概念</td><td>用户自起文件名</td><td>ENG-123 全局 id</td><td>#N repo 内</td><td><span class="n">—</span></td><td><span class="n">—</span></td></tr>
+        <tr><td>协作范围</td><td class="us">单人 MVP（无用户/权限）</td><td>实时多人</td><td>单人+付费 Sync</td><td>团队</td><td>团队</td><td>单人</td><td>单人→团队</td></tr>
+        <tr><td>组件栈</td><td class="us">shadcn/ui + Radix 换肤</td><td>自研</td><td>自研(Electron)</td><td>自研设计系统</td><td>Primer</td><td>VS Code 壳</td><td><span class="n">—</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <p class="foot">来源：constitution.md（C1–C9，3 次修宪）· spec.md v0.9 · plan.md · gaps.md（52 项，✅34/🟡7/⬜11）· pending-decisions.md（D1–D15）。产品对照为公开产品行为的概括，用于设计参照而非精确评测。生成于 2026-08-16。</p>
+</main>
+</body>
+</html>
