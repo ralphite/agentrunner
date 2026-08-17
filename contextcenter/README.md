@@ -17,7 +17,8 @@ Document-first、Agent-aware 的项目工作空间原型。人和 AI 在同一�
 | `specs/spec.md` | 产品 Spec（功能、模型、交互、验收标准；版本号见文件头） |
 | `specs/plan.md` | 技术方案：文件格式约定、原型分期、UI 基准 |
 | `specs/tasks.md` | Stage 1 可交互原型的实施拆解 |
-| `specs/gaps.md` | 未定义清单（Gap Audit）：P0 裁决完之前 Stage 1 冻结 |
+| `specs/gaps.md` | 未定义清单（Gap Audit）：52 项全标注，P0 已清零 |
+| `specs/pending-decisions.md` | 剩余待决 D1–D15（含建议方案）+ 已决事项 review 清单 |
 | `app/` | **shadcn/ui + Radix 版应用壳**（React + Vite + TS + Tailwind v4；`npm i && npm run dev`）——mock 的正式栈迁移，行为仍为演示级 |
 | `mock/index.html` | Stage 0 高保真 HTML mock（历史基线，浏览器直接打开） |
 | `reference/product-record.html` | 源头：ChatGPT session 的完整产品记录（v0.6 Spec + 需求归纳 + 16 轮决策） |
