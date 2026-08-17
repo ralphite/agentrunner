@@ -100,8 +100,9 @@ vault 顶层的一个 `type: project` 文件）。目录的创建/清理由应�
 - **图片/附件**：粘贴时落盘到文档同级 `assets/`，正文插相对链接。
 - **Trash**：软删移入 `<vault>/.contextcenter/trash/`（保留原相对路
   径），Trash 内永久删除才真删；指向已删文档的链接标 broken。
-- **slug（待用户确认 ▷）**：文件名 = title 的 slug 化（中文保留原
-  文）；rename 即改文件名并改写全部入链；frontmatter 不设 title 字段。
+- **文件名（已确认）**：文件名 = 标题（中文保留原文，非法字符替换）；
+  rename 即改文件名并改写全部入链；frontmatter 不设 title 字段；同名
+  加 `-2`，超长截断。
 
 ### 3.2 通用 frontmatter
 

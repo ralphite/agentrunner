@@ -33,10 +33,10 @@ constitution / spec / plan / tasks；只取其文档形态，不引入其 CLI �
 - **app/ 壳已启动（用户指示 2026-08-16）**：mock 迁移到正式栈
   （shadcn/ui + Radix），视觉 1:1、控件真实（下拉/右键菜单/tooltip/
   状态单源联动）；行为层 gaps 未裁决的部分仍是演示级。
-- **⚠️ 行为层开发仍冻结**：编辑器模型、Agent 协议、对象生命周期见
-  `specs/gaps.md`；P0 项裁决完成前不实现。
-- **Stage 1（裁决后）**：在 app/ 上落数据层（`specs/plan.md` 文件格式
-  + SQLite 伴随库）与真实行为。
+- **✅ P0 已清零（2026-08-16），行为层解冻**：编辑器/Agent 协议/生命
+  周期的关键裁决全部落档，见 `specs/gaps.md`；剩余开放项非阻塞。
+- **Stage 1（进行中）**：在 app/ 上落数据层（`specs/plan.md` 文件格式
+  + SQLite 伴随库）与真实行为，按 `specs/tasks.md` 推进。
 - **Stage 2（后续）**：真文件系统落盘 + 真 Coding Agent 适配。
 
 ## 设计基准
